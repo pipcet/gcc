@@ -7288,95 +7288,6 @@ ix86_return_pops_args (tree fundecl, tree funtype, int size)
 
   return 0;
 }
-
-/* Implement the TARGET_LEGITIMATE_COMBINED_INSN hook.  */
-
-static bool
-ix86_legitimate_combined_insn (rtx_insn *insn)
-{
-  /* Check operand constraints in case hard registers were propagated
-     into insn pattern.  This check prevents combine pass from
-     generating insn patterns with invalid hard register operands.
-     These invalid insns can eventually confuse reload to error out
-     with a spill failure.  See also PRs 46829 and 46843.  */
-  if ((INSN_CODE (insn) = recog (PATTERN (insn), insn, 0)) >= 0)
-    {
-      int i;
-
-      extract_insn (insn);
-      preprocess_constraints (insn);
-
-      int n_operands = recog_data.n_operands;
-      int n_alternatives = recog_data.n_alternatives;
-      for (i = 0; i < n_operands; i++)
-	{
-	  rtx op = recog_data.operand[i];
-	  machine_mode mode = GET_MODE (op);
-	  const operand_alternative *op_alt;
-	  int offset = 0;
-	  bool win;
-	  int j;
-
-	  /* For pre-AVX disallow unaligned loads/stores where the
-	     instructions don't support it.  */
-	  if (!TARGET_AVX
-	      && VECTOR_MODE_P (mode)
-	      && misaligned_operand (op, mode))
-	    {
-	      unsigned int min_align = get_attr_ssememalign (insn);
-	      if (min_align == 0
-		  || MEM_ALIGN (op) < min_align)
-		return false;
-	    }
-
-	  /* A unary operator may be accepted by the predicate, but it
-	     is irrelevant for matching constraints.  */
-	  if (UNARY_P (op))
-	    op = XEXP (op, 0);
-
-	  if (SUBREG_P (op))
-	    {
-	      if (REG_P (SUBREG_REG (op))
-		  && REGNO (SUBREG_REG (op)) < FIRST_PSEUDO_REGISTER)
-		offset = subreg_regno_offset (REGNO (SUBREG_REG (op)),
-					      GET_MODE (SUBREG_REG (op)),
-					      SUBREG_BYTE (op),
-					      GET_MODE (op));
-	      op = SUBREG_REG (op);
-	    }
-
-	  if (!(REG_P (op) && HARD_REGISTER_P (op)))
-	    continue;
-
-	  op_alt = recog_op_alt;
-
-	  /* Operand has no constraints, anything is OK.  */
- 	  win = !n_alternatives;
-
-	  alternative_mask preferred = get_preferred_alternatives (insn);
-	  for (j = 0; j < n_alternatives; j++, op_alt += n_operands)
-	    {
-	      if (!TEST_BIT (preferred, j))
-		continue;
-	      if (op_alt[i].anything_ok
-		  || (op_alt[i].matches != -1
-		      && operands_match_p
-			  (recog_data.operand[i],
-			   recog_data.operand[op_alt[i].matches]))
-		  || reg_fits_class_p (op, op_alt[i].cl, offset, mode))
-		{
-		  win = true;
-		  break;
-		}
-	    }
-
-	  if (!win)
-	    return false;
-	}
-    }
-
-  return true;
-}
 
 /* Implement the TARGET_ASAN_SHADOW_OFFSET hook.  */
 
@@ -39859,7 +39770,7 @@ ix86_expand_special_args_builtin (const struct builtin_description *d,
 	     on it.  Try to improve it using get_pointer_alignment,
 	     and if the special builtin is one that requires strict
 	     mode alignment, also from it's GET_MODE_ALIGNMENT.
-	     Failure to do so could lead to ix86_legitimate_combined_insn
+	     Failure to do so could lead to vector_memory_operand
 	     rejecting all changes to such insns.  */
 	  unsigned int align = get_pointer_alignment (arg);
 	  if (aligned_mem && align < GET_MODE_ALIGNMENT (tmode))
@@ -39915,7 +39826,7 @@ ix86_expand_special_args_builtin (const struct builtin_description *d,
 		 on it.  Try to improve it using get_pointer_alignment,
 		 and if the special builtin is one that requires strict
 		 mode alignment, also from it's GET_MODE_ALIGNMENT.
-		 Failure to do so could lead to ix86_legitimate_combined_insn
+		 Failure to do so could lead to vector_memory_operand
 		 rejecting all changes to such insns.  */
 	      unsigned int align = get_pointer_alignment (arg);
 	      if (aligned_mem && align < GET_MODE_ALIGNMENT (mode))
@@ -54464,9 +54375,6 @@ ix86_addr_space_zero_address_valid (addr_space_t as)
 #define TARGET_TRAMPOLINE_INIT ix86_trampoline_init
 #undef TARGET_RETURN_POPS_ARGS
 #define TARGET_RETURN_POPS_ARGS ix86_return_pops_args
-
-#undef TARGET_LEGITIMATE_COMBINED_INSN
-#define TARGET_LEGITIMATE_COMBINED_INSN ix86_legitimate_combined_insn
 
 #undef TARGET_ASAN_SHADOW_OFFSET
 #define TARGET_ASAN_SHADOW_OFFSET ix86_asan_shadow_offset
