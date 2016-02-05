@@ -3949,6 +3949,10 @@ which the caller passes the value, and
 fashion to tell the function being called where the arguments will
 arrive.
 
+@code{TARGET_FUNCTION_INCOMING_ARG} can also return arbitrary address
+computation using hard register, which can be forced into a register,
+so that it can be used to pass special arguments.
+
 If @code{TARGET_FUNCTION_INCOMING_ARG} is not defined,
 @code{TARGET_FUNCTION_ARG} serves both purposes.
 @end deftypefn
