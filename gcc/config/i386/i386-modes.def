@@ -98,10 +98,5 @@ POINTER_BOUNDS_MODE (BND64, 16);
 INT_MODE (OI, 32);
 INT_MODE (XI, 64);
 
-/* Keep the OI and XI modes from confusing the compiler into thinking
-   that these modes could actually be used for computation.  They are
-   only holders for vectors during data movement.  */
-#define MAX_BITSIZE_MODE_ANY_INT (128)
-
 /* The symbol Pmode stands for one of the above machine modes (usually SImode).
    The tm.h file specifies which one.  It is not a distinct mode.  */
