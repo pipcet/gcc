@@ -1928,12 +1928,33 @@ typedef struct ix86_args {
 
 /* Max number of bytes we can move from memory to memory
    in one reasonably fast instruction.  */
-#define MOVE_MAX 16
+#define MOVE_MAX 64
 
 /* MOVE_MAX_PIECES is the number of bytes at a time which we can
    move efficiently, as opposed to  MOVE_MAX which is the maximum
    number of bytes we can move with a single instruction.  */
-#define MOVE_MAX_PIECES UNITS_PER_WORD
+#define MOVE_MAX_PIECES \
+  (TARGET_AVX512F \
+   ? 64 \
+   : (TARGET_AVX \
+      ? ((!TARGET_AVX256_SPLIT_UNALIGNED_LOAD \
+	  && !TARGET_AVX256_SPLIT_UNALIGNED_STORE) ? 32 : 16) \
+      : ((TARGET_SSE2 \
+	  && TARGET_SSE_UNALIGNED_LOAD_OPTIMAL \
+	  && TARGET_SSE_UNALIGNED_STORE_OPTIMAL) \
+	 ? 16 : UNITS_PER_WORD)))
+
+/* STORE_MAX_PIECES is the number of bytes at a time that we can
+   store efficiently.  */
+#define STORE_MAX_PIECES \
+  (TARGET_AVX512F \
+   ? 64 \
+   : (TARGET_AVX \
+      ? ((!TARGET_AVX256_SPLIT_UNALIGNED_STORE \
+	  && !TARGET_AVX256_SPLIT_UNALIGNED_STORE) ? 32 : 16) \
+      : ((TARGET_SSE2 \
+	  && TARGET_SSE_UNALIGNED_STORE_OPTIMAL) \
+	 ? 16 : UNITS_PER_WORD)))
 
 /* If a memory-to-memory move would take MOVE_RATIO or more simple
    move-instruction pairs, we will do a movmem or libcall instead.
