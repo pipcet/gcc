@@ -733,7 +733,7 @@ alignment_for_piecewise_move (unsigned int max_pieces, unsigned int align)
 {
   machine_mode tmode;
 
-  tmode = mode_for_size (max_pieces * BITS_PER_UNIT, MODE_INT, 1);
+  tmode = mode_for_size (max_pieces * BITS_PER_UNIT, MODE_INT, 0);
   if (align >= GET_MODE_ALIGNMENT (tmode))
     align = GET_MODE_ALIGNMENT (tmode);
   else
