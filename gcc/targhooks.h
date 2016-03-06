@@ -254,4 +254,6 @@ extern void default_setup_incoming_vararg_bounds (cumulative_args_t ca ATTRIBUTE
 extern bool default_optab_supported_p (int, machine_mode, machine_mode,
 				       optimization_type);
 
+extern rtx default_gen_memset_value (rtx, machine_mode);
+
 #endif /* GCC_TARGHOOKS_H */

@@ -88,7 +88,6 @@ builtin_info_type builtin_info[(int)END_BUILTINS];
 /* Non-zero if __builtin_constant_p should be folded right away.  */
 bool force_folding_builtin_constant_p;
 
-static rtx c_readstr (const char *, machine_mode);
 static int target_char_cast (tree, char *);
 static rtx get_memory_rtx (tree, tree);
 static int apply_args_size (void);
@@ -619,7 +618,7 @@ c_strlen (tree src, int only_value)
 /* Return a constant integer corresponding to target reading
    GET_MODE_BITSIZE (MODE) bits from string constant STR.  */
 
-static rtx
+rtx
 c_readstr (const char *str, machine_mode mode)
 {
   HOST_WIDE_INT ch;
@@ -3414,21 +3413,10 @@ static rtx
 builtin_memset_gen_str (void *data, HOST_WIDE_INT offset ATTRIBUTE_UNUSED,
 			machine_mode mode)
 {
-  rtx target, coeff;
-  size_t size;
-  char *p;
-
-  size = GET_MODE_SIZE (mode);
-  if (size == 1)
+  if (GET_MODE_SIZE (mode) == 1)
     return (rtx) data;
 
-  p = XALLOCAVEC (char, size);
-  memset (p, 1, size);
-  coeff = c_readstr (p, mode);
-
-  target = convert_to_mode (mode, (rtx) data, 1);
-  target = expand_mult (mode, target, coeff, NULL_RTX, 1);
-  return force_reg (mode, target);
+  return targetm.gen_memset_value ((rtx) data, mode);
 }
 
 /* Expand expression EXP, which is a call to the memset builtin.  Return

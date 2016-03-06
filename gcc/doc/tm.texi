@@ -11394,6 +11394,13 @@ This function prepares to emit a conditional comparison within a sequence
  @var{bit_code} is @code{AND} or @code{IOR}, which is the op on the compares.
 @end deftypefn
 
+@deftypefn {Target Hook} rtx TARGET_GEN_MEMSET_VALUE (rtx @var{data}, machine_mode @var{mode})
+This functio returns the RTL of a register containing
+@code{GET_MODE_SIZE (@var{mode})} consecutive copies of the unsigned
+char value given in the RTL register @var{data}.  For example, if
+@var{mode} is 4 bytes wide, return the RTL for 0x01010101*@var{data}.
+@end deftypefn
+
 @deftypefn {Target Hook} unsigned TARGET_LOOP_UNROLL_ADJUST (unsigned @var{nunroll}, struct loop *@var{loop})
 This target hook returns a new value for the number of times @var{loop}
 should be unrolled. The parameter @var{nunroll} is the number of times

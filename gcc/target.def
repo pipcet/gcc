@@ -2638,6 +2638,15 @@ DEFHOOK
  rtx, (rtx *prep_seq, rtx *gen_seq, rtx prev, int cmp_code, tree op0, tree op1, int bit_code),
  NULL)
 
+DEFHOOK
+(gen_memset_value,
+ "This functio returns the RTL of a register containing\n\
+@code{GET_MODE_SIZE (@var{mode})} consecutive copies of the unsigned\n\
+char value given in the RTL register @var{data}.  For example, if\n\
+@var{mode} is 4 bytes wide, return the RTL for 0x01010101*@var{data}.",
+ rtx, (rtx data, machine_mode mode),
+ default_gen_memset_value)
+
 /* Return a new value for loop unroll size.  */
 DEFHOOK
 (loop_unroll_adjust,

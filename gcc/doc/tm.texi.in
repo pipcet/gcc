@@ -8088,6 +8088,8 @@ build_type_attribute_variant (@var{mdecl},
 
 @hook TARGET_GEN_CCMP_NEXT
 
+@hook TARGET_GEN_MEMSET_VALUE
+
 @hook TARGET_LOOP_UNROLL_ADJUST
 
 @defmac POWI_MAX_MULTS
