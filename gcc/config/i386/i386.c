@@ -10689,18 +10689,31 @@ standard_80387_constant_rtx (int idx)
    in supported SSE/AVX vector mode.  */
 
 int
-standard_sse_constant_p (rtx x)
+standard_sse_constant_p (rtx x, machine_mode mode)
 {
-  machine_mode mode;
-
   if (!TARGET_SSE)
     return 0;
 
-  mode = GET_MODE (x);
-  
+  if (mode == VOIDmode)
+    mode = GET_MODE (x);
+
   if (x == const0_rtx || x == CONST0_RTX (mode))
     return 1;
-  if (vector_all_ones_operand (x, mode))
+  if (CONST_INT_P (x))
+    {
+      /* If mode != VOIDmode, standard_sse_constant_p must be called:
+	 1. On TImode with SSE2.
+	 2. On OImode with AVX2.
+	 3. On XImode with AVX512F.
+       */
+      if ((HOST_WIDE_INT) INTVAL (x) == HOST_WIDE_INT_M1
+	  && (mode == VOIDmode
+	      || (mode == TImode && TARGET_SSE2)
+	      || (mode == OImode && TARGET_AVX2)
+	      || (mode == XImode && TARGET_AVX512F)))
+	return 2;
+    }
+  else if (vector_all_ones_operand (x, mode))
     switch (mode)
       {
       case V16QImode:
@@ -18682,7 +18695,7 @@ ix86_expand_vector_move (machine_mode mode, rtx operands[])
       && (CONSTANT_P (op1)
 	  || (SUBREG_P (op1)
 	      && CONSTANT_P (SUBREG_REG (op1))))
-      && !standard_sse_constant_p (op1))
+      && !standard_sse_constant_p (op1, mode))
     op1 = validize_mem (force_const_mem (mode, op1));
 
   /* We need to check memory alignment for SSE mode since attribute

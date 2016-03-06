@@ -48,7 +48,7 @@ extern void ix86_reset_previous_fndecl (void);
 extern int standard_80387_constant_p (rtx);
 extern const char *standard_80387_constant_opcode (rtx);
 extern rtx standard_80387_constant_rtx (int);
-extern int standard_sse_constant_p (rtx);
+extern int standard_sse_constant_p (rtx, machine_mode = VOIDmode);
 extern const char *standard_sse_constant_opcode (rtx_insn *, rtx);
 extern bool symbolic_reference_mentioned_p (rtx);
 extern bool extended_reg_mentioned_p (rtx);
