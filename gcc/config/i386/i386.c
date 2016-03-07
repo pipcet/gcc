@@ -2769,11 +2769,10 @@ convertible_comparison_p (rtx_insn *insn)
   return true;
 }
 
-/* Return 1 if INSN may be converted into vector
-   instruction.  */
+/* The 32-bit version of scalar_to_vector_candidate_p.  */
 
 static bool
-scalar_to_vector_candidate_p (rtx_insn *insn)
+scalar_to_vector_candidate_p_32 (rtx_insn *insn)
 {
   rtx def_set = single_set (insn);
 
@@ -2833,16 +2832,79 @@ scalar_to_vector_candidate_p (rtx_insn *insn)
   return true;
 }
 
-/* For a given bitmap of insn UIDs scans all instruction and
-   remove insn from CANDIDATES in case it has both convertible
-   and not convertible definitions.
+/* The 64-bit version of scalar_to_vector_candidate_p.  */
 
-   All insns in a bitmap are conversion candidates according to
-   scalar_to_vector_candidate_p.  Currently it implies all insns
-   are single_set.  */
+static bool
+scalar_to_vector_candidate_p_64 (rtx_insn *insn)
+{
+  rtx def_set = single_set (insn);
+
+  if (!def_set)
+    return false;
+
+  if (has_non_address_hard_reg (insn))
+    return false;
+
+  rtx src = SET_SRC (def_set);
+  rtx dst = SET_DEST (def_set);
+
+  /* Only TImode load and store are allowed.  */
+  if (GET_MODE (dst) != TImode)
+    return false;
+
+  if (MEM_P (dst))
+    {
+      /* Check for store.  Only support store from register or standard
+	 SSE constants.  */
+      switch (GET_CODE (src))
+	{
+	default:
+	  return false;
+
+	case REG:
+	  /* For store from register, memory must be aligned or both
+	     unaligned load and store are optimal.  */
+	  return (!misaligned_operand (dst, TImode)
+		  || (TARGET_SSE_UNALIGNED_LOAD_OPTIMAL
+		      && TARGET_SSE_UNALIGNED_STORE_OPTIMAL));
+
+	case CONST_INT:
+	  /* For store from standard SSE constant, memory must be
+	     aligned or unaligned store is optimal.  */
+	  return (standard_sse_constant_p (src)
+		  && (!misaligned_operand (dst, TImode)
+		      || TARGET_SSE_UNALIGNED_STORE_OPTIMAL));
+	}
+    }
+  else if (MEM_P (src))
+    {
+      /* Check for load.  Memory must be aligned or both unaligned
+	 load and store are optimal.  */
+      return (GET_CODE (dst) == REG
+	      && (!misaligned_operand (src, TImode)
+		  || (TARGET_SSE_UNALIGNED_LOAD_OPTIMAL
+		      && TARGET_SSE_UNALIGNED_STORE_OPTIMAL)));
+    }
+
+  return false;
+}
+
+/* Return 1 if INSN may be converted into vector
+   instruction.  */
+
+static bool
+scalar_to_vector_candidate_p (rtx_insn *insn)
+{
+  if (TARGET_64BIT)
+    return scalar_to_vector_candidate_p_64 (insn);
+  else
+    return scalar_to_vector_candidate_p_32 (insn);
+}
+
+/* The 32-bit version of remove_non_convertible_regs.  */
 
 static void
-remove_non_convertible_regs (bitmap candidates)
+remove_non_convertible_regs_32 (bitmap candidates)
 {
   bitmap_iterator bi;
   unsigned id;
@@ -2893,11 +2955,130 @@ remove_non_convertible_regs (bitmap candidates)
   BITMAP_FREE (regs);
 }
 
+/* For a register REGNO, scan instructions for its defs and uses.
+   Put REGNO in REGS if a def or use isn't in CANDIDATES.  */
+
+static void
+check_non_convertible_regs_64 (bitmap candidates, bitmap regs,
+			       unsigned int regno)
+{
+  for (df_ref def = DF_REG_DEF_CHAIN (regno);
+       def;
+       def = DF_REF_NEXT_REG (def))
+    {
+      if (!bitmap_bit_p (candidates, DF_REF_INSN_UID (def)))
+	{
+	  if (dump_file)
+	    fprintf (dump_file,
+		     "r%d has non convertible def in insn %d\n",
+		     regno, DF_REF_INSN_UID (def));
+
+	  bitmap_set_bit (regs, regno);
+	  break;
+	}
+    }
+
+  for (df_ref ref = DF_REG_USE_CHAIN (regno);
+       ref;
+       ref = DF_REF_NEXT_REG (ref))
+    {
+      /* Debug instructions are skipped.  */
+      if (NONDEBUG_INSN_P (DF_REF_INSN (ref))
+	  && !bitmap_bit_p (candidates, DF_REF_INSN_UID (ref)))
+	{
+	  if (dump_file)
+	    fprintf (dump_file,
+		     "r%d has non convertible use in insn %d\n",
+		     regno, DF_REF_INSN_UID (ref));
+
+	  bitmap_set_bit (regs, regno);
+	  break;
+	}
+    }
+}
+
+/* The 64-bit version of remove_non_convertible_regs.  */
+
+static void
+remove_non_convertible_regs_64 (bitmap candidates)
+{
+  bitmap_iterator bi;
+  unsigned id;
+  bitmap regs = BITMAP_ALLOC (NULL);
+
+  EXECUTE_IF_SET_IN_BITMAP (candidates, 0, id, bi)
+    {
+      rtx def_set = single_set (DF_INSN_UID_GET (id)->insn);
+      rtx dest = SET_DEST (def_set);
+      rtx src = SET_SRC (def_set);
+
+      if ((!REG_P (dest)
+	   || bitmap_bit_p (regs, REGNO (dest))
+	   || HARD_REGISTER_P (dest))
+	  && (!REG_P (src)
+	      || bitmap_bit_p (regs, REGNO (src))
+	      || HARD_REGISTER_P (src)))
+	continue;
+
+      if (REG_P (dest))
+	check_non_convertible_regs_64 (candidates, regs, REGNO (dest));
+
+      if (REG_P (src))
+	check_non_convertible_regs_64 (candidates, regs, REGNO (src));
+    }
+
+  EXECUTE_IF_SET_IN_BITMAP (regs, 0, id, bi)
+    {
+      for (df_ref def = DF_REG_DEF_CHAIN (id);
+	   def;
+	   def = DF_REF_NEXT_REG (def))
+	if (bitmap_bit_p (candidates, DF_REF_INSN_UID (def)))
+	  {
+	    if (dump_file)
+	      fprintf (dump_file, "Removing insn %d from candidates list\n",
+		       DF_REF_INSN_UID (def));
+
+	    bitmap_clear_bit (candidates, DF_REF_INSN_UID (def));
+	  }
+
+      for (df_ref ref = DF_REG_USE_CHAIN (id);
+	   ref;
+	   ref = DF_REF_NEXT_REG (ref))
+	if (bitmap_bit_p (candidates, DF_REF_INSN_UID (ref)))
+	  {
+	    if (dump_file)
+	      fprintf (dump_file, "Removing insn %d from candidates list\n",
+		       DF_REF_INSN_UID (ref));
+
+	    bitmap_clear_bit (candidates, DF_REF_INSN_UID (ref));
+	  }
+    }
+
+  BITMAP_FREE (regs);
+}
+
+/* For a given bitmap of insn UIDs scans all instruction and
+   remove insn from CANDIDATES in case it has both convertible
+   and not convertible definitions.
+
+   All insns in a bitmap are conversion candidates according to
+   scalar_to_vector_candidate_p.  Currently it implies all insns
+   are single_set.  */
+
+static void
+remove_non_convertible_regs (bitmap candidates)
+{
+  if (TARGET_64BIT)
+    remove_non_convertible_regs_64 (candidates);
+  else
+    remove_non_convertible_regs_32 (candidates);
+}
+
 class scalar_chain
 {
  public:
   scalar_chain ();
-  ~scalar_chain ();
+  virtual ~scalar_chain ();
 
   static unsigned max_id;
 
@@ -2913,21 +3094,55 @@ class scalar_chain
   bitmap defs_conv;
 
   void build (bitmap candidates, unsigned insn_uid);
-  int compute_convert_gain ();
+  virtual int compute_convert_gain () = 0;
   int convert ();
+
+ protected:
+  void add_to_queue (unsigned insn_uid);
+  void emit_conversion_insns (rtx insns, rtx_insn *pos);
 
  private:
   void add_insn (bitmap candidates, unsigned insn_uid);
-  void add_to_queue (unsigned insn_uid);
+  virtual void convert_insn (rtx_insn *insn) = 0;
+  virtual void convert_registers () = 0;
+  virtual void analyze_register_chain (bitmap candidates, df_ref ref) = 0;
+};
+
+class scalar_chain_32 : public scalar_chain
+{
+ public:
+  int compute_convert_gain ();
+ private:
   void mark_dual_mode_def (df_ref def);
   void analyze_register_chain (bitmap candidates, df_ref ref);
   rtx replace_with_subreg (rtx x, rtx reg, rtx subreg);
-  void emit_conversion_insns (rtx insns, rtx_insn *pos);
   void replace_with_subreg_in_insn (rtx_insn *insn, rtx reg, rtx subreg);
   void convert_insn (rtx_insn *insn);
   void convert_op (rtx *op, rtx_insn *insn);
   void convert_reg (unsigned regno);
   void make_vector_copies (unsigned regno);
+  void convert_registers ();
+};
+
+class scalar_chain_64 : public scalar_chain
+{
+ public:
+  scalar_chain_64 (rtx r0, rtx r1)
+    : scalar_chain (), zero (r0), minus_one (r1) { }
+
+  /* Convert from TImode to V1TImode is always faster.  */
+  int compute_convert_gain () { return 1; }
+
+ private:
+  void analyze_register_chain (bitmap candidates, df_ref ref);
+  void convert_insn (rtx_insn *insn);
+  /* We don't convert registers to difference size.  */
+  void convert_registers () {}
+
+  /* Use one scatch register for loading CONST0_RTX and one for loading
+     CONSTM1_RTX so that they can be CSEed.  */
+  rtx zero;
+  rtx minus_one;
 };
 
 unsigned scalar_chain::max_id = 0;
@@ -2976,7 +3191,7 @@ scalar_chain::add_to_queue (unsigned insn_uid)
 /* Mark register defined by DEF as requiring conversion.  */
 
 void
-scalar_chain::mark_dual_mode_def (df_ref def)
+scalar_chain_32::mark_dual_mode_def (df_ref def)
 {
   gcc_assert (DF_REF_REG_DEF_P (def));
 
@@ -2995,7 +3210,7 @@ scalar_chain::mark_dual_mode_def (df_ref def)
    and find registers requiring conversion.  */
 
 void
-scalar_chain::analyze_register_chain (bitmap candidates, df_ref ref)
+scalar_chain_32::analyze_register_chain (bitmap candidates, df_ref ref)
 {
   df_link *chain;
 
@@ -3036,6 +3251,36 @@ scalar_chain::analyze_register_chain (bitmap candidates, df_ref ref)
 		     DF_REF_REGNO (chain->ref), uid);
 	  mark_dual_mode_def (ref);
 	}
+    }
+}
+
+/* Check REF's chain to add new insns into a queue
+   and find registers requiring conversion.  */
+
+void
+scalar_chain_64::analyze_register_chain (bitmap candidates, df_ref ref)
+{
+  df_link *chain;
+
+  gcc_assert (bitmap_bit_p (insns, DF_REF_INSN_UID (ref))
+	      || bitmap_bit_p (candidates, DF_REF_INSN_UID (ref)));
+  add_to_queue (DF_REF_INSN_UID (ref));
+
+  for (chain = DF_REF_CHAIN (ref); chain; chain = chain->next)
+    {
+      unsigned uid = DF_REF_INSN_UID (chain->ref);
+
+      if (!NONDEBUG_INSN_P (DF_REF_INSN (chain->ref)))
+	continue;
+
+      if (!DF_REF_REG_MEM_P (chain->ref))
+	continue;
+
+      if (bitmap_bit_p (insns, uid))
+	continue;
+
+      if (bitmap_bit_p (candidates, uid))
+	add_to_queue (uid);
     }
 }
 
@@ -3117,7 +3362,7 @@ scalar_chain::build (bitmap candidates, unsigned insn_uid)
 /* Compute a gain for chain conversion.  */
 
 int
-scalar_chain::compute_convert_gain ()
+scalar_chain_32::compute_convert_gain ()
 {
   bitmap_iterator bi;
   unsigned insn_uid;
@@ -3174,7 +3419,7 @@ scalar_chain::compute_convert_gain ()
 /* Replace REG in X with a V2DI subreg of NEW_REG.  */
 
 rtx
-scalar_chain::replace_with_subreg (rtx x, rtx reg, rtx new_reg)
+scalar_chain_32::replace_with_subreg (rtx x, rtx reg, rtx new_reg)
 {
   if (x == reg)
     return gen_rtx_SUBREG (V2DImode, new_reg, 0);
@@ -3197,7 +3442,7 @@ scalar_chain::replace_with_subreg (rtx x, rtx reg, rtx new_reg)
 /* Replace REG in INSN with a V2DI subreg of NEW_REG.  */
 
 void
-scalar_chain::replace_with_subreg_in_insn (rtx_insn *insn, rtx reg, rtx new_reg)
+scalar_chain_32::replace_with_subreg_in_insn (rtx_insn *insn, rtx reg, rtx new_reg)
 {
   replace_with_subreg (single_set (insn), reg, new_reg);
 }
@@ -3227,7 +3472,7 @@ scalar_chain::emit_conversion_insns (rtx insns, rtx_insn *after)
    and replace its uses in a chain.  */
 
 void
-scalar_chain::make_vector_copies (unsigned regno)
+scalar_chain_32::make_vector_copies (unsigned regno)
 {
   rtx reg = regno_reg_rtx[regno];
   rtx vreg = gen_reg_rtx (DImode);
@@ -3298,7 +3543,7 @@ scalar_chain::make_vector_copies (unsigned regno)
    in case register is used in not convertible insn.  */
 
 void
-scalar_chain::convert_reg (unsigned regno)
+scalar_chain_32::convert_reg (unsigned regno)
 {
   bool scalar_copy = bitmap_bit_p (defs_conv, regno);
   rtx reg = regno_reg_rtx[regno];
@@ -3390,7 +3635,7 @@ scalar_chain::convert_reg (unsigned regno)
    registers conversion.  */
 
 void
-scalar_chain::convert_op (rtx *op, rtx_insn *insn)
+scalar_chain_32::convert_op (rtx *op, rtx_insn *insn)
 {
   *op = copy_rtx_if_shared (*op);
 
@@ -3434,7 +3679,7 @@ scalar_chain::convert_op (rtx *op, rtx_insn *insn)
 /* Convert INSN to vector mode.  */
 
 void
-scalar_chain::convert_insn (rtx_insn *insn)
+scalar_chain_32::convert_insn (rtx_insn *insn)
 {
   rtx def_set = single_set (insn);
   rtx src = SET_SRC (def_set);
@@ -3511,6 +3756,88 @@ scalar_chain::convert_insn (rtx_insn *insn)
   df_insn_rescan (insn);
 }
 
+/* Convert INSN from TImode to V1T1mode.  */
+
+void
+scalar_chain_64::convert_insn (rtx_insn *insn)
+{
+  rtx def_set = single_set (insn);
+  rtx src = SET_SRC (def_set);
+  rtx tmp;
+  rtx dst = SET_DEST (def_set);
+
+  switch (GET_CODE (dst))
+    {
+    case REG:
+      tmp = find_reg_equal_equiv_note (insn);
+      if (tmp)
+	PUT_MODE (XEXP (tmp, 0), V1TImode);
+    case MEM:
+      PUT_MODE (dst, V1TImode);
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+
+  switch (GET_CODE (src))
+    {
+    case REG:
+    case MEM:
+      PUT_MODE (src, V1TImode);
+      break;
+
+    case CONST_INT:
+      switch (standard_sse_constant_p (src))
+	{
+	case 1:
+	  src = CONST0_RTX (GET_MODE (dst));
+	  tmp = zero;
+	  break;
+	case 2:
+	  src = CONSTM1_RTX (GET_MODE (dst));
+	  tmp = minus_one;
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+      if (NONDEBUG_INSN_P (insn))
+	{
+	  /* Since there are no instructions to store standard SSE
+	     constant, temporary register usage is required.  */
+	  emit_conversion_insns (gen_rtx_SET (dst, tmp), insn);
+	  dst = tmp;
+	}
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+
+  SET_SRC (def_set) = src;
+  SET_DEST (def_set) = dst;
+
+  /* Drop possible dead definitions.  */
+  PATTERN (insn) = def_set;
+
+  INSN_CODE (insn) = -1;
+  recog_memoized (insn);
+  df_insn_rescan (insn);
+}
+
+void
+scalar_chain_32::convert_registers ()
+{
+  bitmap_iterator bi;
+  unsigned id;
+
+  EXECUTE_IF_SET_IN_BITMAP (defs, 0, id, bi)
+    convert_reg (id);
+
+  EXECUTE_IF_AND_COMPL_IN_BITMAP (defs_conv, defs, 0, id, bi)
+    make_vector_copies (id);
+}
+
 /* Convert whole chain creating required register
    conversions and copies.  */
 
@@ -3527,11 +3854,7 @@ scalar_chain::convert ()
   if (dump_file)
     fprintf (dump_file, "Converting chain #%d...\n", chain_id);
 
-  EXECUTE_IF_SET_IN_BITMAP (defs, 0, id, bi)
-    convert_reg (id);
-
-  EXECUTE_IF_AND_COMPL_IN_BITMAP (defs_conv, defs, 0, id, bi)
-    make_vector_copies (id);
+  convert_registers ();
 
   EXECUTE_IF_SET_IN_BITMAP (insns, 0, id, bi)
     {
@@ -3551,6 +3874,7 @@ convert_scalars_to_vector ()
   basic_block bb;
   bitmap candidates;
   int converted_insns = 0;
+  rtx zero, minus_one;
 
   bitmap_obstack_initialize (NULL);
   candidates = BITMAP_ALLOC (NULL);
@@ -3585,22 +3909,40 @@ convert_scalars_to_vector ()
     if (dump_file)
       fprintf (dump_file, "There are no candidates for optimization.\n");
 
+  if (TARGET_64BIT)
+    {
+      zero = gen_reg_rtx (V1TImode);
+      minus_one = gen_reg_rtx (V1TImode);
+    }
+  else
+    {
+      zero = NULL_RTX;
+      minus_one = NULL_RTX;
+    }
+
   while (!bitmap_empty_p (candidates))
     {
       unsigned uid = bitmap_first_set_bit (candidates);
-      scalar_chain chain;
+      scalar_chain *chain;
+
+      if (TARGET_64BIT)
+	chain = new scalar_chain_64 (zero, minus_one);
+      else
+	chain = new scalar_chain_32;
 
       /* Find instructions chain we want to convert to vector mode.
 	 Check all uses and definitions to estimate all required
 	 conversions.  */
-      chain.build (candidates, uid);
+      chain->build (candidates, uid);
 
-      if (chain.compute_convert_gain () > 0)
-	converted_insns += chain.convert ();
+      if (chain->compute_convert_gain () > 0)
+	converted_insns += chain->convert ();
       else
 	if (dump_file)
 	  fprintf (dump_file, "Chain #%d conversion is not profitable\n",
-		   chain.chain_id);
+		   chain->chain_id);
+
+      delete chain;
     }
 
   if (dump_file)
@@ -3609,6 +3951,13 @@ convert_scalars_to_vector ()
   BITMAP_FREE (candidates);
   bitmap_obstack_release (NULL);
   df_process_deferred_rescans ();
+
+  /* FIXME: Since the CSE pass may change dominance info, which isn't
+     expected by the fwprop pass, call free_dominance_info to
+     invalidate dominance info.  Otherwise, the fwprop pass may crash
+     when dominance info is changed.  */
+  if (TARGET_64BIT)
+    free_dominance_info (CDI_DOMINATORS);
 
   /* Conversion means we may have 128bit register spills/fills
      which require aligned stack.  */
@@ -3683,7 +4032,7 @@ public:
   /* opt_pass methods: */
   virtual bool gate (function *)
     {
-      return !TARGET_64BIT && TARGET_STV && TARGET_SSE2 && optimize > 1;
+      return TARGET_STV && TARGET_SSE2 && optimize > 1;
     }
 
   virtual unsigned int execute (function *)
@@ -5596,9 +5945,15 @@ ix86_option_override (void)
 	1, PASS_POS_INSERT_AFTER
       };
   opt_pass *pass_stv = make_pass_stv (g);
-  struct register_pass_info stv_info
+  struct register_pass_info stv_info_32
     = { pass_stv, "combine",
 	1, PASS_POS_INSERT_AFTER
+      };
+  /* Run the 64-bit STV pass before the CSE pass so that CONST0_RTX and
+     CONSTM1_RTX generated by the STV pass can be CSEed.  */
+  struct register_pass_info stv_info_64
+    = { pass_stv, "cse2",
+	1, PASS_POS_INSERT_BEFORE
       };
 
   ix86_option_override_internal (true, &global_options, &global_options_set);
@@ -5606,7 +5961,7 @@ ix86_option_override (void)
 
   /* This needs to be done at start up.  It's convenient to do it here.  */
   register_pass (&insert_vzeroupper_info);
-  register_pass (&stv_info);
+  register_pass (TARGET_64BIT ? &stv_info_64 : &stv_info_32);
 }
 
 /* Implement the TARGET_OFFLOAD_OPTIONS hook.  */
@@ -10720,6 +11075,7 @@ standard_sse_constant_p (rtx x, machine_mode mode)
       case V8HImode:
       case V4SImode:
       case V2DImode:
+      case V1TImode:
 	if (TARGET_SSE2)
 	  return 2;
       case V32QImode:
