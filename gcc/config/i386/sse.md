@@ -2931,6 +2931,32 @@
 	       ]
 	       (const_string "<MODE>")))])
 
+(define_insn "*<code>v1ti3<mask_name>"
+  [(set (match_operand:V1TI 0 "register_operand" "=x,v")
+	(any_logic:V1TI
+	  (match_operand:V1TI 1 "vector_operand" "%0,v")
+	  (match_operand:V1TI 2 "vector_operand" "xBm,vm")))]
+  "TARGET_SSE2
+   && <mask_avx512vl_condition>
+   && ix86_binary_operator_ok (<CODE>, V1TImode, operands)"
+{
+  if (which_alternative == 0)
+    {
+      if (optimize_function_for_size_p (cfun))
+	return "<logic>ps\t{%%2, %0|%0, %2}";
+      else
+	return "p<logic>\t{%2, %0|%0, %2}";
+    }
+
+  if (<mask_applied>)
+    return "vp<logic>q\t{%2, %1, %0<mask_operand3_1>|%%0<mask_operand3_1>, %1, %2}";
+  else
+    return "vp<logic>\t{%2, %1, %0|%0, %1, %2}";
+}
+  [(set_attr "isa" "noavx,avx")
+   (set_attr "type" "sselog")
+   (set_attr "prefix" "orig,maybe_evex")])
+
 (define_insn "*<code><mode>3<mask_name>"
   [(set (match_operand:VF_512 0 "register_operand" "=v")
 	(any_logic:VF_512
