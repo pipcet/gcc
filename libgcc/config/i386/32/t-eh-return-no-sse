@@ -1,0 +1,6 @@
+# Since %ecx can't be used for both DRAP register and __builtin_eh_return,
+# we must avoid stack realignment when __builtin_eh_return is used.  When
+# the incoming stack is 4-byte aligned, we disable SSE on unwind-c.c and
+# unwind-dw2.c to avoid DRAP register.
+
+unwind-c.o unwind-c_s.o unwind-dw2.o unwind-dw2_s.o : HOST_LIBGCC2_CFLAGS += -mno-sse

@@ -1386,3 +1386,19 @@ i[34567]86-*-linux* | x86_64-*-linux*)
 	tm_file="${tm_file} i386/value-unwind.h"
 	;;
 esac
+
+case ${host} in
+i[34567]86-*-* | x86_64-*-*)
+  if test "${host_address}" = 32; then
+    case ${host} in
+    *-*-cygwin* | *-*-solaris2*)
+      # Disable SSE on unwind-c.c and unwind-dw2.c to avoid DRAP register.
+      tmake_file="${tmake_file} i386/${host_address}/t-eh-return-no-sse"
+      ;;
+    *)
+      # Disable AVX on unwind-c.c and unwind-dw2.c to avoid DRAP register.
+      tmake_file="${tmake_file} i386/${host_address}/t-eh-return-no-avx"
+      ;;
+    esac
+  fi
+esac
