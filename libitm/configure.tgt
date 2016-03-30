@@ -100,12 +100,8 @@ case "${target_cpu}" in
 	;;
 
   x86_64)
-	case " ${CC} ${CFLAGS} " in
-	  *" -m32 "*)
-	    XCFLAGS="${XCFLAGS} -march=i486 -mtune=generic"
-	    XCFLAGS="${XCFLAGS} -fomit-frame-pointer"
-	    ;;
-	esac
+	# Since 64-bit arch > i486, we can use the same -march= to build
+	# both 32-bit and 64-bit target libraries.
 	XCFLAGS="${XCFLAGS} -mrtm"
 	ARCH=x86
 	;;
