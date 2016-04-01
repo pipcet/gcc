@@ -2868,6 +2868,12 @@ scalar_to_vector_candidate_p_64 (rtx_insn *insn)
 		  || (TARGET_SSE_UNALIGNED_LOAD_OPTIMAL
 		      && TARGET_SSE_UNALIGNED_STORE_OPTIMAL));
 
+	case CONST_WIDE_INT:
+	  /* For store from 128-bit constant, memory must be aligned
+	     or unaligned store is optimal.  */
+	  return (!misaligned_operand (dst, TImode)
+		  || TARGET_SSE_UNALIGNED_STORE_OPTIMAL);
+
 	case CONST_INT:
 	  /* For store from standard SSE constant, memory must be
 	     aligned or unaligned store is optimal.  */
@@ -3785,6 +3791,19 @@ scalar_chain_64::convert_insn (rtx_insn *insn)
     case REG:
     case MEM:
       PUT_MODE (src, V1TImode);
+      break;
+
+    case CONST_WIDE_INT:
+      if (NONDEBUG_INSN_P (insn))
+	{
+	  /* Since there are no instructions to store 128-bit constant,
+	     temporary register usage is required.  */
+	  tmp = gen_reg_rtx (V1TImode);
+	  src = gen_rtx_CONST_VECTOR (V1TImode, gen_rtvec (1, src));
+	  src = validize_mem (force_const_mem (V1TImode, src));
+	  emit_conversion_insns (gen_rtx_SET (dst, tmp), insn);
+	  dst = tmp;
+	}
       break;
 
     case CONST_INT:
