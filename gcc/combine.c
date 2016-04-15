@@ -11106,6 +11106,10 @@ change_zero_ext (rtx *src)
       else
 	continue;
 
+      /* Check for undefined shift.  */
+      if (size >= HOST_BITS_PER_WIDE_INT)
+	continue;
+
       unsigned HOST_WIDE_INT mask = 1;
       mask <<= size;
       mask--;
