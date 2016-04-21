@@ -2,7 +2,7 @@
 # Configuration validation subroutine script.
 #   Copyright 1992-2016 Free Software Foundation, Inc.
 
-timestamp='2016-01-01'
+timestamp='2016-03-24'
 
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -253,6 +253,7 @@ case $basic_machine in
 	| am33_2.0 \
 	| arc | arceb \
 	| arm | arm[bl]e | arme[lb] | armv[2-8] | armv[3-8][lb] | armv7[arm] \
+        | asmjs \
 	| avr | avr32 \
 	| ba \
 	| be32 | be64 \
@@ -375,6 +376,7 @@ case $basic_machine in
 	| alpha64-* | alpha64ev[4-8]-* | alpha64ev56-* | alpha64ev6[78]-* \
 	| alphapca5[67]-* | alpha64pca5[67]-* | arc-* | arceb-* \
 	| arm-*  | armbe-* | armle-* | armeb-* | armv*-* \
+        | asmjs-* \
 	| avr-* | avr32-* \
 	| ba-* \
 	| be32-* | be64-* \
@@ -1418,7 +1420,8 @@ case $os in
 		;;
 	-sim | -es1800* | -hms* | -xray | -os68k* | -none* | -v88r* \
 	      | -windows* | -osx | -abug | -netware* | -os9* | -beos* | -haiku* \
-	      | -macos* | -mpw* | -magic* | -mmixware* | -mon960* | -lnews*)
+	      | -macos* | -mpw* | -magic* | -mmixware* | -mon960* | -lnews* \
+              | -asmjs* )
 		;;
 	-mac*)
 		os=`echo $os | sed -e 's|mac|macos|'`
