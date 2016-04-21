@@ -768,6 +768,30 @@ case ${target} in
   tmake_file="${tmake_file} t-glibc"
   target_has_targetcm=yes
   ;;
+*-*-asmjs*)
+  extra_options="$extra_options gnu-user.opt"
+  gas=yes
+  gnu_ld=yes
+  case ${enable_threads} in
+    "" | yes | posix) thread_file='posix' ;;
+  esac
+  tmake_file="t-slibgcc"
+  native_system_header_dir=/include
+  # Linux C libraries selection switch: glibc / uclibc / bionic.
+  # uclibc and bionic aren't usable for GNU/Hurd and neither for GNU/k*BSD.
+  tm_defines="$tm_defines DEFAULT_LIBC=LIBC_GLIBC"
+  # Assume that glibc or uClibc or Bionic are being used and so __cxa_atexit
+  # is provided.
+  default_use_cxa_atexit=yes
+  use_gcc_tgmath=no
+  use_gcc_stdint=wrap
+  # Enable compilation for Android by default for *android* targets.
+  tm_defines="$tm_defines ANDROID_DEFAULT=0"
+  c_target_objs="${c_target_objs} glibc-c.o"
+  cxx_target_objs="${cxx_target_objs} glibc-c.o"
+  tmake_file="${tmake_file} t-glibc"
+  target_has_targetcm=yes
+  ;;
 *-*-netbsd*)
   tmake_file="t-slibgcc"
   gas=yes
@@ -3044,6 +3068,10 @@ m32c-*-elf*)
 	c_target_objs="m32c-pragma.o"
 	cxx_target_objs="m32c-pragma.o"
  	;;
+asmjs-*-gnu | asmjs-*-asmjs)
+        tm_file="${tm_file}"
+        tmake_file="${tmake_file} asmjs/t-asmjs"
+        ;;
 *)
 	echo "*** Configuration ${target} not supported" 1>&2
 	exit 1

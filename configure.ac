@@ -1103,6 +1103,8 @@ case "${target}" in
   arm-*-riscix*)
     noconfigdirs="$noconfigdirs ld target-libgloss"
     ;;
+  asmjs-*-*)
+    noconfigdirs="$noconfigdirs libgomp libatomic libquadmath libobjc libbacktrace libstdc++-v3 libssp libgfortran"
   avr-*-rtems*)
     ;;
   avr-*-*)
