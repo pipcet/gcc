@@ -591,20 +591,20 @@ enum asmjs_prec {
 };
 
 const char *asmjs_prec_names[] = {
-  [prec_comma] = "comma",
-  [prec_assign] = "assign",
-  [prec_bitor] = "bitor",
-  [prec_bitxor] = "bitxor",
-  [prec_bitand] = "bitand",
-  [prec_equals] = "equals",
-  [prec_comp] = "comp",
-  [prec_shift] = "shift",
-  [prec_add] = "add",
-  [prec_mult] = "mult",
-  [prec_unary] = "unary",
-  [prec_function] = "function",
-  [prec_brack] = "brack",
-  [prec_paren] = "paren"
+  /* [prec_comma]    = */ "comma",
+  /* [prec_assign]   = */ "assign",
+  /* [prec_bitor]    = */ "bitor",
+  /* [prec_bitxor]   = */ "bitxor",
+  /* [prec_bitand]   = */ "bitand",
+  /* [prec_equals]   = */ "equals",
+  /* [prec_comp]     = */ "comp",
+  /* [prec_shift]    = */ "shift",
+  /* [prec_add]      = */ "add",
+  /* [prec_mult]     = */ "mult",
+  /* [prec_unary]    = */ "unary",
+  /* [prec_function] = */ "function",
+  /* [prec_brack]    = */ "brack",
+  /* [prec_paren]    = */ "paren"
 };
 
 void asmjs_print_op(FILE *stream, rtx x, asmjs_prec want_prec, asmjs_kind want_kind);
