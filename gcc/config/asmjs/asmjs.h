@@ -26,7 +26,8 @@
    <http://www.gnu.org/licenses/>.  */
 
 #define ASM_SPEC "-I gas-macros%s"
-#define STARTFILE_SPEC "crti%O%s crtbegin%O%s --whole-archive gdbstub%O%s --no-whole-archive"
+/* #define STARTFILE_SPEC "crti%O%s crtbegin%O%s --whole-archive gdbstub%O%s --no-whole-archive" */
+#define STARTFILE_SPEC "crti%O%s crtbegin%O%s"
 #define ENDFILE_SPEC "crtend%O%s crtn%O%s"
 
 #define TARGET_CPU_CPP_BUILTINS() asmjs_cpu_cpp_builtins(pfile)
