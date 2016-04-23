@@ -1104,7 +1104,8 @@ case "${target}" in
     noconfigdirs="$noconfigdirs ld target-libgloss"
     ;;
   asmjs-*-*)
-    noconfigdirs="$noconfigdirs libgomp libatomic libquadmath libobjc libbacktrace libstdc++-v3 libssp libgfortran"
+    noconfigdirs="$noconfigdirs"
+    ;;
   avr-*-rtems*)
     ;;
   avr-*-*)

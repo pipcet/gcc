@@ -3767,6 +3767,9 @@ case "${target}" in
   arm-*-riscix*)
     noconfigdirs="$noconfigdirs ld target-libgloss"
     ;;
+  asmjs-*-*)
+    noconfigdirs="$noconfigdirs"
+    ;;
   avr-*-rtems*)
     ;;
   avr-*-*)
