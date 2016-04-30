@@ -81,20 +81,6 @@
 ;;    ""
 ;;    "%O0 = %l1;")
 
-(define_insn "*assign_pcl"
-  [(match_operator 1 "set_operator"
-     [(reg:SI PC_REG)
-      (label_ref (match_operand 0))])]
-   ""
-   "pc = ($\n\t.codetextlabel %l0\n\t)>>4;")
-
-(define_insn "*assign_pc"
-  [(match_operator 1 "set_operator"
-     [(reg:SI PC_REG)
-      (match_operand:SI 0 "general_operand" "rmi")])]
-   ""
-   "%O1;")
-
 (define_insn "*assignqi"
   [(match_operator 2 "set_operator"
       [(match_operand:QI 0 "nonimmediate_operand" "=rmt")
@@ -253,11 +239,6 @@
                          (match_operand:SI 4 "general_operand" "rmi"))])]
    ""
    "%O5;")
-
-(define_insn "*setpc"
-  [(set (pc) (reg:SI PC_REG))]
-  ""
-  "break;")
 
 ;; I attempted to open-code this, but failed.  In theory once
 ;; open-coded we should be able to combine a call and a subsequent
