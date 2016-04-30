@@ -111,7 +111,7 @@
     0, 0, 0, 0,					\
     0, 0, 0, 0,					\
     0, 0, 0, 0,                                 \
-    1, 1                                        \
+    1, 1, 1, 1                                  \
   }
 
 #define CALL_USED_REGISTERS			\
@@ -123,7 +123,7 @@
       0, 0, 0, 0, 				\
       0, 0, 0, 0, 				\
       0, 0, 0, 0, 				\
-      1, 1					\
+      1, 1, 1, 1,				\
    }
 
 #define CALL_REALLY_USED_REGISTERS		\
@@ -135,7 +135,7 @@
     0, 0, 0, 0,					\
     0, 0, 0, 0,					\
     0, 0, 0, 0,					\
-    1, 0                                        \
+    1, 0, 0, 0,                                 \
    }
 
 #define HARD_REGNO_NREGS(regno, mode) asmjs_hard_regno_nregs(regno, mode)
@@ -148,13 +148,13 @@
 #define REG_CLASS_NAMES { "NO_REGS", "PC_REGS", "SP_REGS", "FLOAT_REGS", "GENERAL_REGS", "THREAD_REGS", "ALL_REGS", }
 #define REG_CLASS_CONTENTS			\
   {						\
-    { 0x00000000, 0, }, /* NO_REGS */		\
-    { 0x00000002, 0, }, /* PC_REGS */		\
-    { 0x00000004, 0, }, /* SP_REGS */		\
-    { 0xFF000000, 0, }, /* FLOAT_REGS */	\
-    { 0xFFFFFF07, 1, }, /* GENERAL_REGS */	\
-    { 0x000000F8, 2, }, /* THREAD_REGS */       \
-    { 0xFFFFFFFF, 3, }, /* ALL_REGS */		\
+    { 0x00000000, 0x0, }, /* NO_REGS */		\
+    { 0x00000002, 0x0, }, /* PC_REGS */		\
+    { 0x00000004, 0x0, }, /* SP_REGS */		\
+    { 0xFF000000, 0x0, }, /* FLOAT_REGS */	\
+    { 0xFFFFFF07, 0x1, }, /* GENERAL_REGS */	\
+    { 0x000000F8, 0x2, }, /* THREAD_REGS */       \
+    { 0xFFFFFFFF, 0xf, }, /* ALL_REGS */		\
 }
 #define REGNO_REG_CLASS(REGNO) asmjs_regno_reg_class(REGNO)
 #define BASE_REG_CLASS GENERAL_REGS
