@@ -44,6 +44,11 @@
         .ascii "0x0000000000000000"
         .endm
 
+        .macro .rpcr4 a, b
+        .reloc .+2,R_ASMJS_HEX16R4,\b-\a
+        .ascii "0x0000000000000000"
+        .endm
+
         .macro .textlabeldef label
 .LAT\@0:
         case $
@@ -94,7 +99,8 @@
         .long .LAT\@0
         .long 0
         .pushsection .javascript%S,"a"
-        .textlabelr4 .LAT\@1+8
+        .set .L__pc0,.LAT\@1+8
+        .rpcr4 .L__pc0,.LAT\@1+8
         .ascii ":\n"
         .set __asmjs_fallthrough, 1
         .endm

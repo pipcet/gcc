@@ -31,7 +31,7 @@
 
 (define_constants
   [(FP_REG        0)
-   (PC_REG        1)
+   (DPC_REG       1)
    (SP_REG        2)
    (RV_REG        3)
    (A0_REG        4)
@@ -63,7 +63,9 @@
    (F6_REG       30)
    (F7_REG       31)
    (AP_REG       32)
-   (TP_REG       33)])
+   (TP_REG       33)
+   (PC0_REG      34)
+   (RPC_REG      35)])
 
 (define_register_constraint "t" "THREAD_REGS"
     "registers shared between all functions in a thread")
@@ -274,8 +276,8 @@
           (match_operand:SI 1 "general_operand" "rmi,rmi"))]
       ""
       "@
-      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = f_%O0\n\t(%O0>>4, sp-16|0, r0|0, r1|0, pc|0, fp|0)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=
-      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = indcall(%O0>>4, sp-16|0, r0|0, r1|0, pc|0, fp|0)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=")
+      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = f_%O0\n\t(0, sp|0, r0|0, r1|0, pc|0, %O0>>4)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=
+      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = indcall(0, sp|0, r0|0, r1|0, pc|0, %O0>>4)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
@@ -283,8 +285,8 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      {\;\tpc = $\;\t\t.codetextlabel .LI%=\;\t>>4;\;\trp = f_%O0\n\t(%O0>>4, sp-16|0, r0|0, r1|0, pc|0, fp|0)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=
-      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = indcall(%O0>>4, sp-16|0, r0|0, r1|0, pc|0, fp|0)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=")
+      {\;\tpc = $\;\t\t.codetextlabel .LI%=\;\t>>4;\;\trp = f_%O0\n\t(0, sp|0, r0|0, r1|0, pc|0, %O0>>4)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=
+      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = indcall(0, sp|0, r0|0, r1|0, pc|0, %O0>>4)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -870,7 +872,7 @@
    [(set (pc) (unspec_volatile [(match_operand 0)]
                UNSPECV_BUILTIN_LONGJMP))]
    ""
-   "/* longjmp */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tfp = HEAP32[%O0>>2]|0;\n\tHEAP32[fp+4>>2] = HEAP32[%O0+4>>2]|0;\n\tHEAP32[fp+8>>2] = HEAP32[%O0+8>>2]|0;\n\treturn fp|3;")
+   "/* longjmp */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tfp = HEAP32[%O0>>2]|0;\n\tHEAP32[fp+8>>2] = HEAP32[%O0+4>>2]|0;\n\tHEAP32[fp+12>>2] = HEAP32[%O0+8>>2]|0;\n\treturn fp|3;")
 
 (define_expand "nonlocal_goto"
   [(set (pc)
@@ -914,4 +916,4 @@
                           ] UNSPECV_THUNK_GOTO))
    ]
   ""
-  "/* thunk_goto */\n\treturn f_$\n\t.codetextlabel %O0\n\t(%O0>>4, sp|0, r0|0, r1|0, pc|0, fp|0);")
+  "/* thunk_goto */\n\treturn f_$\n\t.codetextlabel %O0\n\t(0, sp+16|0, r0|0, r1|0, pc|0, %O0>>4);")

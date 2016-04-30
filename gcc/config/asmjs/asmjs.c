@@ -775,7 +775,7 @@ void asmjs_print_operation(FILE *stream, rtx x, asmjs_prec want_prec, asmjs_kind
 	asm_fprintf (stream, "\n\t");
 	asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
       } else if (in_section->common.flags & SECTION_CODE) {
-	asm_fprintf (stream, "$\n\t.codetextlabel ");
+	asm_fprintf (stream, "$\n\t.rpcr4 .L__pc0");
 	asm_fprintf (stream, "%s", name + (name[0] == '*'));
 	asm_fprintf (stream, "\n\t");
 	asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
@@ -790,7 +790,7 @@ void asmjs_print_operation(FILE *stream, rtx x, asmjs_prec want_prec, asmjs_kind
     case LABEL_REF: {
       char buf[256];
       x = LABEL_REF_LABEL (x);
-      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "$\n\t.rpcr4 .L__pc0,");
       ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
       ASM_OUTPUT_LABEL_REF (stream, buf);
       asm_fprintf (stream, "\n\t");
@@ -1515,16 +1515,17 @@ void asmjs_file_start(void)
 
 static unsigned asmjs_function_regmask(tree decl ATTRIBUTE_UNUSED)
 {
-  unsigned ret = 15; // FP, PC, SP, RV
+  unsigned ret = 0;
 
   int i;
-  for (i = 4 /* A0_REG */; i <=  8 /* A4_REG */; i++)
-    if (crtl->calls_eh_return)
-      ret |= (1<<i)|0xffffffff;
+  /* XXX work out why calls_eh_return functions use additional
+   * registers. */
+  if (crtl->calls_eh_return)
+    ret |= 0xffffff;
   for (i = 8 /* R0_REG */; i <= 31 /* F7_REG */; i++)
     {
       if (df_regs_ever_live_p (i))
-	ret |= (1<<i);
+	ret |= (1<<(i-8));
     }
 
   return ret;
@@ -1539,11 +1540,13 @@ static unsigned asmjs_function_regsize(tree decl ATTRIBUTE_UNUSED)
   size += 4;
   size += 4;
   size += 4;
+  size += 4;
+  size += 4;
 
   int i;
-  for (i = 4 /* A0_REG */; i <= 31 /* F7_REG */; i++)
+  for (i = 8 /* A0_REG */; i <= 31 /* F7_REG */; i++)
     {
-      if (mask & (1<<i))
+      if (mask & (1<<(i-8)))
 	{
 	  if (asmjs_regno_reg_class (i) == FLOAT_REGS)
 	    {
@@ -1568,22 +1571,28 @@ static unsigned asmjs_function_regstore(FILE *stream,
   unsigned size = 0;
   unsigned total_size = asmjs_function_regsize (decl);
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = 0x%08x;\n", size, mask);
+  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = (fp + 0x%08x)|0;\n", size, total_size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = pc<<4;\n", size);
+  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = pc0<<4;\n", size);
+  size += 4;
+
+  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = (pc0 + dpc)<<4;\n", size);
+  size += 4;
+
+  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = rpc|0;\n", size);
   size += 4;
 
   asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = sp|0;\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = %d|0;\n", size, total_size);
+  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = 0x%08x;\n", size, mask);
   size += 4;
 
   int i;
-  for(i = 4 /* A0_REG */; i <= 31 /* F7_REG */; i++)
+  for(i = 8 /* R0_REG */; i <= 31 /* F7_REG */; i++)
     {
-      if (mask & (1<<i))
+      if (mask & (1<<(i-8)))
 	{
 	  if (asmjs_regno_reg_class (i) == FLOAT_REGS)
 	    {
@@ -1615,7 +1624,13 @@ static unsigned asmjs_function_regload(FILE *stream,
 
   size += 4;
 
-  asm_fprintf (stream, "\t\tpc = HEAP32[rp+%d>>2]>>4;\n", size);
+  asm_fprintf (stream, "\t\tpc0 = HEAP32[rp+%d>>2]>>4;\n", size);
+  size += 4;
+
+  asm_fprintf (stream, "\t\tdpc = (HEAP32[rp+%d>>2]>>4 - pc0)|0;\n", size);
+  size += 4;
+
+  asm_fprintf (stream, "\t\trpc = HEAP32[rp+%d>>2]|0;\n", size);
   size += 4;
 
   asm_fprintf (stream, "\t\tsp = HEAP32[rp+%d>>2]|0;\n", size);
@@ -1624,9 +1639,9 @@ static unsigned asmjs_function_regload(FILE *stream,
   size += 4;
 
   int i;
-  for(i = 4 /* A0_REG */; i <= 31 /* F7_REG */; i++)
+  for(i = 8 /* R0_REG */; i <= 31 /* F7_REG */; i++)
     {
-      if (mask & (1<<i))
+      if (mask & (1<<(i-8)))
 	{
 	  if (asmjs_regno_reg_class (i) == FLOAT_REGS)
 	    {
@@ -1691,13 +1706,14 @@ void asmjs_start_function(FILE *f, const char *name, tree decl)
   asm_fprintf(f, "\t.p2align 4+8\n");
   asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
   asm_fprintf(f, "    function f_$\n\t.codetextlabel .L.%s\n", cooked_name);
-  asm_fprintf(f, "\t/* %s */ (pc, sp, r0, r1, rpc, rfp) {\n", name);
-  asm_fprintf(f, "\tpc = pc|0;\n");
-  asm_fprintf(f, "\tsp = sp|0;\n");
+  asm_fprintf(f, "\t/* %s */ (dpc, sp1, r0, r1, rpc, pc0) {\n", name);
+  asm_fprintf(f, "\tdpc = dpc|0;\n");
+  asm_fprintf(f, "\tsp1 = sp1|0;\n");
   asm_fprintf(f, "\tr0 = r0|0;\n");
   asm_fprintf(f, "\tr1 = r1|0;\n");
   asm_fprintf(f, "\trpc = rpc|0;\n");
-  asm_fprintf(f, "\trfp = rfp|0;\n");
+  asm_fprintf(f, "\tpc0 = pc0|0;\n");
+  asm_fprintf(f, "\tvar sp = 0;\n");
   asm_fprintf(f, "\tvar fp = 0;\n");
   asm_fprintf(f, "\tvar rp = 0;\n");
   for (regno = R2_REG; regno <= I7_REG; regno++)
@@ -1711,6 +1727,8 @@ void asmjs_start_function(FILE *f, const char *name, tree decl)
 	asm_fprintf(f, "\tvar %s = 0.0;\n", reg_names[regno]);
     }
   asm_fprintf(f, "\tvar a = 0;\n");
+  asm_fprintf(f, "if (dpc+pc0|0) sp = sp1-16|0;\n");
+  asm_fprintf(f, "else sp = sp1|0;\n");
   asm_fprintf(f, "\tmainloop:\n");
   asm_fprintf(f, "\twhile(1) {\n");
   switch (breakpoints_type) {
@@ -1758,7 +1776,7 @@ void asmjs_start_function(FILE *f, const char *name, tree decl)
     asm_fprintf(f, "\t\t}\n");
     asm_fprintf(f, "\t}\n");
   }
-  asm_fprintf(f, "\tswitch (pc|0) {\n");
+  asm_fprintf(f, "\tswitch (dpc|0) {\n");
   asm_fprintf(f, "\t.codetextlabeldeffirst %s\n", cooked_name);
 }
 
@@ -1798,13 +1816,13 @@ void asmjs_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
 
   asm_fprintf(f, "\t.codetextlabeldeflast .ends.%s\n", cooked_name);
   asm_fprintf(f, " default:\n");
-  asm_fprintf(f, "\tif ((pc|0) == 0) {\n");
+  asm_fprintf(f, "\tif ((dpc+pc0|0) == 0) {\n");
   asm_fprintf(f, "\t\trp = sp|0;\n");
   asmjs_function_regload (f, decl);
   asm_fprintf(f, "\t\tfp = rp|0;\n");
   asm_fprintf(f, "\t\tcontinue;\n");
   asm_fprintf(f, "\t} else {\n");
-  asm_fprintf(f, "\t\tforeign_abort(0|0, pc|0);\n");
+  asm_fprintf(f, "\t\tforeign_abort(0|0, dpc+pc0|0);\n");
   asm_fprintf(f, "\t}\n");
   asm_fprintf(f, "\t}\n");
   if (use_interrupts)
@@ -1848,7 +1866,7 @@ void asmjs_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   }
   asm_fprintf(f, "\t}\n");
   asm_fprintf(f, "\tif ((rp&3) == 1) {\n");
-  asm_fprintf(f, "\t\tHEAP32[sp-12>>2] = fp;\n");
+  asm_fprintf(f, "\t\tHEAP32[sp-16>>2] = fp;\n");
   asmjs_function_regstore (f, decl);
   asm_fprintf(f, "\t}\n");
   asm_fprintf(f, "\treturn rp|0;}\n");
@@ -1865,7 +1883,7 @@ void asmjs_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
 
   asm_fprintf(f, "\t.section .special.fpswitch,\"a\"\n");
   asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
-  asm_fprintf(f, "\tcase $\n\t.codetextlabelr12 .L.%s\n\t:\n\treturn f_$\n\t.codetextlabel .L.%s\n\t(pc|0, sp|0, r0|0, r1|0, rpc|0, rfp|0)|0;\n", cooked_name, cooked_name);
+  asm_fprintf(f, "\tcase $\n\t.codetextlabelr12 .L.%s\n\t:\n\treturn f_$\n\t.codetextlabel .L.%s\n\t(dpc|0, sp|0, r0|0, r1|0, rpc|0, pc0|0)|0;\n", cooked_name, cooked_name);
   asm_fprintf(f, "\t.popsection\n");
 }
 
@@ -2146,14 +2164,7 @@ int asmjs_call_pops_args(CUMULATIVE_ARGS size ATTRIBUTE_UNUSED)
 
 rtx asmjs_incoming_return_addr_rtx(void)
 {
-  rtx top_of_stack3 = gen_rtx_REG (SImode, SP_REG);
-  rtx prevfp = gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, gen_rtx_CONST_INT(SImode, 4),
-						  top_of_stack3));
-  rtx pc = gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, prevfp, gen_rtx_CONST_INT (SImode, 4)));
-
-  return gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, gen_rtx_REG (SImode, SP_REG), gen_rtx_CONST_INT (SImode, -16)));
-
-  return pc;
+  return gen_rtx_REG (SImode, RPC_REG);
 }
 
 rtx asmjs_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
@@ -2480,7 +2491,7 @@ asmjs_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
     asm_fprintf (f, "\tHEAP32[(sp|0)+%d>>2] = %s|0;\n",
 		 structret ? 20 : 16, r);
 
-  asm_fprintf (f, "\treturn f_$\n\t.codetextlabel %s\n\t($\n\t.codetextlabel %s\n\t>>4, sp|0, r0|0, r1|0, pc|0, fp|0)|0;\n",
+  asm_fprintf (f, "\treturn f_$\n\t.codetextlabel %s\n\t(0, sp+16|0, r0|0, r1|0, pc|0, $\n\t.codetextlabel %s\n\t>>4)|0;\n",
 	       tname,tname);
 }
 

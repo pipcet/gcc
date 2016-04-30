@@ -297,41 +297,43 @@ typedef struct {
 
 #define OBJECT_FORMAT_ELF 1
 
-#define REGISTER_NAMES {                              \
-    "fp", /* frame pointer. must not be eliminated */ \
-    "pc", /* not really the PC */		      \
-    "sp", /* stack pointer */			      \
-    "rv", /* return value; per-thread */	      \
-    "a0", /* argument registers; per-thread */        \
-    "a1", /* argument registers; per-thread */        \
-    "a2", /* argument registers; per-thread */        \
-    "a3", /* argument registers; per-thread */        \
-    "r0", /* general registers */		      \
-    "r1",					      \
-    "r2",					      \
-    "r3",					      \
-    "r4", /* general registers */		      \
-    "r5",					      \
-    "r6",					      \
-    "r7",					      \
-    "i0", /* integer; no difference to r* now */      \
-    "i1",					      \
-    "i2",					      \
-    "i3",					      \
-    "i4", /* integer; no difference to r* now */      \
-    "i5",					      \
-    "i6",					      \
-    "i7",					      \
-    "f0", /* floating-point registers */	      \
-    "f1",					      \
-    "f2",					      \
-    "f3",					      \
-    "f4", /* floating-point registers */	      \
-    "f5",					      \
-    "f6",					      \
-    "f7",					      \
-    "ap", /* argument pointer; eliminated */	      \
-    "tp", /* thread pointer; per-thread */	      \
+#define REGISTER_NAMES {                               \
+    "fp",  /* frame pointer. must not be eliminated */ \
+    "dpc", /* function-relative PC */		       \
+    "sp",  /* stack pointer */			       \
+    "rv",  /* return value; per-thread */	       \
+    "a0",  /* argument registers; per-thread */        \
+    "a1",  /* argument registers; per-thread */        \
+    "a2",  /* argument registers; per-thread */        \
+    "a3",  /* argument registers; per-thread */        \
+    "r0",  /* general registers */		       \
+    "r1",					       \
+    "r2",					       \
+    "r3",					       \
+    "r4",  /* general registers */		       \
+    "r5",					       \
+    "r6",					       \
+    "r7",					       \
+    "i0",  /* integer; no difference to r* now */      \
+    "i1",					       \
+    "i2",					       \
+    "i3",					       \
+    "i4",  /* integer; no difference to r* now */      \
+    "i5",					       \
+    "i6",					       \
+    "i7",					       \
+    "f0",  /* floating-point registers */	       \
+    "f1",					       \
+    "f2",					       \
+    "f3",					       \
+    "f4",  /* floating-point registers */	       \
+    "f5",					       \
+    "f6",					       \
+    "f7",					       \
+    "ap",  /* argument pointer; eliminated */	       \
+    "tp",  /* thread pointer; per-thread */	       \
+    "pc0", /* function PC */                           \
+    "rpc", /* return PC */                             \
 }
 
 #define PRINT_OPERAND(stream,x,code) asmjs_print_operand(stream, x, code)
