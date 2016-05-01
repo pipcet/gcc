@@ -201,20 +201,6 @@
   ""
   "")
 
-;; (define_insn "*setpc"
-;;   [(match_operator 1 "set_operator"
-;;      [(pc)
-;;       (label_ref (match_operand 0))])]
-;;   ""
-;;   "pc = %l0; continue;")
-
-;; (define_insn "*setpc"
-;;   [(match_operator 1 "set_operator"
-;;      [(pc)
-;;       (match_operand:SI 0 "general_operand" "rmi")])]
-;;   ""
-;;   "pc = %0; continue;")
-
 (define_insn "*truncdfsf"
   [(match_operator 2 "set_operator"
       [(match_operand:SF 0 "nonimmediate_operand" "=rm")
@@ -244,13 +230,6 @@
 ;; open-coded we should be able to combine a call and a subsequent
 ;; jump in the case that our stack pointer adjustment can be moved
 ;; past the jump.
-
-;; (define_insn "*call"
-;;   [(call (mem:SI (label_ref (match_operand 0)))
-;;          (match_operand:SI 1 "general_operand" "rmi"))]
-;;    ""
-;;    "${labeldef:%=}\;if ((rp = ${call:%l0}(%l0|0, sp|0)|0)|0 != sp|0) { pc = ${label:%=}; break mainloop; }\n${labeldef:%=B}"
-;;    [(set_attr "predicable" "no")])
 
 (define_insn "*call"
    [(call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
@@ -294,15 +273,6 @@
   }
   [(set_attr "predicable" "no")])
 
-;; (define_insn "*jump"
-;;   [(set (reg:SI PC_REG) (label_ref (match_operand 0)))]
-;;   ""
-;;   "pc = %l0;")
-
-;; (define_insn "*jump"
-;;   [(set (reg:SI PC_REG) (match_operand:SI 0 "general_operand" "rmi"))]
-;;   ""
-;;   "pc = %O0;")
 
 (define_insn "*jump"
   [(set (pc) (label_ref (match_operand 0)))]
