@@ -49,6 +49,19 @@
         .ascii "0x0000000000000000"
         .endm
 
+        .macro .dpc label
+        .rpcr4 .L__pc0, \label
+        .endm
+
+        .macro .flush
+        rp = fp|1;
+        dpc = $
+        .dpc .LFl\@
+        ;
+        break mainloop;
+        .labeldef_internal .LFl\@
+        .endm
+
         .macro .textlabeldef label
 .LAT\@0:
         case $
@@ -60,7 +73,7 @@
         .long 0
         .long 0
         .pushsection .javascript%S,"a"
-        .textlabelr4 .LAT\@1
+        .dpc .LAT\@1
         .ascii ":\n"
         .endm
 
@@ -85,7 +98,7 @@
         .long .LAT\@0
         .long 0
         .pushsection .javascript%S,"a"
-        .textlabelr4 .LAT\@1+8
+        .dpc .LAT\@1+8
         .ascii ":\n"
         .endm
 
@@ -99,8 +112,8 @@
         .long .LAT\@0
         .long 0
         .pushsection .javascript%S,"a"
-        .set .L__pc0,.LAT\@1+8
-        .rpcr4 .L__pc0,.LAT\@1+8
+        .set .L__pc0, .LAT\@1
+        .rpcr4 .L__pc0, .LAT\@1
         .ascii ":\n"
         .set __asmjs_fallthrough, 1
         .endm
