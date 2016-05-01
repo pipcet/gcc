@@ -775,7 +775,7 @@ void asmjs_print_operation(FILE *stream, rtx x, asmjs_prec want_prec, asmjs_kind
 	asm_fprintf (stream, "\n\t");
 	asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
       } else if (in_section->common.flags & SECTION_CODE) {
-	asm_fprintf (stream, "$\n\t.rpcr4 .L__pc0");
+	asm_fprintf (stream, "$\n\t.codetextlabel ");
 	asm_fprintf (stream, "%s", name + (name[0] == '*'));
 	asm_fprintf (stream, "\n\t");
 	asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
@@ -790,7 +790,7 @@ void asmjs_print_operation(FILE *stream, rtx x, asmjs_prec want_prec, asmjs_kind
     case LABEL_REF: {
       char buf[256];
       x = LABEL_REF_LABEL (x);
-      asm_fprintf (stream, "$\n\t.rpcr4 .L__pc0,");
+      asm_fprintf (stream, "$\n\t.codetextlabel ");
       ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
       ASM_OUTPUT_LABEL_REF (stream, buf);
       asm_fprintf (stream, "\n\t");
@@ -1627,7 +1627,7 @@ static unsigned asmjs_function_regload(FILE *stream,
   asm_fprintf (stream, "\t\tpc0 = HEAP32[rp+%d>>2]>>4;\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tdpc = (HEAP32[rp+%d>>2]>>4 - pc0)|0;\n", size);
+  asm_fprintf (stream, "\t\tdpc = ((HEAP32[rp+%d>>2]>>4) - (pc0|0))|0;\n", size);
   size += 4;
 
   asm_fprintf (stream, "\t\trpc = HEAP32[rp+%d>>2]|0;\n", size);
@@ -1726,9 +1726,9 @@ void asmjs_start_function(FILE *f, const char *name, tree decl)
       if (df_regs_ever_live_p (regno) || crtl->calls_eh_return)
 	asm_fprintf(f, "\tvar %s = 0.0;\n", reg_names[regno]);
     }
+  asm_fprintf(f, "\tvar pc = 0;\n");
   asm_fprintf(f, "\tvar a = 0;\n");
-  asm_fprintf(f, "if (dpc+pc0|0) sp = sp1-16|0;\n");
-  asm_fprintf(f, "else sp = sp1|0;\n");
+  asm_fprintf(f, "\tsp = sp1-16|0;\n");
   asm_fprintf(f, "\tmainloop:\n");
   asm_fprintf(f, "\twhile(1) {\n");
   switch (breakpoints_type) {
@@ -1822,7 +1822,7 @@ void asmjs_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   asm_fprintf(f, "\t\tfp = rp|0;\n");
   asm_fprintf(f, "\t\tcontinue;\n");
   asm_fprintf(f, "\t} else {\n");
-  asm_fprintf(f, "\t\tforeign_abort(0|0, dpc+pc0|0);\n");
+  asm_fprintf(f, "\t\tforeign_abort(0|0, dpc|0, pc0|0, 0, 0);\n");
   asm_fprintf(f, "\t}\n");
   asm_fprintf(f, "\t}\n");
   if (use_interrupts)
