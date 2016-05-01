@@ -100,7 +100,7 @@
 #define INTPTR_TYPE "int"
 #define UINTPTR_TYPE "unsigned int"
 
-#define FIRST_PSEUDO_REGISTER 34
+#define FIRST_PSEUDO_REGISTER 36
 
 #define FIXED_REGISTERS				\
   { 1, 1, 1, 0,					\
@@ -152,7 +152,7 @@
     { 0x00000002, 0x0, }, /* PC_REGS */		\
     { 0x00000004, 0x0, }, /* SP_REGS */		\
     { 0xFF000000, 0x0, }, /* FLOAT_REGS */	\
-    { 0xFFFFFF07, 0x1, }, /* GENERAL_REGS */	\
+    { 0xFFFFFF07, 0xd, }, /* GENERAL_REGS */	\
     { 0x000000F8, 0x2, }, /* THREAD_REGS */       \
     { 0xFFFFFFFF, 0xf, }, /* ALL_REGS */		\
 }
