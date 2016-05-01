@@ -2162,6 +2162,11 @@ int asmjs_call_pops_args(CUMULATIVE_ARGS size ATTRIBUTE_UNUSED)
   return 0;
 }
 
+rtx asmjs_dynamic_chain_address(rtx frameaddr)
+{
+  return gen_rtx_MEM (SImode, frameaddr);
+}
+
 rtx asmjs_incoming_return_addr_rtx(void)
 {
   return gen_rtx_REG (SImode, RPC_REG);

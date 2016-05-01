@@ -78,6 +78,7 @@ extern unsigned asmjs_incoming_reg_parm_stack_space(const_tree fndecl);
 extern unsigned asmjs_outgoing_reg_parm_stack_space(const_tree fndecl);
 extern unsigned asmjs_stack_parms_in_reg_parm_area(void);
 
+extern rtx asmjs_dynamic_chain_address(rtx);
 extern rtx asmjs_incoming_return_addr_rtx();
 extern rtx asmjs_return_addr_rtx(int, rtx);
 extern rtx asmjs_get_drap_rtx(void);

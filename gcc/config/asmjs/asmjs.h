@@ -173,6 +173,8 @@
 /* This is special: we currently require this function to be used even
    for __builtin_return_address(0), not just for arguments of 1 and
    above. */
+#define DYNAMIC_CHAIN_ADDRESS(frameaddr) asmjs_dynamic_chain_address(frameaddr)
+
 #define SETUP_FRAME_ADDRESSES() do {				  \
     emit_insn (gen_flush_register_windows ());			  \
   } while (0)
