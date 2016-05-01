@@ -170,9 +170,6 @@
 /* Offset of first parameter from the argument pointer register value.  */
 #define FIRST_PARM_OFFSET(FNDECL) asmjs_first_parm_offset(FNDECL)
 
-/* This is special: we currently require this function to be used even
-   for __builtin_return_address(0), not just for arguments of 1 and
-   above. */
 #define DYNAMIC_CHAIN_ADDRESS(frameaddr) asmjs_dynamic_chain_address(frameaddr)
 
 #define SETUP_FRAME_ADDRESSES() do {				  \
@@ -361,6 +358,8 @@ typedef struct {
 #define DWARF2_DEBUGGING_INFO 1
 #define DWARF2_FRAME_INFO 1
 #define DWARF2_ASM_LINE_DEBUG_INFO 0
+#undef HAVE_GAS_CFI_PERSONALITY_DIRECTIVE
+#define HAVE_GAS_CFI_PERSONALITY_DIRECTIVE 0
 
 /* Specify the machine mode that this machine uses for the index in
    the tablejump instruction.  XXX, but I think this is fine. */

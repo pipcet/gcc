@@ -1521,11 +1521,11 @@ static unsigned asmjs_function_regmask(tree decl ATTRIBUTE_UNUSED)
   /* XXX work out why calls_eh_return functions use additional
    * registers. */
   if (crtl->calls_eh_return)
-    ret |= 0xffffff;
+    ret |= 0xfffffff;
   for (i = 8 /* R0_REG */; i <= 31 /* F7_REG */; i++)
     {
       if (df_regs_ever_live_p (i))
-	ret |= (1<<(i-8));
+	ret |= (1<<(i-4));
     }
 
   return ret;
@@ -1544,9 +1544,9 @@ static unsigned asmjs_function_regsize(tree decl ATTRIBUTE_UNUSED)
   size += 4;
 
   int i;
-  for (i = 8 /* A0_REG */; i <= 31 /* F7_REG */; i++)
+  for (i = 4 /* A0_REG */; i <= 31 /* F7_REG */;  i++)
     {
-      if (mask & (1<<(i-8)))
+      if (mask & (1<<(i-4)))
 	{
 	  if (asmjs_regno_reg_class (i) == FLOAT_REGS)
 	    {
@@ -1561,6 +1561,7 @@ static unsigned asmjs_function_regsize(tree decl ATTRIBUTE_UNUSED)
     }
 
   size += size&4;
+
   return size;
 }
 
@@ -1590,9 +1591,9 @@ static unsigned asmjs_function_regstore(FILE *stream,
   size += 4;
 
   int i;
-  for(i = 8 /* R0_REG */; i <= 31 /* F7_REG */; i++)
+  for(i = 4 /* R0_REG */; i <= 31 /* F7_REG */; i++)
     {
-      if (mask & (1<<(i-8)))
+      if (mask & (1<<(i-4)))
 	{
 	  if (asmjs_regno_reg_class (i) == FLOAT_REGS)
 	    {
@@ -1603,7 +1604,7 @@ static unsigned asmjs_function_regstore(FILE *stream,
 	    }
 	  else
 	    {
-	      if (i >= 8)
+	      if (i >= 4)
 		asm_fprintf(stream, "\t\tHEAP32[fp+%d>>2] = %s|0;\n",
 			    size, reg_names[i]);
 	      size += 4;
@@ -1639,9 +1640,9 @@ static unsigned asmjs_function_regload(FILE *stream,
   size += 4;
 
   int i;
-  for(i = 8 /* R0_REG */; i <= 31 /* F7_REG */; i++)
+  for(i = 4 /* R0_REG */; i <= 31 /* F7_REG */; i++)
     {
-      if (mask & (1<<(i-8)))
+      if (mask & (1<<(i-4)))
 	{
 	  if (asmjs_regno_reg_class (i) == FLOAT_REGS)
 	    {
@@ -1652,7 +1653,7 @@ static unsigned asmjs_function_regload(FILE *stream,
 	    }
 	  else
 	    {
-	      if (i >= 8)
+	      if (i >= 4)
 		asm_fprintf (stream, "\t\t%s = HEAP32[rp+%d>>2]|0;\n",
 			     reg_names[i], size);
 	      size += 4;
@@ -2170,15 +2171,16 @@ rtx asmjs_dynamic_chain_address(rtx frameaddr)
 rtx asmjs_incoming_return_addr_rtx(void)
 {
   return gen_rtx_REG (SImode, RPC_REG);
+  //return gen_rtx_MEM (SImode, plus_constant (SImode, gen_rtx_MEM (SImode, frame_pointer_rtx), 8));
 }
 
 rtx asmjs_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
 {
   if (count == 0)
-    return gen_rtx_REG (SImode, RPC_REG);
+    return gen_rtx_ASHIFT (SImode, gen_rtx_REG (SImode, RPC_REG), gen_rtx_CONST_INT (SImode, 4));
   else
     {
-      return gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, frameaddr, gen_rtx_CONST_INT (SImode, 8)));
+      return gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, gen_rtx_MEM (SImode, asmjs_dynamic_chain_address(frameaddr)), gen_rtx_CONST_INT (SImode, 8)));
     }
 }
 
@@ -2259,19 +2261,20 @@ rtx asmjs_expand_prologue()
   int regsize = asmjs_function_regsize (NULL_TREE);
   rtx insn;
 
-  RTX_FRAME_RELATED_P(emit_move_insn (sp, gen_rtx_PLUS (SImode, sp, gen_rtx_CONST_INT (SImode, -regsize)))) = 1;
+  RTX_FRAME_RELATED_P (emit_move_insn (sp, gen_rtx_PLUS (SImode, sp, gen_rtx_CONST_INT (SImode, -regsize)))) = 1;
   RTX_FRAME_RELATED_P (insn = emit_move_insn (gen_rtx_REG (SImode, FP_REG), sp)) = 1;
 
-  add_reg_note (insn, REG_CFA_DEF_CFA, plus_constant (Pmode, frame_pointer_rtx,
-						      regsize + 16));
-  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, regsize + 4)), frame_pointer_rtx));
-  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, regsize)), pc_rtx));
+  add_reg_note (insn, REG_CFA_DEF_CFA,
+		plus_constant (Pmode, frame_pointer_rtx,
+			       regsize + 16));
+  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, regsize)), frame_pointer_rtx));
+  add_reg_note (insn, REG_CFA_REGISTER, gen_rtx_SET (gen_rtx_REG (Pmode, RPC_REG), pc_rtx));
   if (crtl->calls_eh_return)
     {
-      add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 16)), gen_rtx_REG (SImode, A0_REG)));
-      add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 20)), gen_rtx_REG (SImode, A1_REG)));
-      add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 24)), gen_rtx_REG (SImode, A2_REG)));
-      add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 28)), gen_rtx_REG (SImode, A3_REG)));
+      add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 24)), gen_rtx_REG (SImode, A0_REG)));
+      add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 28)), gen_rtx_REG (SImode, A1_REG)));
+      add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 32)), gen_rtx_REG (SImode, A2_REG)));
+      add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 36)), gen_rtx_REG (SImode, A3_REG)));
     }
 
   if (size != 0)
