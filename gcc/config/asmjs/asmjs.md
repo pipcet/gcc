@@ -236,8 +236,8 @@
           (match_operand:SI 1 "general_operand" "rmi,rmi"))]
       ""
       "@
-      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = f_%O0\n\t(0, sp|0, r0|0, r1|0, pc|0, %O0>>4)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=
-      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = indcall(0, sp|0, r0|0, r1|0, pc|0, %O0>>4)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=")
+      {\n\t\tdpc = $\n\t\t.dpc .LI%=\n\t\t\t;\n\t\trp = f_%O0\n\t(0, sp|0, r0|0, r1|0, (pc0+dpc)|0, %O0>>4)|0;\n\t\tif (rp&3) {\n\t\t\tbreak mainloop;\n\t\t}\n\t}\n\t.labeldef_internal .LI%=
+      {\n\t\tdpc = $\n\t\t.dpc .LI%=\n\t\t\t;\n\t\trp = indcall(0, sp|0, r0|0, r1|0, (pc0+dpc)|0, %O0>>4)|0;\n\t\tif (rp&3) {\n\t\t\tbreak mainloop;\n\t\t}\n\t}\n\t.labeldef_internal .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
@@ -245,8 +245,8 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      {\;\tpc = $\;\t\t.codetextlabel .LI%=\;\t>>4;\;\trp = f_%O0\n\t(0, sp|0, r0|0, r1|0, pc|0, %O0>>4)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=
-      {\;\tpc = $\;\t.codetextlabel .LI%=\;\t\t>>4;\;\trp = indcall(0, sp|0, r0|0, r1|0, pc|0, %O0>>4)|0;\;\tif (rp&3) {\;\t\tbreak mainloop;\;\t}\;}\n\t.labeldef_internal .LI%=")
+      {\n\t\tdpc = $\n\t\t\t.dpc .LI%=\n\t;\n\t\trp = f_%O0\n\t(0, sp|0, r0|0, r1|0, (pc0+dpc)|0, %O0>>4)|0;\n\t\tif (rp&3) {\n\t\t\tbreak mainloop;\n\t\t}\n\t}\n\t.labeldef_internal .LI%=
+      {\n\t\tdpc = $\n\t\t\t.dpc .LI%=\n\t\t\t;\n\t\trp = indcall(0, sp|0, r0|0, r1|0, (pc0+dpc)|0, %O0>>4)|0;\n\t\tif (rp&3) {\n\t\t\tbreak mainloop;\n\t\t}\n\t}\n\t.labeldef_internal .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -273,17 +273,16 @@
   }
   [(set_attr "predicable" "no")])
 
-
 (define_insn "*jump"
   [(set (pc) (label_ref (match_operand 0)))]
   ""
-  "pc = ($\n\t.codetextlabel %l0\n\t)>>4;\;.cont_or_break %l0"
+  "dpc = ($\n\t.dpc %l0\n\t);\n\t.cont_or_break %l0"
   [(set_attr "predicable" "no")])
 
 (define_insn "*jump"
   [(set (pc) (match_operand:SI 0 "general_operand" "rmi"))]
   ""
-  "pc = (%O0)>>4;\n\trp = fp|1;\n\tbreak mainloop;"
+  "/* indirect jump */\n\tdpc = (((%O0|0)>>4)-(pc0|0))|0;\n\tbreak;"
   [(set_attr "predicable" "no")])
 
 ;;(define_expand "jump"
@@ -355,7 +354,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "if (%O0) { pc = ($\n\t.codetextlabel %l3\n\t)>>4; $\;.cont_or_break %l3\; }"
+  "if (%O0) { dpc = ($\n\t.dpc %l3\n\t); $\n\t.cont_or_break %l3\n\t }"
   )
 
 (define_expand "cbranchsi4"
@@ -378,7 +377,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "if (%O0) { pc = ($\n\t.codetextlabel %l3\n\t)>>4; $\;.cont_or_break %l3\; }"
+  "if (%O0) { dpc = ($\n\t.dpc %l3\n\t); $\n\t.cont_or_break %l3\n\t }"
   )
 
 (define_expand "cbranchdf4"
@@ -770,7 +769,7 @@
 (define_insn "flush_register_windows"
   [(unspec_volatile [(const_int 0)] UNSPECV_FLUSHW)]
   ""
-  "rp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=")
+  ".flush")
 
 ;; (define_insn "eh_return"
 ;;    [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")]
@@ -781,7 +780,7 @@
    [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")]
      UNSPECV_EH_RETURN)]
    ""
-   "/* eh_return */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tr3 = %O0|0;\n\tr0 = (fp|0)+16|0;\n\ta0 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+20|0;\n\ta1 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+24|0;\n\ta2 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+28|0;\n\tif (0) a3 = HEAP32[r0>>2]|0;\n\tr0 = HEAP32[fp+12>>2]|0;\n\tr1 = ((fp|0) + (r0|0))|0;\n\tr2 = HEAP32[r1+4>>2]|0;\n\tHEAP32[r2+4>>2] = r3|0;")
+   "/* eh_return */\n\t.flush\n\tr3 = %O0|0;\n\tr0 = (fp|0)+16|0;\n\ta0 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+20|0;\n\ta1 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+24|0;\n\ta2 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+28|0;\n\tif (0) a3 = HEAP32[r0>>2]|0;\n\tr0 = HEAP32[fp+12>>2]|0;\n\tr1 = ((fp|0) + (r0|0))|0;\n\tr2 = HEAP32[r1+4>>2]|0;\n\tHEAP32[r2+4>>2] = r3|0;")
 
 (define_insn "*nonlocal_goto"
   [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")
@@ -790,7 +789,7 @@
                      (match_operand:SI 3 "register_operand" "r")]
     UNSPECV_NONLOCAL_GOTO)]
   ""
-  "/* nonlocal_goto */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tHEAP32[fp+HEAP32[fp+12>>2]>>2] = %O1;\n\tHEAP32[fp+HEAP32[fp+12>>2]+4>>2] = %O0;\n\trv = %O3; /* unused %O2 */")
+  "/* nonlocal_goto */\n\t.flush\n\tHEAP32[(HEAP32[fp>>2]|0)+8>>2] = %O1;\n\tHEAP32[(HEAP32[fp>>2]|0)+12>>2] = %O0;\n\trv = %O3; /* unused %O2 */\n\tbreak mainloop;")
 
 ;; (define_insn "*nonlocal_goto"
 ;;   [(unspec_volatile [(match_operand 0)
@@ -808,7 +807,7 @@
 ;;     UNSPECV_NONLOCAL_GOTO)
 ;;     (set (pc) (match_operand 1))]
 ;;   ""
-;;   "/* nonlocal_goto */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tHEAP32[fp+HEAP32[fp+12>>2]>>2] = %O1;\n\tHEAP32[fp+HEAP32[fp+12>>2]+4>>2] = %O0;\n\trv = %O3; /* unused %O2 */")
+;;   "/* nonlocal_goto */\n\t.flush\n\tHEAP32[fp+HEAP32[fp+12>>2]>>2] = %O1;\n\tHEAP32[fp+HEAP32[fp+12>>2]+4>>2] = %O0;\n\trv = %O3; /* unused %O2 */")
 
 (define_expand "builtin_longjmp"
    [(set (pc) (unspec_volatile [(match_operand 0)]
@@ -823,7 +822,7 @@
    [(set (pc) (unspec_volatile [(match_operand 0)]
                UNSPECV_BUILTIN_LONGJMP))]
    ""
-   "/* longjmp */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tfp = HEAP32[%O0>>2]|0;\n\tHEAP32[fp+8>>2] = HEAP32[%O0+4>>2]|0;\n\tHEAP32[fp+12>>2] = HEAP32[%O0+8>>2]|0;\n\treturn fp|3;")
+   "/* longjmp */\n\t.flush\n\tfp = HEAP32[%O0>>2]|0;\n\tHEAP32[fp+8>>2] = HEAP32[%O0+4>>2]|0;\n\tHEAP32[fp+12>>2] = HEAP32[%O0+8>>2]|0;\n\treturn fp|3;")
 
 (define_expand "nonlocal_goto"
   [(set (pc)
@@ -848,7 +847,7 @@
                           ] UNSPECV_NONLOCAL_GOTO))
    ]
   ""
-  "/* nonlocal_goto */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tHEAP32[fp+HEAP32[fp+12>>2]>>2] = %O1;\n\tHEAP32[HEAP32[fp+HEAP32[fp+12>>2]+4>>2]+8>>2] = %O2;\n\trv = %O3;\n\t/* unused %O0 */\n\treturn HEAP32[fp+HEAP32[fp+12>>2]>>2]|3;")
+  "/* nonlocal_goto */\n\t.flush\n\tHEAP32[(HEAP32[fp>>2]|0)+8>>2] = %O1;\n\tHEAP32[(HEAP32[fp>>2]|0)+12>>2] = %O2\n\trv = %O3;\n\t/* unused %O0 */\n\treturn HEAP32[(HEAP32[fp>>2]|0)+8>>2]|3;")
 
 (define_expand "nonlocal_goto_receiver"
   [(unspec_volatile [(const_int 0)] UNSPECV_NONLOCAL_GOTO_RECEIVER)]
@@ -867,4 +866,4 @@
                           ] UNSPECV_THUNK_GOTO))
    ]
   ""
-  "/* thunk_goto */\n\treturn f_$\n\t.codetextlabel %O0\n\t(0, sp+16|0, r0|0, r1|0, pc|0, %O0>>4);")
+  "/* thunk_goto */\n\treturn f_$\n\t.codetextlabel %O0\n\t(0, sp+16|0, r0|0, r1|0, (dpc+pc0)|0, %O0>>4);")
