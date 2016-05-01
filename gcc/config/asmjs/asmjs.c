@@ -141,7 +141,7 @@ enum reg_class asmjs_regno_reg_class(int regno)
     return GENERAL_REGS;
   else if (regno < 32 && (regno & 7) < max_regs_enabled)
     return FLOAT_REGS;
-  else if (regno == 32)
+  else if (regno == 32 || regno == 34 || regno == 35)
     return GENERAL_REGS;
   else if (regno == 33)
     return THREAD_REGS;
