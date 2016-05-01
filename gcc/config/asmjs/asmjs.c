@@ -2174,13 +2174,12 @@ rtx asmjs_incoming_return_addr_rtx(void)
 
 rtx asmjs_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
 {
-  rtx regsize = gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, frameaddr, gen_rtx_CONST_INT (SImode, 12)));
-  rtx top_of_stack3 = gen_rtx_PLUS (SImode, frameaddr, regsize);
-  rtx prevfp = gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, gen_rtx_CONST_INT(SImode, 4),
-						  top_of_stack3));
-  rtx pc = gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, prevfp, gen_rtx_CONST_INT (SImode, 4)));
-
-  return pc;
+  if (count == 0)
+    return gen_rtx_REG (SImode, RPC_REG);
+  else
+    {
+      return gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, frameaddr, gen_rtx_CONST_INT (SImode, 8)));
+    }
 }
 
 int asmjs_first_parm_offset(const_tree fntype ATTRIBUTE_UNUSED)
