@@ -794,7 +794,7 @@
    [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")]
      UNSPECV_EH_RETURN)]
    ""
-   "/* eh_return */\n\tforeign_abort(0xffffffff|0, %O0|0, a3|0, HEAP32[a3+sp>>2]|0, sp|0);\n\t.flush\n\tr3 = %O0|0;\n\ta0 = HEAP32[fp+24>>2]|0;\n\ta1 = HEAP32[fp+28>>2]|0;\n\ta2 = HEAP32[fp+32>>2]|0;\n\tfp = HEAP32[a3+sp>>2]|0;\n\tHEAP32[fp+8>>2] = %O0|0;\n\treturn fp|3;")
+   "/* eh_return */\n\t.flush\n\tforeign_abort(0xffffffff|0, %O0|0, HEAP32[fp>>2]|0, fp|0, sp|0);\n\tr3 = %O0|0;\n\ta0 = HEAP32[fp+24>>2]|0;\n\ta1 = HEAP32[fp+28>>2]|0;\n\ta2 = HEAP32[fp+32>>2]|0;\n\tfp = HEAP32[HEAP32[fp>>2]>>2]|0;\n\tforeign_abort(-1|0, fp|0, HEAP32[fp+4>>2]|0, HEAP32[fp+8>>2]|0, HEAP32[fp+12>>2]|0);\n\tHEAP32[fp+8>>2] = %O0|0;\n\treturn fp|3;")
 
 (define_insn "*nonlocal_goto"
   [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")

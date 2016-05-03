@@ -2243,8 +2243,8 @@ rtx asmjs_expand_call (rtx retval, rtx address, rtx callarg1)
  * AP,CFA   ->
  *              unused
  *              unused
+ *              unused
  *              old FP
- *              return PC*
  *              registers as specified
  *              size of regblock
  *              current SP
@@ -2267,8 +2267,12 @@ rtx asmjs_expand_prologue()
   add_reg_note (insn, REG_CFA_DEF_CFA,
 		plus_constant (Pmode, frame_pointer_rtx,
 			       regsize + 16));
-  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, regsize)), frame_pointer_rtx));
-  add_reg_note (insn, REG_CFA_REGISTER, gen_rtx_SET (gen_rtx_REG (Pmode, RPC_REG), pc_rtx));
+  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, regsize)), frame_pointer_rtx));
+  //add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, 8)), pc_rtx));
+  add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, frame_pointer_rtx, 16)), sp));
+  //add_reg_note (insn, REG_CFA_REGISTER, gen_rtx_SET (gen_rtx_REG (Pmode, RPC_REG), pc_rtx));
+  add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, gen_rtx_MEM (Pmode, plus_constant (Pmode, frame_pointer_rtx, regsize)), 8)), pc_rtx));
+  //add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, gen_rtx_MEM (Pmode, plus_constant (Pmode, frame_pointer_rtx, regsize)), 16)), sp));
   if (crtl->calls_eh_return)
     {
       add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 24)), gen_rtx_REG (SImode, A0_REG)));
