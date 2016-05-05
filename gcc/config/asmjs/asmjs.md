@@ -777,17 +777,11 @@
 ;;    ""
 ;;    "/* eh_return */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tr3 = %O0|0;\n\tr0 = (fp|0)+16|0;\n\ta0 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+20|0;\n\ta1 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+24|0;\n\ta2 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+28|0;\n\tif (0) a3 = HEAP32[r0>>2]|0;\n\tr0 = HEAP32[fp+12>>2]|0;\n\tr1 = ((fp|0) + (r0|0))|0;\n\tr2 = HEAP32[r1+4>>2]|0;\n\tHEAP32[r2+4>>2] = r3|0;\n\tdebug2('eh_return: r0 is ' + r0.toString(16));\n\tdebug2('eh_return: r2 is ' + r2.toString(16));\n\tdebug2('eh_return: r3 is ' + r3.toString(16));\n\tdebug2('eh_return: r1 is ' + r1.toString(16));\n\tdebug2('eh_return: a0 is ' + a0.toString(16));\n\tdebug2('eh_return: a1 is ' + a1.toString(16));\n\tdebug2('eh_return: a2 is ' + a2.toString(16));\n\tdebug2('eh_return: a3 is ' + a3.toString(16));\n\tdebug2('eh_return: fp is ' + fp.toString(16));\n\tdebug2('eh_return: sp is ' + sp.toString(16));\n\t")
 
-;; This is tricky. Upon entry to this pattern, we have %O0 as the PC
-;; we want to return to, and a3 as the stack adjustment we have to
-;; apply. The FP of our return call frame is thus HEAP32[a3+sp>>2].  Our
-;; exception handling arguments are saved in our call frame, not the
-;; registers to which they actually belong.
-;;
-;; So we do the following:
+;; This is tricky enough that we delegate it to a JavaScript function, so we end up doing all of the following:
 ;;  1. flush
-;;  2. restore a0, a1, a2
-;;  3. fp = HEAP32[a3>>2]
-;;  4. write %O0 to HEAP32[fp+8>>2]
+;;  2. restore a0, a1, a2, a3
+;;  3. restore fp
+;;  4. store %O0 in the PC slot belonging to fp
 ;;  5. return fp|3
 
 (define_insn "eh_return"
