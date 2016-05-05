@@ -178,7 +178,10 @@
 
 #define RETURN_ADDR_RTX(count, frameaddr) asmjs_return_addr_rtx(count, frameaddr)
 #define INCOMING_RETURN_ADDR_RTX asmjs_incoming_return_addr_rtx()
-#define INCOMING_FRAME_SP_OFFSET 16
+#define INCOMING_FRAME_SP_OFFSET 0
+
+#define FRAME_POINTER_CFA_OFFSET(fundecl) (0)
+
 #define EH_RETURN_DATA_REGNO(n) (((n) < 3) ? (A0_REG + (n)) : INVALID_REGNUM)
 #define EH_RETURN_STACKADJ_RTX gen_rtx_REG (SImode, 7)
 #define EH_RETURN_HANDLER_RTX RETURN_ADDR_RTX(0, gen_rtx_REG (SImode, FP_REG))

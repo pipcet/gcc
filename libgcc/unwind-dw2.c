@@ -1373,6 +1373,11 @@ _Unwind_SetSpColumn (struct _Unwind_Context *context, void *cfa,
   _Unwind_SetGRPtr (context, __builtin_dwarf_sp_column (), tmp_sp);
 }
 
+#define PIPDEBUG
+#ifdef PIPDEBUG
+#include <stdio.h>
+#endif
+
 static void
 uw_update_context_1 (struct _Unwind_Context *context, _Unwind_FrameState *fs)
 {
@@ -1403,10 +1408,17 @@ uw_update_context_1 (struct _Unwind_Context *context, _Unwind_FrameState *fs)
   _Unwind_SetGRPtr (context, __builtin_dwarf_sp_column (), NULL);
 #endif
 
+  const char cfa_program[] = { 0x03, DW_OP_reg2, DW_OP_deref, DW_OP_deref };
+  //fs->regs.cfa_how = CFA_EXP;
+  //fs->regs.cfa_exp = cfa_program;
   /* Compute this frame's CFA.  */
   switch (fs->regs.cfa_how)
     {
     case CFA_REG_OFFSET:
+#ifdef PIPDEBUG
+      fprintf(stderr, "new cfa = reg(%d) + %08x\n",
+	      fs->regs.cfa_reg, fs->regs.cfa_offset);
+#endif
       cfa = _Unwind_GetPtr (&orig_context, fs->regs.cfa_reg);
       cfa += fs->regs.cfa_offset;
       break;
@@ -1436,11 +1448,18 @@ uw_update_context_1 (struct _Unwind_Context *context, _Unwind_FrameState *fs)
 	break;
 
       case REG_SAVED_OFFSET:
+#ifdef PIPDEBUG
+	fprintf(stderr, "REG_SAVED_OFFSET %d %08x\n", i,
+		fs->regs.reg[i].loc.offset);
+#endif
 	_Unwind_SetGRPtr (context, i,
 			  (void *) (cfa + fs->regs.reg[i].loc.offset));
 	break;
 
       case REG_SAVED_REG:
+#ifdef PIPDEBUG
+	fprintf(stderr, "REG_SAVED_REG %d\n", i);
+#endif
 	if (_Unwind_GRByValue (&orig_context, fs->regs.reg[i].loc.reg))
 	  _Unwind_SetGRValue (context, i,
 			      _Unwind_GetGR (&orig_context,
@@ -1462,15 +1481,26 @@ uw_update_context_1 (struct _Unwind_Context *context, _Unwind_FrameState *fs)
 				  (_Unwind_Ptr) cfa);
 	  _Unwind_SetGRPtr (context, i, (void *) val);
 	}
+#ifdef PIPDEBUG
+	fprintf(stderr, "REG_SAVED_EXP %d %p %08x\n", i,
+		_Unwind_GetGRPtr (context, i),
+		*(unsigned *)_Unwind_GetGRPtr (context, i));
+#endif
 	break;
 
       case REG_SAVED_VAL_OFFSET:
+#ifdef PIPDEBUG
+	fprintf(stderr, "REG_SAVED_VAL_OFFSET %d\n", i);
+#endif
 	_Unwind_SetGRValue (context, i,
 			    (_Unwind_Internal_Ptr)
 			    (cfa + fs->regs.reg[i].loc.offset));
 	break;
 
       case REG_SAVED_VAL_EXP:
+#ifdef PIPDEBUG
+	fprintf(stderr, "REG_SAVED_VAL_EXP %d\n", i);
+#endif
 	{
 	  const unsigned char *exp = fs->regs.reg[i].loc.exp;
 	  _uleb128_t len;
@@ -1483,6 +1513,31 @@ uw_update_context_1 (struct _Unwind_Context *context, _Unwind_FrameState *fs)
 	}
 	break;
       }
+#ifdef PIPDEBUG
+  fprintf(stderr, "orig cfa %p\n", orig_context.cfa);
+  fprintf(stderr, "new  cfa %p\n", context->cfa);
+
+  fprintf(stderr, "orig ra %d %p %08x\n", fs->retaddr_column, _Unwind_GetPtr(&orig_context, fs->retaddr_column), *(unsigned *)(_Unwind_GetPtr(&orig_context, fs->retaddr_column)));
+  fprintf(stderr, "new  ra %p %p %08x\n", _Unwind_GetGRPtr(context, fs->retaddr_column), _Unwind_GetPtr(context, fs->retaddr_column), *(unsigned *)(_Unwind_GetPtr(context, fs->retaddr_column)));
+
+  fprintf(stderr, "orig r0 %p %08x\n", _Unwind_GetPtr(&orig_context, 0), *(unsigned *)(_Unwind_GetPtr(&orig_context, 0)));
+  fprintf(stderr, "new  r0 %p %08x\n", _Unwind_GetPtr(context, 0), *(unsigned *)(_Unwind_GetPtr(context, 0)));
+
+  fprintf(stderr, "orig r2 %p %08x\n", _Unwind_GetPtr(&orig_context, 2), *(unsigned *)(_Unwind_GetPtr(&orig_context, 2)));
+  fprintf(stderr, "new  r2 %p %08x\n", _Unwind_GetPtr(context, 2), *(unsigned *)(_Unwind_GetPtr(context, 2)));
+
+  {
+    unsigned *p = (unsigned *)((unsigned)orig_context.cfa);
+
+    if (p) {
+      for(p = (unsigned *)((unsigned)p & 0xfffffff0) - 0x40; p != (unsigned *)0x40000000; p += 0x4) {
+	fprintf(stderr, "%p: %08x %08x %08x %08x\n",
+		p,
+		p[0], p[1], p[2], p[3]);
+      }
+    }
+  }
+#endif
 
   _Unwind_SetSignalFrame (context, fs->signal_frame);
 
@@ -1586,6 +1641,11 @@ uw_init_context_1 (struct _Unwind_Context *context,
      initialization context, then we can't see it in the given
      call frame data.  So have the initialization context tell us.  */
   context->ra = __builtin_extract_return_addr (outer_ra);
+
+#ifdef PIPDEBUG
+  fprintf(stderr, "init cfa %p (%d)\n", outer_cfa, __builtin_dwarf_sp_column());
+  fprintf(stderr, "init  ra %p\n", context->ra);
+#endif
 }
 
 static void _Unwind_DebugHook (void *, void *)
@@ -1663,7 +1723,7 @@ uw_install_context_1 (struct _Unwind_Context *current,
   /* If the current frame doesn't have a saved stack pointer, then we
      need to rely on EH_RETURN_STACKADJ_RTX to get our target stack
      pointer value reloaded.  */
-  if (!_Unwind_GetGRPtr (current, __builtin_dwarf_sp_column ()))
+  if (1 || !_Unwind_GetGRPtr (current, __builtin_dwarf_sp_column ()))
     {
       void *target_cfa;
 
@@ -1671,9 +1731,9 @@ uw_install_context_1 (struct _Unwind_Context *current,
 
       /* We adjust SP by the difference between CURRENT and TARGET's CFA.  */
       if (__LIBGCC_STACK_GROWS_DOWNWARD__)
-	return target_cfa - current->cfa + target->args_size;
+	return target_cfa - current->cfa /* + target->args_size */;
       else
-	return current->cfa - target_cfa - target->args_size;
+	return current->cfa - target_cfa /* - target->args_size */;
     }
   return 0;
 }
