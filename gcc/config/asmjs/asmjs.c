@@ -2262,22 +2262,12 @@ rtx asmjs_expand_prologue()
   rtx insn;
 
   RTX_FRAME_RELATED_P (insn = emit_move_insn (sp, plus_constant (Pmode, sp, -regsize))) = 0;
-  //add_reg_note (insn, REG_FRAME_RELATED_EXPR, gen_rtx_SET (sp, plus_constant (Pmode, sp, -regsize)));
   RTX_FRAME_RELATED_P (insn = emit_move_insn (frame_pointer_rtx, sp)) = 1;
   add_reg_note (insn, REG_CFA_DEF_CFA,
   		plus_constant (Pmode, frame_pointer_rtx, 0));
-  //add_reg_note (insn, REG_FRAME_RELATED_EXPR, gen_rtx_SET (sp, frame_pointer_rtx));
   add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, gen_rtx_PLUS (Pmode, sp, gen_rtx_MINUS (Pmode, gen_rtx_MEM (Pmode, sp), sp))), frame_pointer_rtx));
   add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, 8)), pc_rtx));
 
-  //add_reg_note (insn, REG_FRAME_RELATED_EXPR, gen_rtx_SET (frame_pointer_rtx, sp));
-  //add_reg_note (insn, REG_FRAME_RELATED_EXPR, gen_rtx_SET (sp, plus_constant (Pmode, sp, 0x10)));
-  //add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, gen_rtx_MEM (Pmode, frame_pointer_rtx)), sp));
-  //add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, regsize)), sp));
-  //add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, 16)), sp));
-  //add_reg_note (insn, REG_CFA_REGISTER, gen_rtx_SET (gen_rtx_REG (Pmode, RPC_REG), pc_rtx));
-  //add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, regsize)), 8)), pc_rtx));
-  //add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, gen_rtx_MEM (Pmode, plus_constant (Pmode, frame_pointer_rtx, regsize)), 16)), sp));
   if (crtl->calls_eh_return)
     {
       add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 24)), gen_rtx_REG (SImode, A0_REG)));
