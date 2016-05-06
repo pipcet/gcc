@@ -2394,6 +2394,8 @@ bool asmjs_rtx_costs (rtx x, machine_mode mode ATTRIBUTE_UNUSED,
   return true;
 }
 
+/* Always use LRA, as is now recommended. */
+
 bool asmjs_lra_p ()
 {
   return true;
@@ -2417,10 +2419,11 @@ asmjs_trampoline_adjust_address (rtx addr)
   return addr;
 }
 
-/* Trampolines are merely three-word blocks of data; "TRAM" followed
- * by a function pointer followed by a value to load in the static
- * chain register.  The JavaScript code handles the recognition and
- * evaluation of trampolines, so it's quite slow. */
+/* Trampolines are merely three-word blocks of data aligned to a
+ * 16-byte boundary; "TRAM" followed by a function pointer followed by
+ * a value to load in the static chain register.  The JavaScript code
+ * handles the recognition and evaluation of trampolines, so it's
+ * quite slow. */
 
 static void
 asmjs_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
@@ -2443,6 +2446,7 @@ asmjs_asm_can_output_mi_thunk (const_tree, HOST_WIDE_INT, HOST_WIDE_INT,
   return true;
 }
 
+#if 0 /* unused */
 /* Return RTX for the first (implicit this) parameter passed to a method. */
 
 static rtx
@@ -2455,6 +2459,7 @@ asmjs_this_parameter (tree function)
   else
     return gen_rtx_REG (SImode, R0_REG);
 }
+#endif
 
 /* Adjust the "this" parameter and jump to function. We can't actually force
  * a tail call to happen on the JS stack, but we can force one on the VM
