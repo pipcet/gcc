@@ -6989,7 +6989,7 @@ get_inner_reference (tree exp, HOST_WIDE_INT *pbitsize,
 	      if (!integer_zerop (off))
 		{
 		  offset_int boff, coff = mem_ref_offset (exp);
-		  boff = wi::lshift (coff, LOG2_BITS_PER_UNIT);
+		  boff = coff << LOG2_BITS_PER_UNIT;
 		  bit_offset += boff;
 		}
 	      exp = TREE_OPERAND (TREE_OPERAND (exp, 0), 0);
@@ -7015,7 +7015,7 @@ get_inner_reference (tree exp, HOST_WIDE_INT *pbitsize,
     {
       offset_int tem = wi::sext (wi::to_offset (offset),
 				 TYPE_PRECISION (sizetype));
-      tem = wi::lshift (tem, LOG2_BITS_PER_UNIT);
+      tem <<= LOG2_BITS_PER_UNIT;
       tem += bit_offset;
       if (wi::fits_shwi_p (tem))
 	{
@@ -7035,7 +7035,7 @@ get_inner_reference (tree exp, HOST_WIDE_INT *pbitsize,
 	  /* TEM is the bitpos rounded to BITS_PER_UNIT towards -Inf.
 	     Subtract it to BIT_OFFSET and add it (scaled) to OFFSET.  */
 	  bit_offset -= tem;
-	  tem = wi::arshift (tem, LOG2_BITS_PER_UNIT);
+	  tem >>= LOG2_BITS_PER_UNIT;
 	  offset = size_binop (PLUS_EXPR, offset,
 			       wide_int_to_tree (sizetype, tem));
 	}
@@ -9729,10 +9729,9 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
          GET_MODE_PRECISION (TYPE_MODE (type)), we need to extend from
          the former to the latter according to the signedness of the
          type. */
-      temp = immed_wide_int_const (wide_int::from
+      temp = immed_wide_int_const (wi::to_wide
 				   (exp,
-				    GET_MODE_PRECISION (TYPE_MODE (type)),
-				    TYPE_SIGN (type)),
+				    GET_MODE_PRECISION (TYPE_MODE (type))),
 				   TYPE_MODE (type));
       return temp;
 

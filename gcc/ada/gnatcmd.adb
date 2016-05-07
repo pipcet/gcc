@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -42,7 +42,6 @@ with Snames;   use Snames;
 with Stringt;
 with Switch;   use Switch;
 with Table;
-with Targparm; use Targparm;
 with Tempdir;
 with Types;    use Types;
 
@@ -434,12 +433,7 @@ procedure GNATCmd is
 
    procedure Output_Version is
    begin
-      if AAMP_On_Target then
-         Put ("GNAAMP ");
-      else
-         Put ("GNAT ");
-      end if;
-
+      Put ("GNAT ");
       Put_Line (Gnatvsn.Gnat_Version_String);
       Put_Line ("Copyright 1996-" & Gnatvsn.Current_Year
                 & ", Free Software Foundation, Inc.");
@@ -457,12 +451,7 @@ procedure GNATCmd is
       New_Line;
 
       for C in Command_List'Range loop
-         if Targparm.AAMP_On_Target then
-            Put ("gnaampcmd ");
-         else
-            Put ("gnat ");
-         end if;
-
+         Put ("gnat ");
          Put (To_Lower (Command_List (C).Cname.all));
          Set_Col (25);
          Put (Program_Name (Command_List (C).Unixcmd.all, "gnat").all);
@@ -511,13 +500,6 @@ begin
 
    First_Switches.Init;
    First_Switches.Set_Last (0);
-
-   --  Set AAMP_On_Target from command name, for testing in Osint.Program_Name
-   --  to handle the mapping of GNAAMP tool names. We don't extract it from
-   --  system.ads, as there may be no default runtime.
-
-   Find_Program_Name;
-   AAMP_On_Target := Name_Buffer (1 .. Name_Len) = "gnaampcmd";
 
    --  Put the command line in environment variable GNAT_DRIVER_COMMAND_LINE,
    --  so that the spawned tool may know the way the GNAT driver was invoked.
@@ -719,7 +701,7 @@ begin
                if Call_GPR_Tool then
                   case The_Command is
                      when Make | Compile | Bind | Link =>
-                        if Locate_Exec_On_Path (Gprbuild) /= null  then
+                        if Locate_Exec_On_Path (Gprbuild) /= null then
                            Program    := new String'(Gprbuild);
                            Get_Target := True;
 
@@ -982,6 +964,14 @@ begin
                      end if;
 
                      Remove_Switch (Arg_Num);
+
+                  --  --unchecked-shared-lib-imports
+
+                  elsif Argv.all = "--unchecked-shared-lib-imports" then
+                     Opt.Unchecked_Shared_Lib_Imports := True;
+                     Remove_Switch (Arg_Num);
+
+                  --  gnat list -U
 
                   elsif
                     The_Command = List

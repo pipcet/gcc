@@ -3046,7 +3046,8 @@ build_function_call_vec (location_t loc, vec<location_t> arg_loc,
   if (fundecl
       && DECL_BUILT_IN (fundecl)
       && DECL_BUILT_IN_CLASS (fundecl) == BUILT_IN_NORMAL
-      && !check_builtin_function_arguments (fundecl, nargs, argarray))
+      && !check_builtin_function_arguments (loc, arg_loc, fundecl, nargs,
+					    argarray))
     return error_mark_node;
 
   /* Check that the arguments to the function are valid.  */
@@ -11066,7 +11067,8 @@ build_binary_op (location_t location, enum tree_code code,
       else if (code0 == POINTER_TYPE && null_pointer_constant_p (orig_op1))
 	{
 	  if (TREE_CODE (op0) == ADDR_EXPR
-	      && decl_with_nonnull_addr_p (TREE_OPERAND (op0, 0)))
+	      && decl_with_nonnull_addr_p (TREE_OPERAND (op0, 0))
+	      && !from_macro_expansion_at (location))
 	    {
 	      if (code == EQ_EXPR)
 		warning_at (location,
@@ -11086,7 +11088,8 @@ build_binary_op (location_t location, enum tree_code code,
       else if (code1 == POINTER_TYPE && null_pointer_constant_p (orig_op0))
 	{
 	  if (TREE_CODE (op1) == ADDR_EXPR
-	      && decl_with_nonnull_addr_p (TREE_OPERAND (op1, 0)))
+	      && decl_with_nonnull_addr_p (TREE_OPERAND (op1, 0))
+	      && !from_macro_expansion_at (location))
 	    {
 	      if (code == EQ_EXPR)
 		warning_at (location,
@@ -12496,8 +12499,7 @@ c_find_omp_placeholder_r (tree *tp, int *, void *data)
    Remove any elements from the list that are invalid.  */
 
 tree
-c_finish_omp_clauses (tree clauses, bool is_omp, bool declare_simd,
-		      bool is_cilk)
+c_finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 {
   bitmap_head generic_head, firstprivate_head, lastprivate_head;
   bitmap_head aligned_head, map_head, map_field_head;
@@ -12540,7 +12542,7 @@ c_finish_omp_clauses (tree clauses, bool is_omp, bool declare_simd,
 	  t = OMP_CLAUSE_DECL (c);
 	  if (TREE_CODE (t) == TREE_LIST)
 	    {
-	      if (handle_omp_array_sections (c, is_omp))
+	      if (handle_omp_array_sections (c, ort & C_ORT_OMP))
 		{
 		  remove = true;
 		  break;
@@ -12768,10 +12770,10 @@ c_finish_omp_clauses (tree clauses, bool is_omp, bool declare_simd,
 	  goto check_dup_generic;
 
 	case OMP_CLAUSE_LINEAR:
-	  if (!declare_simd)
+	  if (ort != C_ORT_OMP_DECLARE_SIMD)
 	    need_implicitly_determined = true;
 	  t = OMP_CLAUSE_DECL (c);
-	  if (!declare_simd
+	  if (ort != C_ORT_OMP_DECLARE_SIMD
 	      && OMP_CLAUSE_LINEAR_KIND (c) != OMP_CLAUSE_LINEAR_DEFAULT)
 	    {
 	      error_at (OMP_CLAUSE_LOCATION (c),
@@ -12779,7 +12781,7 @@ c_finish_omp_clauses (tree clauses, bool is_omp, bool declare_simd,
 			"clause on %<simd%> or %<for%> constructs");
 	      OMP_CLAUSE_LINEAR_KIND (c) = OMP_CLAUSE_LINEAR_DEFAULT;
 	    }
-	  if (is_cilk)
+	  if (ort & C_ORT_CILK)
 	    {
 	      if (!INTEGRAL_TYPE_P (TREE_TYPE (t))
 		  && !SCALAR_FLOAT_TYPE_P (TREE_TYPE (t))
@@ -12805,7 +12807,7 @@ c_finish_omp_clauses (tree clauses, bool is_omp, bool declare_simd,
 		  break;
 		}
 	    }
-	  if (declare_simd)
+	  if (ort == C_ORT_OMP_DECLARE_SIMD)
 	    {
 	      tree s = OMP_CLAUSE_LINEAR_STEP (c);
 	      if (TREE_CODE (s) == PARM_DECL)
@@ -12984,7 +12986,7 @@ c_finish_omp_clauses (tree clauses, bool is_omp, bool declare_simd,
 	    }
 	  if (TREE_CODE (t) == TREE_LIST)
 	    {
-	      if (handle_omp_array_sections (c, is_omp))
+	      if (handle_omp_array_sections (c, ort & C_ORT_OMP))
 		remove = true;
 	      break;
 	    }
@@ -13007,7 +13009,7 @@ c_finish_omp_clauses (tree clauses, bool is_omp, bool declare_simd,
 	  t = OMP_CLAUSE_DECL (c);
 	  if (TREE_CODE (t) == TREE_LIST)
 	    {
-	      if (handle_omp_array_sections (c, is_omp))
+	      if (handle_omp_array_sections (c, ort & C_ORT_OMP))
 		remove = true;
 	      else
 		{
@@ -13054,7 +13056,7 @@ c_finish_omp_clauses (tree clauses, bool is_omp, bool declare_simd,
 	      break;
 	    }
 	  if (TREE_CODE (t) == COMPONENT_REF
-	      && is_omp
+	      && (ort & C_ORT_OMP)
 	      && OMP_CLAUSE_CODE (c) != OMP_CLAUSE__CACHE_)
 	    {
 	      if (DECL_BIT_FIELD (TREE_OPERAND (t, 1)))

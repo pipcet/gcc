@@ -2769,11 +2769,10 @@ convertible_comparison_p (rtx_insn *insn)
   return true;
 }
 
-/* Return 1 if INSN may be converted into vector
-   instruction.  */
+/* The DImode version of scalar_to_vector_candidate_p.  */
 
 static bool
-scalar_to_vector_candidate_p (rtx_insn *insn)
+dimode_scalar_to_vector_candidate_p (rtx_insn *insn)
 {
   rtx def_set = single_set (insn);
 
@@ -2833,16 +2832,75 @@ scalar_to_vector_candidate_p (rtx_insn *insn)
   return true;
 }
 
-/* For a given bitmap of insn UIDs scans all instruction and
-   remove insn from CANDIDATES in case it has both convertible
-   and not convertible definitions.
+/* The TImode version of scalar_to_vector_candidate_p.  */
 
-   All insns in a bitmap are conversion candidates according to
-   scalar_to_vector_candidate_p.  Currently it implies all insns
-   are single_set.  */
+static bool
+timode_scalar_to_vector_candidate_p (rtx_insn *insn)
+{
+  rtx def_set = single_set (insn);
+
+  if (!def_set)
+    return false;
+
+  if (has_non_address_hard_reg (insn))
+    return false;
+
+  rtx src = SET_SRC (def_set);
+  rtx dst = SET_DEST (def_set);
+
+  /* Only TImode load and store are allowed.  */
+  if (GET_MODE (dst) != TImode)
+    return false;
+
+  if (MEM_P (dst))
+    {
+      /* Check for store.  Only support store from register or standard
+	 SSE constants.  Memory must be aligned or unaligned store is
+	 optimal.  */
+      if (misaligned_operand (dst, TImode)
+	  && !TARGET_SSE_UNALIGNED_STORE_OPTIMAL)
+	return false;
+
+      switch (GET_CODE (src))
+	{
+	default:
+	  return false;
+
+	case REG:
+	  return true;
+
+	case CONST_INT:
+	  return standard_sse_constant_p (src, TImode);
+	}
+    }
+  else if (MEM_P (src))
+    {
+      /* Check for load.  Memory must be aligned or unaligned load is
+	 optimal.  */
+      return (REG_P (dst)
+	      && (!misaligned_operand (src, TImode)
+		  || TARGET_SSE_UNALIGNED_LOAD_OPTIMAL));
+    }
+
+  return false;
+}
+
+/* Return 1 if INSN may be converted into vector
+   instruction.  */
+
+static bool
+scalar_to_vector_candidate_p (rtx_insn *insn)
+{
+  if (TARGET_64BIT)
+    return timode_scalar_to_vector_candidate_p (insn);
+  else
+    return dimode_scalar_to_vector_candidate_p (insn);
+}
+
+/* The DImode version of remove_non_convertible_regs.  */
 
 static void
-remove_non_convertible_regs (bitmap candidates)
+dimode_remove_non_convertible_regs (bitmap candidates)
 {
   bitmap_iterator bi;
   unsigned id;
@@ -2893,11 +2951,132 @@ remove_non_convertible_regs (bitmap candidates)
   BITMAP_FREE (regs);
 }
 
+/* For a register REGNO, scan instructions for its defs and uses.
+   Put REGNO in REGS if a def or use isn't in CANDIDATES.  */
+
+static void
+timode_check_non_convertible_regs (bitmap candidates, bitmap regs,
+				   unsigned int regno)
+{
+  for (df_ref def = DF_REG_DEF_CHAIN (regno);
+       def;
+       def = DF_REF_NEXT_REG (def))
+    {
+      if (!bitmap_bit_p (candidates, DF_REF_INSN_UID (def)))
+	{
+	  if (dump_file)
+	    fprintf (dump_file,
+		     "r%d has non convertible def in insn %d\n",
+		     regno, DF_REF_INSN_UID (def));
+
+	  bitmap_set_bit (regs, regno);
+	  break;
+	}
+    }
+
+  for (df_ref ref = DF_REG_USE_CHAIN (regno);
+       ref;
+       ref = DF_REF_NEXT_REG (ref))
+    {
+      /* Debug instructions are skipped.  */
+      if (NONDEBUG_INSN_P (DF_REF_INSN (ref))
+	  && !bitmap_bit_p (candidates, DF_REF_INSN_UID (ref)))
+	{
+	  if (dump_file)
+	    fprintf (dump_file,
+		     "r%d has non convertible use in insn %d\n",
+		     regno, DF_REF_INSN_UID (ref));
+
+	  bitmap_set_bit (regs, regno);
+	  break;
+	}
+    }
+}
+
+/* The TImode version of remove_non_convertible_regs.  */
+
+static void
+timode_remove_non_convertible_regs (bitmap candidates)
+{
+  bitmap_iterator bi;
+  unsigned id;
+  bitmap regs = BITMAP_ALLOC (NULL);
+
+  EXECUTE_IF_SET_IN_BITMAP (candidates, 0, id, bi)
+    {
+      rtx def_set = single_set (DF_INSN_UID_GET (id)->insn);
+      rtx dest = SET_DEST (def_set);
+      rtx src = SET_SRC (def_set);
+
+      if ((!REG_P (dest)
+	   || bitmap_bit_p (regs, REGNO (dest))
+	   || HARD_REGISTER_P (dest))
+	  && (!REG_P (src)
+	      || bitmap_bit_p (regs, REGNO (src))
+	      || HARD_REGISTER_P (src)))
+	continue;
+
+      if (REG_P (dest))
+	timode_check_non_convertible_regs (candidates, regs,
+					   REGNO (dest));
+
+      if (REG_P (src))
+	timode_check_non_convertible_regs (candidates, regs,
+					   REGNO (src));
+    }
+
+  EXECUTE_IF_SET_IN_BITMAP (regs, 0, id, bi)
+    {
+      for (df_ref def = DF_REG_DEF_CHAIN (id);
+	   def;
+	   def = DF_REF_NEXT_REG (def))
+	if (bitmap_bit_p (candidates, DF_REF_INSN_UID (def)))
+	  {
+	    if (dump_file)
+	      fprintf (dump_file, "Removing insn %d from candidates list\n",
+		       DF_REF_INSN_UID (def));
+
+	    bitmap_clear_bit (candidates, DF_REF_INSN_UID (def));
+	  }
+
+      for (df_ref ref = DF_REG_USE_CHAIN (id);
+	   ref;
+	   ref = DF_REF_NEXT_REG (ref))
+	if (bitmap_bit_p (candidates, DF_REF_INSN_UID (ref)))
+	  {
+	    if (dump_file)
+	      fprintf (dump_file, "Removing insn %d from candidates list\n",
+		       DF_REF_INSN_UID (ref));
+
+	    bitmap_clear_bit (candidates, DF_REF_INSN_UID (ref));
+	  }
+    }
+
+  BITMAP_FREE (regs);
+}
+
+/* For a given bitmap of insn UIDs scans all instruction and
+   remove insn from CANDIDATES in case it has both convertible
+   and not convertible definitions.
+
+   All insns in a bitmap are conversion candidates according to
+   scalar_to_vector_candidate_p.  Currently it implies all insns
+   are single_set.  */
+
+static void
+remove_non_convertible_regs (bitmap candidates)
+{
+  if (TARGET_64BIT)
+    timode_remove_non_convertible_regs (candidates);
+  else
+    dimode_remove_non_convertible_regs (candidates);
+}
+
 class scalar_chain
 {
  public:
   scalar_chain ();
-  ~scalar_chain ();
+  virtual ~scalar_chain ();
 
   static unsigned max_id;
 
@@ -2913,21 +3092,47 @@ class scalar_chain
   bitmap defs_conv;
 
   void build (bitmap candidates, unsigned insn_uid);
-  int compute_convert_gain ();
+  virtual int compute_convert_gain () = 0;
   int convert ();
+
+ protected:
+  void add_to_queue (unsigned insn_uid);
+  void emit_conversion_insns (rtx insns, rtx_insn *pos);
 
  private:
   void add_insn (bitmap candidates, unsigned insn_uid);
-  void add_to_queue (unsigned insn_uid);
-  void mark_dual_mode_def (df_ref def);
   void analyze_register_chain (bitmap candidates, df_ref ref);
+  virtual void mark_dual_mode_def (df_ref def) = 0;
+  virtual void convert_insn (rtx_insn *insn) = 0;
+  virtual void convert_registers () = 0;
+};
+
+class dimode_scalar_chain : public scalar_chain
+{
+ public:
+  int compute_convert_gain ();
+ private:
+  void mark_dual_mode_def (df_ref def);
   rtx replace_with_subreg (rtx x, rtx reg, rtx subreg);
-  void emit_conversion_insns (rtx insns, rtx_insn *pos);
   void replace_with_subreg_in_insn (rtx_insn *insn, rtx reg, rtx subreg);
   void convert_insn (rtx_insn *insn);
   void convert_op (rtx *op, rtx_insn *insn);
   void convert_reg (unsigned regno);
   void make_vector_copies (unsigned regno);
+  void convert_registers ();
+};
+
+class timode_scalar_chain : public scalar_chain
+{
+ public:
+  /* Convert from TImode to V1TImode is always faster.  */
+  int compute_convert_gain () { return 1; }
+
+ private:
+  void mark_dual_mode_def (df_ref def);
+  void convert_insn (rtx_insn *insn);
+  /* We don't convert registers to difference size.  */
+  void convert_registers () {}
 };
 
 unsigned scalar_chain::max_id = 0;
@@ -2973,10 +3178,11 @@ scalar_chain::add_to_queue (unsigned insn_uid)
   bitmap_set_bit (queue, insn_uid);
 }
 
-/* Mark register defined by DEF as requiring conversion.  */
+/* For DImode conversion, mark register defined by DEF as requiring
+   conversion.  */
 
 void
-scalar_chain::mark_dual_mode_def (df_ref def)
+dimode_scalar_chain::mark_dual_mode_def (df_ref def)
 {
   gcc_assert (DF_REF_REG_DEF_P (def));
 
@@ -2989,6 +3195,14 @@ scalar_chain::mark_dual_mode_def (df_ref def)
 	     DF_REF_REGNO (def), DF_REF_INSN_UID (def), chain_id);
 
   bitmap_set_bit (defs_conv, DF_REF_REGNO (def));
+}
+
+/* For TImode conversion, it is unused.  */
+
+void
+timode_scalar_chain::mark_dual_mode_def (df_ref)
+{
+  gcc_unreachable ();
 }
 
 /* Check REF's chain to add new insns into a queue
@@ -3117,7 +3331,7 @@ scalar_chain::build (bitmap candidates, unsigned insn_uid)
 /* Compute a gain for chain conversion.  */
 
 int
-scalar_chain::compute_convert_gain ()
+dimode_scalar_chain::compute_convert_gain ()
 {
   bitmap_iterator bi;
   unsigned insn_uid;
@@ -3174,7 +3388,7 @@ scalar_chain::compute_convert_gain ()
 /* Replace REG in X with a V2DI subreg of NEW_REG.  */
 
 rtx
-scalar_chain::replace_with_subreg (rtx x, rtx reg, rtx new_reg)
+dimode_scalar_chain::replace_with_subreg (rtx x, rtx reg, rtx new_reg)
 {
   if (x == reg)
     return gen_rtx_SUBREG (V2DImode, new_reg, 0);
@@ -3197,7 +3411,8 @@ scalar_chain::replace_with_subreg (rtx x, rtx reg, rtx new_reg)
 /* Replace REG in INSN with a V2DI subreg of NEW_REG.  */
 
 void
-scalar_chain::replace_with_subreg_in_insn (rtx_insn *insn, rtx reg, rtx new_reg)
+dimode_scalar_chain::replace_with_subreg_in_insn (rtx_insn *insn,
+						  rtx reg, rtx new_reg)
 {
   replace_with_subreg (single_set (insn), reg, new_reg);
 }
@@ -3227,7 +3442,7 @@ scalar_chain::emit_conversion_insns (rtx insns, rtx_insn *after)
    and replace its uses in a chain.  */
 
 void
-scalar_chain::make_vector_copies (unsigned regno)
+dimode_scalar_chain::make_vector_copies (unsigned regno)
 {
   rtx reg = regno_reg_rtx[regno];
   rtx vreg = gen_reg_rtx (DImode);
@@ -3298,7 +3513,7 @@ scalar_chain::make_vector_copies (unsigned regno)
    in case register is used in not convertible insn.  */
 
 void
-scalar_chain::convert_reg (unsigned regno)
+dimode_scalar_chain::convert_reg (unsigned regno)
 {
   bool scalar_copy = bitmap_bit_p (defs_conv, regno);
   rtx reg = regno_reg_rtx[regno];
@@ -3390,7 +3605,7 @@ scalar_chain::convert_reg (unsigned regno)
    registers conversion.  */
 
 void
-scalar_chain::convert_op (rtx *op, rtx_insn *insn)
+dimode_scalar_chain::convert_op (rtx *op, rtx_insn *insn)
 {
   *op = copy_rtx_if_shared (*op);
 
@@ -3434,7 +3649,7 @@ scalar_chain::convert_op (rtx *op, rtx_insn *insn)
 /* Convert INSN to vector mode.  */
 
 void
-scalar_chain::convert_insn (rtx_insn *insn)
+dimode_scalar_chain::convert_insn (rtx_insn *insn)
 {
   rtx def_set = single_set (insn);
   rtx src = SET_SRC (def_set);
@@ -3511,6 +3726,89 @@ scalar_chain::convert_insn (rtx_insn *insn)
   df_insn_rescan (insn);
 }
 
+/* Convert INSN from TImode to V1T1mode.  */
+
+void
+timode_scalar_chain::convert_insn (rtx_insn *insn)
+{
+  rtx def_set = single_set (insn);
+  rtx src = SET_SRC (def_set);
+  rtx dst = SET_DEST (def_set);
+
+  switch (GET_CODE (dst))
+    {
+    case REG:
+      {
+	rtx tmp = find_reg_equal_equiv_note (insn);
+	if (tmp)
+	  PUT_MODE (XEXP (tmp, 0), V1TImode);
+      }
+      /* FALLTHRU */
+    case MEM:
+      PUT_MODE (dst, V1TImode);
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+
+  switch (GET_CODE (src))
+    {
+    case REG:
+    case MEM:
+      PUT_MODE (src, V1TImode);
+      break;
+
+    case CONST_INT:
+      switch (standard_sse_constant_p (src, TImode))
+	{
+	case 1:
+	  src = CONST0_RTX (GET_MODE (dst));
+	  break;
+	case 2:
+	  src = CONSTM1_RTX (GET_MODE (dst));
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+      if (NONDEBUG_INSN_P (insn))
+	{
+	  rtx tmp = gen_reg_rtx (V1TImode);
+	  /* Since there are no instructions to store standard SSE
+	     constant, temporary register usage is required.  */
+	  emit_conversion_insns (gen_rtx_SET (dst, tmp), insn);
+	  dst = tmp;
+	}
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+
+  SET_SRC (def_set) = src;
+  SET_DEST (def_set) = dst;
+
+  /* Drop possible dead definitions.  */
+  PATTERN (insn) = def_set;
+
+  INSN_CODE (insn) = -1;
+  recog_memoized (insn);
+  df_insn_rescan (insn);
+}
+
+void
+dimode_scalar_chain::convert_registers ()
+{
+  bitmap_iterator bi;
+  unsigned id;
+
+  EXECUTE_IF_SET_IN_BITMAP (defs, 0, id, bi)
+    convert_reg (id);
+
+  EXECUTE_IF_AND_COMPL_IN_BITMAP (defs_conv, defs, 0, id, bi)
+    make_vector_copies (id);
+}
+
 /* Convert whole chain creating required register
    conversions and copies.  */
 
@@ -3527,11 +3825,7 @@ scalar_chain::convert ()
   if (dump_file)
     fprintf (dump_file, "Converting chain #%d...\n", chain_id);
 
-  EXECUTE_IF_SET_IN_BITMAP (defs, 0, id, bi)
-    convert_reg (id);
-
-  EXECUTE_IF_AND_COMPL_IN_BITMAP (defs_conv, defs, 0, id, bi)
-    make_vector_copies (id);
+  convert_registers ();
 
   EXECUTE_IF_SET_IN_BITMAP (insns, 0, id, bi)
     {
@@ -3588,19 +3882,26 @@ convert_scalars_to_vector ()
   while (!bitmap_empty_p (candidates))
     {
       unsigned uid = bitmap_first_set_bit (candidates);
-      scalar_chain chain;
+      scalar_chain *chain;
+
+      if (TARGET_64BIT)
+	chain = new timode_scalar_chain;
+      else
+	chain = new dimode_scalar_chain;
 
       /* Find instructions chain we want to convert to vector mode.
 	 Check all uses and definitions to estimate all required
 	 conversions.  */
-      chain.build (candidates, uid);
+      chain->build (candidates, uid);
 
-      if (chain.compute_convert_gain () > 0)
-	converted_insns += chain.convert ();
+      if (chain->compute_convert_gain () > 0)
+	converted_insns += chain->convert ();
       else
 	if (dump_file)
 	  fprintf (dump_file, "Chain #%d conversion is not profitable\n",
-		   chain.chain_id);
+		   chain->chain_id);
+
+      delete chain;
     }
 
   if (dump_file)
@@ -3609,6 +3910,13 @@ convert_scalars_to_vector ()
   BITMAP_FREE (candidates);
   bitmap_obstack_release (NULL);
   df_process_deferred_rescans ();
+
+  /* FIXME: Since the CSE pass may change dominance info, which isn't
+     expected by the fwprop pass, call free_dominance_info to
+     invalidate dominance info.  Otherwise, the fwprop pass may crash
+     when dominance info is changed.  */
+  if (TARGET_64BIT)
+    free_dominance_info (CDI_DOMINATORS);
 
   /* Conversion means we may have 128bit register spills/fills
      which require aligned stack.  */
@@ -3683,7 +3991,7 @@ public:
   /* opt_pass methods: */
   virtual bool gate (function *)
     {
-      return !TARGET_64BIT && TARGET_STV && TARGET_SSE2 && optimize > 1;
+      return TARGET_STV && TARGET_SSE2 && optimize > 1;
     }
 
   virtual unsigned int execute (function *)
@@ -5596,9 +5904,15 @@ ix86_option_override (void)
 	1, PASS_POS_INSERT_AFTER
       };
   opt_pass *pass_stv = make_pass_stv (g);
-  struct register_pass_info stv_info
+  struct register_pass_info stv_info_dimode
     = { pass_stv, "combine",
 	1, PASS_POS_INSERT_AFTER
+      };
+  /* Run the 64-bit STV pass before the CSE pass so that CONST0_RTX and
+     CONSTM1_RTX generated by the STV pass can be CSEed.  */
+  struct register_pass_info stv_info_timode
+    = { pass_stv, "cse2",
+	1, PASS_POS_INSERT_BEFORE
       };
 
   ix86_option_override_internal (true, &global_options, &global_options_set);
@@ -5606,7 +5920,7 @@ ix86_option_override (void)
 
   /* This needs to be done at start up.  It's convenient to do it here.  */
   register_pass (&insert_vzeroupper_info);
-  register_pass (&stv_info);
+  register_pass (TARGET_64BIT ? &stv_info_timode : &stv_info_dimode);
 }
 
 /* Implement the TARGET_OFFLOAD_OPTIONS hook.  */
@@ -6490,6 +6804,9 @@ ix86_in_large_data_p (tree exp)
   return false;
 }
 
+/* i386-specific section flag to mark large sections.  */
+#define SECTION_LARGE SECTION_MACH_DEP
+
 /* Switch to the appropriate section for output of DECL.
    DECL is either a `VAR_DECL' node or a constant of some sort.
    RELOC indicates whether forming the initial value of DECL requires
@@ -6502,7 +6819,7 @@ x86_64_elf_select_section (tree decl, int reloc,
   if (ix86_in_large_data_p (decl))
     {
       const char *sname = NULL;
-      unsigned int flags = SECTION_WRITE;
+      unsigned int flags = SECTION_WRITE | SECTION_LARGE;
       switch (categorize_decl_for_section (decl, reloc))
 	{
 	case SECCAT_DATA:
@@ -6529,7 +6846,7 @@ x86_64_elf_select_section (tree decl, int reloc,
 	case SECCAT_RODATA_MERGE_STR_INIT:
 	case SECCAT_RODATA_MERGE_CONST:
 	  sname = ".lrodata";
-	  flags = 0;
+	  flags &= ~SECTION_WRITE;
 	  break;
 	case SECCAT_SRODATA:
 	case SECCAT_SDATA:
@@ -6563,6 +6880,9 @@ static unsigned int ATTRIBUTE_UNUSED
 x86_64_elf_section_type_flags (tree decl, const char *name, int reloc)
 {
   unsigned int flags = default_section_type_flags (decl, name, reloc);
+
+  if (ix86_in_large_data_p (decl))
+    flags |= SECTION_LARGE;
 
   if (decl == NULL_TREE
       && (strcmp (name, ".ldata.rel.ro") == 0
@@ -6642,19 +6962,27 @@ x86_64_elf_unique_section (tree decl, int reloc)
 }
 
 #ifdef COMMON_ASM_OP
+
+#ifndef LARGECOMM_SECTION_ASM_OP
+#define LARGECOMM_SECTION_ASM_OP "\t.largecomm\t"
+#endif
+
 /* This says how to output assembler code to declare an
    uninitialized external linkage data object.
 
-   For medium model x86-64 we need to use .largecomm opcode for
+   For medium model x86-64 we need to use LARGECOMM_SECTION_ASM_OP opcode for
    large objects.  */
 void
-x86_elf_aligned_common (FILE *file,
+x86_elf_aligned_decl_common (FILE *file, tree decl,
 			const char *name, unsigned HOST_WIDE_INT size,
 			int align)
 {
   if ((ix86_cmodel == CM_MEDIUM || ix86_cmodel == CM_MEDIUM_PIC)
       && size > (unsigned int)ix86_section_threshold)
-    fputs ("\t.largecomm\t", file);
+    {
+      switch_to_section (get_named_section (decl, ".lbss", 0));
+      fputs (LARGECOMM_SECTION_ASM_OP, file);
+    }
   else
     fputs (COMMON_ASM_OP, file);
   assemble_name (file, name);
@@ -10762,11 +11090,11 @@ standard_80387_constant_rtx (int idx)
 				       XFmode);
 }
 
-/* Return 1 if X is all 0s and 2 if x is all 1s
+/* Return 1 if X is all bits 0 and 2 if X is all bits 1
    in supported SSE/AVX vector mode.  */
 
 int
-standard_sse_constant_p (rtx x)
+standard_sse_constant_p (rtx x, machine_mode pred_mode)
 {
   machine_mode mode;
 
@@ -10774,33 +11102,37 @@ standard_sse_constant_p (rtx x)
     return 0;
 
   mode = GET_MODE (x);
-  
-  if (x == const0_rtx || x == CONST0_RTX (mode))
+
+  if (x == const0_rtx || const0_operand (x, mode))
     return 1;
-  if (vector_all_ones_operand (x, mode))
-    switch (mode)
-      {
-      case V16QImode:
-      case V8HImode:
-      case V4SImode:
-      case V2DImode:
-	if (TARGET_SSE2)
-	  return 2;
-      case V32QImode:
-      case V16HImode:
-      case V8SImode:
-      case V4DImode:
-	if (TARGET_AVX2)
-	  return 2;
-      case V64QImode:
-      case V32HImode:
-      case V16SImode:
-      case V8DImode:
-	if (TARGET_AVX512F)
-	  return 2;
-      default:
-	break;
-      }
+
+  if (x == constm1_rtx || vector_all_ones_operand (x, mode))
+    {
+      /* VOIDmode integer constant, get mode from the predicate.  */
+      if (mode == VOIDmode)
+	mode = pred_mode;
+
+      switch (GET_MODE_SIZE (mode))
+	{
+	case 64:
+	  if (TARGET_AVX512F)
+	    return 2;
+	  break;
+	case 32:
+	  if (TARGET_AVX2)
+	    return 2;
+	  break;
+	case 16:
+	  if (TARGET_SSE2)
+	    return 2;
+	  break;
+	case 0:
+	  /* VOIDmode */
+	  gcc_unreachable ();
+	default:
+	  break;
+	}
+    }
 
   return 0;
 }
@@ -10811,54 +11143,100 @@ standard_sse_constant_p (rtx x)
 const char *
 standard_sse_constant_opcode (rtx_insn *insn, rtx x)
 {
-  switch (standard_sse_constant_p (x))
+  machine_mode mode;
+
+  gcc_assert (TARGET_SSE);
+
+  mode = GET_MODE (x);
+
+  if (x == const0_rtx || const0_operand (x, mode))
     {
-    case 1:
       switch (get_attr_mode (insn))
 	{
 	case MODE_XI:
 	  return "vpxord\t%g0, %g0, %g0";
-	case MODE_V16SF:
-	  return TARGET_AVX512DQ ? "vxorps\t%g0, %g0, %g0"
-				 : "vpxord\t%g0, %g0, %g0";
-	case MODE_V8DF:
-	  return TARGET_AVX512DQ ? "vxorpd\t%g0, %g0, %g0"
-				 : "vpxorq\t%g0, %g0, %g0";
+	case MODE_OI:
+	  return (TARGET_AVX512VL
+		  ? "vpxord\t%x0, %x0, %x0"
+		  : "vpxor\t%x0, %x0, %x0");
 	case MODE_TI:
-	  return TARGET_AVX512VL ? "vpxord\t%t0, %t0, %t0"
-				 : "%vpxor\t%0, %d0";
+	  return (TARGET_AVX512VL
+		  ? "vpxord\t%t0, %t0, %t0"
+		  : "%vpxor\t%0, %d0");
+
+	case MODE_V8DF:
+	  return (TARGET_AVX512DQ
+		  ? "vxorpd\t%g0, %g0, %g0"
+		  : "vpxorq\t%g0, %g0, %g0");
+	case MODE_V4DF:
+	  return "vxorpd\t%x0, %x0, %x0";
 	case MODE_V2DF:
 	  return "%vxorpd\t%0, %d0";
+
+	case MODE_V16SF:
+	  return (TARGET_AVX512DQ
+		  ? "vxorps\t%g0, %g0, %g0"
+		  : "vpxord\t%g0, %g0, %g0");
+	case MODE_V8SF:
+	  return "vxorps\t%x0, %x0, %x0";
 	case MODE_V4SF:
 	  return "%vxorps\t%0, %d0";
 
+	default:
+	  gcc_unreachable ();
+	}
+    }
+  else if (x == constm1_rtx || vector_all_ones_operand (x, mode))
+    {
+      enum attr_mode insn_mode = get_attr_mode (insn);
+      
+      switch (insn_mode)
+	{
+	case MODE_XI:
+	case MODE_V8DF:
+	case MODE_V16SF:
+	  gcc_assert (TARGET_AVX512F);
+	  return "vpternlogd\t{$0xFF, %g0, %g0, %g0|%g0, %g0, %g0, 0xFF}";
+
 	case MODE_OI:
-	  return TARGET_AVX512VL ? "vpxord\t%x0, %x0, %x0"
-				 : "vpxor\t%x0, %x0, %x0";
 	case MODE_V4DF:
-	  return "vxorpd\t%x0, %x0, %x0";
 	case MODE_V8SF:
-	  return "vxorps\t%x0, %x0, %x0";
+	  gcc_assert (TARGET_AVX2);
+	  /* FALLTHRU */
+	case MODE_TI:
+	case MODE_V2DF:
+	case MODE_V4SF:
+	  gcc_assert (TARGET_SSE2);
+	  return (TARGET_AVX
+		  ? "vpcmpeqd\t%0, %0, %0"
+		  : "pcmpeqd\t%0, %0");
 
 	default:
-	  break;
+	  gcc_unreachable ();
 	}
+   }
 
-    case 2:
-      if (TARGET_AVX512VL
-	  || get_attr_mode (insn) == MODE_XI
-	  || get_attr_mode (insn) == MODE_V8DF
-	  || get_attr_mode (insn) == MODE_V16SF)
-	return "vpternlogd\t{$0xFF, %g0, %g0, %g0|%g0, %g0, %g0, 0xFF}";
-      if (TARGET_AVX)
-	return "vpcmpeqd\t%0, %0, %0";
-      else
-	return "pcmpeqd\t%0, %0";
-
-    default:
-      break;
-    }
   gcc_unreachable ();
+}
+
+/* Returns true if INSN can be transformed from a memory load
+   to a supported FP constant load.  */
+
+bool
+ix86_standard_x87sse_constant_load_p (const rtx_insn *insn, rtx dst)
+{
+  rtx src = find_constant_src (insn);
+
+  gcc_assert (REG_P (dst));
+
+  if (src == NULL
+      || (SSE_REGNO_P (REGNO (dst))
+	  && standard_sse_constant_p (src, GET_MODE (dst)) != 1)
+      || (STACK_REGNO_P (REGNO (dst))
+	   && standard_80387_constant_p (src) < 1))
+    return false;
+
+  return true;
 }
 
 /* Returns true if OP contains a symbol reference */
@@ -14360,7 +14738,7 @@ darwin_local_data_pic (rtx disp)
    satisfies CONSTANT_P.  */
 
 static bool
-ix86_legitimate_constant_p (machine_mode, rtx x)
+ix86_legitimate_constant_p (machine_mode mode, rtx x)
 {
   /* Pointer bounds constants are not valid.  */
   if (POINTER_BOUNDS_MODE_P (GET_MODE (x)))
@@ -14426,13 +14804,25 @@ ix86_legitimate_constant_p (machine_mode, rtx x)
 #endif
       break;
 
+    case CONST_INT:
     case CONST_WIDE_INT:
-      if (!TARGET_64BIT && !standard_sse_constant_p (x))
-	return false;
+      switch (mode)
+	{
+	case TImode:
+	  if (TARGET_64BIT)
+	    return true;
+	  /* FALLTHRU */
+	case OImode:
+	case XImode:
+	  if (!standard_sse_constant_p (x, mode))
+	    return false;
+	default:
+	  break;
+	}
       break;
 
     case CONST_VECTOR:
-      if (!standard_sse_constant_p (x))
+      if (!standard_sse_constant_p (x, mode))
 	return false;
 
     default:
@@ -18758,7 +19148,7 @@ ix86_expand_vector_move (machine_mode mode, rtx operands[])
       && (CONSTANT_P (op1)
 	  || (SUBREG_P (op1)
 	      && CONSTANT_P (SUBREG_REG (op1))))
-      && !standard_sse_constant_p (op1))
+      && !standard_sse_constant_p (op1, mode))
     op1 = validize_mem (force_const_mem (mode, op1));
 
   /* We need to check memory alignment for SSE mode since attribute
@@ -32626,9 +33016,9 @@ static const struct builtin_description bdesc_special_args[] =
   { OPTION_MASK_ISA_LWP, CODE_FOR_lwp_llwpcb, "__builtin_ia32_llwpcb", IX86_BUILTIN_LLWPCB, UNKNOWN, (int) VOID_FTYPE_PVOID },
   { OPTION_MASK_ISA_LWP, CODE_FOR_lwp_slwpcb, "__builtin_ia32_slwpcb", IX86_BUILTIN_SLWPCB, UNKNOWN, (int) PVOID_FTYPE_VOID },
   { OPTION_MASK_ISA_LWP, CODE_FOR_lwp_lwpvalsi3, "__builtin_ia32_lwpval32", IX86_BUILTIN_LWPVAL32, UNKNOWN, (int) VOID_FTYPE_UINT_UINT_UINT },
-  { OPTION_MASK_ISA_LWP, CODE_FOR_lwp_lwpvaldi3, "__builtin_ia32_lwpval64", IX86_BUILTIN_LWPVAL64, UNKNOWN, (int) VOID_FTYPE_UINT64_UINT_UINT },
+  { OPTION_MASK_ISA_LWP | OPTION_MASK_ISA_64BIT, CODE_FOR_lwp_lwpvaldi3, "__builtin_ia32_lwpval64", IX86_BUILTIN_LWPVAL64, UNKNOWN, (int) VOID_FTYPE_UINT64_UINT_UINT },
   { OPTION_MASK_ISA_LWP, CODE_FOR_lwp_lwpinssi3, "__builtin_ia32_lwpins32", IX86_BUILTIN_LWPINS32, UNKNOWN, (int) UCHAR_FTYPE_UINT_UINT_UINT },
-  { OPTION_MASK_ISA_LWP, CODE_FOR_lwp_lwpinsdi3, "__builtin_ia32_lwpins64", IX86_BUILTIN_LWPINS64, UNKNOWN, (int) UCHAR_FTYPE_UINT64_UINT_UINT },
+  { OPTION_MASK_ISA_LWP | OPTION_MASK_ISA_64BIT, CODE_FOR_lwp_lwpinsdi3, "__builtin_ia32_lwpins64", IX86_BUILTIN_LWPINS64, UNKNOWN, (int) UCHAR_FTYPE_UINT64_UINT_UINT },
 
   /* FSGSBASE */
   { OPTION_MASK_ISA_FSGSBASE | OPTION_MASK_ISA_64BIT, CODE_FOR_rdfsbasesi, "__builtin_ia32_rdfsbase32", IX86_BUILTIN_RDFSBASE32, UNKNOWN, (int) UNSIGNED_FTYPE_VOID },
@@ -33563,12 +33953,12 @@ static const struct builtin_description bdesc_args[] =
 
   /* BMI */
   { OPTION_MASK_ISA_BMI, CODE_FOR_bmi_bextr_si, "__builtin_ia32_bextr_u32", IX86_BUILTIN_BEXTR32, UNKNOWN, (int) UINT_FTYPE_UINT_UINT },
-  { OPTION_MASK_ISA_BMI, CODE_FOR_bmi_bextr_di, "__builtin_ia32_bextr_u64", IX86_BUILTIN_BEXTR64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
+  { OPTION_MASK_ISA_BMI | OPTION_MASK_ISA_64BIT, CODE_FOR_bmi_bextr_di, "__builtin_ia32_bextr_u64", IX86_BUILTIN_BEXTR64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
   { OPTION_MASK_ISA_BMI, CODE_FOR_ctzhi2,       "__builtin_ctzs",           IX86_BUILTIN_CTZS,    UNKNOWN, (int) UINT16_FTYPE_UINT16 },
 
   /* TBM */
   { OPTION_MASK_ISA_TBM, CODE_FOR_tbm_bextri_si, "__builtin_ia32_bextri_u32", IX86_BUILTIN_BEXTRI32, UNKNOWN, (int) UINT_FTYPE_UINT_UINT },
-  { OPTION_MASK_ISA_TBM, CODE_FOR_tbm_bextri_di, "__builtin_ia32_bextri_u64", IX86_BUILTIN_BEXTRI64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
+  { OPTION_MASK_ISA_TBM | OPTION_MASK_ISA_64BIT, CODE_FOR_tbm_bextri_di, "__builtin_ia32_bextri_u64", IX86_BUILTIN_BEXTRI64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
 
   /* F16C */
   { OPTION_MASK_ISA_F16C, CODE_FOR_vcvtph2ps, "__builtin_ia32_vcvtph2ps", IX86_BUILTIN_CVTPH2PS, UNKNOWN, (int) V4SF_FTYPE_V8HI },
@@ -33578,11 +33968,11 @@ static const struct builtin_description bdesc_args[] =
 
   /* BMI2 */
   { OPTION_MASK_ISA_BMI2, CODE_FOR_bmi2_bzhi_si3, "__builtin_ia32_bzhi_si", IX86_BUILTIN_BZHI32, UNKNOWN, (int) UINT_FTYPE_UINT_UINT },
-  { OPTION_MASK_ISA_BMI2, CODE_FOR_bmi2_bzhi_di3, "__builtin_ia32_bzhi_di", IX86_BUILTIN_BZHI64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
+  { OPTION_MASK_ISA_BMI2 | OPTION_MASK_ISA_64BIT, CODE_FOR_bmi2_bzhi_di3, "__builtin_ia32_bzhi_di", IX86_BUILTIN_BZHI64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
   { OPTION_MASK_ISA_BMI2, CODE_FOR_bmi2_pdep_si3, "__builtin_ia32_pdep_si", IX86_BUILTIN_PDEP32, UNKNOWN, (int) UINT_FTYPE_UINT_UINT },
-  { OPTION_MASK_ISA_BMI2, CODE_FOR_bmi2_pdep_di3, "__builtin_ia32_pdep_di", IX86_BUILTIN_PDEP64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
+  { OPTION_MASK_ISA_BMI2 | OPTION_MASK_ISA_64BIT, CODE_FOR_bmi2_pdep_di3, "__builtin_ia32_pdep_di", IX86_BUILTIN_PDEP64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
   { OPTION_MASK_ISA_BMI2, CODE_FOR_bmi2_pext_si3, "__builtin_ia32_pext_si", IX86_BUILTIN_PEXT32, UNKNOWN, (int) UINT_FTYPE_UINT_UINT },
-  { OPTION_MASK_ISA_BMI2, CODE_FOR_bmi2_pext_di3, "__builtin_ia32_pext_di", IX86_BUILTIN_PEXT64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
+  { OPTION_MASK_ISA_BMI2 | OPTION_MASK_ISA_64BIT, CODE_FOR_bmi2_pext_di3, "__builtin_ia32_pext_di", IX86_BUILTIN_PEXT64, UNKNOWN, (int) UINT64_FTYPE_UINT64_UINT64 },
 
   /* AVX512F */
   { OPTION_MASK_ISA_AVX512F, CODE_FOR_avx512f_si512_256si, "__builtin_ia32_si512_256si", IX86_BUILTIN_SI512_SI256, UNKNOWN, (int) V16SI_FTYPE_V8SI },
@@ -43679,8 +44069,8 @@ ix86_rtx_costs (rtx x, machine_mode mode, int outer_code_i, int opno,
 	}
       if (SSE_FLOAT_MODE_P (mode))
 	{
-    case CONST_VECTOR:
-	  switch (standard_sse_constant_p (x))
+	case CONST_VECTOR:
+	  switch (standard_sse_constant_p (x, mode))
 	    {
 	    case 0:
 	      break;
@@ -53504,9 +53894,12 @@ ix86_get_mask_mode (unsigned nunits, unsigned vector_size)
 static reg_class_t
 ix86_spill_class (reg_class_t rclass, machine_mode mode)
 {
-  if (TARGET_SSE && TARGET_GENERAL_REGS_SSE_SPILL && ! TARGET_MMX
+  if (TARGET_GENERAL_REGS_SSE_SPILL
+      && TARGET_SSE2
+      && TARGET_INTER_UNIT_MOVES_TO_VEC
+      && TARGET_INTER_UNIT_MOVES_FROM_VEC
       && (mode == SImode || (TARGET_64BIT && mode == DImode))
-      && rclass != NO_REGS && INTEGER_CLASS_P (rclass))
+      && INTEGER_CLASS_P (rclass))
     return ALL_SSE_REGS;
   return NO_REGS;
 }

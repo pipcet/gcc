@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -583,12 +583,14 @@ package body Exp_Attr is
          end if;
       end Make_VS_If;
 
-      --  Local Declarations
+      --  Local variables
 
       Def    : constant Node_Id := Parent (R_Type);
       Comps  : constant Node_Id := Component_List (Type_Definition (Def));
       Stmts  : constant List_Id := New_List;
       Pspecs : constant List_Id := New_List;
+
+   --  Start of processing for Build_Record_VS_Func
 
    begin
       Append_To (Pspecs,
@@ -7502,9 +7504,6 @@ package body Exp_Attr is
       --  that appear in GNAT's library, but will generate calls via rtsfind
       --  to library routines for user code.
 
-      --  This is disabled for AAMP, to avoid creating dependences on files not
-      --  supported in the AAMP library (such as s-fileio.adb).
-
       --  Note: In the case of using a configurable run time, it is very likely
       --  that stream routines for string types are not present (they require
       --  file system support). In this case, the specific stream routines for
@@ -7512,10 +7511,7 @@ package body Exp_Attr is
       --  instead. That is why we include the test Is_Available when dealing
       --  with these cases.
 
-      if not AAMP_On_Target
-        and then
-          not Is_Predefined_File_Name (Unit_File_Name (Current_Sem_Unit))
-      then
+      if not Is_Predefined_File_Name (Unit_File_Name (Current_Sem_Unit)) then
          --  Storage_Array as defined in package System.Storage_Elements
 
          if Is_RTE (Base_Typ, RE_Storage_Array) then
@@ -7993,13 +7989,13 @@ package body Exp_Attr is
            and then not Generate_C_Code;
       end Is_GCC_Target;
 
-   --  Start of processing for Exp_Attr
+   --  Start of processing for Is_Inline_Floating_Point_Attribute
 
    begin
-      --  Machine and Model can be expanded by the GCC backend only
+      --  Machine and Model can be expanded by the GCC and AAMP back ends only
 
       if Id = Attribute_Machine or else Id = Attribute_Model then
-         return Is_GCC_Target;
+         return Is_GCC_Target or else AAMP_On_Target;
 
       --  Remaining cases handled by all back ends are Rounding and Truncation
       --  when appearing as the operand of a conversion to some integer type.

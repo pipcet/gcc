@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1610,9 +1610,12 @@ package body Sem_Aggr is
          --  If an aggregate component has a type with predicates, an explicit
          --  predicate check must be applied, as for an assignment statement,
          --  because the aggegate might not be expanded into individual
-         --  component assignments.
+         --  component assignments. If the expression covers several components
+         --  the analysis and the predicate check take place later.
 
-         if Present (Predicate_Function (Component_Typ)) then
+         if Present (Predicate_Function (Component_Typ))
+           and then Analyzed (Expr)
+         then
             Apply_Predicate_Check (Expr, Component_Typ);
          end if;
 
@@ -2051,6 +2054,13 @@ package body Sem_Aggr is
 
                      Set_Parent (Expr, Parent (Expression (Assoc)));
                      Analyze (Expr);
+
+                     --  Compute its dimensions now, rather than at the end of
+                     --  resolution, because in the case of multidimensional
+                     --  aggregates subsequent expansion may lead to spurious
+                     --  errors.
+
+                     Check_Expression_Dimensions (Expr, Component_Typ);
 
                      --  If the expression is a literal, propagate this info
                      --  to the expression in the association, to enable some
@@ -3558,7 +3568,9 @@ package body Sem_Aggr is
          --  because the aggegate might not be expanded into individual
          --  component assignments.
 
-         if Present (Predicate_Function (Expr_Type)) then
+         if Present (Predicate_Function (Expr_Type))
+           and then Analyzed (Expr)
+         then
             Apply_Predicate_Check (Expr, Expr_Type);
          end if;
 

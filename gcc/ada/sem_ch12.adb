@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -4947,9 +4947,13 @@ package body Sem_Ch12 is
             Set_Cunit_Entity (Current_Sem_Unit, Pack_Id);
          end if;
 
-         --  The instance is not a freezing point for the new subprogram
+         --  The instance is not a freezing point for the new subprogram.
+         --  The anonymous subprogram may have a freeze node, created for
+         --  some delayed aspects. This freeze node must not be inherited
+         --  by the visible subprogram entity.
 
-         Set_Is_Frozen (Act_Decl_Id, False);
+         Set_Is_Frozen   (Act_Decl_Id, False);
+         Set_Freeze_Node (Act_Decl_Id, Empty);
 
          if Nkind (Defining_Entity (N)) = N_Defining_Operator_Symbol then
             Valid_Operator_Definition (Act_Decl_Id);
@@ -5755,7 +5759,11 @@ package body Sem_Ch12 is
       --------------------
 
       procedure Check_Mismatch (B : Boolean) is
-         Kind : constant Node_Kind := Nkind (Parent (E2));
+         --  A Formal_Type_Declaration for a derived private type is rewritten
+         --  as a private extension decl. (see Analyze_Formal_Derived_Type),
+         --  which is why we examine the original node.
+
+         Kind : constant Node_Kind := Nkind (Original_Node (Parent (E2)));
 
       begin
          if Kind = N_Formal_Type_Declaration then
@@ -5919,7 +5927,10 @@ package body Sem_Ch12 is
          --  If the formal entity comes from a formal declaration, it was
          --  defaulted in the formal package, and no check is needed on it.
 
-         elsif Nkind (Parent (E2)) = N_Formal_Object_Declaration then
+         elsif Nkind_In (Original_Node (Parent (E2)),
+                         N_Formal_Object_Declaration,
+                         N_Formal_Type_Declaration)
+         then
             goto Next_E;
 
          --  Ditto for defaulted formal subprograms.
@@ -7690,6 +7701,18 @@ package body Sem_Ch12 is
          end if;
       end if;
 
+      --  Propagate dimensions if present, so that they are reflected in the
+      --  instance.
+
+      if Nkind (N) in N_Has_Etype
+        and then (Nkind (N) in N_Op or else Is_Entity_Name (N))
+        and then Present (Etype (N))
+        and then Is_Floating_Point_Type (Etype (N))
+        and then Has_Dimension_System (Etype (N))
+      then
+         Copy_Dimensions (N, New_N);
+      end if;
+
       return New_N;
    end Copy_Generic_Node;
 
@@ -7892,7 +7915,7 @@ package body Sem_Ch12 is
       end loop;
 
       --  Expanded code usually shares the source location of the original
-      --  construct it was generated for. This however may not necessarely
+      --  construct it was generated for. This however may not necessarily
       --  reflect the true location of the code within the tree.
 
       --  Before comparing the slocs of the two nodes, make sure that we are
@@ -13089,18 +13112,23 @@ package body Sem_Ch12 is
                               --  The instance_spec is in the wrapper package,
                               --  usually followed by its local renaming
                               --  declaration. See Build_Subprogram_Renaming
-                              --  for details.
+                              --  for details. If the instance carries aspects,
+                              --  these result in the corresponding pragmas,
+                              --  inserted after the subprogram declaration.
+                              --  They must be skipped as well when retrieving
+                              --  the desired spec. A direct link would be
+                              --  more robust ???
 
                               declare
                                  Decl : Node_Id :=
                                           (Last (Visible_Declarations
                                             (Specification (Info.Act_Decl))));
                               begin
-                                 if Nkind (Decl) =
-                                      N_Subprogram_Renaming_Declaration
-                                 then
+                                 while Nkind_In (Decl,
+                                   N_Subprogram_Renaming_Declaration, N_Pragma)
+                                 loop
                                     Decl := Prev (Decl);
-                                 end if;
+                                 end loop;
 
                                  Info.Act_Decl := Decl;
                               end;
@@ -14140,6 +14168,13 @@ package body Sem_Ch12 is
                   Set_Etype (N2, Full_View (Typ));
                end if;
             end if;
+
+            if Is_Floating_Point_Type (Typ)
+              and then Has_Dimension_System (Typ)
+            then
+               Copy_Dimensions (N2, N);
+            end if;
+
          end Set_Global_Type;
 
          ------------------

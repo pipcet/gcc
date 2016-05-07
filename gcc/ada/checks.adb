@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -2667,8 +2667,13 @@ package body Checks is
       S : Entity_Id;
 
    begin
-      if Present (Predicate_Function (Typ)) then
+      if Predicate_Checks_Suppressed (Empty) then
+         return;
 
+      elsif Predicates_Ignored (Typ) then
+         return;
+
+      elsif Present (Predicate_Function (Typ)) then
          S := Current_Scope;
          while Present (S) and then not Is_Subprogram (S) loop
             S := Scope (S);
@@ -2703,8 +2708,21 @@ package body Checks is
 
             Check_Expression_Against_Static_Predicate (N, Typ);
 
-            Insert_Action (N,
-              Make_Predicate_Check (Typ, Duplicate_Subexpr (N)));
+            if Is_Entity_Name (N) then
+               Insert_Action (N,
+                 Make_Predicate_Check
+                   (Typ, New_Occurrence_Of (Entity (N), Sloc (N))));
+
+            --  If the expression is not an entity it may have side effects,
+            --  and the following call will create an object declaration for
+            --  it. We disable checks during its analysis, to prevent an
+            --  infinite recursion.
+
+            else
+               Insert_Action (N,
+                 Make_Predicate_Check
+                   (Typ, Duplicate_Subexpr (N)), Suppress => All_Checks);
+            end if;
          end if;
       end if;
    end Apply_Predicate_Check;
@@ -6177,8 +6195,8 @@ package body Checks is
       --  twice (once for the check, once for the actual reference). Such a
       --  double evaluation is always a potential source of inefficiency, and
       --  is functionally incorrect in the volatile case, or when the prefix
-      --  may have side-effects. A non-volatile entity or a component of a
-      --  non-volatile entity requires no evaluation.
+      --  may have side effects. A nonvolatile entity or a component of a
+      --  nonvolatile entity requires no evaluation.
 
       if Is_Entity_Name (Pref) then
          if Treat_As_Volatile (Entity (Pref)) then
@@ -6400,7 +6418,7 @@ package body Checks is
                   Set_Do_Range_Check (Sub, False);
 
                   --  Force evaluation except for the case of a simple name of
-                  --  a non-volatile entity.
+                  --  a nonvolatile entity.
 
                   if not Is_Entity_Name (Sub)
                     or else Treat_As_Volatile (Entity (Sub))

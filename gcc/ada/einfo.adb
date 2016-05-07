@@ -256,6 +256,8 @@ package body Einfo is
    --    Thunk_Entity                    Node31
    --    Activation_Record_Component     Node31
 
+   --    Corresponding_Function          Node32
+   --    Corresponding_Procedure         Node32
    --    Encapsulating_State             Node32
    --    No_Tagged_Streams_Pragma        Node32
 
@@ -263,9 +265,8 @@ package body Einfo is
 
    --    Contract                        Node34
 
+   --    Anonymous_Master                Node35
    --    Import_Pragma                   Node35
-
-   --    Anonymous_Master                Node36
 
    --    Class_Wide_Preconds             List38
 
@@ -273,6 +274,7 @@ package body Einfo is
 
    --    SPARK_Pragma                    Node40
 
+   --    Original_Protected_Subprogram   Node41
    --    SPARK_Aux_Pragma                Node41
 
    ---------------------------------------------
@@ -599,8 +601,8 @@ package body Einfo is
    --    Is_Volatile_Full_Access         Flag285
    --    Is_Exception_Handler            Flag286
    --    Rewritten_For_C                 Flag287
+   --    Predicates_Ignored              Flag288
 
-   --    (unused)                        Flag288
    --    (unused)                        Flag289
    --    (unused)                        Flag300
 
@@ -755,12 +757,8 @@ package body Einfo is
 
    function Anonymous_Master (Id : E) return E is
    begin
-      pragma Assert (Ekind_In (Id, E_Function,
-                                   E_Package,
-                                   E_Package_Body,
-                                   E_Procedure,
-                                   E_Subprogram_Body));
-      return Node36 (Id);
+      pragma Assert (Is_Type (Id));
+      return Node35 (Id);
    end Anonymous_Master;
 
    function Anonymous_Object (Id : E) return E is
@@ -914,6 +912,18 @@ package body Einfo is
           and then Chars (Id) = Name_Op_Ne);
       return Node30 (Id);
    end Corresponding_Equality;
+
+   function Corresponding_Function (Id : E) return E is
+   begin
+      pragma Assert (Ekind (Id) = E_Procedure);
+      return Node32 (Id);
+   end Corresponding_Function;
+
+   function Corresponding_Procedure (Id : E) return E is
+   begin
+      pragma Assert (Ekind (Id) = E_Function);
+      return Node32 (Id);
+   end Corresponding_Procedure;
 
    function Corresponding_Protected_Entry (Id : E) return E is
    begin
@@ -2828,6 +2838,11 @@ package body Einfo is
       return Node21 (Id);
    end Original_Array_Type;
 
+   function Original_Protected_Subprogram (Id : E) return N is
+   begin
+      return Node41 (Id);
+   end Original_Protected_Subprogram;
+
    function Original_Record_Component (Id : E) return E is
    begin
       pragma Assert (Ekind_In (Id, E_Void, E_Component, E_Discriminant));
@@ -2895,6 +2910,12 @@ package body Einfo is
                                    E_Procedure));
       return Node14 (Id);
    end Postconditions_Proc;
+
+   function Predicates_Ignored (Id : E) return B is
+   begin
+      pragma Assert (Is_Type (Id));
+      return Flag288 (Id);
+   end Predicates_Ignored;
 
    function Prival (Id : E) return E is
    begin
@@ -3662,12 +3683,8 @@ package body Einfo is
 
    procedure Set_Anonymous_Master (Id : E; V : E) is
    begin
-      pragma Assert (Ekind_In (Id, E_Function,
-                                   E_Package,
-                                   E_Package_Body,
-                                   E_Procedure,
-                                   E_Subprogram_Body));
-      Set_Node36 (Id, V);
+      pragma Assert (Is_Type (Id));
+      Set_Node35 (Id, V);
    end Set_Anonymous_Master;
 
    procedure Set_Anonymous_Object (Id : E; V : E) is
@@ -3918,6 +3935,18 @@ package body Einfo is
           and then Chars (Id) = Name_Op_Ne);
       Set_Node30 (Id, V);
    end Set_Corresponding_Equality;
+
+   procedure Set_Corresponding_Function (Id : E; V : E) is
+   begin
+      pragma Assert (Ekind (Id) = E_Procedure and then Rewritten_For_C (V));
+      Set_Node32 (Id, V);
+   end Set_Corresponding_Function;
+
+   procedure Set_Corresponding_Procedure (Id : E; V : E) is
+   begin
+      pragma Assert (Ekind (Id) = E_Function and then Rewritten_For_C (Id));
+      Set_Node32 (Id, V);
+   end Set_Corresponding_Procedure;
 
    procedure Set_Corresponding_Protected_Entry (Id : E; V : E) is
    begin
@@ -5877,6 +5906,12 @@ package body Einfo is
       Set_Node21 (Id, V);
    end Set_Original_Array_Type;
 
+   procedure Set_Original_Protected_Subprogram (Id : E; V : N) is
+   begin
+      pragma Assert (Ekind_In (Id, E_Function, E_Procedure));
+      Set_Node41 (Id, V);
+   end Set_Original_Protected_Subprogram;
+
    procedure Set_Original_Record_Component (Id : E; V : E) is
    begin
       pragma Assert (Ekind_In (Id, E_Void, E_Component, E_Discriminant));
@@ -5944,6 +5979,12 @@ package body Einfo is
                                    E_Procedure));
       Set_Node14 (Id, V);
    end Set_Postconditions_Proc;
+
+   procedure Set_Predicates_Ignored (Id : E; V : B) is
+   begin
+      pragma Assert (Is_Type (Id));
+      Set_Flag288 (Id, V);
+   end Set_Predicates_Ignored;
 
    procedure Set_Direct_Primitive_Operations (Id : E; V : L) is
    begin
@@ -7332,27 +7373,40 @@ package body Einfo is
         and then Present (Non_Limited_View (Id));
    end Has_Non_Limited_View;
 
+   ---------------------------------
+   -- Has_Non_Null_Abstract_State --
+   ---------------------------------
+
+   function Has_Non_Null_Abstract_State (Id : E) return B is
+   begin
+      pragma Assert (Ekind_In (Id, E_Generic_Package, E_Package));
+
+      return
+        Present (Abstract_States (Id))
+          and then
+            not Is_Null_State (Node (First_Elmt (Abstract_States (Id))));
+   end Has_Non_Null_Abstract_State;
+
    -------------------------------------
    -- Has_Non_Null_Visible_Refinement --
    -------------------------------------
 
    function Has_Non_Null_Visible_Refinement (Id : E) return B is
+      Constits : Elist_Id;
+
    begin
       --  "Refinement" is a concept applicable only to abstract states
 
       pragma Assert (Ekind (Id) = E_Abstract_State);
+      Constits := Refinement_Constituents (Id);
 
-      if Has_Visible_Refinement (Id) then
-         pragma Assert (Present (Refinement_Constituents (Id)));
+      --  For a refinement to be non-null, the first constituent must be
+      --  anything other than null.
 
-         --  For a refinement to be non-null, the first constituent must be
-         --  anything other than null.
-
-         return
-           Nkind (Node (First_Elmt (Refinement_Constituents (Id)))) /= N_Null;
-      end if;
-
-      return False;
+      return
+        Has_Visible_Refinement (Id)
+          and then Present (Constits)
+          and then Nkind (Node (First_Elmt (Constits))) /= N_Null;
    end Has_Non_Null_Visible_Refinement;
 
    -----------------------------
@@ -7373,22 +7427,21 @@ package body Einfo is
    ---------------------------------
 
    function Has_Null_Visible_Refinement (Id : E) return B is
+      Constits : Elist_Id;
+
    begin
       --  "Refinement" is a concept applicable only to abstract states
 
       pragma Assert (Ekind (Id) = E_Abstract_State);
+      Constits := Refinement_Constituents (Id);
 
-      if Has_Visible_Refinement (Id) then
-         pragma Assert (Present (Refinement_Constituents (Id)));
+      --  For a refinement to be null, the state's sole constituent must be a
+      --  null.
 
-         --  For a refinement to be null, the state's sole constituent must be
-         --  a null.
-
-         return
-           Nkind (Node (First_Elmt (Refinement_Constituents (Id)))) = N_Null;
-      end if;
-
-      return False;
+      return
+        Has_Visible_Refinement (Id)
+          and then Present (Constits)
+          and then Nkind (Node (First_Elmt (Constits))) = N_Null;
    end Has_Null_Visible_Refinement;
 
    --------------------
@@ -9092,6 +9145,7 @@ package body Einfo is
       W ("Reverse_Bit_Order",               Flag164 (Id));
       W ("Reverse_Storage_Order",           Flag93  (Id));
       W ("Rewritten_For_C",                 Flag287 (Id));
+      W ("Predicates_Ignored",              Flag288 (Id));
       W ("Sec_Stack_Needed_For_Return",     Flag167 (Id));
       W ("Size_Depends_On_Discriminant",    Flag177 (Id));
       W ("Size_Known_At_Compile_Time",      Flag92  (Id));
@@ -10264,6 +10318,12 @@ package body Einfo is
               E_Variable                                   =>
             Write_Str ("Encapsulating_State");
 
+         when E_Function                                   =>
+            Write_Str ("Corresponding_Procedure");
+
+         when E_Procedure                                  =>
+            Write_Str ("Corresponding_Function");
+
          when Type_Kind                                    =>
             Write_Str ("No_Tagged_Streams_Pragma");
 
@@ -10328,6 +10388,9 @@ package body Einfo is
    procedure Write_Field35_Name (Id : Entity_Id) is
    begin
       case Ekind (Id) is
+         when Type_Kind                                    =>
+            Write_Str ("Anonymous_Master");
+
          when Subprogram_Kind                              =>
             Write_Str ("Import_Pragma");
 
@@ -10341,19 +10404,9 @@ package body Einfo is
    ------------------------
 
    procedure Write_Field36_Name (Id : Entity_Id) is
+      pragma Unreferenced (Id);
    begin
-      case Ekind (Id) is
-         when E_Function                                   |
-              E_Operator                                   |
-              E_Package                                    |
-              E_Package_Body                               |
-              E_Procedure                                  |
-              E_Subprogram_Body                            =>
-            Write_Str ("Anonymous_Master");
-
-         when others                                       =>
-            Write_Str ("Field36??");
-      end case;
+      Write_Str ("Field36??");
    end Write_Field36_Name;
 
    ------------------------
@@ -10441,6 +10494,10 @@ package body Einfo is
               E_Protected_Type                             |
               E_Task_Type                                  =>
             Write_Str ("SPARK_Aux_Pragma");
+
+         when E_Function                                   |
+              E_Procedure                                  =>
+            Write_Str ("Original_Protected_Subprogram");
 
          when others                                       =>
             Write_Str ("Field41??");

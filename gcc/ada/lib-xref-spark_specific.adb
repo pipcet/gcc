@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2011-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 2011-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -178,7 +178,7 @@ package body SPARK_Specific is
       --  Update scope numbers
 
       declare
-         Scope_Id : Int;
+         Scope_Id : Pos;
       begin
          Scope_Id := 1;
          for Index in From .. SPARK_Scope_Table.Last loop
@@ -265,6 +265,8 @@ package body SPARK_Specific is
             | E_Generic_Package
             | E_Generic_Procedure
             | E_Package
+            | E_Protected_Type
+            | E_Task_Type
          =>
             Typ := Xref_Entity_Letters (Ekind (E));
 
@@ -283,7 +285,11 @@ package body SPARK_Specific is
                Typ := Xref_Entity_Letters (Ekind (E));
             end if;
 
-         when E_Package_Body | E_Subprogram_Body | E_Task_Body =>
+         when E_Package_Body
+            | E_Protected_Body
+            | E_Subprogram_Body
+            | E_Task_Body
+         =>
             Typ := Xref_Entity_Letters (Ekind (Unique_Entity (E)));
 
          when E_Void =>
@@ -382,7 +388,7 @@ package body SPARK_Specific is
          Key        => Entity_Id,
          Hash       => Entity_Hash,
          Equal      => "=");
-      --  Package used to build a correspondance between entities and scope
+      --  Package used to build a correspondence between entities and scope
       --  numbers used in SPARK cross references.
 
       Nrefs : Nat := Xrefs.Last;
@@ -917,8 +923,8 @@ package body SPARK_Specific is
      (Sdep_Table : Unit_Ref_Table;
       Num_Sdep   : Nat)
    is
-      D1 : Nat;
-      D2 : Nat;
+      D1 : Pos;
+      D2 : Pos;
 
    begin
       --  Cross-references should have been computed first
@@ -1028,12 +1034,17 @@ package body SPARK_Specific is
                       N_Package_Body_Stub,
                       N_Package_Declaration)
            or else
+         Nkind_In (N, N_Protected_Body,         --  protected objects
+                      N_Protected_Body_Stub,
+                      N_Protected_Type_Declaration)
+           or else
          Nkind_In (N, N_Subprogram_Body,        --  subprograms
                       N_Subprogram_Body_Stub,
                       N_Subprogram_Declaration)
            or else
          Nkind_In (N, N_Task_Body,              --  tasks
-                      N_Task_Body_Stub)
+                      N_Task_Body_Stub,
+                      N_Task_Type_Declaration)
       then
          Add_SPARK_Scope (N);
       end if;
@@ -1046,62 +1057,43 @@ package body SPARK_Specific is
    function Enclosing_Subprogram_Or_Library_Package
      (N : Node_Id) return Entity_Id
    is
-      Result : Entity_Id;
+      Context : Entity_Id;
 
    begin
       --  If N is the defining identifier for a subprogram, then return the
       --  enclosing subprogram or package, not this subprogram.
 
       if Nkind_In (N, N_Defining_Identifier, N_Defining_Operator_Symbol)
-        and then Nkind (Parent (N)) in N_Subprogram_Specification
+        and then (Ekind (N) in Entry_Kind
+                   or else Ekind (N) = E_Subprogram_Body
+                   or else Ekind (N) in Generic_Subprogram_Kind
+                   or else Ekind (N) in Subprogram_Kind)
       then
-         Result := Parent (Parent (Parent (N)));
+         Context := Parent (Unit_Declaration_Node (N));
 
-         --  If this was a library-level subprogram then replace Result with
+         --  If this was a library-level subprogram then replace Context with
          --  its Unit, which points to N_Subprogram_* node.
 
-         if Nkind (Result) = N_Compilation_Unit then
-            Result := Unit (Result);
+         if Nkind (Context) = N_Compilation_Unit then
+            Context := Unit (Context);
          end if;
       else
-         Result := N;
+         Context := N;
       end if;
 
-      while Present (Result) loop
-         case Nkind (Result) is
-            when N_Package_Specification =>
+      while Present (Context) loop
+         case Nkind (Context) is
+            when N_Package_Body          |
+                 N_Package_Specification =>
 
                --  Only return a library-level package
 
-               if Is_Library_Level_Entity (Defining_Entity (Result)) then
-                  Result := Defining_Entity (Result);
+               if Is_Library_Level_Entity (Defining_Entity (Context)) then
+                  Context := Defining_Entity (Context);
                   exit;
                else
-                  Result := Parent (Result);
+                  Context := Parent (Context);
                end if;
-
-            when N_Package_Body =>
-
-               --  Only return a library-level package
-
-               if Is_Library_Level_Entity (Defining_Entity (Result)) then
-                  Result := Defining_Entity (Result);
-                  exit;
-               else
-                  Result := Parent (Result);
-               end if;
-
-            when N_Subprogram_Specification =>
-               Result := Defining_Unit_Name (Result);
-               exit;
-
-            when N_Subprogram_Declaration =>
-               Result := Defining_Unit_Name (Specification (Result));
-               exit;
-
-            when N_Subprogram_Body =>
-               Result := Defining_Unit_Name (Specification (Result));
-               exit;
 
             when N_Pragma =>
 
@@ -1110,43 +1102,46 @@ package body SPARK_Specific is
                --  pragma (skipping any other pragmas between this pragma and
                --  this declaration.
 
-               while Nkind (Result) = N_Pragma
-                 and then Is_List_Member (Result)
-                 and then Present (Prev (Result))
+               while Nkind (Context) = N_Pragma
+                 and then Is_List_Member (Context)
+                 and then Present (Prev (Context))
                loop
-                  Result := Prev (Result);
+                  Context := Prev (Context);
                end loop;
 
-               if Nkind (Result) = N_Pragma then
-                  Result := Parent (Result);
+               if Nkind (Context) = N_Pragma then
+                  Context := Parent (Context);
                end if;
 
-            when N_Entry_Body =>
-               Result := Defining_Identifier (Result);
-               exit;
-
-            when N_Task_Body =>
-               Result := Defining_Identifier (Result);
+            when N_Entry_Body                 |
+                 N_Entry_Declaration          |
+                 N_Protected_Type_Declaration |
+                 N_Subprogram_Body            |
+                 N_Subprogram_Declaration     |
+                 N_Subprogram_Specification   |
+                 N_Task_Body                  |
+                 N_Task_Type_Declaration      =>
+               Context := Defining_Entity (Context);
                exit;
 
             when others =>
-               Result := Parent (Result);
+               Context := Parent (Context);
          end case;
       end loop;
 
-      if Nkind (Result) = N_Defining_Program_Unit_Name then
-         Result := Defining_Identifier (Result);
+      if Nkind (Context) = N_Defining_Program_Unit_Name then
+         Context := Defining_Identifier (Context);
       end if;
 
       --  Do not return a scope without a proper location
 
-      if Present (Result)
-        and then Sloc (Result) = No_Location
+      if Present (Context)
+        and then Sloc (Context) = No_Location
       then
          return Empty;
       end if;
 
-      return Result;
+      return Context;
    end Enclosing_Subprogram_Or_Library_Package;
 
    -----------------

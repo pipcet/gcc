@@ -1,3 +1,195 @@
+2016-05-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* parser.c (cp_parser_selection_statement): For RID_SWITCH,
+	pass if_p instead of NULL to cp_parser_implicitly_scoped_statement.
+
+2016-05-04  Marek Polacek  <polacek@redhat.com>
+
+	* parser.c (cp_parser_selection_statement): Replace OPT_Wparentheses
+	with OPT_Wdangling_else.
+
+2016-05-03  Martin Sebor  <msebor@redhat.com>
+
+	PR c++/66561
+	* tree.c (builtin_valid_in_constant_expr_p): Treat BUILT_IN_FILE,
+	BUILT_IN_FUNCTION, and BUILT_IN_LINE as constant expressions.
+
+2016-05-03  Marek Polacek  <polacek@redhat.com>
+
+	PR c/70859
+	* call.c (build_cxx_call): Pass location and vNULL down to
+	check_builtin_function_arguments.
+
+2016-05-03  Richard Biener  <rguenther@suse.de>
+
+	* Make-lang.in (cc1plus-checksum.c): For stage-final re-use
+	the checksum from the previous stage.
+
+2016-05-02  David Malcolm  <dmalcolm@redhat.com>
+
+	PR c++/62314
+	* typeck.c (finish_class_member_access_expr): When
+	giving a hint about a possibly-misspelled member name,
+	add a fix-it replacement hint.
+
+2016-05-02  Cesar Philippidis  <cesar@codesourcery.com>
+
+	* cp-tree.h (finish_omp_clauses): Update prototype.
+	* parser.c (cp_parser_oacc_all_clauses): Update call to
+	finish_omp_clauses.
+	(cp_parser_omp_all_clauses): Likewise.
+	(cp_parser_omp_for_loop): Likewise.
+	(cp_omp_split_clauses): Likewise.
+	(cp_parser_oacc_cache): Likewise.
+	(cp_parser_oacc_loop): Likewise.
+	(cp_parser_omp_declare_target):
+	(cp_parser_cilk_simd_all_clauses): Likewise.
+	(cp_parser_cilk_for): Likewise.
+	* pt.c (tsubst_omp_clauses): Replace allow_fields and declare_simd
+	arguments with enum c_omp_region_type ort.
+	(tsubst_omp_clauses): Update calls to finish_omp_clauses.
+	(tsubst_omp_attribute): Update calls to tsubst_omp_clauses.
+	(tsubst_omp_for_iterator): Update calls to finish_omp_clauses.
+	(tsubst_expr): Update calls to tsubst_omp_clauses.
+	* semantics.c (finish_omp_clauses): Replace bool arguments
+	allow_fields, declare_simd, and is_cilk with bitmask ort.
+	(finish_omp_for): Update call to finish_omp_clauses.
+
+2016-05-02  David Malcolm  <dmalcolm@redhat.com>
+
+	PR c++/62314
+	* parser.c (cp_parser_class_head): Capture the start location;
+	use it to emit a fix-it insertion hint when complaining
+	about missing "template <> " in explicit specializations.
+
+2016-05-02  Richard Sandiford  <richard.sandiford@arm.com>
+
+	* init.c (build_new_1): Use shift operators instead of wi:: shifts.
+
+2016-05-02  Richard Biener  <rguenther@suse.de>
+
+	* decl.c (grokdeclarator): Properly insert a DECL_EXPR for
+	anonymous VLAs.
+
+2016-04-29  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/66644
+	* class.c (check_field_decl): Remove final int* parameter, change
+	the return type to bool; fix logic in order not to reject multiple
+	initialized fields in anonymous struct.
+	(check_field_decls): Adjust call.
+
+2016-04-29  Cesar Philippidis  <cesar@codesourcery.com>
+
+	PR middle-end/70626
+	* parser.c (cp_parser_oacc_loop): Don't augment mask with
+	OACC_LOOP_CLAUSE_MASK.
+	(cp_parser_oacc_kernels_parallel): Update call to
+	c_oacc_split_loop_clauses.
+
+2016-04-28  Jason Merrill  <jason@redhat.com>
+
+	Implement C++17 [[nodiscard]] attribute.
+	PR c++/38172
+	PR c++/54379
+	* parser.c (cp_parser_std_attribute): Handle [[nodiscard]].
+	* tree.c (handle_nodiscard_attribute): New.
+	(cxx_attribute_table): Add [[nodiscard]].
+	* cvt.c (cp_get_fndecl_from_callee, cp_get_callee_fndecl): New.
+	(maybe_warn_nodiscard): New.
+	(convert_to_void): Call it.
+
+	* cvt.c (cp_get_callee): New.
+	* constexpr.c (get_function_named_in_call): Use it.
+	* cxx-pretty-print.c (postfix_expression): Use it.
+	* except.c (check_noexcept_r): Use it.
+	* method.c (check_nontriv): Use it.
+	* tree.c (build_aggr_init_expr): Use it.
+	* cp-tree.h: Declare it.
+
+2015-04-27  Ryan Burn  <contact@rnburn.com>
+	    Jeff Law  <law@redhat.com>
+
+	PR c++/69024
+	PR c++/68997
+	* cp-gimplify.c (cp_gimplify_expr): Call cilk_cp_detect_spawn_and_unwrap
+	instead of cilk_detect_spawn_and_unwrap.
+	* cp-cilkplus.c (is_conversion_operator_function_decl_p): New.
+	(find_spawn): New.
+	(cilk_cp_detect_spawn_and_unwrap): New.
+	* lambda.c: Include cp-cilkplus.h.
+	* parser.c: Include cp-cilkplus.h.
+	* cp-tree.h (cpp_validate_cilk_plus_loop): Move prototype into...
+	* cp-cilkpus.h: New file.
+
+2016-04-27  Nathan Sidwell  <nathan@acm.org>
+
+	* constexpr.c (get_fundef_copy): Use the original function for
+	non-recursive evaluations.
+	(save_fundef_copy): Always expect a slot to be available.
+
+2016-04-27  Bernd Schmidt  <bschmidt@redhat.com>
+
+	* parser.c (cp_parser_postfix_expression): Call
+	warn_for_memset instead of warning directly here.
+
+2016-04-26  Patrick Palka  <ppalka@gcc.gnu.org>
+
+	PR c++/70241
+	* decl.c (build_enumerator): Set current_access_specifier when
+	declaring an enumerator belonging to an in-class enumeration.
+	* parser.c (cp_parser_check_access_in_redecleration): Also
+	consider in-class enumerations.
+
+2016-04-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/70744
+	* call.c (build_conditional_expr_1): Call cp_stabilize_reference
+	instead of stabilize_reference.
+	(build_over_call): Likewise.
+	* cp-tree.h (cp_stabilize_reference): Declare.
+	* tree.c (cp_stabilize_reference): New function.
+	* typeck.c (cp_build_unary_op): Call cp_stabilize_reference instead of
+	stabilize_reference.
+	(unary_complex_lvalue): Likewise.
+	(cp_build_modify_expr): Likewise.
+
+2016-04-26  Jakub Jelinek  <jakub@redhat.com>
+
+	PR bootstrap/70704
+	* pt.c (build_non_dependent_expr): Use flag_checking > 1 instead of
+	just flag_checking.
+
+2016-04-25  Jason Merrill  <jason@redhat.com>
+
+	* tree.c (std_attribute_table): New.
+	(init_tree): Register it.
+
+2016-04-22  Jason Merrill  <jason@redhat.com>
+
+	* parser.c (cp_parser_perform_range_for_lookup): Decay the array.
+
+2016-04-21  Patrick Palka  <ppalka@gcc.gnu.org>
+
+	* name-lookup.c (free_saved_scope): New free list of saved_scope
+	structures.
+	(push_to_top_level): Attempt to reuse a saved_scope struct
+	from free_saved_scope instead of allocating a new one each time.
+	(pop_from_top_level_1): Chain the now-unused saved_scope structure
+	onto free_saved_scope.
+
+2016-04-21  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/70540
+	* semantics.c (process_outer_var_ref): Unconditionally return
+	error_mark_node when mark_used returns false.
+
+2016-04-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/70513
+	* parser.c (cp_parser_enum_specifier): Check and possibly error for
+	extra qualification.
+
 2016-04-20  Nathan Sidwell  <nathan@acm.org>
 
 	PR c++/55635

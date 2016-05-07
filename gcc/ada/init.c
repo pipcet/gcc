@@ -6,7 +6,7 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *          Copyright (C) 1992-2015, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2016, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -503,6 +503,15 @@ __gnat_adjust_context_for_raise (int signo ATTRIBUTE_UNUSED, void *ucontext)
 #elif defined (__ARMEL__)
   /* ARM Bump has to be an even number because of odd/even architecture.  */
   mcontext->arm_pc+=2;
+#ifdef __thumb2__
+#define CPSR_THUMB_BIT 5
+  /* For thumb, the return address much have the low order bit set, otherwise
+     the unwinder will reset to "arm" mode upon return.  As long as the
+     compilation unit containing the landing pad is compiled with the same
+     mode (arm vs thumb) as the signaling compilation unit, this works.  */
+  if (mcontext->arm_cpsr & (1<<CPSR_THUMB_BIT))
+    mcontext->arm_pc+=1;
+#endif
 #endif
 }
 

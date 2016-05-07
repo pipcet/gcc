@@ -1069,6 +1069,7 @@ reset_inline_summary (struct cgraph_node *node,
     reset_inline_edge_summary (e);
   for (e = node->indirect_calls; e; e = e->next_callee)
     reset_inline_edge_summary (e);
+  info->fp_expressions = false;
 }
 
 /* Hook that is called by cgraph.c when a node is removed.  */
@@ -1423,6 +1424,8 @@ dump_inline_summary (FILE *f, struct cgraph_node *node)
 	fprintf (f, " inlinable");
       if (s->contains_cilk_spawn)
 	fprintf (f, " contains_cilk_spawn");
+      if (s->fp_expressions)
+	fprintf (f, " fp_expression");
       fprintf (f, "\n  self time:       %i\n", s->self_time);
       fprintf (f, "  global time:     %i\n", s->time);
       fprintf (f, "  self size:       %i\n", s->self_size);
@@ -1487,19 +1490,23 @@ initialize_inline_failed (struct cgraph_edge *e)
 {
   struct cgraph_node *callee = e->callee;
 
-  if (e->indirect_unknown_callee)
+  if (e->inline_failed && e->inline_failed != CIF_BODY_NOT_AVAILABLE
+      && cgraph_inline_failed_type (e->inline_failed) == CIF_FINAL_ERROR)
+    ;
+  else if (e->indirect_unknown_callee)
     e->inline_failed = CIF_INDIRECT_UNKNOWN_CALL;
   else if (!callee->definition)
     e->inline_failed = CIF_BODY_NOT_AVAILABLE;
   else if (callee->local.redefined_extern_inline)
     e->inline_failed = CIF_REDEFINED_EXTERN_INLINE;
-  else if (e->call_stmt_cannot_inline_p)
-    e->inline_failed = CIF_MISMATCHED_ARGUMENTS;
   else if (cfun && fn_contains_cilk_spawn_p (cfun))
     /* We can't inline if the function is spawing a function.  */
-    e->inline_failed = CIF_FUNCTION_NOT_INLINABLE;
+    e->inline_failed = CIF_CILK_SPAWN;
   else
     e->inline_failed = CIF_FUNCTION_NOT_CONSIDERED;
+  gcc_checking_assert (!e->call_stmt_cannot_inline_p
+		       || cgraph_inline_failed_type (e->inline_failed)
+			    == CIF_FINAL_ERROR);
 }
 
 /* Callback of walk_aliased_vdefs.  Flags that it has been invoked to the
@@ -2459,6 +2466,21 @@ clobber_only_eh_bb_p (basic_block bb, bool need_eh = true)
   return true;
 }
 
+/* Return true if STMT compute a floating point expression that may be affected
+   by -ffast-math and similar flags.  */
+
+static bool
+fp_expression_p (gimple *stmt)
+{
+  ssa_op_iter i;
+  tree op;
+
+  FOR_EACH_SSA_TREE_OPERAND (op, stmt, i, SSA_OP_DEF|SSA_OP_USE)
+    if (FLOAT_TYPE_P (TREE_TYPE (op)))
+      return true;
+  return false;
+}
+
 /* Compute function body size parameters for NODE.
    When EARLY is true, we compute only simple summaries without
    non-trivial predicates to drive the early inliner.  */
@@ -2733,6 +2755,13 @@ estimate_function_body_sizes (struct cgraph_node *node, bool early)
 				       this_time * (2 - prob), &p);
 		}
 
+	      if (!info->fp_expressions && fp_expression_p (stmt))
+		{
+		  info->fp_expressions = true;
+		  if (dump_file)
+		    fprintf (dump_file, "   fp_expression set\n");
+		}
+
 	      gcc_assert (time >= 0);
 	      gcc_assert (size >= 0);
 	    }
@@ -2900,7 +2929,7 @@ compute_inline_parameters (struct cgraph_node *node, bool early)
       struct predicate t = true_predicate ();
 
       info->inlinable = 0;
-      node->callees->call_stmt_cannot_inline_p = true;
+      node->callees->inline_failed = CIF_THUNK;
       node->local.can_change_signature = false;
       es->call_stmt_time = 1;
       es->call_stmt_size = 1;
@@ -3577,6 +3606,8 @@ inline_merge_summary (struct cgraph_edge *edge)
   else
     toplev_predicate = true_predicate ();
 
+  info->fp_expressions |= callee_info->fp_expressions;
+
   if (callee_info->conds)
     evaluate_properties_for_edge (edge, true, &clause, NULL, NULL, NULL);
   if (ipa_node_params_sum && callee_info->conds)
@@ -4080,17 +4111,9 @@ inline_analyze_function (struct cgraph_node *node)
     {
       struct cgraph_edge *e;
       for (e = node->callees; e; e = e->next_callee)
-	{
-	  if (e->inline_failed == CIF_FUNCTION_NOT_CONSIDERED)
-	    e->inline_failed = CIF_FUNCTION_NOT_OPTIMIZED;
-	  e->call_stmt_cannot_inline_p = true;
-	}
+	e->inline_failed = CIF_FUNCTION_NOT_OPTIMIZED;
       for (e = node->indirect_calls; e; e = e->next_callee)
-	{
-	  if (e->inline_failed == CIF_FUNCTION_NOT_CONSIDERED)
-	    e->inline_failed = CIF_FUNCTION_NOT_OPTIMIZED;
-	  e->call_stmt_cannot_inline_p = true;
-	}
+	e->inline_failed = CIF_FUNCTION_NOT_OPTIMIZED;
     }
 
   pop_cfun ();
@@ -4229,6 +4252,7 @@ inline_read_section (struct lto_file_decl_data *file_data, const char *data,
       bp = streamer_read_bitpack (&ib);
       info->inlinable = bp_unpack_value (&bp, 1);
       info->contains_cilk_spawn = bp_unpack_value (&bp, 1);
+      info->fp_expressions = bp_unpack_value (&bp, 1);
 
       count2 = streamer_read_uhwi (&ib);
       gcc_assert (!info->conds);
@@ -4395,6 +4419,7 @@ inline_write_summary (void)
 	  bp = bitpack_create (ob->main_stream);
 	  bp_pack_value (&bp, info->inlinable, 1);
 	  bp_pack_value (&bp, info->contains_cilk_spawn, 1);
+	  bp_pack_value (&bp, info->fp_expressions, 1);
 	  streamer_write_bitpack (&bp);
 	  streamer_write_uhwi (ob, vec_safe_length (info->conds));
 	  for (i = 0; vec_safe_iterate (info->conds, i, &c); i++)

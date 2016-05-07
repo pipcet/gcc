@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -1242,6 +1242,13 @@ package body Freeze is
       --  the attribute definition clause is attached to the first subtype.
 
       Comp_Type := Base_Type (Comp_Type);
+
+      --  If the base type is incomplete or private, go to full view if known
+
+      if Present (Underlying_Type (Comp_Type)) then
+         Comp_Type := Underlying_Type (Comp_Type);
+      end if;
+
       Comp_ADC := Get_Attribute_Definition_Clause
                     (First_Subtype (Comp_Type),
                      Attribute_Scalar_Storage_Order);
@@ -1269,13 +1276,6 @@ package body Freeze is
                   & "parent", Err_Node);
             end if;
 
-         --  If enclosing composite has explicit SSO then nested composite must
-         --  have explicit SSO as well.
-
-         elsif Present (ADC) and then No (Comp_ADC) then
-            Error_Msg_N ("nested composite must have explicit scalar "
-                         & "storage order", Err_Node);
-
          --  If component and composite SSO differs, check that component
          --  falls on byte boundaries and isn't packed.
 
@@ -1288,24 +1288,32 @@ package body Freeze is
 
             if Is_Packed_Array (Comp_Type) then
                Error_Msg_N
-                 ("type of packed component must have same scalar "
-                  & "storage order as enclosing composite", Err_Node);
+                 ("type of packed component must have same scalar storage "
+                  & "order as enclosing composite", Err_Node);
 
             --  Reject if composite is a packed array, as it may be rewritten
             --  into an array of scalars.
 
             elsif Is_Packed_Array (Encl_Type) then
-               Error_Msg_N ("type of packed array must have same scalar "
-                  & "storage order as component", Err_Node);
+               Error_Msg_N
+                 ("type of packed array must have same scalar storage order "
+                  & "as component", Err_Node);
 
             --  Reject if not byte aligned
 
             elsif Is_Record_Type (Encl_Type)
-                    and then not Comp_Byte_Aligned
+              and then not Comp_Byte_Aligned
             then
                Error_Msg_N
                  ("type of non-byte-aligned component must have same scalar "
                   & "storage order as enclosing composite", Err_Node);
+
+            --  Warn if specified only for the outer composite
+
+            elsif Present (ADC) and then No (Comp_ADC) then
+               Error_Msg_NE
+                 ("scalar storage order specified for & does not apply to "
+                  & "component?", Err_Node, Encl_Type);
             end if;
          end if;
 
@@ -1314,8 +1322,8 @@ package body Freeze is
 
       elsif Present (ADC) and then Component_Aliased then
          Error_Msg_N
-           ("aliased component not permitted for type with "
-            & "explicit Scalar_Storage_Order", Err_Node);
+           ("aliased component not permitted for type with explicit "
+            & "Scalar_Storage_Order", Err_Node);
       end if;
    end Check_Component_Storage_Order;
 
@@ -1908,8 +1916,17 @@ package body Freeze is
    -- Freeze_Before --
    -------------------
 
-   procedure Freeze_Before (N : Node_Id; T : Entity_Id) is
-      Freeze_Nodes : constant List_Id := Freeze_Entity (T, N);
+   procedure Freeze_Before
+     (N                 : Node_Id;
+      T                 : Entity_Id;
+      Do_Freeze_Profile : Boolean := True)
+   is
+      --  Freeze T, then insert the generated Freeze nodes before the node N.
+      --  Flag Freeze_Profile is used when T is an overloadable entity, and
+      --  indicates whether its profile should be frozen at the same time.
+
+      Freeze_Nodes : constant List_Id :=
+                       Freeze_Entity (T, N, Do_Freeze_Profile);
 
    begin
       if Ekind (T) = E_Function then
@@ -1925,7 +1942,11 @@ package body Freeze is
    -- Freeze_Entity --
    -------------------
 
-   function Freeze_Entity (E : Entity_Id; N : Node_Id) return List_Id is
+   function Freeze_Entity
+     (E                 : Entity_Id;
+      N                 : Node_Id;
+      Do_Freeze_Profile : Boolean := True) return List_Id
+   is
       Loc    : constant Source_Ptr := Sloc (N);
       Atype  : Entity_Id;
       Comp   : Entity_Id;
@@ -3469,7 +3490,7 @@ package body Freeze is
            and then Convention (E) /= Convention_Intrinsic
 
            --  Assume that ASM interface knows what it is doing. This deals
-           --  with unsigned.ads in the AAMP back end.
+           --  with e.g. unsigned.ads in the AAMP back end.
 
            and then Convention (E) /= Convention_Assembler
          then
@@ -4663,14 +4684,65 @@ package body Freeze is
       --  for the subprogram body that calls the inner procedure.
 
       procedure Wrap_Imported_Subprogram (E : Entity_Id) is
+         function Copy_Import_Pragma return Node_Id;
+         --  Obtain a copy of the Import_Pragma which belongs to subprogram E
+
+         ------------------------
+         -- Copy_Import_Pragma --
+         ------------------------
+
+         function Copy_Import_Pragma return Node_Id is
+
+            --  The subprogram should have an import pragma, otherwise it does
+            --  need a wrapper.
+
+            Prag : constant Node_Id := Import_Pragma (E);
+            pragma Assert (Present (Prag));
+
+            --  Save all semantic fields of the pragma
+
+            Save_Asp  : constant Node_Id := Corresponding_Aspect (Prag);
+            Save_From : constant Boolean := From_Aspect_Specification (Prag);
+            Save_Prag : constant Node_Id := Next_Pragma (Prag);
+            Save_Rep  : constant Node_Id := Next_Rep_Item (Prag);
+
+            Result : Node_Id;
+
+         begin
+            --  Reset all semantic fields. This avoids a potential infinite
+            --  loop when the pragma comes from an aspect as the duplication
+            --  will copy the aspect, then copy the corresponding pragma and
+            --  so on.
+
+            Set_Corresponding_Aspect      (Prag, Empty);
+            Set_From_Aspect_Specification (Prag, False);
+            Set_Next_Pragma               (Prag, Empty);
+            Set_Next_Rep_Item             (Prag, Empty);
+
+            Result := Copy_Separate_Tree (Prag);
+
+            --  Restore the original semantic fields
+
+            Set_Corresponding_Aspect      (Prag, Save_Asp);
+            Set_From_Aspect_Specification (Prag, Save_From);
+            Set_Next_Pragma               (Prag, Save_Prag);
+            Set_Next_Rep_Item             (Prag, Save_Rep);
+
+            return Result;
+         end Copy_Import_Pragma;
+
+         --  Local variables
+
          Loc   : constant Source_Ptr := Sloc (E);
          CE    : constant Name_Id    := Chars (E);
-         Spec  : Node_Id;
-         Parms : List_Id;
-         Stmt  : Node_Id;
-         Iprag : Node_Id;
          Bod   : Node_Id;
          Forml : Entity_Id;
+         Parms : List_Id;
+         Prag  : Node_Id;
+         Spec  : Node_Id;
+         Stmt  : Node_Id;
+
+      --  Start of processing for Wrap_Imported_Subprogram
 
       begin
          --  Nothing to do if not imported
@@ -4693,18 +4765,14 @@ package body Freeze is
             --  generates the right visibility, and that is exactly what the
             --  calls to Copy_Separate_Tree give us.
 
-            --  Acquire copy of Inline pragma, and indicate that it does not
-            --  come from an aspect, as it applies to an internal entity.
-
-            Iprag := Copy_Separate_Tree (Import_Pragma (E));
-            Set_From_Aspect_Specification (Iprag, False);
+            Prag := Copy_Import_Pragma;
 
             --  Fix up spec to be not imported any more
 
-            Set_Is_Imported    (E, False);
-            Set_Interface_Name (E, Empty);
             Set_Has_Completion (E, False);
             Set_Import_Pragma  (E, Empty);
+            Set_Interface_Name (E, Empty);
+            Set_Is_Imported    (E, False);
 
             --  Grab the subprogram declaration and specification
 
@@ -4744,13 +4812,12 @@ package body Freeze is
                   Copy_Separate_Tree (Spec),
                 Declarations               => New_List (
                   Make_Subprogram_Declaration (Loc,
-                    Specification =>
-                      Copy_Separate_Tree (Spec)),
-                    Iprag),
+                    Specification => Copy_Separate_Tree (Spec)),
+                  Prag),
                 Handled_Statement_Sequence =>
                   Make_Handled_Sequence_Of_Statements (Loc,
-                    Statements             => New_List (Stmt),
-                    End_Label              => Make_Identifier (Loc, CE)));
+                    Statements => New_List (Stmt),
+                    End_Label  => Make_Identifier (Loc, CE)));
 
             --  Append the body to freeze result
 
@@ -4988,14 +5055,21 @@ package body Freeze is
             --  any extra formal parameters are created since we now know
             --  whether the subprogram will use a foreign convention.
 
-            --  In Ada 2012, freezing a subprogram does not always freeze
-            --  the corresponding profile (see AI05-019). An attribute
-            --  reference is not a freezing point of the profile.
+            --  In Ada 2012, freezing a subprogram does not always freeze the
+            --  corresponding profile (see AI05-019). An attribute reference
+            --  is not a freezing point of the profile. Flag Do_Freeze_Profile
+            --  indicates whether the profile should be frozen now.
             --  Other constructs that should not freeze ???
 
             --  This processing doesn't apply to internal entities (see below)
 
-            if not Is_Internal (E) then
+            --  Disable this mechanism for now, to fix regressions in ASIS and
+            --  various ACATS tests. Implementation of AI05-019 remains
+            --  unsolved ???
+
+            if not Is_Internal (E)
+              and then (Do_Freeze_Profile or else True)
+            then
                if not Freeze_Profile (E) then
                   Ghost_Mode := Save_Ghost_Mode;
                   return Result;

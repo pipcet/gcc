@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -257,10 +257,6 @@ package Sem_Util is
    --  not necessarily mean that CE could be raised, but a response of True
    --  means that for sure CE cannot be raised.
 
-   procedure Check_Part_Of_Reference (Var_Id : Entity_Id; Ref : Node_Id);
-   --  Verify the legality of reference Ref to variable Var_Id when the
-   --  variable is a constituent of a single protected/task type.
-
    procedure Check_Dynamically_Tagged_Expression
      (Expr        : Node_Id;
       Typ         : Entity_Id;
@@ -322,6 +318,10 @@ package Sem_Util is
    --  Verify that the profile of nonvolatile function Func_Id does not contain
    --  effectively volatile parameters or return type.
 
+   procedure Check_Part_Of_Reference (Var_Id : Entity_Id; Ref : Node_Id);
+   --  Verify the legality of reference Ref to variable Var_Id when the
+   --  variable is a constituent of a single protected/task type.
+
    procedure Check_Potentially_Blocking_Operation (N : Node_Id);
    --  N is one of the statement forms that is a potentially blocking
    --  operation. If it appears within a protected action, emit warning.
@@ -330,6 +330,15 @@ package Sem_Util is
    --  Determine whether the contract of subprogram Subp_Id mentions attribute
    --  'Result and it contains an expression that evaluates differently in pre-
    --  and post-state.
+
+   procedure Check_State_Refinements
+     (Context      : Node_Id;
+      Is_Main_Unit : Boolean := False);
+   --  Verify that all abstract states declared in a block statement, entry
+   --  body, package body, protected body, subprogram body, task body, or a
+   --  package declaration denoted by Context have proper refinement. Emit an
+   --  error if this is not the case. Flag Is_Main_Unit should be set when
+   --  Context denotes the main compilation unit.
 
    procedure Check_Unused_Body_States (Body_Id : Entity_Id);
    --  Verify that all abstract states and objects declared in the state space
@@ -941,6 +950,20 @@ package Sem_Util is
    pragma Inline (Get_Pragma_Id);
    --  Obtains the Pragma_Id from the Chars field of Pragma_Identifier (N)
 
+   function Get_Qualified_Name
+     (Id     : Entity_Id;
+      Suffix : Entity_Id := Empty) return Name_Id;
+   --  Obtain the fully qualified form of entity Id. The format is:
+   --    scope_of_id-1__scope_of_id__chars_of_id__chars_of_suffix
+
+   function Get_Qualified_Name
+     (Nam    : Name_Id;
+      Suffix : Name_Id   := No_Name;
+      Scop   : Entity_Id := Current_Scope) return Name_Id;
+   --  Obtain the fully qualified form of name Nam assuming it appears in scope
+   --  Scop. The format is:
+   --    scop-1__scop__nam__suffix
+
    procedure Get_Reason_String (N : Node_Id);
    --  Recursive routine to analyze reason argument for pragma Warnings. The
    --  value of the reason argument is appended to the current string using
@@ -1472,6 +1495,10 @@ package Sem_Util is
    --  assertion expression of pragma Default_Initial_Condition and if it does,
    --  the encapsulated expression is nontrivial.
 
+   function Is_Null_Record_Type (T : Entity_Id) return Boolean;
+   --  Determine whether T is declared with a null record definition or a
+   --  null component list.
+
    function Is_Object_Reference (N : Node_Id) return Boolean;
    --  Determines if the tree referenced by N represents an object. Both
    --  variable and constant objects return True (compare Is_Variable).
@@ -1924,6 +1951,22 @@ package Sem_Util is
    --  corresponding operation of S is the original corresponding operation of
    --  S2. Otherwise, it is S itself.
 
+   procedure Output_Entity (Id : Entity_Id);
+   --  Print entity Id to standard output. The name of the entity appears in
+   --  fully qualified form.
+   --
+   --  WARNING: this routine should be used in debugging scenarios such as
+   --  tracking down undefined symbols as it is fairly low level.
+
+   procedure Output_Name (Nam : Name_Id; Scop : Entity_Id := Current_Scope);
+   --  Print name Nam to standard output. The name appears in fully qualified
+   --  form assuming it appears in scope Scop. Note that this may not reflect
+   --  the final qualification as the entity which carries the name may be
+   --  relocated to a different scope.
+   --
+   --  WARNING: this routine should be used in debugging scenarios such as
+   --  tracking down undefined symbols as it is fairly low level.
+
    function Policy_In_Effect (Policy : Name_Id) return Name_Id;
    --  Given a policy, return the policy identifier associated with it. If no
    --  such policy is in effect, the value returned is No_Name.
@@ -2006,12 +2049,6 @@ package Sem_Util is
    --  in with Any_Id and ignore. Otherwise signal a program error exception.
    --  This is used as a defense mechanism against ill-formed trees caused by
    --  previous errors (particularly in -gnatq mode).
-
-   function Requires_State_Refinement
-     (Spec_Id : Entity_Id;
-      Body_Id : Entity_Id) return Boolean;
-   --  Determine whether a package denoted by its spec and body entities
-   --  requires refinement of abstract states.
 
    function Requires_Transient_Scope (Id : Entity_Id) return Boolean;
    --  Id is a type entity. The result is True when temporaries of this type

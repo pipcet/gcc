@@ -1,3 +1,75 @@
+2016-05-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* testsuite/lib/libstdc++.exp (libstdc++_init): Enable on *-*-solaris*.
+
+2016-05-05  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/experimental/filesystem/path/native/string.cc: Add
+	dg-require-filesystem-ts directive.
+
+2016-05-04  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/70940
+	* include/experimental/memory_resource
+	(__resource_adaptor_imp::do_allocate): Do not default-construct
+	rebound allocator.
+	(__resource_adaptor_imp::do_deallocate): Likewise. Use
+	allocator_traits to get pointer type.
+	(__null_memory_resource::do_allocate): Remove unused parameters.
+	(__null_memory_resource::do_deallocate): Likewise.
+	(__null_memory_resource::do_is_equal): Likewise. Add return statement.
+	* testsuite/experimental/type_erased_allocator/1.cc: Combine with ...
+	* testsuite/experimental/type_erased_allocator/1_neg.cc: This, and
+	move to ...
+	* testsuite/experimental/memory_resource/1.cc: Here.
+	* testsuite/experimental/memory_resource/null_memory_resource.cc: New.
+	* testsuite/experimental/memory_resource/resource_adaptor.cc: New.
+
+2016-04-29  Chris Gregory  <czipperz@gmail.com>
+
+	* config/*: Remove trailing whitespace.
+	* src/*: Likewise.
+	* testsuite/tr1/*: Likewise.
+	* testsuite/util/*: Likewise.
+
+2016-04-28  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/70766
+	* include/bits/basic_ios.tcc (basic_ios::_M_cache_locale): Use
+	__addressof.
+	* include/bits/stream_iterator.h (istream_iterator, ostream_iterator):
+	Likewise.
+	* include/std/atomic (atomic<_Tp>): Likewise.
+	* include/std/shared_mutex (shared_lock): Likewise.
+	* testsuite/24_iterators/istream_iterator/70766.cc: New test.
+	* testsuite/24_iterators/ostream_iterator/70766.cc : New test.
+	* testsuite/29_atomics/atomic/60695.cc: Adjust dg-error line number.
+	* testsuite/29_atomics/atomic/70766.cc: New test.
+	* testsuite/30_threads/shared_lock/70766.cc: New test.
+
+	* include/bits/hashtable_policy.h (__detail::_Insert_base,
+	__detail::_Insert): Improve comments.
+
+2016-04-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/70767
+	* include/std/limits: Update comments about DRs.
+	(numeric_limits<const _Tp>, numeric_limits<volatile _Tp>,
+	numeric_limits<const volatile _Tp>): Define unconditionally.
+
+2016-04-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/70762
+	* testsuite/util/testsuite_fs.h (__gnu_test::nonexistent_path): Use
+	static counter to return a different path on every call.
+
+2016-04-22  Tim Shen  <timshen@google.com>
+
+	PR libstdc++/70745
+	* include/bits/regex_executor.tcc (_Executor<>::_M_word_boundary):
+	Fix the match_not_bow and match_not_eow behavior.
+	* testsuite/28_regex/regression.cc: Add testcase.
+
 2016-04-20  Jonathan Wakely  <jwakely@redhat.com>
 
 	PR libstdc++/69703

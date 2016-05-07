@@ -2817,9 +2817,21 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 		  tree guessed_id = lookup_member_fuzzy (access_path, name,
 							 /*want_type=*/false);
 		  if (guessed_id)
-		    error ("%q#T has no member named %qE; did you mean %qE?",
-			   TREE_CODE (access_path) == TREE_BINFO
-			   ? TREE_TYPE (access_path) : object_type, name, guessed_id);
+		    {
+		      location_t bogus_component_loc = input_location;
+		      rich_location rich_loc (line_table, bogus_component_loc);
+		      source_range bogus_component_range =
+			get_range_from_loc (line_table, bogus_component_loc);
+		      rich_loc.add_fixit_replace
+			(bogus_component_range,
+			 IDENTIFIER_POINTER (guessed_id));
+		      error_at_rich_loc
+			(&rich_loc,
+			 "%q#T has no member named %qE; did you mean %qE?",
+			 TREE_CODE (access_path) == TREE_BINFO
+			 ? TREE_TYPE (access_path) : object_type, name,
+			 guessed_id);
+		    }
 		  else
 		    error ("%q#T has no member named %qE",
 			   TREE_CODE (access_path) == TREE_BINFO
@@ -5912,7 +5924,7 @@ cp_build_unary_op (enum tree_code code, tree xarg, int noconvert,
 	{
 	  tree real, imag;
 
-	  arg = stabilize_reference (arg);
+	  arg = cp_stabilize_reference (arg);
 	  real = cp_build_unary_op (REALPART_EXPR, arg, 1, complain);
 	  imag = cp_build_unary_op (IMAGPART_EXPR, arg, 1, complain);
 	  real = cp_build_unary_op (code, real, 1, complain);
@@ -6112,7 +6124,7 @@ unary_complex_lvalue (enum tree_code code, tree arg)
       tree lvalue = TREE_OPERAND (arg, 0);
       if (TREE_SIDE_EFFECTS (lvalue))
 	{
-	  lvalue = stabilize_reference (lvalue);
+	  lvalue = cp_stabilize_reference (lvalue);
 	  arg = build2 (TREE_CODE (arg), TREE_TYPE (arg),
 			lvalue, TREE_OPERAND (arg, 1));
 	}
@@ -7496,7 +7508,7 @@ cp_build_modify_expr (tree lhs, enum tree_code modifycode, tree rhs,
     case PREINCREMENT_EXPR:
       if (TREE_SIDE_EFFECTS (TREE_OPERAND (lhs, 0)))
 	lhs = build2 (TREE_CODE (lhs), TREE_TYPE (lhs),
-		      stabilize_reference (TREE_OPERAND (lhs, 0)),
+		      cp_stabilize_reference (TREE_OPERAND (lhs, 0)),
 		      TREE_OPERAND (lhs, 1));
       newrhs = cp_build_modify_expr (TREE_OPERAND (lhs, 0),
 				     modifycode, rhs, complain);
@@ -7516,7 +7528,7 @@ cp_build_modify_expr (tree lhs, enum tree_code modifycode, tree rhs,
     case MODIFY_EXPR:
       if (TREE_SIDE_EFFECTS (TREE_OPERAND (lhs, 0)))
 	lhs = build2 (TREE_CODE (lhs), TREE_TYPE (lhs),
-		      stabilize_reference (TREE_OPERAND (lhs, 0)),
+		      cp_stabilize_reference (TREE_OPERAND (lhs, 0)),
 		      TREE_OPERAND (lhs, 1));
       newrhs = cp_build_modify_expr (TREE_OPERAND (lhs, 0), modifycode, rhs,
 				     complain);
@@ -7665,7 +7677,7 @@ cp_build_modify_expr (tree lhs, enum tree_code modifycode, tree rhs,
 	     not intervene between the lvalue-to-rvalue conversion and the
 	     side effect associated with any single compound assignment
 	     operator. -- end note ]  */
-	  lhs = stabilize_reference (lhs);
+	  lhs = cp_stabilize_reference (lhs);
 	  rhs = rvalue (rhs);
 	  rhs = stabilize_expr (rhs, &init);
 	  newrhs = cp_build_binary_op (input_location,

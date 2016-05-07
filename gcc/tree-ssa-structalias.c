@@ -2241,7 +2241,11 @@ dump_pred_graph (struct scc_info *si, FILE *file)
       if (graph->points_to[i]
 	  && !bitmap_empty_p (graph->points_to[i]))
 	{
-	  fprintf (file, "[label=\"%s = {", get_varinfo (i)->name);
+	  if (i < FIRST_REF_NODE)
+	    fprintf (file, "[label=\"%s = {", get_varinfo (i)->name);
+	  else
+	    fprintf (file, "[label=\"*%s = {",
+		     get_varinfo (i - FIRST_REF_NODE)->name);
 	  unsigned j;
 	  bitmap_iterator bi;
 	  EXECUTE_IF_SET_IN_BITMAP (graph->points_to[i], 0, j, bi)
@@ -4488,7 +4492,7 @@ find_func_aliases_for_builtin_call (struct function *fn, gcall *t)
 	  tree valist = gimple_call_arg (t, 0);
 	  struct constraint_expr rhs, *lhsp;
 	  unsigned i;
-	  get_constraint_for (valist, &lhsc);
+	  get_constraint_for_ptr_offset (valist, NULL_TREE, &lhsc);
 	  do_deref (&lhsc);
 	  /* The va_list gets access to pointers in variadic
 	     arguments.  Which we know in the case of IPA analysis
@@ -4641,12 +4645,11 @@ find_func_aliases_for_call (struct function *fn, gcall *t)
 	  auto_vec<ce_s, 2> lhsc;
 	  struct constraint_expr rhs;
 	  struct constraint_expr *lhsp;
+	  bool aggr_p = aggregate_value_p (lhsop, gimple_call_fntype (t));
 
 	  get_constraint_for (lhsop, &lhsc);
 	  rhs = get_function_part_constraint (fi, fi_result);
-	  if (fndecl
-	      && DECL_RESULT (fndecl)
-	      && DECL_BY_REFERENCE (DECL_RESULT (fndecl)))
+	  if (aggr_p)
 	    {
 	      auto_vec<ce_s, 2> tem;
 	      tem.quick_push (rhs);
@@ -4656,22 +4659,19 @@ find_func_aliases_for_call (struct function *fn, gcall *t)
 	    }
 	  FOR_EACH_VEC_ELT (lhsc, j, lhsp)
 	    process_constraint (new_constraint (*lhsp, rhs));
-	}
 
-      /* If we pass the result decl by reference, honor that.  */
-      if (lhsop
-	  && fndecl
-	  && DECL_RESULT (fndecl)
-	  && DECL_BY_REFERENCE (DECL_RESULT (fndecl)))
-	{
-	  struct constraint_expr lhs;
-	  struct constraint_expr *rhsp;
+	  /* If we pass the result decl by reference, honor that.  */
+	  if (aggr_p)
+	    {
+	      struct constraint_expr lhs;
+	      struct constraint_expr *rhsp;
 
-	  get_constraint_for_address_of (lhsop, &rhsc);
-	  lhs = get_function_part_constraint (fi, fi_result);
-	  FOR_EACH_VEC_ELT (rhsc, j, rhsp)
-	    process_constraint (new_constraint (lhs, *rhsp));
-	  rhsc.truncate (0);
+	      get_constraint_for_address_of (lhsop, &rhsc);
+	      lhs = get_function_part_constraint (fi, fi_result);
+	      FOR_EACH_VEC_ELT (rhsc, j, rhsp)
+		  process_constraint (new_constraint (lhs, *rhsp));
+	      rhsc.truncate (0);
+	    }
 	}
 
       /* If we use a static chain, pass it along.  */
@@ -7508,7 +7508,7 @@ struct pt_solution ipa_escaped_pt
   = { true, false, false, false, false, false, false, false, NULL };
 
 /* Associate node with varinfo DATA. Worker for
-   cgraph_for_node_and_aliases.  */
+   cgraph_for_symbol_thunks_and_aliases.  */
 static bool
 associate_varinfo_to_alias (struct cgraph_node *node, void *data)
 {
@@ -7624,6 +7624,29 @@ debug_varmap (void)
   dump_varmap (stderr);
 }
 
+/* Compute whether node is refered to non-locally.  Worker for
+   cgraph_for_symbol_thunks_and_aliases.  */
+static bool
+refered_from_nonlocal_fn (struct cgraph_node *node, void *data)
+{
+  bool *nonlocal_p = (bool *)data;
+  *nonlocal_p |= (node->used_from_other_partition
+		  || node->externally_visible
+		  || node->force_output);
+  return false;
+}
+
+/* Same for varpool nodes.  */
+static bool
+refered_from_nonlocal_var (struct varpool_node *node, void *data)
+{
+  bool *nonlocal_p = (bool *)data;
+  *nonlocal_p |= (node->used_from_other_partition
+		  || node->externally_visible
+		  || node->force_output);
+  return false;
+}
+
 /* Execute the driver for IPA PTA.  */
 static unsigned int
 ipa_pta_execute (void)
@@ -7663,30 +7686,15 @@ ipa_pta_execute (void)
 
       gcc_assert (!node->clone_of);
 
-      /* When parallelizing a code region, we split the region off into a
-	 separate function, to be run by several threads in parallel.  So for a
-	 function foo, we split off a region into a function
-	 foo._0 (void *foodata), and replace the region with some variant of a
-	 function call run_on_threads (&foo._0, data).  The '&foo._0' sets the
-	 address_taken bit for function foo._0, which would make it non-local.
-	 But for the purpose of ipa-pta, we can regard the run_on_threads call
-	 as a local call foo._0 (data),  so we ignore address_taken on nodes
-	 with parallelized_function set.
-	 Note: this is only safe, if foo and foo._0 are in the same lto
-	 partition.  */
-      bool node_address_taken = ((node->parallelized_function
-				  && !node->used_from_other_partition)
-				 ? false
-				 : node->address_taken);
-
       /* For externally visible or attribute used annotated functions use
 	 local constraints for their arguments.
 	 For local functions we see all callers and thus do not need initial
 	 constraints for parameters.  */
       bool nonlocal_p = (node->used_from_other_partition
 			 || node->externally_visible
-			 || node->force_output
-			 || node_address_taken);
+			 || node->force_output);
+      node->call_for_symbol_thunks_and_aliases (refered_from_nonlocal_fn,
+						&nonlocal_p, true);
 
       vi = create_function_info_for (node->decl,
 				     alias_get_name (node->decl), false,
@@ -7724,6 +7732,8 @@ ipa_pta_execute (void)
       bool nonlocal_p = (var->used_from_other_partition
 			 || var->externally_visible
 			 || var->force_output);
+      var->call_for_symbol_and_aliases (refered_from_nonlocal_var,
+					&nonlocal_p, true);
       if (nonlocal_p)
 	vi->is_ipa_escape_point = true;
     }

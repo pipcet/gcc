@@ -2949,7 +2949,8 @@ pushdecl (tree x)
 	}
       if (scope != file_scope
 	  && !DECL_IN_SYSTEM_HEADER (x))
-	warning (OPT_Wnested_externs, "nested extern declaration of %qD", x);
+	warning_at (locus, OPT_Wnested_externs,
+		    "nested extern declaration of %qD", x);
 
       while (b && !B_IN_EXTERNAL_SCOPE (b))
 	{
@@ -5798,10 +5799,21 @@ grokdeclarator (const struct c_declarator *declarator,
 		  {
 		    if (name)
 		      error_at (loc, "size of array %qE has non-integer type",
-			  	name);
+				name);
 		    else
 		      error_at (loc,
-			  	"size of unnamed array has non-integer type");
+				"size of unnamed array has non-integer type");
+		    size = integer_one_node;
+		  }
+		/* This can happen with enum forward declaration.  */
+		else if (!COMPLETE_TYPE_P (TREE_TYPE (size)))
+		  {
+		    if (name)
+		      error_at (loc, "size of array %qE has incomplete type",
+				name);
+		    else
+		      error_at (loc, "size of unnamed array has incomplete "
+				"type");
 		    size = integer_one_node;
 		  }
 

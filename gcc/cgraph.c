@@ -859,9 +859,15 @@ symbol_table::create_edge (cgraph_node *caller, cgraph_node *callee,
       && callee && callee->decl
       && !gimple_check_call_matching_types (call_stmt, callee->decl,
 					    false))
-    edge->call_stmt_cannot_inline_p = true;
+    {
+      edge->inline_failed = CIF_MISMATCHED_ARGUMENTS;
+      edge->call_stmt_cannot_inline_p = true;
+    }
   else
-    edge->call_stmt_cannot_inline_p = false;
+    {
+      edge->inline_failed = CIF_FUNCTION_NOT_CONSIDERED;
+      edge->call_stmt_cannot_inline_p = false;
+    }
 
   edge->indirect_info = NULL;
   edge->indirect_inlining_edge = 0;
@@ -1240,10 +1246,12 @@ cgraph_edge::make_direct (cgraph_node *callee)
   /* Insert to callers list of the new callee.  */
   edge->set_callee (callee);
 
-  if (call_stmt)
-    call_stmt_cannot_inline_p
-      = !gimple_check_call_matching_types (call_stmt, callee->decl,
-					   false);
+  if (call_stmt
+      && !gimple_check_call_matching_types (call_stmt, callee->decl, false))
+    {
+      call_stmt_cannot_inline_p = true;
+      inline_failed = CIF_MISMATCHED_ARGUMENTS;
+    }
 
   /* We need to re-determine the inlining status of the edge.  */
   initialize_inline_failed (edge);
@@ -1729,30 +1737,26 @@ release_function_body (tree decl)
   if (fn)
     {
       if (fn->cfg
-	  || fn->gimple_df)
+	  && loops_for_fn (fn))
 	{
-	  if (fn->cfg
-	      && loops_for_fn (fn))
-	    {
-	      fn->curr_properties &= ~PROP_loops;
-	      loop_optimizer_finalize (fn);
-	    }
-	  if (fn->gimple_df)
-	    {
-	      delete_tree_ssa (fn);
-	      delete_tree_cfg_annotations (fn);
-	      fn->eh = NULL;
-	    }
-	  if (fn->cfg)
-	    {
-	      gcc_assert (!dom_info_available_p (fn, CDI_DOMINATORS));
-	      gcc_assert (!dom_info_available_p (fn, CDI_POST_DOMINATORS));
-	      clear_edges (fn);
-	      fn->cfg = NULL;
-	    }
-	  if (fn->value_histograms)
-	    free_histograms (fn);
+	  fn->curr_properties &= ~PROP_loops;
+	  loop_optimizer_finalize (fn);
 	}
+      if (fn->gimple_df)
+	{
+	  delete_tree_ssa (fn);
+	  fn->eh = NULL;
+	}
+      if (fn->cfg)
+	{
+	  gcc_assert (!dom_info_available_p (fn, CDI_DOMINATORS));
+	  gcc_assert (!dom_info_available_p (fn, CDI_POST_DOMINATORS));
+	  delete_tree_cfg_annotations (fn);
+	  clear_edges (fn);
+	  fn->cfg = NULL;
+	}
+      if (fn->value_histograms)
+	free_histograms (fn);
       gimple_set_body (decl, NULL);
       /* Struct function hangs a lot of data that would leak if we didn't
          removed all pointers to it.   */
@@ -2000,6 +2004,8 @@ cgraph_edge::dump_edge_flags (FILE *f)
     fprintf (f, "(speculative) ");
   if (!inline_failed)
     fprintf (f, "(inlined) ");
+  if (call_stmt_cannot_inline_p)
+    fprintf (f, "(call_stmt_cannot_inline_p) ");
   if (indirect_inlining_edge)
     fprintf (f, "(indirect_inlining) ");
   if (count)
@@ -2283,7 +2289,7 @@ cgraph_node::can_be_local_p (void)
 }
 
 /* Call callback on cgraph_node, thunks and aliases associated to cgraph_node.
-   When INCLUDE_OVERWRITABLE is false, overwritable aliases and thunks are
+   When INCLUDE_OVERWRITABLE is false, overwritable symbols are
    skipped.  When EXCLUDE_VIRTUAL_THUNKS is true, virtual thunks are
    skipped.  */
 bool
@@ -2295,9 +2301,14 @@ cgraph_node::call_for_symbol_thunks_and_aliases (bool (*callback)
 {
   cgraph_edge *e;
   ipa_ref *ref;
+  enum availability avail = AVAIL_AVAILABLE;
 
-  if (callback (this, data))
-    return true;
+  if (include_overwritable
+      || (avail = get_availability ()) > AVAIL_INTERPOSABLE)
+    {
+      if (callback (this, data))
+        return true;
+    }
   FOR_EACH_ALIAS (this, ref)
     {
       cgraph_node *alias = dyn_cast <cgraph_node *> (ref->referring);
@@ -2308,7 +2319,7 @@ cgraph_node::call_for_symbol_thunks_and_aliases (bool (*callback)
 						     exclude_virtual_thunks))
 	  return true;
     }
-  if (get_availability () <= AVAIL_INTERPOSABLE)
+  if (avail <= AVAIL_INTERPOSABLE)
     return false;
   for (e = callers; e; e = e->next_caller)
     if (e->caller->thunk.thunk_p
@@ -2358,27 +2369,65 @@ cgraph_node::make_local (void)
 
 /* Worker to set nothrow flag.  */
 
-static bool
-cgraph_set_nothrow_flag_1 (cgraph_node *node, void *data)
+static void
+set_nothrow_flag_1 (cgraph_node *node, bool nothrow, bool non_call,
+		    bool *changed)
 {
   cgraph_edge *e;
 
-  TREE_NOTHROW (node->decl) = data != NULL;
-
-  if (data != NULL)
-    for (e = node->callers; e; e = e->next_caller)
-      e->can_throw_external = false;
-  return false;
+  if (nothrow && !TREE_NOTHROW (node->decl))
+    {
+      /* With non-call exceptions we can't say for sure if other function body
+	 was not possibly optimized to stil throw.  */
+      if (!non_call || node->binds_to_current_def_p ())
+	{
+	  TREE_NOTHROW (node->decl) = true;
+	  *changed = true;
+	  for (e = node->callers; e; e = e->next_caller)
+	    e->can_throw_external = false;
+	}
+    }
+  else if (!nothrow && TREE_NOTHROW (node->decl))
+    {
+      TREE_NOTHROW (node->decl) = false;
+      *changed = true;
+    }
+  ipa_ref *ref;
+  FOR_EACH_ALIAS (node, ref)
+    {
+      cgraph_node *alias = dyn_cast <cgraph_node *> (ref->referring);
+      if (!nothrow || alias->get_availability () > AVAIL_INTERPOSABLE)
+	set_nothrow_flag_1 (alias, nothrow, non_call, changed);
+    }
+  for (cgraph_edge *e = node->callers; e; e = e->next_caller)
+    if (e->caller->thunk.thunk_p
+	&& (!nothrow || e->caller->get_availability () > AVAIL_INTERPOSABLE))
+      set_nothrow_flag_1 (e->caller, nothrow, non_call, changed);
 }
 
 /* Set TREE_NOTHROW on NODE's decl and on aliases of NODE
    if any to NOTHROW.  */
 
-void
+bool
 cgraph_node::set_nothrow_flag (bool nothrow)
 {
-  call_for_symbol_thunks_and_aliases (cgraph_set_nothrow_flag_1,
-				      (void *)(size_t)nothrow, nothrow == true);
+  bool changed = false;
+  bool non_call = opt_for_fn (decl, flag_non_call_exceptions);
+
+  if (!nothrow || get_availability () > AVAIL_INTERPOSABLE)
+    set_nothrow_flag_1 (this, nothrow, non_call, &changed);
+  else
+    {
+      ipa_ref *ref;
+
+      FOR_EACH_ALIAS (this, ref)
+	{
+	  cgraph_node *alias = dyn_cast <cgraph_node *> (ref->referring);
+	  if (!nothrow || alias->get_availability () > AVAIL_INTERPOSABLE)
+	    set_nothrow_flag_1 (alias, nothrow, non_call, &changed);
+	}
+    }
+  return changed;
 }
 
 /* Worker to set_const_flag.  */
@@ -2517,8 +2566,7 @@ cgraph_node::set_const_flag (bool set_const, bool looping)
 
 /* Info used by set_pure_flag_1.  */
 
-struct
-set_pure_flag_info
+struct set_pure_flag_info
 {
   bool pure;
   bool looping;

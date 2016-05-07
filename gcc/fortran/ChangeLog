@@ -1,3 +1,24 @@
+2016-05-05  Jakub Jelinek  <jakub@redhat.com>
+
+	* openmp.c (gfc_match_omp_clauses): Restructuralize, so that clause
+	parsing is done in a big switch based on gfc_peek_ascii_char and
+	individual clauses under their first letters are sorted too.
+
+2016-05-02  Michael Meissner  <meissner@linux.vnet.ibm.com>
+
+	* trans-types.c (gfc_build_complex_type):
+
+2016-05-02  Richard Biener  <rguenther@suse.de>
+
+	* trans-array.c (gfc_trans_create_temp_array): Properly
+	create a DECL_EXPR for the anonymous VLA array type.
+
+2016-04-29  Cesar Philippidis  <cesar@codesourcery.com>
+
+	PR middle-end/70626
+	* trans-openmp.c (gfc_trans_oacc_combined_directive): Duplicate
+	the reduction clause in both parallel and loop directives.
+
 2016-04-18  Michael Matz  <matz@suse.de>
 
 	* trans-io.c (gfc_build_io_library_fndecls): Use SET_TYPE_ALIGN.

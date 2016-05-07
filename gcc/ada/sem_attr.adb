@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -4940,7 +4940,13 @@ package body Sem_Attr is
             --    function Func (...) return ...
             --      with Post => Func'Old ...;
 
-            elsif Nkind (P) = N_Function_Call then
+            --  The function may be specified in qualified form X.Y where X is
+            --  a protected object and Y is a protected function. In that case
+            --  ensure that the qualified form has an entity.
+
+            elsif Nkind (P) = N_Function_Call
+              and then Nkind (Name (P)) in N_Has_Entity
+            then
                Pref_Id := Entity (Name (P));
 
                if Ekind_In (Spec_Id, E_Function, E_Generic_Function)
@@ -4969,8 +4975,15 @@ package body Sem_Attr is
             --  and does not suffer from the out-of-order issue described
             --  above. Thus, this expansion is skipped in SPARK mode.
 
+            --  The expansion is not relevant for discrete types, which will
+            --  not generate extra declarations, and where use of the base type
+            --  may lead to spurious errors if context is a case.
+
             if not GNATprove_Mode then
-               Pref_Typ := Base_Type (Pref_Typ);
+               if not Is_Discrete_Type (Pref_Typ) then
+                  Pref_Typ := Base_Type (Pref_Typ);
+               end if;
+
                Set_Etype (N, Pref_Typ);
                Set_Etype (P, Pref_Typ);
 
@@ -10161,18 +10174,20 @@ package body Sem_Attr is
                   end loop;
 
                   --  If Prefix is a subprogram name, this reference freezes,
-                  --  but not if within spec expression mode
+                  --  but not if within spec expression mode. The profile of
+                  --  the subprogram is not frozen at this point.
 
                   if not In_Spec_Expression then
-                     Freeze_Before (N, Entity (P));
+                     Freeze_Before (N, Entity (P), Do_Freeze_Profile => False);
                   end if;
 
-               --  If it is a type, there is nothing to resolve. If it is an
-               --  object, complete its resolution.
+               --  If it is a type, there is nothing to resolve.
+               --  If it is a subprogram, do not freeze its profile.
+               --  If it is an object, complete its resolution.
 
                elsif Is_Overloadable (Entity (P)) then
                   if not In_Spec_Expression then
-                     Freeze_Before (N, Entity (P));
+                     Freeze_Before (N, Entity (P), Do_Freeze_Profile => False);
                   end if;
 
                --  Nothing to do if prefix is a type name

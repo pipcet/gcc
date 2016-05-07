@@ -257,7 +257,8 @@ Objective-C and Objective-C++ Dialects}.
 -Wc90-c99-compat -Wc99-c11-compat @gol
 -Wc++-compat -Wc++11-compat -Wc++14-compat -Wcast-align  -Wcast-qual  @gol
 -Wchar-subscripts -Wclobbered  -Wcomment -Wconditionally-supported  @gol
--Wconversion -Wcoverage-mismatch -Wno-cpp -Wdate-time -Wdelete-incomplete @gol
+-Wconversion -Wcoverage-mismatch -Wno-cpp -Wdangling-else -Wdate-time @gol
+-Wdelete-incomplete @gol
 -Wno-deprecated -Wno-deprecated-declarations -Wno-designated-init @gol
 -Wdisabled-optimization @gol
 -Wno-discarded-qualifiers -Wno-discarded-array-qualifiers @gol
@@ -273,7 +274,7 @@ Objective-C and Objective-C++ Dialects}.
 -Wno-int-to-pointer-cast -Winvalid-memory-model -Wno-invalid-offsetof @gol
 -Winvalid-pch -Wlarger-than=@var{len} @gol
 -Wlogical-op -Wlogical-not-parentheses -Wlong-long @gol
--Wmain -Wmaybe-uninitialized -Wmemset-transposed-args @gol
+-Wmain -Wmaybe-uninitialized -Wmemset-elt-size -Wmemset-transposed-args @gol
 -Wmisleading-indentation -Wmissing-braces @gol
 -Wmissing-field-initializers -Wmissing-include-dirs @gol
 -Wno-multichar -Wnonnull -Wnonnull-compare @gol
@@ -501,7 +502,8 @@ Objective-C and Objective-C++ Dialects}.
 @item Developer Options
 @xref{Developer Options,,GCC Developer Options}.
 @gccoptlist{-d@var{letters}  -dumpspecs  -dumpmachine  -dumpversion @gol
--fchecking -fdbg-cnt-list -fdbg-cnt=@var{counter-value-list} @gol
+-fchecking -fchecking=@var{n} -fdbg-cnt-list @gol
+-fdbg-cnt=@var{counter-value-list} @gol
 -fdisable-ipa-@var{pass_name} @gol
 -fdisable-rtl-@var{pass_name} @gol
 -fdisable-rtl-@var{pass-name}=@var{range-list} @gol
@@ -592,7 +594,7 @@ Objective-C and Objective-C++ Dialects}.
 -mcrc -mdsp-packa -mdvbf -mlock -mmac-d16 -mmac-24 -mrtsc -mswape @gol
 -mtelephony -mxy -misize -mannotate-align -marclinux -marclinux_prof @gol
 -mlong-calls -mmedium-calls -msdata @gol
--mucb-mcount -mvolatile-cache @gol
+-mucb-mcount -mvolatile-cache -mtp-regno=@var{regno} @gol
 -malign-call -mauto-modify-reg -mbbit-peephole -mno-brcc @gol
 -mcase-vector-pcrel -mcompact-casesi -mno-cond-exec -mearly-cbranchsi @gol
 -mexpand-adddi -mindexed-loads -mlra -mlra-priority-none @gol
@@ -1049,7 +1051,7 @@ See RS/6000 and PowerPC Options.
 -mb  -ml  -mdalign  -mrelax @gol
 -mbigtable -mfmovd -mrenesas -mno-renesas -mnomacsave @gol
 -mieee -mno-ieee -mbitops  -misize  -minline-ic_invalidate -mpadstruct @gol
--mspace -mprefergot  -musermode -multcost=@var{number} -mdiv=@var{strategy} @gol
+-mprefergot -musermode -multcost=@var{number} -mdiv=@var{strategy} @gol
 -mdivsi3_libfunc=@var{name} -mfixed-range=@var{register-range} @gol
 -maccumulate-outgoing-args @gol
 -matomic-model=@var{atomic-model} @gol
@@ -3547,6 +3549,7 @@ Options} and @ref{Objective-C and Objective-C++ Dialect Options}.
 -Wlogical-not-parentheses
 -Wmain @r{(only for C/ObjC and unless} @option{-ffreestanding}@r{)}  @gol
 -Wmaybe-uninitialized @gol
+-Wmemset-elt-size @gol
 -Wmemset-transposed-args @gol
 -Wmisleading-indentation @r{(only for C/C++)} @gol
 -Wmissing-braces @r{(only for C/ObjC)} @gol
@@ -3973,46 +3976,6 @@ often get confused about.
 Also warn if a comparison like @code{x<=y<=z} appears; this is
 equivalent to @code{(x<=y ? 1 : 0) <= z}, which is a different
 interpretation from that of ordinary mathematical notation.
-
-Also warn about constructions where there may be confusion to which
-@code{if} statement an @code{else} branch belongs.  Here is an example of
-such a case:
-
-@smallexample
-@group
-@{
-  if (a)
-    if (b)
-      foo ();
-  else
-    bar ();
-@}
-@end group
-@end smallexample
-
-In C/C++, every @code{else} branch belongs to the innermost possible
-@code{if} statement, which in this example is @code{if (b)}.  This is
-often not what the programmer expected, as illustrated in the above
-example by indentation the programmer chose.  When there is the
-potential for this confusion, GCC issues a warning when this flag
-is specified.  To eliminate the warning, add explicit braces around
-the innermost @code{if} statement so there is no way the @code{else}
-can belong to the enclosing @code{if}.  The resulting code
-looks like this:
-
-@smallexample
-@group
-@{
-  if (a)
-    @{
-      if (b)
-        foo ();
-      else
-        bar ();
-    @}
-@}
-@end group
-@end smallexample
 
 Also warn for dangerous uses of the GNU extension to
 @code{?:} with omitted middle operand. When the condition
@@ -5146,6 +5109,51 @@ compiler doesn't give this warning for types defined in the main .C
 file, as those are unlikely to have multiple definitions.
 @option{-Wsubobject-linkage} is enabled by default.
 
+@item -Wdangling-else
+@opindex Wdangling-else
+@opindex Wno-dangling-else
+Warn about constructions where there may be confusion to which
+@code{if} statement an @code{else} branch belongs.  Here is an example of
+such a case:
+
+@smallexample
+@group
+@{
+  if (a)
+    if (b)
+      foo ();
+  else
+    bar ();
+@}
+@end group
+@end smallexample
+
+In C/C++, every @code{else} branch belongs to the innermost possible
+@code{if} statement, which in this example is @code{if (b)}.  This is
+often not what the programmer expected, as illustrated in the above
+example by indentation the programmer chose.  When there is the
+potential for this confusion, GCC issues a warning when this flag
+is specified.  To eliminate the warning, add explicit braces around
+the innermost @code{if} statement so there is no way the @code{else}
+can belong to the enclosing @code{if}.  The resulting code
+looks like this:
+
+@smallexample
+@group
+@{
+  if (a)
+    @{
+      if (b)
+        foo ();
+      else
+        bar ();
+    @}
+@}
+@end group
+@end smallexample
+
+This warning is enabled by @option{-Wparentheses}.
+
 @item -Wdate-time
 @opindex Wdate-time
 @opindex Wno-date-time
@@ -5255,6 +5263,15 @@ but a pointer, and suggests a possible fix, or about
 Warn when the @code{sizeof} operator is applied to a parameter that is
 declared as an array in a function definition.  This warning is enabled by
 default for C and C++ programs.
+
+@item -Wmemset-elt-size
+@opindex Wmemset-elt-size
+@opindex Wno-memset-elt-size
+Warn for suspicious calls to the @code{memset} built-in function, if the
+first argument references an array, and the third argument is a number
+equal to the number of elements, but not equal to the size of the array
+in memory.  This indicates that the user has omitted a multiplication by
+the element size.  This warning is enabled by @option{-Wall}.
 
 @item -Wmemset-transposed-args
 @opindex Wmemset-transposed-args
@@ -9007,6 +9024,10 @@ Large expressions slow the analyzer.
 Bound on the complexity of the expressions in the scalar evolutions analyzer.
 Complex expressions slow the analyzer.
 
+@item max-tree-if-conversion-phi-args
+Maximum number of arguments in a PHI supported by TREE if conversion
+unless the loop is marked with simd pragma.
+
 @item vect-max-version-for-alignment-checks
 The maximum number of run-time checks that can be performed when
 doing loop versioning for alignment in the vectorizer.
@@ -9476,6 +9497,11 @@ The default value is 32.
 Size of minimal partition for WHOPR (in estimated instructions).
 This prevents expenses of splitting very small programs into too many
 partitions.
+
+@item lto-max-partition
+Size of max partition for WHOPR (in estimated instructions).
+to provide an upper bound for individual size of partition.
+Meant to be used only with balanced partitioning.
 
 @item cxx-max-namespaces-for-diagnostic-help
 The maximum number of namespaces to consult for suggestions when C++
@@ -12368,10 +12394,12 @@ Here are some examples showing uses of these options.
 @end smallexample
 
 @item -fchecking
+@itemx -fchecking=@var{n}
 @opindex fchecking
 @opindex fno-checking
 Enable internal consistency checking.  The default depends on
-the compiler configuration.
+the compiler configuration.  @option{-fchecking=2} enables further
+internal consistency checking that might affect code generation.
 
 @item -frandom-seed=@var{string}
 @opindex frandom-seed
@@ -13339,6 +13367,10 @@ Enable code density instructions for ARC EM, default on for ARC HS.
 @item -mll64
 @opindex mll64
 Enable double load/store operations for ARC HS cores.
+
+@item -mtp-regno=@var{regno}
+@opindex mtp-regno
+Specify thread pointer register number.
 
 @item -mmpy-option=@var{multo}
 @opindex mmpy-option

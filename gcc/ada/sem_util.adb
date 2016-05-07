@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -290,7 +290,7 @@ package body Sem_Util is
    -- Addressable --
    -----------------
 
-   --  For now, just 8/16/32/64. but analyze later if AAMP is special???
+   --  For now, just 8/16/32/64
 
    function Addressable (V : Uint) return Boolean is
    begin
@@ -326,21 +326,19 @@ package body Sem_Util is
       --  Ada 2005 (AI-230): Generate a conversion to an anonymous access
       --  component's type to force the appropriate accessibility checks.
 
-      --  Ada 2005 (AI-231): Generate conversion to the null-excluding
-      --  type to force the corresponding run-time check
+      --  Ada 2005 (AI-231): Generate conversion to the null-excluding type to
+      --  force the corresponding run-time check
 
       if Is_Access_Type (Check_Typ)
-        and then ((Is_Local_Anonymous_Access (Check_Typ))
-                    or else (Can_Never_Be_Null (Check_Typ)
-                              and then not Can_Never_Be_Null (Exp_Typ)))
+        and then Is_Local_Anonymous_Access (Check_Typ)
       then
          Rewrite (Exp, Convert_To (Check_Typ, Relocate_Node (Exp)));
          Analyze_And_Resolve (Exp, Check_Typ);
          Check_Unset_Reference (Exp);
       end if;
 
-      --  This is really expansion activity, so make sure that expansion is
-      --  on and is allowed. In GNATprove mode, we also want check flags to
+      --  What follows is really expansion activity, so check that expansion
+      --  is on and is allowed. In GNATprove mode, we also want check flags to
       --  be added in the tree, so that the formal verification can rely on
       --  those to be present. In GNATprove mode for formal verification, some
       --  treatment typically only done during expansion needs to be performed
@@ -351,6 +349,13 @@ package body Sem_Util is
         and (Inside_A_Generic or not Full_Analysis or not GNATprove_Mode)
       then
          return;
+      end if;
+
+      if Is_Access_Type (Check_Typ)
+        and then Can_Never_Be_Null (Check_Typ)
+        and then not Can_Never_Be_Null (Exp_Typ)
+      then
+         Install_Null_Excluding_Check (Exp);
       end if;
 
       --  First check if we have to insert discriminant checks
@@ -3621,6 +3626,172 @@ package body Sem_Util is
       end if;
    end Check_Result_And_Post_State;
 
+   -----------------------------
+   -- Check_State_Refinements --
+   -----------------------------
+
+   procedure Check_State_Refinements
+     (Context      : Node_Id;
+      Is_Main_Unit : Boolean := False)
+   is
+      procedure Check_Package (Pack : Node_Id);
+      --  Verify that all abstract states of a [generic] package denoted by its
+      --  declarative node Pack have proper refinement. Recursively verify the
+      --  visible and private declarations of the [generic] package for other
+      --  nested packages.
+
+      procedure Check_Packages_In (Decls : List_Id);
+      --  Seek out [generic] package declarations within declarative list Decls
+      --  and verify the status of their abstract state refinement.
+
+      function SPARK_Mode_Is_Off (N : Node_Id) return Boolean;
+      --  Determine whether construct N is subject to pragma SPARK_Mode Off
+
+      -------------------
+      -- Check_Package --
+      -------------------
+
+      procedure Check_Package (Pack : Node_Id) is
+         Body_Id : constant Entity_Id := Corresponding_Body (Pack);
+         Spec    : constant Node_Id   := Specification (Pack);
+         States  : constant Elist_Id  :=
+                     Abstract_States (Defining_Entity (Pack));
+
+         State_Elmt : Elmt_Id;
+         State_Id   : Entity_Id;
+
+      begin
+         --  Do not verify proper state refinement when the package is subject
+         --  to pragma SPARK_Mode Off because this disables the requirement for
+         --  state refinement.
+
+         if SPARK_Mode_Is_Off (Pack) then
+            null;
+
+         --  State refinement can only occur in a completing packge body. Do
+         --  not verify proper state refinement when the body is subject to
+         --  pragma SPARK_Mode Off because this disables the requirement for
+         --  state refinement.
+
+         elsif Present (Body_Id)
+           and then SPARK_Mode_Is_Off (Unit_Declaration_Node (Body_Id))
+         then
+            null;
+
+         --  Do not verify proper state refinement when the package is an
+         --  instance as this check was already performed in the generic.
+
+         elsif Present (Generic_Parent (Spec)) then
+            null;
+
+         --  Otherwise examine the contents of the package
+
+         else
+            if Present (States) then
+               State_Elmt := First_Elmt (States);
+               while Present (State_Elmt) loop
+                  State_Id := Node (State_Elmt);
+
+                  --  Emit an error when a non-null state lacks any form of
+                  --  refinement.
+
+                  if not Is_Null_State (State_Id)
+                    and then not Has_Null_Refinement (State_Id)
+                    and then not Has_Non_Null_Refinement (State_Id)
+                  then
+                     Error_Msg_N ("state & requires refinement", State_Id);
+                  end if;
+
+                  Next_Elmt (State_Elmt);
+               end loop;
+            end if;
+
+            Check_Packages_In (Visible_Declarations (Spec));
+            Check_Packages_In (Private_Declarations (Spec));
+         end if;
+      end Check_Package;
+
+      -----------------------
+      -- Check_Packages_In --
+      -----------------------
+
+      procedure Check_Packages_In (Decls : List_Id) is
+         Decl : Node_Id;
+
+      begin
+         if Present (Decls) then
+            Decl := First (Decls);
+            while Present (Decl) loop
+               if Nkind_In (Decl, N_Generic_Package_Declaration,
+                                  N_Package_Declaration)
+               then
+                  Check_Package (Decl);
+               end if;
+
+               Next (Decl);
+            end loop;
+         end if;
+      end Check_Packages_In;
+
+      -----------------------
+      -- SPARK_Mode_Is_Off --
+      -----------------------
+
+      function SPARK_Mode_Is_Off (N : Node_Id) return Boolean is
+         Prag : constant Node_Id := SPARK_Pragma (Defining_Entity (N));
+
+      begin
+         return
+           Present (Prag) and then Get_SPARK_Mode_From_Annotation (Prag) = Off;
+      end SPARK_Mode_Is_Off;
+
+   --  Start of processing for Check_State_Refinements
+
+   begin
+      --  A block may declare a nested package
+
+      if Nkind (Context) = N_Block_Statement then
+         Check_Packages_In (Declarations (Context));
+
+      --  An entry, protected, subprogram, or task body may declare a nested
+      --  package.
+
+      elsif Nkind_In (Context, N_Entry_Body,
+                               N_Protected_Body,
+                               N_Subprogram_Body,
+                               N_Task_Body)
+      then
+         --  Do not verify proper state refinement when the body is subject to
+         --  pragma SPARK_Mode Off because this disables the requirement for
+         --  state refinement.
+
+         if not SPARK_Mode_Is_Off (Context) then
+            Check_Packages_In (Declarations (Context));
+         end if;
+
+      --  A package body may declare a nested package
+
+      elsif Nkind (Context) = N_Package_Body then
+         Check_Package (Unit_Declaration_Node (Corresponding_Spec (Context)));
+
+         --  Do not verify proper state refinement when the body is subject to
+         --  pragma SPARK_Mode Off because this disables the requirement for
+         --  state refinement.
+
+         if not SPARK_Mode_Is_Off (Context) then
+            Check_Packages_In (Declarations (Context));
+         end if;
+
+      --  A library level [generic] package may declare a nested package
+
+      elsif Nkind_In (Context, N_Generic_Package_Declaration,
+                               N_Package_Declaration)
+        and then Is_Main_Unit
+      then
+         Check_Package (Context);
+      end if;
+   end Check_State_Refinements;
+
    ------------------------------
    -- Check_Unprotected_Access --
    ------------------------------
@@ -6294,9 +6465,9 @@ package body Sem_Util is
            or else Is_Internal (E)
          then
             declare
+               Decl     : constant Node_Id := Parent (E);
                Prev     : Entity_Id;
                Prev_Vis : Entity_Id;
-               Decl     : constant Node_Id := Parent (E);
 
             begin
                --  If E is an implicit declaration, it cannot be the first
@@ -6987,7 +7158,7 @@ package body Sem_Util is
       end if;
 
       while Present (Old_Disc) and then Present (New_Disc) loop
-         if Old_Disc = Par_Disc  then
+         if Old_Disc = Par_Disc then
             return New_Disc;
          end if;
 
@@ -8156,6 +8327,73 @@ package body Sem_Util is
       return Get_Pragma_Id (Pragma_Name (N));
    end Get_Pragma_Id;
 
+   ------------------------
+   -- Get_Qualified_Name --
+   ------------------------
+
+   function Get_Qualified_Name
+     (Id     : Entity_Id;
+      Suffix : Entity_Id := Empty) return Name_Id
+   is
+      Suffix_Nam : Name_Id := No_Name;
+
+   begin
+      if Present (Suffix) then
+         Suffix_Nam := Chars (Suffix);
+      end if;
+
+      return Get_Qualified_Name (Chars (Id), Suffix_Nam, Scope (Id));
+   end Get_Qualified_Name;
+
+   function Get_Qualified_Name
+     (Nam    : Name_Id;
+      Suffix : Name_Id   := No_Name;
+      Scop   : Entity_Id := Current_Scope) return Name_Id
+   is
+      procedure Add_Scope (S : Entity_Id);
+      --  Add the fully qualified form of scope S to the name buffer. The
+      --  format is:
+      --    s-1__s__
+
+      ---------------
+      -- Add_Scope --
+      ---------------
+
+      procedure Add_Scope (S : Entity_Id) is
+      begin
+         if S = Empty then
+            null;
+
+         elsif S = Standard_Standard then
+            null;
+
+         else
+            Add_Scope (Scope (S));
+            Get_Name_String_And_Append (Chars (S));
+            Add_Str_To_Name_Buffer ("__");
+         end if;
+      end Add_Scope;
+
+   --  Start of processing for Get_Qualified_Name
+
+   begin
+      Name_Len := 0;
+      Add_Scope (Scop);
+
+      --  Append the base name after all scopes have been chained
+
+      Get_Name_String_And_Append (Nam);
+
+      --  Append the suffix (if present)
+
+      if Suffix /= No_Name then
+         Add_Str_To_Name_Buffer ("__");
+         Get_Name_String_And_Append (Suffix);
+      end if;
+
+      return Name_Find;
+   end Get_Qualified_Name;
+
    -----------------------
    -- Get_Reason_String --
    -----------------------
@@ -9148,7 +9386,7 @@ package body Sem_Util is
            Has_Default_Aspect (Typ)
              or else Has_Full_Default_Initialization (Component_Type (Typ));
 
-      --  A protected type, record type or type extension is fully default
+      --  A protected type, record type, or type extension is fully default
       --  initialized if all its components either carry an initialization
       --  expression or have a type that is fully default initialized. The
       --  parent type of a type extension must be fully default initialized.
@@ -9329,18 +9567,18 @@ package body Sem_Util is
    -----------------------------
 
    function Has_Non_Null_Refinement (Id : Entity_Id) return Boolean is
+      Constits : Elist_Id;
+
    begin
       pragma Assert (Ekind (Id) = E_Abstract_State);
+      Constits := Refinement_Constituents (Id);
 
       --  For a refinement to be non-null, the first constituent must be
       --  anything other than null.
 
-      if Present (Refinement_Constituents (Id)) then
-         return
-           Nkind (Node (First_Elmt (Refinement_Constituents (Id)))) /= N_Null;
-      end if;
-
-      return False;
+      return
+        Present (Constits)
+          and then Nkind (Node (First_Elmt (Constits))) /= N_Null;
    end Has_Non_Null_Refinement;
 
    ------------------------
@@ -9438,18 +9676,18 @@ package body Sem_Util is
    -------------------------
 
    function Has_Null_Refinement (Id : Entity_Id) return Boolean is
+      Constits : Elist_Id;
+
    begin
       pragma Assert (Ekind (Id) = E_Abstract_State);
+      Constits := Refinement_Constituents (Id);
 
       --  For a refinement to be null, the state's sole constituent must be a
       --  null.
 
-      if Present (Refinement_Constituents (Id)) then
-         return
-           Nkind (Node (First_Elmt (Refinement_Constituents (Id)))) = N_Null;
-      end if;
-
-      return False;
+      return
+        Present (Constits)
+          and then Nkind (Node (First_Elmt (Constits))) = N_Null;
    end Has_Null_Refinement;
 
    -------------------------------
@@ -10733,57 +10971,143 @@ package body Sem_Util is
    ----------------------------
 
    procedure Inherit_Rep_Item_Chain (Typ : Entity_Id; From_Typ : Entity_Id) is
-      From_Item : constant Node_Id := First_Rep_Item (From_Typ);
-      Item      : Node_Id := Empty;
-      Last_Item : Node_Id := Empty;
+      Item      : Node_Id;
+      Next_Item : Node_Id;
 
    begin
-      --  Reach the end of the destination type's chain (if any) and capture
-      --  the last item.
+      --  There are several inheritance scenarios to consider depending on
+      --  whether both types have rep item chains and whether the destination
+      --  type already inherits part of the source type's rep item chain.
 
-      Item := First_Rep_Item (Typ);
-      while Present (Item) loop
+      --  1) The source type lacks a rep item chain
+      --     From_Typ ---> Empty
+      --
+      --     Typ --------> Item (or Empty)
 
-         --  Do not inherit a chain that has been inherited already
+      --  In this case inheritance cannot take place because there are no items
+      --  to inherit.
 
-         if Item = From_Item then
-            return;
-         end if;
+      --  2) The destination type lacks a rep item chain
+      --     From_Typ ---> Item ---> ...
+      --
+      --     Typ --------> Empty
 
-         Last_Item := Item;
-         Item := Next_Rep_Item (Item);
-      end loop;
+      --  Inheritance takes place by setting the First_Rep_Item of the
+      --  destination type to the First_Rep_Item of the source type.
+      --     From_Typ ---> Item ---> ...
+      --                    ^
+      --     Typ -----------+
 
-      Item := First_Rep_Item (From_Typ);
+      --  3.1) Both source and destination types have at least one rep item.
+      --  The destination type does NOT inherit a rep item from the source
+      --  type.
+      --     From_Typ ---> Item ---> Item
+      --
+      --     Typ --------> Item ---> Item
 
-      --  Additional check when both parent and current type have rep.
-      --  items, to prevent circularities when the derivation completes
-      --  a private declaration and inherits from both views of the parent.
-      --  There may be a remaining problem with the proper ordering of
-      --  attribute specifications and aspects on the chains of the four
-      --  entities involved. ???
+      --  Inheritance takes place by setting the Next_Rep_Item of the last item
+      --  of the destination type to the First_Rep_Item of the source type.
+      --     From_Typ -------------------> Item ---> Item
+      --                                    ^
+      --     Typ --------> Item ---> Item --+
 
-      if Present (Item) and then Present (From_Item) then
-         while Present (Item) loop
-            if Item = First_Rep_Item (Typ) then
-               return;
-            end if;
+      --  3.2) Both source and destination types have at least one rep item.
+      --  The destination type DOES inherit part of the rep item chain of the
+      --  source type.
+      --     From_Typ ---> Item ---> Item ---> Item
+      --                              ^
+      --     Typ --------> Item ------+
 
-            Item := Next_Rep_Item (Item);
-         end loop;
-      end if;
+      --  This rare case arises when the full view of a private extension must
+      --  inherit the rep item chain from the full view of its parent type and
+      --  the full view of the parent type contains extra rep items. Currently
+      --  only invariants may lead to such form of inheritance.
 
-      --  When the destination type has a rep item chain, the chain of the
-      --  source type is appended to it.
+      --     type From_Typ is tagged private
+      --       with Type_Invariant'Class => Item_2;
 
-      if Present (Last_Item) then
-         Set_Next_Rep_Item (Last_Item, From_Item);
+      --     type Typ is new From_Typ with private
+      --       with Type_Invariant => Item_4;
 
-      --  Otherwise the destination type directly inherits the rep item chain
-      --  of the source type (if any).
+      --  At this point the rep item chains contain the following items
+
+      --     From_Typ -----------> Item_2 ---> Item_3
+      --                            ^
+      --     Typ --------> Item_4 --+
+
+      --  The full views of both types may introduce extra invariants
+
+      --     type From_Typ is tagged null record
+      --       with Type_Invariant => Item_1;
+
+      --     type Typ is new From_Typ with null record;
+
+      --  The full view of Typ would have to inherit any new rep items added to
+      --  the full view of From_Typ.
+
+      --     From_Typ -----------> Item_1 ---> Item_2 ---> Item_3
+      --                            ^
+      --     Typ --------> Item_4 --+
+
+      --  To achieve this form of inheritance, the destination type must first
+      --  sever the link between its own rep chain and that of the source type,
+      --  then inheritance 3.1 takes place.
+
+      --  Case 1: The source type lacks a rep item chain
+
+      if No (First_Rep_Item (From_Typ)) then
+         return;
+
+      --  Case 2: The destination type lacks a rep item chain
+
+      elsif No (First_Rep_Item (Typ)) then
+         Set_First_Rep_Item (Typ, First_Rep_Item (From_Typ));
+
+      --  Case 3: Both the source and destination types have at least one rep
+      --  item. Traverse the rep item chain of the destination type to find the
+      --  last rep item.
 
       else
-         Set_First_Rep_Item (Typ, From_Item);
+         Item      := Empty;
+         Next_Item := First_Rep_Item (Typ);
+         while Present (Next_Item) loop
+
+            --  Detect a link between the destination type's rep chain and that
+            --  of the source type. There are two possibilities:
+
+            --    Variant 1
+            --                  Next_Item
+            --                      V
+            --       From_Typ ---> Item_1 --->
+            --                      ^
+            --       Typ -----------+
+            --
+            --       Item is Empty
+
+            --    Variant 2
+            --                              Next_Item
+            --                                  V
+            --       From_Typ ---> Item_1 ---> Item_2 --->
+            --                                  ^
+            --       Typ --------> Item_3 ------+
+            --                      ^
+            --                     Item
+
+            if Has_Rep_Item (From_Typ, Next_Item) then
+               exit;
+            end if;
+
+            Item      := Next_Item;
+            Next_Item := Next_Rep_Item (Next_Item);
+         end loop;
+
+         --  Inherit the source type's rep item chain
+
+         if Present (Item) then
+            Set_Next_Rep_Item (Item, First_Rep_Item (From_Typ));
+         else
+            Set_First_Rep_Item (Typ, First_Rep_Item (From_Typ));
+         end if;
       end if;
    end Inherit_Rep_Item_Chain;
 
@@ -12650,11 +12974,14 @@ package body Sem_Util is
 
       function Denotes_Iterator (Iter_Typ : Entity_Id) return Boolean is
       begin
+         --  Check that the name matches, and that the ultimate ancestor is in
+         --  a predefined unit, i.e the one that declares iterator interfaces.
+
          return
            Nam_In (Chars (Iter_Typ), Name_Forward_Iterator,
                                      Name_Reversible_Iterator)
              and then Is_Predefined_File_Name
-                        (Unit_File_Name (Get_Source_Unit (Iter_Typ)));
+                     (Unit_File_Name (Get_Source_Unit (Root_Type (Iter_Typ))));
       end Denotes_Iterator;
 
       --  Local variables
@@ -12856,6 +13183,20 @@ package body Sem_Util is
    end Is_Nontrivial_Default_Init_Cond_Procedure;
 
    -------------------------
+   -- Is_Null_Record_Type --
+   -------------------------
+
+   function Is_Null_Record_Type (T : Entity_Id) return Boolean is
+      Decl : constant Node_Id := Parent (T);
+   begin
+      return Nkind (Decl) = N_Full_Type_Declaration
+        and then Nkind (Type_Definition (Decl)) = N_Record_Definition
+        and then
+          (No (Component_List (Type_Definition (Decl)))
+            or else Null_Present (Component_List (Type_Definition (Decl))));
+   end Is_Null_Record_Type;
+
+   -------------------------
    -- Is_Object_Reference --
    -------------------------
 
@@ -12904,7 +13245,7 @@ package body Sem_Util is
             when N_Function_Call =>
                return Etype (N) /= Standard_Void_Type;
 
-            --  Attributes 'Input, 'Loop_Entry, 'Old and 'Result produce
+            --  Attributes 'Input, 'Loop_Entry, 'Old, and 'Result produce
             --  objects.
 
             when N_Attribute_Reference =>
@@ -13091,14 +13432,15 @@ package body Sem_Util is
    is
       function Is_Protected_Operation_Call (Nod : Node_Id) return Boolean;
       --  Determine whether an arbitrary node denotes a call to a protected
-      --  entry, function or procedure in prefixed form where the prefix is
+      --  entry, function, or procedure in prefixed form where the prefix is
       --  Obj_Ref.
 
       function Within_Check (Nod : Node_Id) return Boolean;
       --  Determine whether an arbitrary node appears in a check node
 
       function Within_Subprogram_Call (Nod : Node_Id) return Boolean;
-      --  Determine whether an arbitrary node appears in a procedure call
+      --  Determine whether an arbitrary node appears in an entry, function, or
+      --  procedure call.
 
       function Within_Volatile_Function (Id : Entity_Id) return Boolean;
       --  Determine whether an arbitrary entity appears in a volatile function
@@ -13122,14 +13464,14 @@ package body Sem_Util is
 
             return
               Pref = Obj_Ref
-              and then Present (Etype (Pref))
-              and then Is_Protected_Type (Etype (Pref))
-              and then Is_Entity_Name (Subp)
-              and then Present (Entity (Subp))
-              and then Ekind_In (Entity (Subp), E_Entry,
-                                 E_Entry_Family,
-                                 E_Function,
-                                 E_Procedure);
+                and then Present (Etype (Pref))
+                and then Is_Protected_Type (Etype (Pref))
+                and then Is_Entity_Name (Subp)
+                and then Present (Entity (Subp))
+                and then Ekind_In (Entity (Subp), E_Entry,
+                                                  E_Entry_Family,
+                                                  E_Function,
+                                                  E_Procedure);
          else
             return False;
          end if;
@@ -13150,7 +13492,7 @@ package body Sem_Util is
             if Nkind (Par) in N_Raise_xxx_Error then
                return True;
 
-               --  Prevent the search from going too far
+            --  Prevent the search from going too far
 
             elsif Is_Body_Or_Package_Declaration (Par) then
                exit;
@@ -13180,7 +13522,7 @@ package body Sem_Util is
             then
                return True;
 
-               --  Prevent the search from going too far
+            --  Prevent the search from going too far
 
             elsif Is_Body_Or_Package_Declaration (Par) then
                exit;
@@ -13226,8 +13568,8 @@ package body Sem_Util is
       if Nkind (Context) = N_Assignment_Statement then
          return True;
 
-         --  The volatile object is part of the initialization expression of
-         --  another object.
+      --  The volatile object is part of the initialization expression of
+      --  another object.
 
       elsif Nkind (Context) = N_Object_Declaration
         and then Present (Expression (Context))
@@ -13242,21 +13584,21 @@ package body Sem_Util is
          if Is_Return_Object (Obj_Id) then
             return Within_Volatile_Function (Obj_Id);
 
-            --  Otherwise this is a normal object initialization
+         --  Otherwise this is a normal object initialization
 
          else
             return True;
          end if;
 
-         --  The volatile object acts as the name of a renaming declaration
+      --  The volatile object acts as the name of a renaming declaration
 
       elsif Nkind (Context) = N_Object_Renaming_Declaration
         and then Name (Context) = Obj_Ref
       then
          return True;
 
-         --  The volatile object appears as an actual parameter in a call to an
-         --  instance of Unchecked_Conversion whose result is renamed.
+      --  The volatile object appears as an actual parameter in a call to an
+      --  instance of Unchecked_Conversion whose result is renamed.
 
       elsif Nkind (Context) = N_Function_Call
         and then Is_Entity_Name (Name (Context))
@@ -13265,14 +13607,14 @@ package body Sem_Util is
       then
          return True;
 
-         --  The volatile object is actually the prefix in a protected entry,
-         --  function, or procedure call.
+      --  The volatile object is actually the prefix in a protected entry,
+      --  function, or procedure call.
 
       elsif Is_Protected_Operation_Call (Context) then
          return True;
 
-         --  The volatile object appears as the expression of a simple return
-         --  statement that applies to a volatile function.
+      --  The volatile object appears as the expression of a simple return
+      --  statement that applies to a volatile function.
 
       elsif Nkind (Context) = N_Simple_Return_Statement
         and then Expression (Context) = Obj_Ref
@@ -13280,8 +13622,8 @@ package body Sem_Util is
          return
            Within_Volatile_Function (Return_Statement_Entity (Context));
 
-         --  The volatile object appears as the prefix of a name occurring in a
-         --  non-interfering context.
+      --  The volatile object appears as the prefix of a name occurring in a
+      --  non-interfering context.
 
       elsif Nkind_In (Context, N_Attribute_Reference,
                       N_Explicit_Dereference,
@@ -13295,8 +13637,8 @@ package body Sem_Util is
       then
          return True;
 
-         --  The volatile object appears as the expression of a type conversion
-         --  occurring in a non-interfering context.
+      --  The volatile object appears as the expression of a type conversion
+      --  occurring in a non-interfering context.
 
       elsif Nkind_In (Context, N_Type_Conversion,
                       N_Unchecked_Type_Conversion)
@@ -13307,21 +13649,22 @@ package body Sem_Util is
       then
          return True;
 
-         --  Allow references to volatile objects in various checks. This is
-         --  not a direct SPARK 2014 requirement.
+      --  Allow references to volatile objects in various checks. This is not a
+      --  direct SPARK 2014 requirement.
 
       elsif Within_Check (Context) then
          return True;
 
-         --  Assume that references to effectively volatile objects that appear
-         --  as actual parameters in a subprogram call are always legal. A full
-         --  legality check is done when the actuals are resolved.
+      --  Assume that references to effectively volatile objects that appear
+      --  as actual parameters in a subprogram call are always legal. A full
+      --  legality check is done when the actuals are resolved (see routine
+      --  Resolve_Actuals).
 
       elsif Within_Subprogram_Call (Context) then
          return True;
 
-         --  Otherwise the context is not suitable for an effectively volatile
-         --  object.
+      --  Otherwise the context is not suitable for an effectively volatile
+      --  object.
 
       else
          return False;
@@ -13633,7 +13976,7 @@ package body Sem_Util is
 
    begin
       --  Verify that prefix is analyzed and has the proper form. Note that
-      --  the attributes Elab_Spec, Elab_Body and Elab_Subp_Body which also
+      --  the attributes Elab_Spec, Elab_Body, and Elab_Subp_Body, which also
       --  produce the address of an entity, do not analyze their prefix
       --  because they denote entities that are not necessarily visible.
       --  Neither of them can apply to a protected type.
@@ -14699,17 +15042,11 @@ package body Sem_Util is
 
    function Is_Volatile_Function (Func_Id : Entity_Id) return Boolean is
    begin
-      --  The caller must ensure that Func_Id denotes a function
-
       pragma Assert (Ekind_In (Func_Id, E_Function, E_Generic_Function));
 
-      --  A protected function is automatically volatile
+      --  A function declared within a protected type is volatile
 
-      if Is_Primitive (Func_Id)
-        and then Present (First_Formal (Func_Id))
-        and then Is_Protected_Type (Etype (First_Formal (Func_Id)))
-        and then Etype (First_Formal (Func_Id)) = Scope (Func_Id)
-      then
+      if Is_Protected_Type (Scope (Func_Id)) then
          return True;
 
       --  An instance of Ada.Unchecked_Conversion is a volatile function if
@@ -15785,7 +16122,7 @@ package body Sem_Util is
 
       procedure Copy_Itype_With_Replacement (New_Itype : Entity_Id) is
       begin
-         --  Translate Next_Entity, Scope and Etype fields, in case they
+         --  Translate Next_Entity, Scope, and Etype fields, in case they
          --  reference entities that have been mapped into copies.
 
          Set_Next_Entity (New_Itype, Assoc (Next_Entity (New_Itype)));
@@ -16823,9 +17160,24 @@ package body Sem_Util is
                  and then Actual /= Last
                  and then No (Next_Named_Actual (Actual))
                then
-                  Error_Msg_N ("unmatched actual & in call",
-                    Selector_Name (Actual));
-                  exit;
+                  --  A validity check may introduce a copy of a call that
+                  --  includes an extra actual (for example for an unrelated
+                  --  accessibility check). Check that the extra actual matches
+                  --  some extra formal, which must exist already because
+                  --  subprogram must be frozen at this point.
+
+                  if Present (Extra_Formals (S))
+                    and then not Comes_From_Source (Actual)
+                    and then Nkind (Actual) = N_Parameter_Association
+                    and then Chars (Extra_Formals (S)) =
+                               Chars (Selector_Name (Actual))
+                  then
+                     null;
+                  else
+                     Error_Msg_N
+                       ("unmatched actual & in call", Selector_Name (Actual));
+                     exit;
+                  end if;
                end if;
 
                Next (Actual);
@@ -17456,6 +17808,41 @@ package body Sem_Util is
          return S;
       end if;
    end Original_Corresponding_Operation;
+
+   -------------------
+   -- Output_Entity --
+   -------------------
+
+   procedure Output_Entity (Id : Entity_Id) is
+      Scop : Entity_Id;
+
+   begin
+      Scop := Scope (Id);
+
+      --  The entity may lack a scope when it is in the process of being
+      --  analyzed. Use the current scope as an approximation.
+
+      if No (Scop) then
+         Scop := Current_Scope;
+      end if;
+
+      Output_Name (Chars (Id), Scop);
+   end Output_Entity;
+
+   -----------------
+   -- Output_Name --
+   -----------------
+
+   procedure Output_Name (Nam : Name_Id; Scop : Entity_Id := Current_Scope) is
+   begin
+      Write_Str
+        (Get_Name_String
+          (Get_Qualified_Name
+            (Nam    => Nam,
+             Suffix => No_Name,
+             Scop   => Scop)));
+      Write_Eol;
+   end Output_Name;
 
    ----------------------
    -- Policy_In_Effect --
@@ -18169,81 +18556,6 @@ package body Sem_Util is
          end if;
       end if;
    end Require_Entity;
-
-   -------------------------------
-   -- Requires_State_Refinement --
-   -------------------------------
-
-   function Requires_State_Refinement
-     (Spec_Id : Entity_Id;
-      Body_Id : Entity_Id) return Boolean
-   is
-      function Mode_Is_Off (Prag : Node_Id) return Boolean;
-      --  Given pragma SPARK_Mode, determine whether the mode is Off
-
-      -----------------
-      -- Mode_Is_Off --
-      -----------------
-
-      function Mode_Is_Off (Prag : Node_Id) return Boolean is
-         Mode : Node_Id;
-
-      begin
-         --  The default SPARK mode is On
-
-         if No (Prag) then
-            return False;
-         end if;
-
-         Mode := Get_Pragma_Arg (First (Pragma_Argument_Associations (Prag)));
-
-         --  Then the pragma lacks an argument, the default mode is On
-
-         if No (Mode) then
-            return False;
-         else
-            return Chars (Mode) = Name_Off;
-         end if;
-      end Mode_Is_Off;
-
-   --  Start of processing for Requires_State_Refinement
-
-   begin
-      --  A package that does not define at least one abstract state cannot
-      --  possibly require refinement.
-
-      if No (Abstract_States (Spec_Id)) then
-         return False;
-
-      --  The package instroduces a single null state which does not merit
-      --  refinement.
-
-      elsif Has_Null_Abstract_State (Spec_Id) then
-         return False;
-
-      --  Check whether the package body is subject to pragma SPARK_Mode. If
-      --  it is and the mode is Off, the package body is considered to be in
-      --  regular Ada and does not require refinement.
-
-      elsif Mode_Is_Off (SPARK_Pragma (Body_Id)) then
-         return False;
-
-      --  The body's SPARK_Mode may be inherited from a similar pragma that
-      --  appears in the private declarations of the spec. The pragma we are
-      --  interested appears as the second entry in SPARK_Pragma.
-
-      elsif Present (SPARK_Pragma (Spec_Id))
-        and then Mode_Is_Off (Next_Pragma (SPARK_Pragma (Spec_Id)))
-      then
-         return False;
-
-      --  The spec defines at least one abstract state and the body has no way
-      --  of circumventing the refinement.
-
-      else
-         return True;
-      end if;
-   end Requires_State_Refinement;
 
    ------------------------------
    -- Requires_Transient_Scope --
@@ -19812,8 +20124,8 @@ package body Sem_Util is
          return False;
       end if;
 
-      --  Check that the size of the component is 8, 16, 32 or 64 bits and that
-      --  Typ is properly aligned.
+      --  Check that the size of the component is 8, 16, 32, or 64 bits and
+      --  that Typ is properly aligned.
 
       case Size is
          when 8 | 16 | 32 | 64 =>

@@ -10393,8 +10393,11 @@ grokdeclarator (const cp_declarator *declarator,
 	      && (decl_context == NORMAL || decl_context == FIELD)
 	      && at_function_scope_p ()
 	      && variably_modified_type_p (type, NULL_TREE))
-	    /* Force evaluation of the SAVE_EXPR.  */
-	    finish_expr_stmt (TYPE_SIZE (type));
+	    {
+	      TYPE_NAME (type) = build_decl (UNKNOWN_LOCATION, TYPE_DECL,
+					     NULL_TREE, type);
+	      add_decl_expr (TYPE_NAME (type));
+	    }
 
 	  if (declarator->kind == cdk_reference)
 	    {
@@ -11419,7 +11422,8 @@ grokdeclarator (const cp_declarator *declarator,
 	      }
 	    else if (current_function_decl)
 	      {
-		/* FIXME need arm citation */
+		/* 7.1.1: There can be no static function declarations within a
+		   block.  */
 		error ("cannot declare static function inside another function");
 		invalid_static = 1;
 	      }
@@ -13686,10 +13690,30 @@ incremented enumerator value is too large for %<long%>");
     cplus_decl_attributes (&decl, attributes, 0);
 
   if (context && context == current_class_type && !SCOPED_ENUM_P (enumtype))
-    /* In something like `struct S { enum E { i = 7 }; };' we put `i'
-       on the TYPE_FIELDS list for `S'.  (That's so that you can say
-       things like `S::i' later.)  */
-    finish_member_declaration (decl);
+    {
+      /* In something like `struct S { enum E { i = 7 }; };' we put `i'
+	 on the TYPE_FIELDS list for `S'.  (That's so that you can say
+	 things like `S::i' later.)  */
+
+      /* The enumerator may be getting declared outside of its enclosing
+	 class, like so:
+
+	   class S { public: enum E : int; }; enum S::E : int { i = 7; };
+
+	 For which case we need to make sure that the access of `S::i'
+	 matches the access of `S::E'.  */
+      tree saved_cas = current_access_specifier;
+      if (TREE_PRIVATE (TYPE_NAME (enumtype)))
+	current_access_specifier = access_private_node;
+      else if (TREE_PROTECTED (TYPE_NAME (enumtype)))
+	current_access_specifier = access_protected_node;
+      else
+	current_access_specifier = access_public_node;
+
+      finish_member_declaration (decl);
+
+      current_access_specifier = saved_cas;
+    }
   else
     pushdecl (decl);
 

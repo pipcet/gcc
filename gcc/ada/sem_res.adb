@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -2248,17 +2248,25 @@ package body Sem_Res is
                      end loop;
 
                   else
-                     --  Before we issue an ambiguity complaint, check for
-                     --  the case of a subprogram call where at least one
-                     --  of the arguments is Any_Type, and if so, suppress
-                     --  the message, since it is a cascaded error.
+                     --  Before we issue an ambiguity complaint, check for the
+                     --  case of a subprogram call where at least one of the
+                     --  arguments is Any_Type, and if so suppress the message,
+                     --  since it is a cascaded error. This can also happen for
+                     --  a generalized indexing operation.
 
-                     if Nkind (N) in N_Subprogram_Call then
+                     if Nkind (N) in N_Subprogram_Call
+                       or else (Nkind (N) = N_Indexed_Component
+                                 and then Present (Generalized_Indexing (N)))
+                     then
                         declare
                            A : Node_Id;
                            E : Node_Id;
 
                         begin
+                           if Nkind (N) = N_Indexed_Component then
+                              Rewrite (N, Generalized_Indexing (N));
+                           end if;
+
                            A := First_Actual (N);
                            while Present (A) loop
                               E := A;
@@ -2292,17 +2300,17 @@ package body Sem_Res is
                         exit Interp_Loop;
                      end if;
 
-                     --  Not that special case, so issue message using the
-                     --  flag Ambiguous to control printing of the header
-                     --  message only at the start of an ambiguous set.
+                     --  Not that special case, so issue message using the flag
+                     --  Ambiguous to control printing of the header message
+                     --  only at the start of an ambiguous set.
 
                      if not Ambiguous then
                         if Nkind (N) = N_Function_Call
                           and then Nkind (Name (N)) = N_Explicit_Dereference
                         then
                            Error_Msg_N
-                             ("ambiguous expression "
-                               & "(cannot resolve indirect call)!", N);
+                             ("ambiguous expression (cannot resolve indirect "
+                              & "call)!", N);
                         else
                            Error_Msg_NE -- CODEFIX
                              ("ambiguous expression (cannot resolve&)!",
@@ -3099,6 +3107,10 @@ package body Sem_Res is
       --  interpretation, but the form of the actual can only be determined
       --  once the primitive operation is identified.
 
+      procedure Flag_Effectively_Volatile_Objects (Expr : Node_Id);
+      --  Emit an error concerning the illegal usage of an effectively volatile
+      --  object in interfering context (SPARK RM 7.13(12)).
+
       procedure Insert_Default;
       --  If the actual is missing in a call, insert in the actuals list
       --  an instance of the default expression. The insertion is always
@@ -3352,6 +3364,55 @@ package body Sem_Res is
          end if;
       end Check_Prefixed_Call;
 
+      ---------------------------------------
+      -- Flag_Effectively_Volatile_Objects --
+      ---------------------------------------
+
+      procedure Flag_Effectively_Volatile_Objects (Expr : Node_Id) is
+         function Flag_Object (N : Node_Id) return Traverse_Result;
+         --  Determine whether arbitrary node N denotes an effectively volatile
+         --  object and if it does, emit an error.
+
+         -----------------
+         -- Flag_Object --
+         -----------------
+
+         function Flag_Object (N : Node_Id) return Traverse_Result is
+            Id : Entity_Id;
+
+         begin
+            --  Do not consider nested function calls because they have already
+            --  been processed during their own resolution.
+
+            if Nkind (N) = N_Function_Call then
+               return Skip;
+
+            elsif Is_Entity_Name (N) and then Present (Entity (N)) then
+               Id := Entity (N);
+
+               if Is_Object (Id)
+                 and then Is_Effectively_Volatile (Id)
+                 and then (Async_Writers_Enabled (Id)
+                            or else Effective_Reads_Enabled (Id))
+               then
+                  Error_Msg_N
+                    ("volatile object cannot appear in this context (SPARK "
+                     & "RM 7.1.3(11))", N);
+                  return Skip;
+               end if;
+            end if;
+
+            return OK;
+         end Flag_Object;
+
+         procedure Flag_Objects is new Traverse_Proc (Flag_Object);
+
+      --  Start of processing for Flag_Effectively_Volatile_Objects
+
+      begin
+         Flag_Objects (Expr);
+      end Flag_Effectively_Volatile_Objects;
+
       --------------------
       -- Insert_Default --
       --------------------
@@ -3453,7 +3514,6 @@ package body Sem_Res is
             then
                Set_Is_Controlling_Actual (Actval);
             end if;
-
          end if;
 
          --  If the default expression raises constraint error, then just
@@ -4465,10 +4525,8 @@ package body Sem_Res is
             --  they are not standard Ada legality rule. Internally generated
             --  temporaries are ignored.
 
-            if SPARK_Mode = On
-              and then Comes_From_Source (A)
-              and then Is_Effectively_Volatile_Object (A)
-            then
+            if SPARK_Mode = On and then Comes_From_Source (A) then
+
                --  An effectively volatile object may act as an actual when the
                --  corresponding formal is of a non-scalar effectively volatile
                --  type (SPARK RM 7.1.3(11)).
@@ -4485,10 +4543,23 @@ package body Sem_Res is
                elsif Is_Unchecked_Conversion_Instance (Nam) then
                   null;
 
-               else
+               --  The actual denotes an object
+
+               elsif Is_Effectively_Volatile_Object (A) then
                   Error_Msg_N
                     ("volatile object cannot act as actual in a call (SPARK "
                      & "RM 7.1.3(11))", A);
+
+               --  Otherwise the actual denotes an expression. Inspect the
+               --  expression and flag each effectively volatile object with
+               --  enabled property Async_Writers or Effective_Reads as illegal
+               --  because it apprears within an interfering context. Note that
+               --  this is usually done in Resolve_Entity_Name, but when the
+               --  effectively volatile object appears as an actual in a call,
+               --  the call must be resolved first.
+
+               else
+                  Flag_Effectively_Volatile_Objects (A);
                end if;
 
                --  Detect an external variable with an enabled property that
@@ -4696,13 +4767,21 @@ package body Sem_Res is
            and then not In_Instance_Body
          then
             if not OK_For_Limited_Init (Etype (E), Expression (E)) then
-               Error_Msg_N ("initialization not allowed for limited types", N);
+               if Nkind (Parent (N)) = N_Assignment_Statement then
+                  Error_Msg_N
+                    ("illegal expression for initialized allocator of a "
+                     & "limited type (RM 7.5 (2.7/2))", N);
+               else
+                  Error_Msg_N
+                    ("initialization not allowed for limited types", N);
+               end if;
+
                Explain_Limited_Type (Etype (E), N);
             end if;
          end if;
 
-         --  A qualified expression requires an exact match of the type.
-         --  Class-wide matching is not allowed.
+         --  A qualified expression requires an exact match of the type. Class-
+         --  wide matching is not allowed.
 
          if (Is_Class_Wide_Type (Etype (Expression (E)))
               or else Is_Class_Wide_Type (Etype (E)))
@@ -9374,6 +9453,24 @@ package body Sem_Res is
       if Nkind (N) = N_Qualified_Expression and then Is_Scalar_Type (Typ) then
          Apply_Scalar_Range_Check (Expr, Typ);
       end if;
+
+      --  Finally, check whether a predicate applies to the target type. This
+      --  comes from AI12-0100. As for type conversions, check the enclosing
+      --  context to prevent an infinite expansion.
+
+      if Has_Predicates (Target_Typ) then
+         if Nkind (Parent (N)) = N_Function_Call
+           and then Present (Name (Parent (N)))
+           and then (Is_Predicate_Function (Entity (Name (Parent (N))))
+                       or else
+                     Is_Predicate_Function_M (Entity (Name (Parent (N)))))
+         then
+            null;
+
+         elsif Nkind (N) = N_Qualified_Expression then
+            Apply_Predicate_Check (N, Target_Typ);
+         end if;
+      end if;
    end Resolve_Qualified_Expression;
 
    ------------------------------
@@ -11836,9 +11933,11 @@ package body Sem_Res is
                 "downward conversion of tagged objects not allowed");
 
          --  Ada 2005 (AI-251): The conversion to/from interface types is
-         --  always valid
+         --  always valid. The types involved may be class-wide (sub)types.
 
-         elsif Is_Interface (Target_Type) or else Is_Interface (Opnd_Type) then
+         elsif Is_Interface (Etype (Base_Type (Target_Type)))
+           or else Is_Interface (Etype (Base_Type (Opnd_Type)))
+         then
             return True;
 
          --  If the operand is a class-wide type obtained through a limited_

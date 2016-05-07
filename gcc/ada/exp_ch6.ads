@@ -117,9 +117,6 @@ package Exp_Ch6 is
    --  The returned node is the root of the procedure body which will replace
    --  the original function body, which is not needed for the C program.
 
-   procedure Initialize;
-   --  Initialize internal tables
-
    function Is_Build_In_Place_Function (E : Entity_Id) return Boolean;
    --  Ada 2005 (AI-318-02): Returns True if E denotes a function, generic
    --  function, or access-to-function type whose result must be built in
@@ -211,10 +208,5 @@ package Exp_Ch6 is
    --  Ada 2012 (AI05-0234): Return True if the function needs an implicit
    --  parameter to identify the accessibility level of the function result
    --  "determined by the point of call".
-
-   procedure Unnest_Subprograms (N : Node_Id);
-   --  Called to unnest subprograms. If we are in unnest subprogram mode, this
-   --  is the call that traverses the tree N and locates all the library level
-   --  subprograms with nested subprograms to process them.
 
 end Exp_Ch6;
