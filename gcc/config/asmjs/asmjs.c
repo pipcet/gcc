@@ -1979,7 +1979,7 @@ asmjs_asm_named_section (const char *name, unsigned int flags,
   if (flags & SECTION_TLS)
     *f++ = TLS_SECTION_ASM_FLAG;
 #endif
-  if (HAVE_COMDAT_GROUP && (flags & SECTION_LINKONCE))
+  if (HAVE_COMDAT_GROUP && (flags & SECTION_LINKONCE) && (!(flags &SECTION_CODE)))
     *f++ = 'G';
   *f = '\0';
 
@@ -2004,7 +2004,7 @@ asmjs_asm_named_section (const char *name, unsigned int flags,
 
       if (flags & SECTION_ENTSIZE)
 	fprintf (asm_out_file, ",%d", flags & SECTION_ENTSIZE);
-      if (HAVE_COMDAT_GROUP && (flags & SECTION_LINKONCE))
+      if (HAVE_COMDAT_GROUP && (flags & SECTION_LINKONCE) && (!(flags&SECTION_CODE)))
 	{
 	  if (TREE_CODE (decl) == IDENTIFIER_NODE)
 	    fprintf (asm_out_file, ",%s,comdat", IDENTIFIER_POINTER (decl));
