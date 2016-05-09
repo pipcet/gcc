@@ -1971,7 +1971,7 @@ asmjs_asm_named_section (const char *name, unsigned int flags,
     *f++ = 'x';
   if (flags & SECTION_SMALL)
     *f++ = 's';
-  if (flags & SECTION_MERGE)
+  if (flags & SECTION_MERGE && (!(flags&SECTION_CODE)))
     *f++ = 'M';
   if (flags & SECTION_STRINGS)
     *f++ = 'S';
