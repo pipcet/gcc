@@ -5143,8 +5143,6 @@ gimplify_addr_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 /* Gimplify the operands of an ASM_EXPR.  Input operands should be a gimple
    value; output operands should be a gimple lvalue.  */
 
-#include <print-tree.h>
-
 static enum gimplify_status
 gimplify_asm_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 {
@@ -5173,10 +5171,6 @@ gimplify_asm_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
   labels = NULL;
 
   ret = GS_ALL_DONE;
-
-  //if (!TREE_CONSTANT (ASM_STRING (expr)))
-  //  error("asm format string must be a constant");
-
   link_next = NULL_TREE;
   for (i = 0, link = ASM_OUTPUTS (expr); link; ++i, link = link_next)
     {
@@ -5434,19 +5428,20 @@ gimplify_asm_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
   /* Do not add ASMs with errors to the gimple IL stream.  */
   if (ret != GS_ERROR)
     {
-      tree t, dummy;
-      t = ASM_STRING (expr);
+      tree t = ASM_STRING (expr);
       tret = gimplify_expr (&t, pre_p, post_p, is_gimple_val, fb_rvalue);
       if (tret == GS_ERROR)
 	ret = tret;
+      else
+	{
+	  stmt = gimple_build_asm_vec (t,
+				       inputs, outputs, clobbers, labels);
 
-      stmt = gimple_build_asm_vec (t,
-				   inputs, outputs, clobbers, labels);
+	  gimple_asm_set_volatile (stmt, ASM_VOLATILE_P (expr) || noutputs == 0);
+	  gimple_asm_set_input (stmt, ASM_INPUT_P (expr));
 
-      gimple_asm_set_volatile (stmt, ASM_VOLATILE_P (expr) || noutputs == 0);
-      gimple_asm_set_input (stmt, ASM_INPUT_P (expr));
-
-      gimplify_seq_add_stmt (pre_p, stmt);
+	  gimplify_seq_add_stmt (pre_p, stmt);
+	}
     }
 
   return ret;

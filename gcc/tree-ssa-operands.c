@@ -363,7 +363,7 @@ finalize_ssa_uses (struct function *fn, gimple *stmt)
   /* Pre-pend the VUSE we may have built.  */
   if (build_vuse != NULL_TREE)
     {
-      volatile tree oldvuse = gimple_vuse (stmt);
+      tree oldvuse = gimple_vuse (stmt);
       if (oldvuse
 	  && TREE_CODE (oldvuse) == SSA_NAME)
 	oldvuse = SSA_NAME_VAR (oldvuse);
@@ -1001,15 +1001,9 @@ verify_ssa_operands (struct function *fn, gimple *stmt)
       return true;
     }
 
-  int count = 0;
   FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_USE)
     {
-      count++;
-    }
-
-  FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_USE)
-    {
-      tree * op;
+      tree *op;
       FOR_EACH_VEC_ELT (build_uses, i, op)
 	{
 	  if (use_p->use == op)
@@ -1020,8 +1014,7 @@ verify_ssa_operands (struct function *fn, gimple *stmt)
 	}
       if (i == build_uses.length ())
 	{
-	  error ("excess use operand for stmt: %d, %d",
-		 (int)build_uses.length(), count);
+	  error ("excess use operand for stmt");
 	  debug_generic_expr (USE_FROM_PTR (use_p));
 	  return true;
 	}

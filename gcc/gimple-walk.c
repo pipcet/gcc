@@ -97,14 +97,11 @@ walk_gimple_asm (gasm *stmt, walk_tree_fn callback_op,
   const char *constraint;
   bool allows_mem, allows_reg, is_inout;
 
-  op = gimple_asm_string (stmt);
   if (wi)
     wi->val_only = true;
-  ret = walk_tree (&op, callback_op, wi, NULL);
+  ret = walk_tree (&stmt->string, callback_op, wi, NULL);
   if (ret)
     return ret;
-
-  gimple_asm_set_string(stmt, op);
 
   noutputs = gimple_asm_noutputs (stmt);
   oconstraints = (const char **) alloca ((noutputs) * sizeof (const char *));

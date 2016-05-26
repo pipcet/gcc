@@ -594,8 +594,6 @@ gimple_build_asm_1 (tree string, unsigned ninputs, unsigned noutputs,
    CLOBBERS is a vector of the clobbered register parameters.
    LABELS is a vector of destination labels.  */
 
-#include <print-tree.h>
-
 gasm *
 gimple_build_asm_vec (tree t, vec<tree, va_gc> *inputs,
                       vec<tree, va_gc> *outputs, vec<tree, va_gc> *clobbers,
@@ -603,7 +601,6 @@ gimple_build_asm_vec (tree t, vec<tree, va_gc> *inputs,
 {
   gasm *p;
   unsigned i;
-  tree dummy;
 
   p = gimple_build_asm_1 (t,
                           vec_safe_length (inputs),

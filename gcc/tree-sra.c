@@ -1449,11 +1449,7 @@ scan_function (void)
 		if (final_bbs)
 		  bitmap_set_bit (final_bbs, bb->index);
 
-		{
-		  tree op = gimple_asm_string (asm_stmt);
-		  t = op;
-		  ret |= build_access_from_expr (t, asm_stmt, false);
-		}
+		ret |= build_access_from_expr (asm_stmt->string, asm_stmt, false);
 		for (i = 0; i < gimple_asm_ninputs (asm_stmt); i++)
 		  {
 		    t = TREE_VALUE (gimple_asm_input_op (asm_stmt, i));

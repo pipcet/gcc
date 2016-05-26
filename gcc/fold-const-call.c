@@ -1126,8 +1126,8 @@ fold_const_call (combined_fn fn, tree type, tree arg)
   switch (fn)
     {
     case CFN_BUILT_IN_STRLEN:
-      //if (const char *str = c_getstr (arg))
-      //return build_int_cst (type, strlen (str));
+      if (const char *str = c_getstr (arg))
+	return build_int_cst (type, strlen (str));
       return NULL_TREE;
 
     CASE_CFN_NAN:

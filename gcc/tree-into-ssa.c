@@ -1284,8 +1284,6 @@ rewrite_debug_stmt_uses (gimple *stmt)
    the block with its immediate reaching definitions.  Update the current
    definition of a variable when a new real or virtual definition is found.  */
 
-#include <print-tree.h>
-
 static void
 rewrite_stmt (gimple_stmt_iterator *si)
 {
@@ -1310,15 +1308,12 @@ rewrite_stmt (gimple_stmt_iterator *si)
   /* Step 1.  Rewrite USES in the statement.  */
   if (rewrite_uses_p (stmt))
     {
-      volatile use_operand_p luse_p;
-
       if (is_gimple_debug (stmt))
 	rewrite_debug_stmt_uses (stmt);
       else
 	FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_ALL_USES)
 	  {
-	    volatile tree var = USE_FROM_PTR (use_p);
-	    luse_p = use_p;
+	    tree var = USE_FROM_PTR (use_p);
 	    if (TREE_CODE (var) == SSA_NAME)
 	      continue;
 	    gcc_checking_assert (DECL_P (var));

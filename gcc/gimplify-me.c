@@ -149,7 +149,6 @@ force_gimple_operand_gsi (gimple_stmt_iterator *gsi, tree expr,
    gimplifies anything that is not a valid gimple operand.  Any new
    GIMPLE statements are inserted before *GSI_P.  */
 
-#include <print-tree.h>
 void
 gimple_regimplify_operands (gimple *stmt, gimple_stmt_iterator *gsi_p)
 {
