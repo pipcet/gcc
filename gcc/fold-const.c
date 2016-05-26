@@ -14467,6 +14467,7 @@ fold_build_pointer_plus_hwi_loc (location_t loc, tree ptr, HOST_WIDE_INT off)
 /* Return a char pointer for a C string if it is a string constant
    or sum of string constant and integer constant.  */
 
+/* XXX use this */
 const char *
 c_getstr (tree src)
 {

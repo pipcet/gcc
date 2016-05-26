@@ -561,11 +561,10 @@ gimple_build_bind (tree vars, gimple_seq body, tree block)
    */
 
 static inline gasm *
-gimple_build_asm_1 (const char *string, unsigned ninputs, unsigned noutputs,
+gimple_build_asm_1 (tree string, unsigned ninputs, unsigned noutputs,
                     unsigned nclobbers, unsigned nlabels)
 {
   gasm *p;
-  int size = strlen (string);
 
   /* ASMs with labels cannot have outputs.  This should have been
      enforced by the front end.  */
@@ -579,10 +578,7 @@ gimple_build_asm_1 (const char *string, unsigned ninputs, unsigned noutputs,
   p->no = noutputs;
   p->nc = nclobbers;
   p->nl = nlabels;
-  p->string = ggc_alloc_string (string, size);
-
-  if (GATHER_STATISTICS)
-    gimple_alloc_sizes[(int) gimple_alloc_kind (GIMPLE_ASM)] += size;
+  p->string = string;
 
   return p;
 }
@@ -598,15 +594,18 @@ gimple_build_asm_1 (const char *string, unsigned ninputs, unsigned noutputs,
    CLOBBERS is a vector of the clobbered register parameters.
    LABELS is a vector of destination labels.  */
 
+#include <print-tree.h>
+
 gasm *
-gimple_build_asm_vec (const char *string, vec<tree, va_gc> *inputs,
+gimple_build_asm_vec (tree t, vec<tree, va_gc> *inputs,
                       vec<tree, va_gc> *outputs, vec<tree, va_gc> *clobbers,
 		      vec<tree, va_gc> *labels)
 {
   gasm *p;
   unsigned i;
+  tree dummy;
 
-  p = gimple_build_asm_1 (string,
+  p = gimple_build_asm_1 (t,
                           vec_safe_length (inputs),
                           vec_safe_length (outputs),
                           vec_safe_length (clobbers),

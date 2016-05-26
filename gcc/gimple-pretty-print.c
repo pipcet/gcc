@@ -68,7 +68,7 @@ newline_and_indent (pretty_printer *buffer, int spc)
 DEBUG_FUNCTION void
 debug_gimple_stmt (gimple *gs)
 {
-  print_gimple_stmt (stderr, gs, 0, TDF_VOPS|TDF_MEMSYMS);
+  print_gimple_stmt (stderr, gs, 0, TDF_VOPS|TDF_MEMSYMS|TDF_RAW);
 }
 
 
@@ -1713,8 +1713,9 @@ dump_gimple_asm (pretty_printer *buffer, gasm *gs, int spc, int flags)
 
   if (flags & TDF_RAW)
     {
-      dump_gimple_fmt (buffer, spc, flags, "%G <%+STRING <%n%s%n>", gs,
-                       gimple_asm_string (gs));
+      dump_gimple_fmt (buffer, spc, flags, "%G <%+STRING <%n", gs);
+      dump_generic_node (buffer, gimple_asm_string (gs), spc, flags, false);
+      dump_gimple_fmt (buffer, spc, flags, "%n>");
 
       n = gimple_asm_noutputs (gs);
       if (n)
@@ -1783,7 +1784,7 @@ dump_gimple_asm (pretty_printer *buffer, gasm *gs, int spc, int flags)
       if (gimple_asm_nlabels (gs))
 	pp_string (buffer, " goto");
       pp_string (buffer, "(\"");
-      pp_string (buffer, gimple_asm_string (gs));
+      pp_string (buffer, gimple_asm_rstring (gs));
       pp_string (buffer, "\"");
 
       if (gimple_asm_nlabels (gs))

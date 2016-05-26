@@ -558,7 +558,7 @@ struct GTY((tag("GSS_ASM")))
 
   /* [ WORD 10 ]
      __asm__ statement.  */
-  const char *string;
+  tree string;
 
   /* [ WORD 11 ]
        Number of inputs, outputs, clobbers, labels.  */
@@ -1431,7 +1431,7 @@ glabel *gimple_build_label (tree label);
 ggoto *gimple_build_goto (tree dest);
 gimple *gimple_build_nop (void);
 gbind *gimple_build_bind (tree, gimple_seq, tree);
-gasm *gimple_build_asm_vec (const char *, vec<tree, va_gc> *,
+gasm *gimple_build_asm_vec (tree, vec<tree, va_gc> *,
 				 vec<tree, va_gc> *, vec<tree, va_gc> *,
 				 vec<tree, va_gc> *);
 gcatch *gimple_build_catch (tree, gimple_seq);
@@ -3843,10 +3843,41 @@ gimple_asm_set_label_op (gasm *asm_stmt, unsigned index, tree label_op)
 /* Return the string representing the assembly instruction in
    GIMPLE_ASM ASM_STMT.  */
 
-static inline const char *
+static inline tree
 gimple_asm_string (const gasm *asm_stmt)
 {
   return asm_stmt->string;
+}
+
+static inline tree
+gimple_asm_string (const gimple *gs)
+{
+  const gasm *ga = reinterpret_cast<const gasm *> (gs);
+  return gimple_asm_string (ga);
+}
+
+static inline void
+gimple_asm_set_string (gimple *gs, tree t)
+{
+  gasm *ga = reinterpret_cast<gasm *> (gs);
+  ga->string = t;
+}
+
+extern tree string_constant(tree, tree *);
+
+static inline const char *
+gimple_asm_rstring (const gasm *asm_stmt)
+{
+  tree t = gimple_asm_string (asm_stmt);
+  tree dummy;
+
+  if (t)
+    t = string_constant(t, &dummy);
+
+  if (t)
+    return TREE_STRING_POINTER (t);
+  else
+    return "invalid asm";
 }
 
 

@@ -757,6 +757,19 @@ gimple_simplify (gimple *stmt,
 				    boolean_type_node, ops, valueize)
 		|| valueized);
       }
+      break;
+
+    case GIMPLE_ASM:
+#if 0
+      {
+	tree t = gimple_asm_string (stmt);
+	bool valueized = false;
+	t = do_valueize (t, top_valueize, valueized);
+	gimple_asm_set_string (stmt, t);
+	return false;
+      }
+#endif
+      break;
 
     default:
       break;

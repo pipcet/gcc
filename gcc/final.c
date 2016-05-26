@@ -1473,14 +1473,7 @@ shorten_branches (rtx_insn *first)
 static int
 asm_insn_count (rtx body)
 {
-  const char *templ;
-
-  if (GET_CODE (body) == ASM_INPUT)
-    templ = XSTR (body, 0);
-  else
-    templ = decode_asm_operands (body, NULL, NULL, NULL, NULL, NULL);
-
-  return asm_str_count (templ);
+  return 0;
 }
 
 /* Return the number of machine instructions likely to be generated for the
@@ -2140,6 +2133,10 @@ call_from_call_insn (rtx_call_insn *insn)
   return x;
 }
 
+#include <print-tree.h>
+#include <fold-const.h>
+extern tree string_constant(tree, tree *);
+
 /* The final scan for one insn, INSN.
    Args are same as in `final', except that INSN
    is the insn being scanned.
@@ -2596,7 +2593,7 @@ final_scan_insn (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	  {
 	    unsigned int noperands = asm_noperands (body);
 	    rtx *ops = XALLOCAVEC (rtx, noperands);
-	    const char *string;
+	    tree string;
 	    location_t loc;
 	    expanded_location expanded;
 
@@ -2614,14 +2611,60 @@ final_scan_insn (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	    FINAL_PRESCAN_INSN (insn, ops, insn_noperands);
 #endif
 
+	    tree dummy;
+	    tree orig = string;
+
+#if 0
+	    size_t len;
+	    for (len = 0; ; len++)
+	      {
+		//STRIP_NOPS (string);
+		
+		tree p = fold_build_pointer_plus_hwi (string, len);
+		//STRIP_NOPS(p);
+		tree c = p;
+		c = build_fold_indirect_ref (p);
+		
+		debug_tree(orig);
+		debug_tree(c);
+
+		if (!TREE_CONSTANT (c) && !CONSTANT_CLASS_P (c))
+		  {
+		    error("some character (%d) isn't constant", (int)len);
+		    break;
+		  }
+
+		if (int_cst_value (c) == 0)
+		  break;
+	      }
+
+	    error("%d characters.", (int)len);
+
+	    string = build_fold_addr_expr (string);
+#endif
+	    STRIP_NOPS (string);
+	    debug_tree (string);
+
+	    if (TREE_CODE (string) != STRING_CST)
+	      string = string_constant (string, &dummy);
+
+	    if (!string)
+	      {
+		debug_tree (orig);
+		debug_tree (string);
+		if (orig)
+		  error("asm template is not a string");
+	      }
 	    /* Output the insn using them.  */
-	    if (string[0])
+	    if (string && TREE_STRING_POINTER (string)[0])
 	      {
 		app_enable ();
 		if (expanded.file && expanded.line)
 		  fprintf (asm_out_file, "%s %i \"%s\" 1\n",
 			   ASM_COMMENT_START, expanded.line, expanded.file);
-	        output_asm_insn (string, ops);
+		//tree dummy;
+		//string = string_constant (string, &dummy);
+	        output_asm_insn (TREE_STRING_POINTER (string), ops);
 #if HAVE_AS_LINE_ZERO
 		if (expanded.file && expanded.line)
 		  fprintf (asm_out_file, "%s 0 \"\" 2\n", ASM_COMMENT_START);

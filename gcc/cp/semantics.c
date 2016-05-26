@@ -1436,8 +1436,36 @@ finish_asm_stmt (int volatile_p, tree string, tree output_operands,
 
       oconstraints = XALLOCAVEC (const char *, noutputs);
 
+#if 0
+      size_t len;
+      for (len = 0; ; len++)
+	{
+	  tree p = fold_build_pointer_plus_hwi (string, len);
+	  tree c = p;
+	  c = build_fold_indirect_ref (p);
+		
+	  c = fold_non_dependent_expr (c);
+	  c = cp_fully_fold (c);
+	  if (!TREE_CONSTANT (c) && !CONSTANT_CLASS_P (c))
+	    {
+	      warning(1, "some character (%d) isn't constant", (int)len);
+	      len = 0;
+	      break;
+	    }
+
+	  if (int_cst_value (c) == 0)
+	    break;
+	}
+
+      warning(1, "%d characters.", (int)len);
+#endif
+
+      string = fold_non_dependent_expr (string);
+
+#if 0
       string = resolve_asm_operand_names (string, output_operands,
 					  input_operands, labels);
+#endif
 
       for (i = 0, t = output_operands; t; t = TREE_CHAIN (t), ++i)
 	{

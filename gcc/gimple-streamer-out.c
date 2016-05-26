@@ -118,7 +118,7 @@ output_gimple_stmt (struct output_block *ob, gimple *stmt)
 	streamer_write_uhwi (ob, gimple_asm_nclobbers (asm_stmt));
 	streamer_write_uhwi (ob, gimple_asm_nlabels (asm_stmt));
 	streamer_write_string (ob, ob->main_stream,
-			       gimple_asm_string (asm_stmt), true);
+			       gimple_asm_rstring (asm_stmt), true);
       }
       /* Fallthru  */
 

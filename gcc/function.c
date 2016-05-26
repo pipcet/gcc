@@ -1762,7 +1762,7 @@ instantiate_virtual_regs_in_insn (rtx_insn *insn)
 	  if (JUMP_P (insn))
 	    {
 	      rtx asm_op = extract_asm_operands (PATTERN (insn));
-	      ASM_OPERANDS_TEMPLATE (asm_op) = ggc_strdup ("");
+	      ASM_OPERANDS_TEMPLATE (asm_op) = NULL;
 	      ASM_OPERANDS_INPUT_VEC (asm_op) = rtvec_alloc (0);
 	      ASM_OPERANDS_INPUT_CONSTRAINT_VEC (asm_op) = rtvec_alloc (0);
 	    }

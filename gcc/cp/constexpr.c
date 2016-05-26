@@ -1087,6 +1087,7 @@ cxx_eval_builtin_function_call (const constexpr_ctx *ctx, tree t, tree fun,
 
   /* Don't fold __builtin_constant_p within a constexpr function.  */
   bool bi_const_p = (DECL_FUNCTION_CODE (fun) == BUILT_IN_CONSTANT_P);
+  bool bi_concat = (DECL_FUNCTION_CODE (fun) == BUILT_IN_CONCAT);
 
   if (bi_const_p
       && current_function_decl
@@ -1105,7 +1106,7 @@ cxx_eval_builtin_function_call (const constexpr_ctx *ctx, tree t, tree fun,
     {
       args[i] = cxx_eval_constant_expression (&new_ctx, CALL_EXPR_ARG (t, i),
 					      lval, &dummy1, &dummy2);
-      if (bi_const_p)
+      if (bi_const_p || bi_concat)
 	/* For __built_in_constant_p, fold all expressions with constant values
 	   even if they aren't C++ constant-expressions.  */
 	args[i] = cp_fully_fold (args[i]);

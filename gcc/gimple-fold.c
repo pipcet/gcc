@@ -1399,6 +1399,70 @@ gimple_fold_builtin_strncpy (gimple_stmt_iterator *gsi,
    form of the builtin function call.  */
 
 static bool
+gimple_fold_builtin_concat (gimple_stmt_iterator *gsi, tree l, tree r)
+{
+  gimple *stmt = gsi_stmt (*gsi);
+  location_t loc = gimple_location (stmt);
+
+  tree off_node1, off_node2;
+  HOST_WIDE_INT off1 = 0, off2 = 0;
+  l = string_constant (l, &off_node1);
+  if (!l)
+    return false;
+
+  r = string_constant (r, &off_node2);
+  if (!r)
+    return false;
+
+  if (off_node1 && TREE_CODE (off_node1) != INTEGER_CST)
+    return false;
+  if (off_node2 && TREE_CODE (off_node2) != INTEGER_CST)
+    return false;
+
+  if (off_node1 == 0)
+    off1 = 0;
+  else if (! tree_fits_shwi_p (off_node1))
+    return false;
+  else
+    off1 = tree_to_shwi (off_node1);
+
+  if (off_node2 == 0)
+    off2 = 0;
+  else if (! tree_fits_shwi_p (off_node2))
+    return false;
+  else
+    off2 = tree_to_shwi (off_node2);
+
+  HOST_WIDE_INT len1 = TREE_STRING_LENGTH (l);
+  HOST_WIDE_INT len2 = TREE_STRING_LENGTH (r);
+  char buf[len1 - off1 + len2 - off2 - 1];
+
+  memcpy(buf, TREE_STRING_POINTER (l) + off1, len1 - off1);
+  memcpy(buf + len1 - off1 - 1, TREE_STRING_POINTER (r) + off2,
+	 len2 - off2);
+  replace_call_with_value (gsi, build_string_literal(len1 - off1 + len2 - off2 - 1, ggc_strdup (buf)));
+  return true;
+}
+
+/* Simplify a call to the strcat builtin.  DST and SRC are the arguments
+   to the call.
+
+   Return NULL_TREE if no simplification was possible, otherwise return the
+   simplified form of the call as a tree.
+
+   The simplified form may be a constant or other expression which
+   computes the same value, but in a more efficient manner (including
+   calls to other builtin functions).
+
+   The call may contain arguments which need to be evaluated, but
+   which are not useful to determine the result of the call.  In
+   this case we return a chain of COMPOUND_EXPRs.  The LHS of each
+   COMPOUND_EXPR will be an argument which must be evaluated.
+   COMPOUND_EXPRs are chained through their RHS.  The RHS of the last
+   COMPOUND_EXPR in the chain will contain the tree for the simplified
+   form of the builtin function call.  */
+
+static bool
 gimple_fold_builtin_strcat (gimple_stmt_iterator *gsi, tree dst, tree src)
 {
   gimple *stmt = gsi_stmt (*gsi);
@@ -2781,6 +2845,9 @@ gimple_fold_builtin (gimple_stmt_iterator *gsi)
     {
     case BUILT_IN_BZERO:
       return gimple_fold_builtin_memset (gsi, integer_zero_node,
+					 gimple_call_arg (stmt, 1));
+    case BUILT_IN_CONCAT:
+      return gimple_fold_builtin_concat (gsi, gimple_call_arg (stmt, 0),
 					 gimple_call_arg (stmt, 1));
     case BUILT_IN_MEMSET:
       return gimple_fold_builtin_memset (gsi,

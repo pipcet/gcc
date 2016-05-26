@@ -149,6 +149,7 @@ force_gimple_operand_gsi (gimple_stmt_iterator *gsi, tree expr,
    gimplifies anything that is not a valid gimple operand.  Any new
    GIMPLE statements are inserted before *GSI_P.  */
 
+#include <print-tree.h>
 void
 gimple_regimplify_operands (gimple *stmt, gimple_stmt_iterator *gsi_p)
 {
@@ -185,6 +186,10 @@ gimple_regimplify_operands (gimple *stmt, gimple_stmt_iterator *gsi_p)
 	size_t i, noutputs = gimple_asm_noutputs (asm_stmt);
 	const char *constraint, **oconstraints;
 	bool allows_mem, allows_reg, is_inout;
+
+	gimplify_expr(&asm_stmt->string, &pre, NULL,
+		      is_gimple_val,
+		      fb_rvalue);
 
 	oconstraints
 	  = (const char **) alloca ((noutputs) * sizeof (const char *));

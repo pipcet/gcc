@@ -1126,8 +1126,8 @@ fold_const_call (combined_fn fn, tree type, tree arg)
   switch (fn)
     {
     case CFN_BUILT_IN_STRLEN:
-      if (const char *str = c_getstr (arg))
-	return build_int_cst (type, strlen (str));
+      //if (const char *str = c_getstr (arg))
+      //return build_int_cst (type, strlen (str));
       return NULL_TREE;
 
     CASE_CFN_NAN:
@@ -1380,6 +1380,16 @@ fold_const_call (combined_fn fn, tree type, tree arg0, tree arg1)
   const char *p0, *p1;
   switch (fn)
     {
+    case CFN_BUILT_IN_CONCAT:
+      if ((p0 = c_getstr (arg0)) && (p1 = c_getstr (arg1)))
+	{
+	  char *p = (char *)alloca (strlen (p0) + strlen (p1) + 1);
+	  sprintf(p, "%s%s", p0, p1);
+
+	  return build_string_literal (strlen (p), ggc_strdup (p));
+	}
+      return NULL_TREE;
+
     case CFN_BUILT_IN_STRSPN:
       if ((p0 = c_getstr (arg0)) && (p1 = c_getstr (arg1)))
 	return build_int_cst (type, strspn (p0, p1));

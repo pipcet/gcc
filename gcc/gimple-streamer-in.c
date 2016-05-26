@@ -142,7 +142,7 @@ input_gimple_stmt (struct lto_input_block *ib, struct data_in *data_in,
 	asm_stmt->nc = streamer_read_uhwi (ib);
 	asm_stmt->nl = streamer_read_uhwi (ib);
 	str = streamer_read_string_cst (data_in, ib);
-	asm_stmt->string = TREE_STRING_POINTER (str);
+	asm_stmt->string = build_string_literal(TREE_STRING_LENGTH (str), TREE_STRING_POINTER (str));
       }
       /* Fallthru  */
 

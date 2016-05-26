@@ -1545,7 +1545,7 @@ asm_noperands (const_rtx body)
    If MODES, OPERAND_LOCS, CONSTRAINTS or OPERANDS is 0,
    we don't store that info.  */
 
-const char *
+tree
 decode_asm_operands (rtx body, rtx *operands, rtx **operand_locs,
 		     const char **constraints, machine_mode *modes,
 		     location_t *loc)

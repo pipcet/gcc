@@ -100,7 +100,7 @@ DEFGSCODE(GIMPLE_SWITCH, "gimple_switch", GSS_WITH_OPS)
    of class GIMPLE_BINARY_RHS.  */
 DEFGSCODE(GIMPLE_ASSIGN, "gimple_assign", GSS_WITH_MEM_OPS)
 
-/* GIMPLE_ASM <STRING, I1, ..., IN, O1, ... OM, C1, ..., CP>
+/* GIMPLE_ASM <STRING, I1, ..., IN, O1, ... OM, C1, ..., CP, L1, ..., LQ>
    represents inline assembly statements.
 
    STRING is the string containing the assembly statements.

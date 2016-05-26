@@ -2672,6 +2672,9 @@ static void
 expand_asm_loc (tree string, int vol, location_t locus)
 {
   rtx body;
+  tree dummy;
+
+  string = string_constant (string, &dummy);
 
   if (TREE_CODE (string) == ADDR_EXPR)
     string = TREE_OPERAND (string, 0);
@@ -2792,8 +2795,7 @@ expand_asm_stmt (gasm *stmt)
 
   if (gimple_asm_input_p (stmt))
     {
-      const char *s = gimple_asm_string (stmt);
-      tree string = build_string (strlen (s), s);
+      tree string = gimple_asm_string (stmt);
       expand_asm_loc (string, gimple_asm_volatile_p (stmt), locus);
       return;
     }
@@ -3140,7 +3142,7 @@ expand_asm_stmt (gasm *stmt)
 
   rtx body = gen_rtx_ASM_OPERANDS ((noutputs == 0 ? VOIDmode
 				    : GET_MODE (output_rvec[0])),
-				   ggc_strdup (gimple_asm_string (stmt)),
+				   gimple_asm_string (stmt),
 				   empty_string, 0, argvec, constraintvec,
 				   labelvec, locus);
   MEM_VOLATILE_P (body) = gimple_asm_volatile_p (stmt);

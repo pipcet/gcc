@@ -363,7 +363,7 @@ finalize_ssa_uses (struct function *fn, gimple *stmt)
   /* Pre-pend the VUSE we may have built.  */
   if (build_vuse != NULL_TREE)
     {
-      tree oldvuse = gimple_vuse (stmt);
+      volatile tree oldvuse = gimple_vuse (stmt);
       if (oldvuse
 	  && TREE_CODE (oldvuse) == SSA_NAME)
 	oldvuse = SSA_NAME_VAR (oldvuse);
@@ -687,6 +687,8 @@ get_asm_stmt_operands (struct function *fn, gasm *stmt)
       get_expr_operands (fn, stmt, &TREE_VALUE (link), opf_not_non_addressable);
     }
 
+  get_expr_operands (fn, stmt, &stmt->string, opf_not_non_addressable);
+
   /* Clobber all memory and addressable symbols for asm ("" : : : "memory");  */
   if (gimple_asm_clobbers_memory_p (stmt))
     add_virtual_operand (fn, stmt, opf_def);
@@ -999,9 +1001,15 @@ verify_ssa_operands (struct function *fn, gimple *stmt)
       return true;
     }
 
+  int count = 0;
   FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_USE)
     {
-      tree *op;
+      count++;
+    }
+
+  FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_USE)
+    {
+      tree * op;
       FOR_EACH_VEC_ELT (build_uses, i, op)
 	{
 	  if (use_p->use == op)
@@ -1012,7 +1020,8 @@ verify_ssa_operands (struct function *fn, gimple *stmt)
 	}
       if (i == build_uses.length ())
 	{
-	  error ("excess use operand for stmt");
+	  error ("excess use operand for stmt: %d, %d",
+		 (int)build_uses.length(), count);
 	  debug_generic_expr (USE_FROM_PTR (use_p));
 	  return true;
 	}

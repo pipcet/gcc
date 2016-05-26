@@ -2452,7 +2452,6 @@ hash_rtx_cb (const_rtx x, machine_mode mode,
 	{
 	  /* We don't want to take the filename and line into account.  */
 	  hash += (unsigned) code + (unsigned) GET_MODE (x)
-	    + hash_rtx_string (ASM_OPERANDS_TEMPLATE (x))
 	    + hash_rtx_string (ASM_OPERANDS_OUTPUT_CONSTRAINT (x))
 	    + (unsigned) ASM_OPERANDS_OUTPUT_IDX (x);
 
@@ -2707,7 +2706,7 @@ exp_equiv_p (const_rtx x, const_rtx y, int validate, bool for_gcse)
 	return 0;
 
       if (GET_MODE (x) != GET_MODE (y)
-	  || strcmp (ASM_OPERANDS_TEMPLATE (x), ASM_OPERANDS_TEMPLATE (y))
+	  || 1 // !tree_equiv_p (ASM_OPERANDS_TEMPLATE (x), ASM_OPERANDS_TEMPLATE (y), validate, for_gcse)
 	  || strcmp (ASM_OPERANDS_OUTPUT_CONSTRAINT (x),
 		     ASM_OPERANDS_OUTPUT_CONSTRAINT (y))
 	  || ASM_OPERANDS_OUTPUT_IDX (x) != ASM_OPERANDS_OUTPUT_IDX (y)

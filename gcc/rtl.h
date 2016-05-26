@@ -2275,7 +2275,7 @@ do {								        \
 
 /* Access various components of an ASM_OPERANDS rtx.  */
 
-#define ASM_OPERANDS_TEMPLATE(RTX) XCSTR (RTX, 0, ASM_OPERANDS)
+#define ASM_OPERANDS_TEMPLATE(RTX) XCTREE (RTX, 0, ASM_OPERANDS)
 #define ASM_OPERANDS_OUTPUT_CONSTRAINT(RTX) XCSTR (RTX, 1, ASM_OPERANDS)
 #define ASM_OPERANDS_OUTPUT_IDX(RTX) XCINT (RTX, 2, ASM_OPERANDS)
 #define ASM_OPERANDS_INPUT_VEC(RTX) XCVEC (RTX, 3, ASM_OPERANDS)
@@ -3116,7 +3116,7 @@ extern void finish_subregs_of_mode (void);
 /* recog.c */
 extern rtx extract_asm_operands (rtx);
 extern int asm_noperands (const_rtx);
-extern const char *decode_asm_operands (rtx, rtx *, rtx **, const char **,
+extern tree decode_asm_operands (rtx, rtx *, rtx **, const char **,
 					machine_mode *, location_t *);
 extern void get_referenced_operands (const char *, bool *, unsigned int);
 

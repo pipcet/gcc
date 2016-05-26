@@ -1449,6 +1449,11 @@ scan_function (void)
 		if (final_bbs)
 		  bitmap_set_bit (final_bbs, bb->index);
 
+		{
+		  tree op = gimple_asm_string (asm_stmt);
+		  t = op;
+		  ret |= build_access_from_expr (t, asm_stmt, false);
+		}
 		for (i = 0; i < gimple_asm_ninputs (asm_stmt); i++)
 		  {
 		    t = TREE_VALUE (gimple_asm_input_op (asm_stmt, i));
@@ -3647,6 +3652,7 @@ sra_modify_function_body (void)
 	    case GIMPLE_ASM:
 	      {
 		gasm *asm_stmt = as_a <gasm *> (stmt);
+		modified |= sra_modify_expr (&asm_stmt->string, &gsi, false);
 		for (i = 0; i < gimple_asm_ninputs (asm_stmt); i++)
 		  {
 		    t = &TREE_VALUE (gimple_asm_input_op (asm_stmt, i));
@@ -4905,6 +4911,7 @@ ipa_sra_modify_function_body (ipa_parm_adjustment_vec adjustments)
 	    case GIMPLE_ASM:
 	      {
 		gasm *asm_stmt = as_a <gasm *> (stmt);
+		modified |= ipa_modify_expr (&asm_stmt->string, true, adjustments);
 		for (i = 0; i < gimple_asm_ninputs (asm_stmt); i++)
 		  {
 		    t = &TREE_VALUE (gimple_asm_input_op (asm_stmt, i));

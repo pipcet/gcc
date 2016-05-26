@@ -1561,6 +1561,11 @@ execute_update_addresses_taken (void)
 	      {
 		gasm *asm_stmt = as_a <gasm *> (stmt);
 		unsigned i;
+		{
+		  tree op = gimple_asm_string (asm_stmt);
+		  maybe_rewrite_mem_ref_base (&op, suitable_for_renaming);
+		  gimple_asm_set_string (asm_stmt, op);
+		}
 		for (i = 0; i < gimple_asm_noutputs (asm_stmt); ++i)
 		  {
 		    tree link = gimple_asm_output_op (asm_stmt, i);

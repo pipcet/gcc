@@ -18095,7 +18095,8 @@ cp_parser_asm_definition (cp_parser* parser)
   if (!cp_parser_require (parser, CPP_OPEN_PAREN, RT_OPEN_PAREN))
     return;
   /* Look for the string.  */
-  string = cp_parser_string_literal (parser, false, false);
+  /* XXX maybe use cp_parser_constant_expression */
+  string = cp_parser_expression (parser);
   if (string == error_mark_node)
     {
       cp_parser_skip_to_closing_parenthesis (parser, true, false,

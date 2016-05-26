@@ -3649,6 +3649,51 @@ expand_builtin_bzero (tree exp)
 				     const0_rtx, VOIDmode, exp);
 }
 
+static tree
+fold_builtin_concat (tree exp, tree target)
+{
+  tree off_node1, off_node2;
+  HOST_WIDE_INT off1 = 0, off2 = 0;
+  STRIP_NOPS (exp);
+  STRIP_NOPS (target);
+
+  exp = string_constant (exp, &off_node1);
+  if (!exp)
+    return NULL_TREE;
+
+  target = string_constant (target, &off_node2);
+  if (!target)
+    return NULL_TREE;
+
+  if (off_node1 && TREE_CODE (off_node1) != INTEGER_CST)
+    return NULL_TREE;
+  if (off_node2 && TREE_CODE (off_node2) != INTEGER_CST)
+    return NULL_TREE;
+
+  if (off_node1 == 0)
+    off1 = 0;
+  else if (! tree_fits_shwi_p (off_node1))
+    return NULL_TREE;
+  else
+    off1 = tree_to_shwi (off_node1);
+
+  if (off_node2 == 0)
+    off2 = 0;
+  else if (! tree_fits_shwi_p (off_node2))
+    return NULL_TREE;
+  else
+    off2 = tree_to_shwi (off_node2);
+
+  HOST_WIDE_INT len1 = TREE_STRING_LENGTH (exp);
+  HOST_WIDE_INT len2 = TREE_STRING_LENGTH (target);
+  char buf[len1 - off1 + len2 - off2 - 1];
+
+  memcpy(buf, TREE_STRING_POINTER (exp) + off1, len1 - off1);
+  memcpy(buf + len1 - off1 - 1, TREE_STRING_POINTER (target) + off2,
+	 len2 - off2);
+  return build_string_literal(len1 - off1 + len2 - off2 - 1, ggc_strdup(buf));
+}
+
 /* Try to expand cmpstr operation ICODE with the given operands.
    Return the result rtx on success, otherwise return null.  */
 
@@ -8296,6 +8341,9 @@ fold_builtin_2 (location_t loc, tree fndecl, tree arg0, tree arg1)
 
     case BUILT_IN_ATOMIC_IS_LOCK_FREE:
       return fold_builtin_atomic_is_lock_free (arg0, arg1);
+
+    case BUILT_IN_CONCAT:
+      return fold_builtin_concat (arg0, arg1);
 
     default:
       break;

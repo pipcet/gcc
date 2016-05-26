@@ -1400,7 +1400,7 @@ assign_by_spills (void)
 		  if (JUMP_P (insn))
 		    {
 		      rtx asm_op = extract_asm_operands (PATTERN (insn));
-		      ASM_OPERANDS_TEMPLATE (asm_op) = ggc_strdup ("");
+		      ASM_OPERANDS_TEMPLATE (asm_op) = NULL_TREE;
 		      ASM_OPERANDS_INPUT_VEC (asm_op) = rtvec_alloc (0);
 		      ASM_OPERANDS_INPUT_CONSTRAINT_VEC (asm_op) = rtvec_alloc (0);
 		      lra_update_insn_regno_info (insn);
