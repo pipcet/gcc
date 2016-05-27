@@ -1380,7 +1380,7 @@ gimple_fold_builtin_strncpy (gimple_stmt_iterator *gsi,
   return true;
 }
 
-/* Simplify a call to the strcat builtin.  DST and SRC are the arguments
+/* Simplify a call to the concat builtin.  L and R are the arguments
    to the call.
 
    Return NULL_TREE if no simplification was possible, otherwise return the
@@ -1388,15 +1388,7 @@ gimple_fold_builtin_strncpy (gimple_stmt_iterator *gsi,
 
    The simplified form may be a constant or other expression which
    computes the same value, but in a more efficient manner (including
-   calls to other builtin functions).
-
-   The call may contain arguments which need to be evaluated, but
-   which are not useful to determine the result of the call.  In
-   this case we return a chain of COMPOUND_EXPRs.  The LHS of each
-   COMPOUND_EXPR will be an argument which must be evaluated.
-   COMPOUND_EXPRs are chained through their RHS.  The RHS of the last
-   COMPOUND_EXPR in the chain will contain the tree for the simplified
-   form of the builtin function call.  */
+   calls to other builtin functions). */
 
 static bool
 gimple_fold_builtin_concat (gimple_stmt_iterator *gsi, tree l, tree r)
