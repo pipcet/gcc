@@ -996,7 +996,7 @@ func_checker::compare_gimple_asm (const gasm *g1, const gasm *g2)
   if (gimple_asm_nclobbers (g1) != gimple_asm_nclobbers (g2))
     return false;
 
-  if (strcmp (gimple_asm_rstring (g1), gimple_asm_rstring (g2)) != 0)
+  if (!compare_operand (gimple_asm_string (g1), gimple_asm_string (g2)))
     return return_false_with_msg ("ASM strings are different");
 
   for (unsigned i = 0; i < gimple_asm_ninputs (g1); i++)

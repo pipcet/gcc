@@ -5425,23 +5425,23 @@ gimplify_asm_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
       vec_safe_push (labels, link);
     }
 
-  /* Do not add ASMs with errors to the gimple IL stream.  */
+  tree t;
   if (ret != GS_ERROR)
     {
-      tree t = ASM_STRING (expr);
+      t = ASM_STRING (expr);
       tret = gimplify_expr (&t, pre_p, post_p, is_gimple_val, fb_rvalue);
       if (tret == GS_ERROR)
 	ret = tret;
-      else
-	{
-	  stmt = gimple_build_asm_vec (t,
-				       inputs, outputs, clobbers, labels);
+    }
 
-	  gimple_asm_set_volatile (stmt, ASM_VOLATILE_P (expr) || noutputs == 0);
-	  gimple_asm_set_input (stmt, ASM_INPUT_P (expr));
-
-	  gimplify_seq_add_stmt (pre_p, stmt);
-	}
+  /* Do not add ASMs with errors to the gimple IL stream.  */
+  if (ret != GS_ERROR)
+    {
+      stmt = gimple_build_asm_vec (t,
+				   inputs, outputs, clobbers, labels);
+      gimple_asm_set_volatile (stmt, ASM_VOLATILE_P (expr) || noutputs == 0);
+      gimple_asm_set_input (stmt, ASM_INPUT_P (expr));
+      gimplify_seq_add_stmt (pre_p, stmt);
     }
 
   return ret;
