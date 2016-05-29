@@ -976,7 +976,7 @@ lra_set_insn_recog_data (rtx_insn *insn)
 	     insn.  */
 	  decode_asm_operands (PATTERN (insn), NULL,
 			       data->operand_loc,
-			       constraints, operand_mode, NULL);
+			       constraints, NULL, operand_mode, NULL);
 	  if (nop > 0)
 	    {
 	      const char *p =  recog_data.constraints[0];
@@ -1190,7 +1190,7 @@ lra_update_insn_recog_data (rtx_insn *insn)
 	     insn.  */
 	  decode_asm_operands (PATTERN (insn), NULL,
 			       data->operand_loc,
-			       constraints, operand_mode, NULL);
+			       constraints, NULL, operand_mode, NULL);
 
 	  if (flag_checking)
 	    for (int i = 0; i < nop; i++)

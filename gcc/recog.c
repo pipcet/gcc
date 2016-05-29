@@ -39,6 +39,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgcleanup.h"
 #include "reload.h"
 #include "tree-pass.h"
+#include "rtl-error.h"
+#include "pretty-print.h"
+#include "expr.h"
+#include "fold-const.h"
 
 #ifndef STACK_POP_CODE
 #if STACK_GROWS_DOWNWARD
@@ -128,6 +132,149 @@ asm_labels_ok (rtx body)
   return true;
 }
 
+/* A subroutine of expand_asm_operands.  Check that all operand names
+   are unique.  Return true if so.  We rely on the fact that these names
+   are identifiers, and so have been canonicalized by get_identifier,
+   so all we need are pointer comparisons.  */
+
+static bool
+check_unique_operand_names (const char **names, unsigned nnames)
+{
+  unsigned i, j;
+
+  for (i = 0; i < nnames; i++)
+    for (j = i+1; j < nnames; j++)
+      if (names[i][0] && strcmp(names[i], names[j]) == 0)
+	goto failure;
+
+  return true;
+
+ failure:
+  error ("duplicate asm operand name %qs", names[i]);
+  return false;
+}
+
+/* A subroutine of resolve_operand_names.  P points to the '[' for a
+   potential named operand of the form [<name>].  In place, replace
+   the name and brackets with a number.  Return a pointer to the
+   balance of the string after substitution.  */
+
+static char *
+substitute_asm_operand_name (char *p, const char **names, int nnames)
+{
+  char *q;
+
+  /* Collect the operand name.  */
+  q = strchr (++p, ']');
+  if (!q)
+    {
+      error ("missing close brace for named operand");
+      return strchr (p, '\0');
+    }
+  *q = '\0';
+
+  /* Resolve the name to a number.  */
+  int op;
+  for (op = 0; op < nnames; op++)
+    {
+      if (*names[op] && strcmp (names[op], p) == 0)
+	goto found;
+    }
+
+  error ("undefined named operand %qs", identifier_to_locale (p));
+  op = 0;
+
+ found:
+  /* Replace the name with the number.  Unfortunately, not all libraries
+     get the return value of sprintf correct, so search for the end of the
+     generated string by hand.  */
+  sprintf (--p, "%d", op);
+  p = strchr (p, '\0');
+
+  /* Verify the no extra buffer space assumption.  */
+  gcc_assert (p <= q);
+
+  /* Shift the rest of the buffer down to fill the gap.  */
+  memmove (p, q + 1, strlen (q + 1) + 1);
+
+  return p;
+}
+
+/* Check that X is an insn-body for an `asm' with operands
+   and that the operands mentioned in it are legitimate.  */
+
+int
+substitute_asm_operands (rtx x)
+{
+  int noperands;
+  rtx *operands;
+  const char **constraints;
+  const char **names;
+  int i;
+
+  noperands = asm_noperands (x);
+  if (noperands < 0)
+    return false;
+
+  operands = XALLOCAVEC (rtx, noperands);
+  constraints = XALLOCAVEC (const char *, noperands);
+  names = XALLOCAVEC (const char *, noperands);
+
+  tree templ_tree =
+    decode_asm_operands (x, operands, NULL, constraints, names, NULL, NULL);
+
+  const char *templ = templ_tree ? c_getstr (templ_tree) : "";
+
+  if (!templ)
+    templ = "";
+
+  const char *c = templ;
+  while ((c = strchr (c, '%')) != NULL)
+    {
+      if (c[1] == '[')
+	break;
+      else if (ISALPHA (c[1]) && c[2] == '[')
+	break;
+      else
+	c += 1 + (c[1] == '%');
+    }
+
+  if (c)
+    {
+      char *buffer = xstrdup (templ);
+      char *p = buffer + (c - templ);
+
+      while ((p = strchr (p, '%')) != NULL)
+	{
+	  if (p[1] == '[')
+	    p += 1;
+	  else if (ISALPHA (p[1]) && p[2] == '[')
+	    p += 2;
+	  else
+	    {
+	      p += 1 + (p[1] == '%');
+	      continue;
+	    }
+
+	  p = substitute_asm_operand_name (p, names, noperands);
+	}
+
+      ASM_OPERANDS_TEMPLATE (x) = build_string (strlen (buffer), buffer);
+      free (buffer);
+    }
+
+
+  for (i = 0; i < noperands; i++)
+    {
+      const char *c = constraints[i];
+      if (c[0] == '%')
+	c++;
+      if (! asm_operand_ok (operands[i], c, constraints))
+	return 0;
+    }
+
+  return 1;
+}
 /* Check that X is an insn-body for an `asm' with operands
    and that the operands mentioned in it are legitimate.  */
 
@@ -161,7 +308,7 @@ check_asm_operands (rtx x)
   operands = XALLOCAVEC (rtx, noperands);
   constraints = XALLOCAVEC (const char *, noperands);
 
-  decode_asm_operands (x, operands, NULL, constraints, NULL, NULL);
+  decode_asm_operands (x, operands, NULL, constraints, NULL, NULL, NULL);
 
   for (i = 0; i < noperands; i++)
     {
@@ -1469,7 +1616,7 @@ extract_asm_operands (rtx body)
 }
 
 /* If BODY is an insn body that uses ASM_OPERANDS,
-   return the number of operands (both input and output) in the insn.
+   return the number of operands (input, output, and labels) in the insn.
    Otherwise return -1.  */
 
 int
@@ -1547,8 +1694,8 @@ asm_noperands (const_rtx body)
 
 tree
 decode_asm_operands (rtx body, rtx *operands, rtx **operand_locs,
-		     const char **constraints, machine_mode *modes,
-		     location_t *loc)
+		     const char **constraints, const char **names,
+		     machine_mode *modes, location_t *loc)
 {
   int nbase = 0, n, i;
   rtx asmop;
@@ -1572,6 +1719,8 @@ decode_asm_operands (rtx body, rtx *operands, rtx **operand_locs,
 	operand_locs[0] = &SET_DEST (body);
       if (constraints)
 	constraints[0] = ASM_OPERANDS_OUTPUT_CONSTRAINT (asmop);
+      if (names)
+	names[0] = (ASM_OPERANDS_NAME_VEC (body) && ASM_OPERANDS_NAME (body, 0)) ? XSTR (ASM_OPERANDS_NAME (body, 0), 0) : "";
       if (modes)
 	modes[0] = GET_MODE (SET_DEST (body));
       nbase = 1;
@@ -1598,6 +1747,8 @@ decode_asm_operands (rtx body, rtx *operands, rtx **operand_locs,
 		  operand_locs[i] = &SET_DEST (XVECEXP (body, 0, i));
 		if (constraints)
 		  constraints[i] = XSTR (SET_SRC (XVECEXP (body, 0, i)), 1);
+		if (names)
+		  names[i] = XSTR (ASM_OPERANDS_NAME (body, i), 0);
 		if (modes)
 		  modes[i] = GET_MODE (SET_DEST (XVECEXP (body, 0, i)));
 	      }
@@ -1619,6 +1770,8 @@ decode_asm_operands (rtx body, rtx *operands, rtx **operand_locs,
 	operands[nbase + i] = ASM_OPERANDS_INPUT (asmop, i);
       if (constraints)
 	constraints[nbase + i] = ASM_OPERANDS_INPUT_CONSTRAINT (asmop, i);
+      if (names)
+	names[nbase + i] = XSTR (ASM_OPERANDS_NAME (asmop, nbase + i), 0);
       if (modes)
 	modes[nbase + i] = ASM_OPERANDS_INPUT_MODE (asmop, i);
     }
@@ -1633,6 +1786,8 @@ decode_asm_operands (rtx body, rtx *operands, rtx **operand_locs,
 	operands[nbase + i] = ASM_OPERANDS_LABEL (asmop, i);
       if (constraints)
 	constraints[nbase + i] = "";
+      if (names)
+	names[nbase + i] = XSTR (ASM_OPERANDS_NAME (asmop, nbase + i), 0);
       if (modes)
 	modes[nbase + i] = Pmode;
     }
@@ -2263,7 +2418,9 @@ extract_insn (rtx_insn *insn)
 	  decode_asm_operands (body, recog_data.operand,
 			       recog_data.operand_loc,
 			       recog_data.constraints,
-			       recog_data.operand_mode, NULL);
+			       NULL,
+			       recog_data.operand_mode,
+			       NULL);
 	  memset (recog_data.is_operator, 0, sizeof recog_data.is_operator);
 	  if (noperands > 0)
 	    {

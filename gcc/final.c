@@ -2599,7 +2599,8 @@ final_scan_insn (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	    CC_STATUS_INIT;
 
 	    /* Get out the operand values.  */
-	    string = decode_asm_operands (body, ops, NULL, NULL, NULL, &loc);
+	    string = decode_asm_operands (body, ops, NULL, NULL, NULL, NULL,
+					  &loc);
 	    /* Inhibit dying on what would otherwise be compiler bugs.  */
 	    insn_noperands = noperands;
 	    this_is_asm_operands = insn;
@@ -2612,6 +2613,7 @@ final_scan_insn (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	    tree dummy;
 	    tree orig = string;
 
+	    if (string) {
 	    STRIP_NOPS (string);
 
 	    if (TREE_CODE (string) != STRING_CST)
@@ -2622,6 +2624,7 @@ final_scan_insn (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 		if (orig)
 		  error("asm template is not a string");
 	      }
+	    }
 	    /* Output the insn using them.  */
 	    if (string && TREE_STRING_POINTER (string)[0])
 	      {

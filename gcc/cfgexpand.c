@@ -2676,11 +2676,11 @@ expand_asm_loc (tree string, int vol, location_t locus)
 
   string = string_constant (string, &dummy);
 
-  if (TREE_CODE (string) == ADDR_EXPR)
+  if (string && TREE_CODE (string) == ADDR_EXPR)
     string = TREE_OPERAND (string, 0);
 
   body = gen_rtx_ASM_INPUT_loc (VOIDmode,
-				ggc_strdup (TREE_STRING_POINTER (string)),
+				string ? ggc_strdup (TREE_STRING_POINTER (string)) : ggc_strdup (""),
 				locus);
 
   MEM_VOLATILE_P (body) = vol;
@@ -2819,25 +2819,52 @@ expand_asm_stmt (gasm *stmt)
   auto_vec<tree, MAX_RECOG_OPERANDS> output_tvec;
   auto_vec<tree, MAX_RECOG_OPERANDS> input_tvec;
   auto_vec<const char *, MAX_RECOG_OPERANDS> constraints;
+  auto_vec<const char *, MAX_RECOG_OPERANDS> names;
 
   /* Copy the gimple vectors into new vectors that we can manipulate.  */
 
   output_tvec.safe_grow (noutputs);
   input_tvec.safe_grow (ninputs);
   constraints.safe_grow (noutputs + ninputs);
+  names.safe_grow (noutputs + ninputs + nlabels);
 
   for (i = 0; i < noutputs; ++i)
     {
       tree t = gimple_asm_output_op (stmt, i);
+      tree name;
       output_tvec[i] = TREE_VALUE (t);
       constraints[i] = TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (t)));
+      if ((name = TREE_PURPOSE (TREE_PURPOSE (t))))
+	{
+	  names[i] = TREE_STRING_POINTER (name);
+	}
+      else
+	names[i] = "";
     }
   for (i = 0; i < ninputs; i++)
     {
       tree t = gimple_asm_input_op (stmt, i);
+      tree name;
       input_tvec[i] = TREE_VALUE (t);
       constraints[i + noutputs]
 	= TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (t)));
+      if ((name = TREE_PURPOSE (TREE_PURPOSE (t))))
+	{
+	  names[i + noutputs] = TREE_STRING_POINTER (name);
+	}
+      else
+	names[i + noutputs] = "";
+    }
+  for (i = 0; i < nlabels; i++)
+    {
+      tree t = gimple_asm_label_op (stmt, i);
+      tree name;
+      if ((name = TREE_PURPOSE (t)))
+	{
+	  names[i + noutputs + ninputs] = TREE_STRING_POINTER (name);
+	}
+      else
+	names[i + noutputs + ninputs] = "";
     }
 
   /* ??? Diagnose during gimplification?  */
@@ -3139,13 +3166,20 @@ expand_asm_stmt (gasm *stmt)
   rtvec argvec = rtvec_alloc (ninputs);
   rtvec constraintvec = rtvec_alloc (ninputs);
   rtvec labelvec = rtvec_alloc (nlabels);
+  rtvec namevec = rtvec_alloc(noutputs + ninputs + nlabels);
 
   rtx body = gen_rtx_ASM_OPERANDS ((noutputs == 0 ? VOIDmode
 				    : GET_MODE (output_rvec[0])),
 				   gimple_asm_string (stmt),
 				   empty_string, 0, argvec, constraintvec,
-				   labelvec, locus);
+				   labelvec, namevec, locus);
   MEM_VOLATILE_P (body) = gimple_asm_volatile_p (stmt);
+
+  for (i = 0; i < noutputs + ninputs + nlabels; ++i)
+    {
+      ASM_OPERANDS_NAME (body, i)
+	= gen_rtx_ASM_INPUT (VOIDmode, names[i]);
+    }
 
   for (i = 0; i < ninputs; ++i)
     {
@@ -3230,7 +3264,8 @@ expand_asm_stmt (gasm *stmt)
 	      src = gen_rtx_ASM_OPERANDS (GET_MODE (o),
 					  ASM_OPERANDS_TEMPLATE (obody),
 					  constraints[i], i, argvec,
-					  constraintvec, labelvec, locus);
+					  constraintvec, labelvec,
+					  namevec, locus);
 	      MEM_VOLATILE_P (src) = gimple_asm_volatile_p (stmt);
 	    }
 	  XVECEXP (body, 0, i) = gen_rtx_SET (o, src);

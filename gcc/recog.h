@@ -84,6 +84,7 @@ alternative_class (const operand_alternative *alt, int i)
 
 extern void init_recog (void);
 extern void init_recog_no_volatile (void);
+extern int substitute_asm_operands (rtx);
 extern int check_asm_operands (rtx);
 extern int asm_operand_ok (rtx, const char *, const char **);
 extern bool validate_change (rtx, rtx *, rtx, bool);

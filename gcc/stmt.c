@@ -677,6 +677,54 @@ resolve_operand_name_1 (char *p, tree outputs, tree inputs, tree labels)
 
   return p;
 }
+
+/* A subroutine of resolve_operand_names.  P points to the '[' for a
+   potential named operand of the form [<name>].  In place, replace
+   the name and brackets with a number.  Return a pointer to the
+   balance of the string after substitution.  */
+
+static char *
+resolve_operand_name_1 (char *p, char **names, size_t nnames)
+{
+  char *q;
+  tree t;
+
+  /* Collect the operand name.  */
+  q = strchr (++p, ']');
+  if (!q)
+    {
+      error ("missing close brace for named operand");
+      return strchr (p, '\0');
+    }
+  *q = '\0';
+
+  /* Resolve the name to a number.  */
+  char **namep;
+  int op;
+  for (op = 0; op < nnames; op++)
+    {
+      if (*names[op] && strcmp (names[op], p) == 0)
+	goto found;
+    }
+
+  error ("undefined named operand %qs", identifier_to_locale (p));
+  op = 0;
+
+ found:
+  /* Replace the name with the number.  Unfortunately, not all libraries
+     get the return value of sprintf correct, so search for the end of the
+     generated string by hand.  */
+  sprintf (--p, "%d", op);
+  p = strchr (p, '\0');
+
+  /* Verify the no extra buffer space assumption.  */
+  gcc_assert (p <= q);
+
+  /* Shift the rest of the buffer down to fill the gap.  */
+  memmove (p, q + 1, strlen (q + 1) + 1);
+
+  return p;
+}
 
 
 /* Generate RTL to return directly from the current function.

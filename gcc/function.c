@@ -1755,7 +1755,7 @@ instantiate_virtual_regs_in_insn (rtx_insn *insn)
     {
       if (!check_asm_operands (PATTERN (insn)))
 	{
-	  error_for_asm (insn, "impossible constraint in %<asm%>");
+	  error_for_asm (insn, "impossible constraint in %<asm%> (2)");
 	  /* For asm goto, instead of fixing up all the edges
 	     just clear the template and clear input operands
 	     (asm goto doesn't have any output operands).  */
@@ -1768,6 +1768,12 @@ instantiate_virtual_regs_in_insn (rtx_insn *insn)
 	    }
 	  else
 	    delete_insn (insn);
+	}
+
+      if (!substitute_asm_operands (PATTERN (insn)))
+	{
+	  error_for_asm (insn, "asm template is not a string constant");
+	  delete_insn (insn);
 	}
     }
   else

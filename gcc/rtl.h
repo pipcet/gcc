@@ -2291,7 +2291,10 @@ do {								        \
 #define ASM_OPERANDS_LABEL_VEC(RTX) XCVEC (RTX, 5, ASM_OPERANDS)
 #define ASM_OPERANDS_LABEL_LENGTH(RTX) XCVECLEN (RTX, 5, ASM_OPERANDS)
 #define ASM_OPERANDS_LABEL(RTX, N) XCVECEXP (RTX, 5, N, ASM_OPERANDS)
-#define ASM_OPERANDS_SOURCE_LOCATION(RTX) XCUINT (RTX, 6, ASM_OPERANDS)
+#define ASM_OPERANDS_NAME_VEC(RTX) XCVEC (RTX, 6, ASM_OPERANDS)
+#define ASM_OPERANDS_NAME_LENGTH(RTX) XCVECLEN (RTX, 6, ASM_OPERANDS)
+#define ASM_OPERANDS_NAME(RTX, N) XCVECEXP (RTX, 6, N, ASM_OPERANDS)
+#define ASM_OPERANDS_SOURCE_LOCATION(RTX) XCUINT (RTX, 7, ASM_OPERANDS)
 #define ASM_INPUT_SOURCE_LOCATION(RTX) XCUINT (RTX, 1, ASM_INPUT)
 
 /* 1 if RTX is a mem that is statically allocated in read-only memory.  */
@@ -3117,7 +3120,7 @@ extern void finish_subregs_of_mode (void);
 extern rtx extract_asm_operands (rtx);
 extern int asm_noperands (const_rtx);
 extern tree decode_asm_operands (rtx, rtx *, rtx **, const char **,
-					machine_mode *, location_t *);
+				 const char **, machine_mode *, location_t *);
 extern void get_referenced_operands (const char *, bool *, unsigned int);
 
 extern enum reg_class reg_preferred_class (int);
