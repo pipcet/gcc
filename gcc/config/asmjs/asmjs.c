@@ -1604,7 +1604,7 @@ static unsigned asmjs_function_regstore(FILE *stream,
 	    }
 	  else
 	    {
-	      if (i >= 4)
+	      if (i >= 8)
 		asm_fprintf(stream, "\t\tHEAP32[fp+%d>>2] = %s|0;\n",
 			    size, reg_names[i]);
 	      size += 4;
@@ -1653,7 +1653,7 @@ static unsigned asmjs_function_regload(FILE *stream,
 	    }
 	  else
 	    {
-	      if (i >= 4)
+	      if (i >= 8)
 		asm_fprintf (stream, "\t\t%s = HEAP32[rp+%d>>2]|0;\n",
 			     reg_names[i], size);
 	      size += 4;
