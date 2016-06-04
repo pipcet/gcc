@@ -25,6 +25,35 @@ along with GCC; see the file COPYING3.  If not see
 #include "cxx-pretty-print.h"
 #include "tree-pretty-print.h"
 
+static void pp_cxx_open_tag (cxx_pretty_printer *pp, const char *tag)
+{
+  if (false)
+    pp_cxx_ws_string (pp, concat(" /*<", tag, ">*/ ", NULL));
+}
+
+static void pp_cxx_close_tag (cxx_pretty_printer *pp, const char *tag)
+{
+  if (false)
+    pp_cxx_ws_string (pp, concat(" /*</", tag, ">*/ ", NULL));
+}
+
+class PPTag {
+  const char *tag;
+  cxx_pretty_printer *pp;
+
+ public:
+  PPTag(cxx_pretty_printer *pp, const char *tag)
+    : tag(tag), pp(pp)
+  {
+    pp_cxx_open_tag(pp, tag);
+  }
+
+  ~PPTag()
+  {
+    pp_cxx_close_tag(pp, tag);
+  }
+};
+
 static void pp_cxx_unqualified_id (cxx_pretty_printer *, tree);
 static void pp_cxx_nested_name_specifier (cxx_pretty_printer *, tree);
 static void pp_cxx_qualified_id (cxx_pretty_printer *, tree);
@@ -105,6 +134,7 @@ is_destructor_name (tree name)
 static inline void
 pp_cxx_conversion_function_id (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_ws_string (pp, "operator");
   pp_cxx_type_specifier_seq (pp, TREE_TYPE (t));
 }
@@ -112,6 +142,7 @@ pp_cxx_conversion_function_id (cxx_pretty_printer *pp, tree t)
 static inline void
 pp_cxx_template_id (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_unqualified_id (pp, TREE_OPERAND (t, 0));
   pp_cxx_begin_template_argument_list (pp);
   pp_cxx_template_argument_list (pp, TREE_OPERAND (t, 1));
@@ -130,6 +161,8 @@ pp_cxx_template_id (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_unqualified_id (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
+
   enum tree_code code = TREE_CODE (t);
   switch (code)
     {
@@ -243,6 +276,7 @@ pp_cxx_template_keyword_if_needed (cxx_pretty_printer *pp, tree scope, tree t)
 static void
 pp_cxx_nested_name_specifier (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   if (!SCOPE_FILE_SCOPE_P (t) && t != pp->enclosing_scope)
     {
       tree scope = get_containing_scope (t);
@@ -259,6 +293,7 @@ pp_cxx_nested_name_specifier (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_qualified_id (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   switch (TREE_CODE (t))
     {
       /* A pointer-to-member is always qualified.  */
@@ -282,7 +317,7 @@ pp_cxx_qualified_id (cxx_pretty_printer *pp, tree t)
 	pp_cxx_nested_name_specifier (pp, DECL_CONTEXT (t));
       pp_cxx_unqualified_id
 	(pp, DECL_CONSTRUCTOR_P (t) ? DECL_CONTEXT (t) : t);
-      pp_cxx_parameter_declaration_clause (pp, TREE_TYPE (t));
+      //pp_cxx_parameter_declaration_clause (pp, TREE_TYPE (t));
       break;
 
     case OFFSET_REF:
@@ -309,6 +344,7 @@ pp_cxx_qualified_id (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::constant (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case STRING_CST:
@@ -343,6 +379,7 @@ cxx_pretty_printer::constant (tree t)
 void
 cxx_pretty_printer::id_expression (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   if (TREE_CODE (t) == OVERLOAD)
     t = OVL_CURRENT (t);
   if (DECL_P (t) && DECL_CONTEXT (t))
@@ -357,6 +394,7 @@ cxx_pretty_printer::id_expression (tree t)
 void
 pp_cxx_userdef_literal (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp->constant (USERDEF_LITERAL_VALUE (t));
   pp->id_expression (USERDEF_LITERAL_SUFFIX_ID (t));
 }
@@ -398,6 +436,7 @@ pp_cxx_userdef_literal (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::primary_expression (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case VOID_CST:
@@ -483,6 +522,7 @@ cxx_pretty_printer::primary_expression (tree t)
 void
 cxx_pretty_printer::postfix_expression (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   enum tree_code code = TREE_CODE (t);
 
   switch (code)
@@ -663,6 +703,7 @@ cxx_pretty_printer::postfix_expression (tree t)
 static void
 pp_cxx_new_expression (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   enum tree_code code = TREE_CODE (t);
   tree type = TREE_OPERAND (t, 1);
   tree init = TREE_OPERAND (t, 2);
@@ -711,6 +752,7 @@ pp_cxx_new_expression (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_delete_expression (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   enum tree_code code = TREE_CODE (t);
   switch (code)
     {
@@ -756,6 +798,7 @@ pp_cxx_delete_expression (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::unary_expression (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   enum tree_code code = TREE_CODE (t);
   switch (code)
     {
@@ -838,6 +881,7 @@ cxx_pretty_printer::unary_expression (tree t)
 static void
 pp_cxx_cast_expression (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case CAST_EXPR:
@@ -860,6 +904,7 @@ pp_cxx_cast_expression (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_pm_expression (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   switch (TREE_CODE (t))
     {
       /* Handle unfortunate OFFSET_REF overloading here.  */
@@ -897,6 +942,7 @@ pp_cxx_pm_expression (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::multiplicative_expression (tree e)
 {
+  PPTag tag(this, __FUNCTION__);
   enum tree_code code = TREE_CODE (e);
   switch (code)
     {
@@ -928,6 +974,7 @@ cxx_pretty_printer::multiplicative_expression (tree e)
 void
 cxx_pretty_printer::conditional_expression (tree e)
 {
+  PPTag tag(this, __FUNCTION__);
   if (TREE_CODE (e) == COND_EXPR)
     {
       pp_c_logical_or_expression (this, TREE_OPERAND (e, 0));
@@ -947,6 +994,7 @@ cxx_pretty_printer::conditional_expression (tree e)
 static void
 pp_cxx_assignment_operator (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   const char *op;
 
   switch (TREE_CODE (t))
@@ -994,6 +1042,7 @@ pp_cxx_assignment_operator (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::assignment_expression (tree e)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (e))
     {
     case MODIFY_EXPR:
@@ -1026,6 +1075,7 @@ cxx_pretty_printer::assignment_expression (tree e)
 void
 cxx_pretty_printer::expression (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case STRING_CST:
@@ -1199,9 +1249,12 @@ cxx_pretty_printer::expression (tree t)
 void
 cxx_pretty_printer::function_specifier (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case FUNCTION_DECL:
+      if (DECL_LANG_SPECIFIC (t) && DECL_EXTERN_C_FUNCTION_P (t))
+        pp_cxx_ws_string (this, "extern \"C\"");
       if (DECL_VIRTUAL_P (t))
 	pp_cxx_ws_string (this, "virtual");
       else if (DECL_CONSTRUCTOR_P (t) && DECL_NONCONVERTING_P (t))
@@ -1227,6 +1280,7 @@ cxx_pretty_printer::function_specifier (tree t)
 void
 cxx_pretty_printer::declaration_specifiers (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case VAR_DECL:
@@ -1274,11 +1328,19 @@ cxx_pretty_printer::declaration_specifiers (tree t)
 void
 cxx_pretty_printer::simple_type_specifier (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case RECORD_TYPE:
+      pp_cxx_ws_string (this, CLASS_TYPE_P (t) ? "class" : "struct");
+      pp_cxx_qualified_id (this, t);
+      break;
     case UNION_TYPE:
+      pp_cxx_ws_string (this, "union");
+      pp_cxx_qualified_id (this, t);
+      break;
     case ENUMERAL_TYPE:
+      pp_cxx_ws_string (this, "enum");
       pp_cxx_qualified_id (this, t);
       break;
 
@@ -1314,6 +1376,7 @@ cxx_pretty_printer::simple_type_specifier (tree t)
 static void
 pp_cxx_type_specifier_seq (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case TEMPLATE_DECL:
@@ -1363,6 +1426,7 @@ pp_cxx_type_specifier_seq (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_ptr_operator (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   if (!TYPE_P (t) && TREE_CODE (t) != TYPE_DECL)
     t = TREE_TYPE (t);
   switch (TREE_CODE (t))
@@ -1423,6 +1487,7 @@ pp_cxx_implicit_parameter_type (tree mf)
 static inline void
 pp_cxx_parameter_declaration (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp->declaration_specifiers (t);
   if (TYPE_P (t))
     pp->abstract_declarator (t);
@@ -1441,6 +1506,7 @@ pp_cxx_parameter_declaration (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_parameter_declaration_clause (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   tree args;
   tree types;
   bool abstract;
@@ -1463,24 +1529,40 @@ pp_cxx_parameter_declaration_clause (cxx_pretty_printer *pp, tree t)
     }
   bool first = true;
 
+#if 0
   /* Skip artificial parameter for nonstatic member functions.  */
   if (TREE_CODE (t) == METHOD_TYPE)
     types = TREE_CHAIN (types);
+#endif
 
   pp_cxx_left_paren (pp);
-  for (; args; args = TREE_CHAIN (args), types = TREE_CHAIN (types))
+  if (abstract)
     {
-      if (!first)
-	pp_cxx_separate_with (pp, ',');
-      first = false;
-      pp_cxx_parameter_declaration (pp, abstract ? TREE_VALUE (types) : args);
-      if (!abstract && pp->flags & pp_cxx_flag_default_argument)
-	{
-	  pp_cxx_whitespace (pp);
-	  pp_equal (pp);
-	  pp_cxx_whitespace (pp);
-	  pp->assignment_expression (TREE_PURPOSE (types));
-	}
+      for (; types && types != void_list_node;
+           types = TREE_CHAIN (types))
+        {
+          if (!first)
+            pp_cxx_separate_with (pp, ',');
+          first = false;
+          pp_cxx_parameter_declaration (pp, TREE_VALUE (types));
+        }
+    }
+  else
+    {
+      for (; args; args = TREE_CHAIN (args), types = TREE_CHAIN (types))
+        {
+          if (!first)
+            pp_cxx_separate_with (pp, ',');
+          first = false;
+          pp_cxx_parameter_declaration (pp, abstract ? TREE_VALUE (types) : args);
+          if (!abstract && pp->flags & pp_cxx_flag_default_argument)
+            {
+              pp_cxx_whitespace (pp);
+              pp_equal (pp);
+              pp_cxx_whitespace (pp);
+              pp->assignment_expression (TREE_PURPOSE (types));
+            }
+        }
     }
   pp_cxx_right_paren (pp);
 }
@@ -1495,6 +1577,7 @@ pp_cxx_parameter_declaration_clause (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_exception_specification (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   tree ex_spec = TYPE_RAISES_EXCEPTIONS (t);
   bool need_comma = false;
 
@@ -1552,6 +1635,7 @@ pp_cxx_exception_specification (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::direct_declarator (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case VAR_DECL:
@@ -1607,6 +1691,7 @@ cxx_pretty_printer::direct_declarator (tree t)
 void
 cxx_pretty_printer::declarator (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   direct_declarator (t);
 
   // Print a requires clause.
@@ -1633,6 +1718,7 @@ cxx_pretty_printer::declarator (tree t)
 static void
 pp_cxx_ctor_initializer (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   t = TREE_OPERAND (t, 0);
   pp_cxx_whitespace (pp);
   pp_colon (pp);
@@ -1661,6 +1747,7 @@ pp_cxx_ctor_initializer (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_function_definition (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   tree saved_scope = pp->enclosing_scope;
   pp->declaration_specifiers (t);
   pp->declarator (t);
@@ -1681,12 +1768,14 @@ pp_cxx_function_definition (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::abstract_declarator (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   if (TYPE_PTRMEM_P (t))
     pp_cxx_right_paren (this);
   else if (POINTER_TYPE_P (t))
     {
       if (TREE_CODE (TREE_TYPE (t)) == ARRAY_TYPE
-	  || TREE_CODE (TREE_TYPE (t)) == FUNCTION_TYPE)
+	  || TREE_CODE (TREE_TYPE (t)) == FUNCTION_TYPE
+          || TREE_CODE (TREE_TYPE (t)) == METHOD_TYPE)
 	pp_cxx_right_paren (this);
       t = TREE_TYPE (t);
     }
@@ -1702,6 +1791,7 @@ cxx_pretty_printer::abstract_declarator (tree t)
 void
 cxx_pretty_printer::direct_abstract_declarator (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case REFERENCE_TYPE:
@@ -1715,6 +1805,7 @@ cxx_pretty_printer::direct_abstract_declarator (tree t)
 
     case METHOD_TYPE:
     case FUNCTION_TYPE:
+      pp_c_attributes_display (this, TYPE_ATTRIBUTES (t));
       pp_cxx_parameter_declaration_clause (this, t);
       direct_abstract_declarator (TREE_TYPE (t));
       if (TREE_CODE (t) == METHOD_TYPE)
@@ -1744,6 +1835,7 @@ cxx_pretty_printer::direct_abstract_declarator (tree t)
 void
 cxx_pretty_printer::type_id (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   pp_flags saved_flags = flags;
   flags |= pp_c_flag_abstract;
 
@@ -1792,6 +1884,7 @@ cxx_pretty_printer::type_id (tree t)
 static void
 pp_cxx_template_argument_list (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   int i;
   bool need_comma = false;
 
@@ -1832,6 +1925,7 @@ pp_cxx_template_argument_list (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_exception_declaration (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   t = DECL_EXPR_DECL (t);
   pp_cxx_type_specifier_seq (pp, t);
   if (TYPE_P (t))
@@ -1845,6 +1939,7 @@ pp_cxx_exception_declaration (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::statement (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case CTOR_INITIALIZER:
@@ -2063,6 +2158,7 @@ cxx_pretty_printer::statement (tree t)
 static void
 pp_cxx_original_namespace_definition (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_ws_string (pp, "namespace");
   if (DECL_CONTEXT (t))
     pp_cxx_nested_name_specifier (pp, DECL_CONTEXT (t));
@@ -2087,6 +2183,7 @@ pp_cxx_original_namespace_definition (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_namespace_alias_definition (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_ws_string (pp, "namespace");
   if (DECL_CONTEXT (t))
     pp_cxx_nested_name_specifier (pp, DECL_CONTEXT (t));
@@ -2107,6 +2204,7 @@ pp_cxx_namespace_alias_definition (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_simple_declaration (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp->declaration_specifiers (t);
   pp_cxx_init_declarator (pp, t);
   pp_cxx_semicolon (pp);
@@ -2121,6 +2219,7 @@ pp_cxx_simple_declaration (cxx_pretty_printer *pp, tree t)
 static inline void
 pp_cxx_template_parameter_list (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   const int n = TREE_VEC_LENGTH (t);
   int i;
   for (i = 0; i < n; ++i)
@@ -2146,6 +2245,7 @@ pp_cxx_template_parameter_list (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_template_parameter (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   tree parameter =  TREE_VALUE (t);
   switch (TREE_CODE (parameter))
     {
@@ -2177,6 +2277,7 @@ pp_cxx_template_parameter (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_canonical_template_parameter (cxx_pretty_printer *pp, tree parm)
 {
+  PPTag tag(pp, __FUNCTION__);
   const enum tree_code code = TREE_CODE (parm);
 
   /* Brings type template parameters to the canonical forms.  */
@@ -2197,6 +2298,7 @@ pp_cxx_canonical_template_parameter (cxx_pretty_printer *pp, tree parm)
 void
 pp_cxx_constrained_type_spec (cxx_pretty_printer *pp, tree c)
 {
+  PPTag tag(pp, __FUNCTION__);
   tree t, a;
   placeholder_extract_concept_and_args (c, t, a);
   pp->id_expression (t);
@@ -2225,6 +2327,7 @@ pp_cxx_constrained_type_spec (cxx_pretty_printer *pp, tree c)
 static void
 pp_cxx_template_declaration (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   tree tmpl = most_general_template (t);
   tree level;
 
@@ -2255,12 +2358,14 @@ pp_cxx_template_declaration (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_explicit_specialization (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_unsupported_tree (pp, t);
 }
 
 static void
 pp_cxx_explicit_instantiation (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_unsupported_tree (pp, t);
 }
 
@@ -2284,6 +2389,7 @@ pp_cxx_explicit_instantiation (cxx_pretty_printer *pp, tree t)
 void
 cxx_pretty_printer::declaration (tree t)
 {
+  PPTag tag(this, __FUNCTION__);
   if (TREE_CODE (t) == STATIC_ASSERT)
     {
       pp_cxx_ws_string (this, "static_assert");
@@ -2343,6 +2449,7 @@ cxx_pretty_printer::declaration (tree t)
 static void
 pp_cxx_typeid_expression (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   t = TREE_OPERAND (t, 0);
   pp_cxx_ws_string (pp, "typeid");
   pp_cxx_left_paren (pp);
@@ -2356,6 +2463,7 @@ pp_cxx_typeid_expression (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_va_arg_expression (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_ws_string (pp, "va_arg");
   pp_cxx_left_paren (pp);
   pp->assignment_expression (TREE_OPERAND (t, 0));
@@ -2367,6 +2475,7 @@ pp_cxx_va_arg_expression (cxx_pretty_printer *pp, tree t)
 static bool
 pp_cxx_offsetof_expression_1 (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case ARROW_EXPR:
@@ -2400,6 +2509,7 @@ pp_cxx_offsetof_expression_1 (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_offsetof_expression (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_ws_string (pp, "offsetof");
   pp_cxx_left_paren (pp);
   if (!pp_cxx_offsetof_expression_1 (pp, TREE_OPERAND (t, 0)))
@@ -2410,6 +2520,7 @@ pp_cxx_offsetof_expression (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_trait_expression (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   cp_trait_kind kind = TRAIT_EXPR_KIND (t);
 
   switch (kind)
@@ -2508,6 +2619,7 @@ pp_cxx_trait_expression (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_requires_clause (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   if (!t)
     return;
   pp->padding = pp_before;
@@ -2524,6 +2636,7 @@ pp_cxx_requires_clause (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_requirement (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   switch (TREE_CODE (t))
     {
     case SIMPLE_REQ:
@@ -2554,6 +2667,7 @@ pp_cxx_requirement (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_requirement_list (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   for (; t; t = TREE_CHAIN (t))
     pp_cxx_requirement (pp, TREE_VALUE (t));
 }
@@ -2563,6 +2677,7 @@ pp_cxx_requirement_list (cxx_pretty_printer *pp, tree t)
 static void
 pp_cxx_requirement_body (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_left_brace (pp);
   pp_cxx_requirement_list (pp, t);
   pp_cxx_right_brace (pp);
@@ -2573,6 +2688,7 @@ pp_cxx_requirement_body (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_requires_expr (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "requires");
   if (tree parms = TREE_OPERAND (t, 0))
     {
@@ -2587,6 +2703,7 @@ pp_cxx_requires_expr (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_simple_requirement (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp->expression (TREE_OPERAND (t, 0));
   pp_cxx_semicolon (pp);
 }
@@ -2596,6 +2713,7 @@ pp_cxx_simple_requirement (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_type_requirement (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp->type_id (TREE_OPERAND (t, 0));
   pp_cxx_semicolon (pp);
 }
@@ -2605,6 +2723,7 @@ pp_cxx_type_requirement (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_compound_requirement (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_left_brace (pp);
   pp->expression (TREE_OPERAND (t, 0));
   pp_cxx_right_brace (pp);
@@ -2624,6 +2743,7 @@ pp_cxx_compound_requirement (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_nested_requirement (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_ws_string (pp, "requires");
   pp->expression (TREE_OPERAND (t, 0));
   pp_cxx_semicolon (pp);
@@ -2632,6 +2752,7 @@ pp_cxx_nested_requirement (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_predicate_constraint (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "predicate");
   pp_left_paren (pp);
   pp->expression (TREE_OPERAND (t, 0));
@@ -2641,6 +2762,7 @@ pp_cxx_predicate_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_expression_constraint (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "valid_expr");
   pp_left_paren (pp);
   pp->expression (TREE_OPERAND (t, 0));
@@ -2650,6 +2772,7 @@ pp_cxx_expression_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_type_constraint (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "valid_type");
   pp_left_paren (pp);
   pp->type_id (TREE_OPERAND (t, 0));
@@ -2659,6 +2782,7 @@ pp_cxx_type_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_implicit_conversion_constraint (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "convertible");
   pp_left_paren (pp);
   pp->expression (ICONV_CONSTR_EXPR (t));
@@ -2670,6 +2794,7 @@ pp_cxx_implicit_conversion_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_argument_deduction_constraint (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "deducible");
   pp_left_paren (pp);
   pp->expression (DEDUCT_CONSTR_EXPR (t));
@@ -2681,6 +2806,7 @@ pp_cxx_argument_deduction_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_exception_constraint (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_ws_string (pp, "noexcept");
   pp_left_paren (pp);
   pp->expression (TREE_OPERAND (t, 0));
@@ -2690,6 +2816,7 @@ pp_cxx_exception_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_parameterized_constraint (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_left_paren (pp);
   pp_string (pp, "forall");
   if (tree parms = PARM_CONSTR_PARMS (t))
@@ -2705,6 +2832,7 @@ pp_cxx_parameterized_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_conjunction (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_constraint (pp, TREE_OPERAND (t, 0));
   pp_string (pp, " and ");
   pp_cxx_constraint (pp, TREE_OPERAND (t, 1));
@@ -2713,6 +2841,7 @@ pp_cxx_conjunction (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_disjunction (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   pp_cxx_constraint (pp, TREE_OPERAND (t, 0));
   pp_string (pp, " or ");
   pp_cxx_constraint (pp, TREE_OPERAND (t, 1));
@@ -2721,6 +2850,7 @@ pp_cxx_disjunction (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_constraint (cxx_pretty_printer *pp, tree t)
 {
+  PPTag tag(pp, __FUNCTION__);
   if (t == error_mark_node)
     return pp->expression (t);
 

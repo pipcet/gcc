@@ -161,6 +161,13 @@ pp_c_exclamation (c_pretty_printer *pp)
   pp->padding = pp_none;
 }
 
+void
+pp_c_comma (c_pretty_printer *pp)
+{
+  pp_separate_with (pp, ',');
+  pp->padding = pp_none;
+}
+
 /* Print out the external representation of QUALIFIERS.  */
 
 void
@@ -441,7 +448,8 @@ pp_c_specifier_qualifier_list (c_pretty_printer *pp, tree t)
 	tree pointee = strip_pointer_operator (TREE_TYPE (t));
 	pp_c_specifier_qualifier_list (pp, pointee);
 	if (TREE_CODE (pointee) == ARRAY_TYPE
-	    || TREE_CODE (pointee) == FUNCTION_TYPE)
+	    || TREE_CODE (pointee) == FUNCTION_TYPE
+	    || TREE_CODE (pointee) == METHOD_TYPE)
 	  {
 	    pp_c_whitespace (pp);
 	    pp_c_left_paren (pp);
@@ -453,8 +461,10 @@ pp_c_specifier_qualifier_list (c_pretty_printer *pp, tree t)
       }
       break;
 
+    case METHOD_TYPE:
     case FUNCTION_TYPE:
     case ARRAY_TYPE:
+      pp_c_attributes_display (pp, TYPE_ATTRIBUTES (TREE_TYPE (t)));
       pp_c_specifier_qualifier_list (pp, TREE_TYPE (t));
       break;
 
@@ -508,7 +518,7 @@ pp_c_parameter_type_list (c_pretty_printer *pp, tree t)
       for ( ; parms && parms != void_list_node; parms = TREE_CHAIN (parms))
 	{
 	  if (!first)
-	    pp_separate_with (pp, ',');
+	    pp_c_comma (pp);
 	  first = false;
 	  pp->declaration_specifiers
 	    (want_parm_decl ? parms : TREE_VALUE (parms));
@@ -531,7 +541,8 @@ c_pretty_printer::abstract_declarator (tree t)
   if (TREE_CODE (t) == POINTER_TYPE)
     {
       if (TREE_CODE (TREE_TYPE (t)) == ARRAY_TYPE
-	  || TREE_CODE (TREE_TYPE (t)) == FUNCTION_TYPE)
+	  || TREE_CODE (TREE_TYPE (t)) == FUNCTION_TYPE
+	  || TREE_CODE (TREE_TYPE (t)) == METHOD_TYPE)
 	pp_c_right_paren (this);
       t = TREE_TYPE (t);
     }
@@ -751,6 +762,7 @@ c_pretty_printer::declarator (tree t)
 void
 c_pretty_printer::declaration (tree t)
 {
+  pp_c_attributes_display (this, TYPE_ATTRIBUTES (TREE_TYPE (t)));
   declaration_specifiers (t);
   pp_c_init_declarator (this, t);
 }
@@ -773,7 +785,7 @@ pp_c_attributes (c_pretty_printer *pp, tree attributes)
 	pp_c_call_argument_list (pp, TREE_VALUE (attributes));
 
       if (TREE_CHAIN (attributes))
-	pp_separate_with (pp, ',');
+	pp_c_comma (pp);
     }
   pp_c_right_paren (pp);
   pp_c_right_paren (pp);
@@ -792,6 +804,7 @@ pp_c_attributes_display (c_pretty_printer *pp, tree a)
 
   for (; a != NULL_TREE; a = TREE_CHAIN (a))
     {
+#if 0
       const struct attribute_spec *as;
       as = lookup_attribute_spec (TREE_PURPOSE (a));
       if (!as || as->affects_type_identity == false)
@@ -800,6 +813,7 @@ pp_c_attributes_display (c_pretty_printer *pp, tree a)
 	  && !strcmp ("transaction_safe", as->name))
 	/* In C++ transaction_safe is printed at the end of the declarator.  */
 	continue;
+#endif
       if (is_first)
        {
          pp_c_ws_string (pp, "__attribute__");
@@ -809,7 +823,7 @@ pp_c_attributes_display (c_pretty_printer *pp, tree a)
        }
       else
        {
-         pp_separate_with (pp, ',');
+         pp_c_comma (pp);
        }
       pp_tree_identifier (pp, TREE_PURPOSE (a));
       if (TREE_VALUE (a))
@@ -830,6 +844,7 @@ pp_c_attributes_display (c_pretty_printer *pp, tree a)
 void
 pp_c_function_definition (c_pretty_printer *pp, tree t)
 {
+  pp_c_attributes_display (pp, TYPE_ATTRIBUTES (TREE_TYPE (t)));
   pp->declaration_specifiers (t);
   pp->declarator (t);
   pp_needs_newline (pp) = true;
@@ -1379,7 +1394,7 @@ pp_c_initializer_list (c_pretty_printer *pp, tree e)
 	    pp_c_whitespace (pp);
 	    pp->initializer (TREE_VALUE (init));
 	    if (TREE_CHAIN (init))
-	      pp_separate_with (pp, ',');
+	      pp_c_comma (pp);
 	  }
       }
       return;
@@ -1391,7 +1406,7 @@ pp_c_initializer_list (c_pretty_printer *pp, tree e)
 	  for (i = 0; i < VECTOR_CST_NELTS (e); ++i)
 	    {
 	      if (i > 0)
-		pp_separate_with (pp, ',');
+		pp_c_comma (pp);
 	      pp->expression (VECTOR_CST_ELT (e, i));
 	    }
 	}
@@ -1404,7 +1419,7 @@ pp_c_initializer_list (c_pretty_printer *pp, tree e)
 	{
 	  const bool cst = TREE_CODE (e) == COMPLEX_CST;
 	  pp->expression (cst ? TREE_REALPART (e) : TREE_OPERAND (e, 0));
-	  pp_separate_with (pp, ',');
+	  pp_c_comma (pp);
 	  pp->expression (cst ? TREE_IMAGPART (e) : TREE_OPERAND (e, 1));
 	}
       else
@@ -1679,7 +1694,7 @@ pp_c_expression_list (c_pretty_printer *pp, tree e)
     {
       pp->expression (TREE_VALUE (e));
       if (TREE_CHAIN (e))
-	pp_separate_with (pp, ',');
+	pp_c_comma (pp);
     }
 }
 
@@ -1695,7 +1710,7 @@ pp_c_constructor_elts (c_pretty_printer *pp, vec<constructor_elt, va_gc> *v)
     {
       pp->expression (value);
       if (ix != vec_safe_length (v) - 1)
-	pp_separate_with (pp, ',');
+	pp_c_comma (pp);
     }
 }
 
@@ -2360,9 +2375,11 @@ print_c_tree (FILE *file, tree t)
 {
   c_pretty_printer pp;
 
+  pp.flags = pp_c_flag_abstract;
   pp_needs_newline (&pp) = true;
   pp.buffer->stream = file;
-  pp.statement (t);
+  pp.declaration (t);
+  //pp.type_id (t);
   pp_newline_and_flush (&pp);
 }
 
