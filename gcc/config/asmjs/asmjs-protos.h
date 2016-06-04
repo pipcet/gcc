@@ -113,3 +113,14 @@ extern int asmjs_register_move_cost(machine_mode, reg_class_t from, reg_class_t 
 extern int asmjs_memory_move_cost(machine_mode, reg_class_t, bool in);
 extern bool asmjs_function_arg_regno_p(int);
 extern bool asmjs_lra_p();
+
+struct asmjs_jsexport_decl {
+  tree decl;
+  const char *jsname;
+  const char *symbol;
+  const char *pre_addr;
+  const char *post_addr;
+};
+
+extern struct asmjs_jsexport_decl asmjs_jsexport (tree, const char *);
+

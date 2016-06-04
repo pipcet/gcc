@@ -474,6 +474,210 @@ asmjs_handle_bogotics_attribute (tree *node ATTRIBUTE_UNUSED,
   return NULL;
 }
 
+#if 0
+extern void debug_tree (tree t);
+extern void debug_c_tree (tree t);
+
+#include "gimple.h"
+#include "lto-streamer.h"
+#include "streamer-hooks.h"
+#endif
+
+static vec<struct asmjs_jsexport_decl> asmjs_jsexport_decls;
+
+__attribute__((weak)) struct asmjs_jsexport_decl
+asmjs_jsexport (tree node ATTRIBUTE_UNUSED,
+		const char *jsname ATTRIBUTE_UNUSED)
+{
+  struct asmjs_jsexport_decl ret;
+  error("jsexport not defined for this frontend");
+
+  ret.jsname = NULL;
+  ret.symbol = NULL;
+  ret.pre_addr = NULL;
+  ret.post_addr = NULL;
+
+  return ret;
+}
+
+#include <print-tree.h>
+#include <plugin.h>
+
+static void asmjs_jsexport_unit_callback (void *, void *)
+{
+  unsigned i;
+  struct asmjs_jsexport_decl *p;
+  if (!asmjs_jsexport_decls.is_empty())
+    {
+      switch_to_section (get_section (".jsexport", 0, NULL_TREE));
+
+      FOR_EACH_VEC_ELT (asmjs_jsexport_decls, i, p)
+	{
+	  const char *str;
+	  int c;
+	  fprintf (asm_out_file, "\t.ascii \"");
+
+	  str = p->pre_addr;
+	  while ((c = *str++))
+	    {
+	      switch (c)
+		{
+		case '\"':
+		  fprintf (asm_out_file, "\\\"");
+		  break;
+
+		default:
+		  fprintf (asm_out_file, "%c", c);
+		  break;
+		}
+	    }
+	  fprintf (asm_out_file, "\"\n");
+
+	  fprintf (asm_out_file, "\t.reloc .+2,R_ASMJS_HEX16,%s\n",
+		   p->symbol);
+	  fprintf (asm_out_file, "\t.ascii \"0x0000000000000000\"\n");
+	  fprintf (asm_out_file, "\t.asciz \"");
+	  str = p->post_addr;
+	  while ((c = *str++))
+	    {
+	      switch (c)
+		{
+		case '\"':
+		  fprintf (asm_out_file, "\\\"");
+		  break;
+
+		default:
+		  fprintf (asm_out_file, "%c", c);
+		  break;
+		}
+	    }
+	  fprintf (asm_out_file, "\"\n");
+	}
+    }
+
+  asmjs_jsexport_decls = vec<struct asmjs_jsexport_decl>();
+}
+
+static void asmjs_jsexport_decl_callback (void *gcc_data, void *)
+{
+  tree decl = (tree)gcc_data;
+  bool found = false;
+  const char *jsname = NULL;
+
+  if (DECL_P (decl))
+    {
+      tree attrs = DECL_ATTRIBUTES (decl);
+      tree attr;
+      if (attrs != NULL_TREE)
+	{
+	  if ((attr = lookup_attribute ("jsexport", attrs)))
+	    {
+	      found = true;
+	      tree arg1 = TREE_VALUE (attr);
+
+	      if (arg1)
+		{
+		  if (TREE_CODE (arg1) != STRING_CST)
+		    {
+		      error ("Parameter must be a string constant");
+		      return;
+		    }
+
+		  jsname = TREE_STRING_POINTER (arg1);
+		}
+	    }
+	}
+    }
+  else if (TYPE_P (decl))
+    {
+      tree attrs = TYPE_ATTRIBUTES (decl);
+      if (attrs != NULL_TREE)
+	{
+	  if (lookup_attribute ("jsexport", attrs))
+	    found = true;
+	}
+    }
+
+  if (!found)
+    return;
+
+  if (found)
+    debug_tree(decl);
+
+  if (found)
+    asmjs_jsexport_decls.safe_push (asmjs_jsexport(decl, jsname));
+}
+
+static bool asmjs_jsexport_plugin_inited = false;
+
+static void asmjs_jsexport_plugin_init (void)
+{
+  register_callback("jsexport", PLUGIN_FINISH_DECL,
+		    asmjs_jsexport_decl_callback, NULL);
+  register_callback("jsexport", PLUGIN_FINISH_UNIT,
+		    asmjs_jsexport_unit_callback, NULL);
+  flag_plugin_added = true;
+
+  asmjs_jsexport_plugin_inited = true;
+}
+
+static tree
+asmjs_handle_jsexport_attribute (tree *, tree attr_name ATTRIBUTE_UNUSED,
+				 tree, int,
+				 bool *no_add_attrs ATTRIBUTE_UNUSED)
+{
+  if (!asmjs_jsexport_plugin_inited)
+    asmjs_jsexport_plugin_init ();
+  
+#if 0
+  struct output_block *ob;
+  struct lto_out_decl_state *ds;
+
+  lto_streamer_hooks_init ();
+  ds = lto_new_out_decl_state();
+  lto_push_out_decl_state (ds);
+  ob = create_output_block (LTO_section_decls);
+  produce_asm (ob, NULL);
+  stream_write_tree (ob, *node, false);
+  destroy_output_block (ob);
+  lto_pop_out_decl_state ();
+  lto_delete_out_decl_state(ds);
+
+  const char *asm_name = NULL;
+  const char *cxx_prototype = NULL;
+
+  if (nargs >= 2 && args && TREE_CHAIN (args))
+    {
+      tree arg2 = TREE_CHAIN (args);
+      if (TREE_CODE (arg2) != STRING_CST)
+	{
+	  error ("Parameter must be a string constant");
+	  return integer_zero_node;
+	}
+
+      cxx_prototype = TREE_STRING_POINTER (arg2);
+    }
+
+  if (nargs >= 1 && args)
+    {
+      tree arg1 = args;
+      if (TREE_CODE (arg1) != STRING_CST)
+	{
+	  error ("Parameter must be a string constant");
+	  return integer_zero_node;
+	}
+
+      asm_name = TREE_STRING_POINTER (arg1);
+    }
+
+  debug_tree (args);
+  debug_tree (*node);
+  asmjs_jsexport(node, attr_name, args);
+#endif
+
+  return NULL_TREE;
+}
+
 static const struct attribute_spec asmjs_attribute_table[] =
 {
   /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
@@ -489,6 +693,7 @@ static const struct attribute_spec asmjs_attribute_table[] =
   { "nobreak", 0, 0, false, true, true, asmjs_handle_bogotics_attribute, false },
   { "breakonenter", 0, 0, false, true, true, asmjs_handle_bogotics_attribute, false },
   { "fullbreak", 0, 0, false, true, true, asmjs_handle_bogotics_attribute, false },
+  { "jsexport", 0, 2, false, false, false, asmjs_handle_jsexport_attribute, false },
   { NULL, 0, 0, false, false, false, NULL, false }
 };
 

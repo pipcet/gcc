@@ -3039,6 +3039,8 @@ m32c-*-elf*)
 asmjs-*-gnu | asmjs-*-asmjs)
         tm_file="${tm_file}"
         tmake_file="${tmake_file} asmjs/t-asmjs"
+        c_target_objs="asmjs-c.o"
+        cxx_target_objs="asmjs-cxx.o"
         ;;
 *)
 	echo "*** Configuration ${target} not supported" 1>&2
