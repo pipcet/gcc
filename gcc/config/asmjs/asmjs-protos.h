@@ -118,8 +118,7 @@ struct asmjs_jsexport_decl {
   tree decl;
   const char *jsname;
   const char *symbol;
-  const char *pre_addr;
-  const char *post_addr;
+  vec<const char *> fragments;
 };
 
 extern struct asmjs_jsexport_decl asmjs_jsexport (tree, const char *);

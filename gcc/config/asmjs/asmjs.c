@@ -494,8 +494,6 @@ asmjs_jsexport (tree node ATTRIBUTE_UNUSED,
 
   ret.jsname = NULL;
   ret.symbol = NULL;
-  ret.pre_addr = NULL;
-  ret.post_addr = NULL;
 
   return ret;
 }
@@ -505,53 +503,47 @@ asmjs_jsexport (tree node ATTRIBUTE_UNUSED,
 
 static void asmjs_jsexport_unit_callback (void *, void *)
 {
-  unsigned i;
+  unsigned i,j;
   struct asmjs_jsexport_decl *p;
   if (!asmjs_jsexport_decls.is_empty())
     {
-      switch_to_section (get_section (".jsexport", 0, NULL_TREE));
+      switch_to_section (get_section (".jsexport", SECTION_MERGE|SECTION_STRINGS|1, NULL_TREE));
 
       FOR_EACH_VEC_ELT (asmjs_jsexport_decls, i, p)
 	{
+	  const char **pstr;
 	  const char *str;
 	  int c;
-	  fprintf (asm_out_file, "\t.ascii \"");
-
-	  str = p->pre_addr;
-	  while ((c = *str++))
+	  FOR_EACH_VEC_ELT (p->fragments, j, pstr)
 	    {
-	      switch (c)
+	      if (*pstr == NULL)
 		{
-		case '\"':
-		  fprintf (asm_out_file, "\\\"");
-		  break;
-
-		default:
-		  fprintf (asm_out_file, "%c", c);
-		  break;
+		  fprintf (asm_out_file, "\t.reloc .+2,R_ASMJS_HEX16,%s\n",
+			   p->symbol);
+		  fprintf (asm_out_file, "\t.ascii \"0x0000000000000000\"\n");
+		}
+	      else
+		{
+		  fprintf (asm_out_file, "\t.ascii \"");
+		  str = *pstr;
+		  while ((c = *str++))
+		    {
+		      switch (c)
+			{
+			case '\"':
+			  fprintf (asm_out_file, "\\\"");
+			  break;
+			  
+			default:
+			  fprintf (asm_out_file, "%c", c);
+			  break;
+			}
+		    }
+		  fprintf (asm_out_file, "\"\n");
 		}
 	    }
-	  fprintf (asm_out_file, "\"\n");
 
-	  fprintf (asm_out_file, "\t.reloc .+2,R_ASMJS_HEX16,%s\n",
-		   p->symbol);
-	  fprintf (asm_out_file, "\t.ascii \"0x0000000000000000\"\n");
-	  fprintf (asm_out_file, "\t.asciz \"");
-	  str = p->post_addr;
-	  while ((c = *str++))
-	    {
-	      switch (c)
-		{
-		case '\"':
-		  fprintf (asm_out_file, "\\\"");
-		  break;
-
-		default:
-		  fprintf (asm_out_file, "%c", c);
-		  break;
-		}
-	    }
-	  fprintf (asm_out_file, "\"\n");
+	  fprintf (asm_out_file, "\t.asciz \"\"\n");
 	}
     }
 
@@ -602,9 +594,6 @@ static void asmjs_jsexport_decl_callback (void *gcc_data, void *)
     return;
 
   if (found)
-    debug_tree(decl);
-
-  if (found)
     asmjs_jsexport_decls.safe_push (asmjs_jsexport(decl, jsname));
 }
 
@@ -613,6 +602,8 @@ static bool asmjs_jsexport_plugin_inited = false;
 static void asmjs_jsexport_plugin_init (void)
 {
   register_callback("jsexport", PLUGIN_FINISH_DECL,
+		    asmjs_jsexport_decl_callback, NULL);
+  register_callback("jsexport", PLUGIN_FINISH_TYPE,
 		    asmjs_jsexport_decl_callback, NULL);
   register_callback("jsexport", PLUGIN_FINISH_UNIT,
 		    asmjs_jsexport_unit_callback, NULL);
@@ -670,8 +661,6 @@ asmjs_handle_jsexport_attribute (tree *, tree attr_name ATTRIBUTE_UNUSED,
       asm_name = TREE_STRING_POINTER (arg1);
     }
 
-  debug_tree (args);
-  debug_tree (*node);
   asmjs_jsexport(node, attr_name, args);
 #endif
 
