@@ -591,7 +591,9 @@ static void asmjs_jsexport_decl_callback (void *gcc_data, void *)
     }
 
   if (!found)
-    return;
+    {
+      return;
+    }
 
   if (found)
     asmjs_jsexport_decls.safe_push (asmjs_jsexport(decl, jsname));
@@ -613,13 +615,13 @@ static void asmjs_jsexport_plugin_init (void)
 }
 
 static tree
-asmjs_handle_jsexport_attribute (tree *, tree attr_name ATTRIBUTE_UNUSED,
+asmjs_handle_jsexport_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
 				 tree, int,
 				 bool *no_add_attrs ATTRIBUTE_UNUSED)
 {
   if (!asmjs_jsexport_plugin_inited)
     asmjs_jsexport_plugin_init ();
-  
+
 #if 0
   struct output_block *ob;
   struct lto_out_decl_state *ds;
@@ -664,6 +666,9 @@ asmjs_handle_jsexport_attribute (tree *, tree attr_name ATTRIBUTE_UNUSED,
   asmjs_jsexport(node, attr_name, args);
 #endif
 
+  if (TREE_CODE (*node) == TYPE_DECL)
+    asmjs_jsexport_decls.safe_push (asmjs_jsexport (*node, NULL));
+  
   return NULL_TREE;
 }
 

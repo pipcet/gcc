@@ -248,8 +248,16 @@ asmjs_jsexport_function_decl (tree decl, const char *jsname)
 struct asmjs_jsexport_decl
 asmjs_jsexport_type_decl (tree node, const char *jsname)
 {
-  for(;;);
-  gcc_unreachable();
+  debug_tree (node);
+
+  if (TREE_CODE (TREE_TYPE (node)) == RECORD_TYPE)
+    return asmjs_jsexport_type (TREE_TYPE (node), jsname);
+
+  struct asmjs_jsexport_decl ret;
+
+  ret.fragments = vec<const char *>();
+
+  return ret;
 }
 
 struct asmjs_jsexport_decl
@@ -332,6 +340,8 @@ asmjs_jsexport_decl (tree node, const char *jsname)
     case VAR_DECL:
       return asmjs_jsexport_var_decl (node, jsname);
     default:
+      printf("unknown code:\n");
+      debug_tree (node);
       gcc_unreachable();
     }
 }
@@ -356,8 +366,6 @@ asmjs_jsexport (tree node, const char *jsname)
 	  mangled, force_mangled);
 #endif
 
-  debug_tree (node);
-
   if (DECL_P (node))
     return asmjs_jsexport_decl (node, jsname);
   else if (TYPE_P (node))
@@ -365,6 +373,7 @@ asmjs_jsexport (tree node, const char *jsname)
   else
     {
       error("unknown tree type");
+      debug_tree (node);
       gcc_unreachable ();
     }
 }
