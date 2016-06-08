@@ -2382,7 +2382,7 @@ void
 diagnose_logical_operation (location_t loc, tree t, tree args)
 {
   diagnose_expression (loc, TREE_OPERAND (t, 0), args);
-  diagnose_expression (loc, TREE_OPERAND (t, 0), args);
+  diagnose_expression (loc, TREE_OPERAND (t, 1), args);
 }
 
 /* Determine if the trait expression T is satisfied by ARGS.
