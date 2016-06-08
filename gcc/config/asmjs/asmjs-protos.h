@@ -121,5 +121,5 @@ struct asmjs_jsexport_decl {
   vec<const char *> fragments;
 };
 
-extern struct asmjs_jsexport_decl asmjs_jsexport (tree, const char *);
+extern void asmjs_jsexport (tree, const char *, vec<struct asmjs_jsexport_decl> *);
 

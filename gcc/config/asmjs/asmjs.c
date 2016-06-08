@@ -485,17 +485,12 @@ extern void debug_c_tree (tree t);
 
 static vec<struct asmjs_jsexport_decl> asmjs_jsexport_decls;
 
-__attribute__((weak)) struct asmjs_jsexport_decl
+__attribute__((weak)) void
 asmjs_jsexport (tree node ATTRIBUTE_UNUSED,
-		const char *jsname ATTRIBUTE_UNUSED)
+		const char *jsname ATTRIBUTE_UNUSED,
+		vec<struct asmjs_jsexport_decl> *decls ATTRIBUTE_UNUSED)
 {
-  struct asmjs_jsexport_decl ret;
   error("jsexport not defined for this frontend");
-
-  ret.jsname = NULL;
-  ret.symbol = NULL;
-
-  return ret;
 }
 
 #include <print-tree.h>
@@ -596,7 +591,7 @@ static void asmjs_jsexport_decl_callback (void *gcc_data, void *)
     }
 
   if (found)
-    asmjs_jsexport_decls.safe_push (asmjs_jsexport(decl, jsname));
+    asmjs_jsexport(decl, jsname, &asmjs_jsexport_decls);
 }
 
 static bool asmjs_jsexport_plugin_inited = false;
@@ -667,7 +662,7 @@ asmjs_handle_jsexport_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
 #endif
 
   if (TREE_CODE (*node) == TYPE_DECL)
-    asmjs_jsexport_decls.safe_push (asmjs_jsexport (*node, NULL));
+    asmjs_jsexport (*node, NULL, &asmjs_jsexport_decls);
   
   return NULL_TREE;
 }
