@@ -175,8 +175,8 @@ asmjs_jsexport_record_type (tree type, struct asmjs_jsexport_opts *opts,
       snprintf(bitpos, 16, "%ld", (long)int_bit_position (field));
       snprintf(bytesize, 16, "%ld", (long)int_size_in_bytes (TREE_TYPE (field)));
 
-      asmjs_jsexport_declare_type (fieldtype, NULL, decls);
-      asmjs_jsexport_type (fieldtype, NULL, decls);
+      asmjs_jsexport_declare_type (fieldtype, opts, decls);
+      asmjs_jsexport_type (fieldtype, opts, decls);
 
       ret.fragments.safe_push(concat ("asmjs_register_field(\"", ret.jsname,
 				      "\", ",

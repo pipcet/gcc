@@ -618,58 +618,19 @@ static void asmjs_jsexport_plugin_init (void)
 
 static tree
 asmjs_handle_jsexport_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
-				 tree, int,
+				 tree args, int,
 				 bool *no_add_attrs ATTRIBUTE_UNUSED)
 {
+  struct asmjs_jsexport_opts opts;
+
   if (!asmjs_jsexport_plugin_inited)
     asmjs_jsexport_plugin_init ();
 
-#if 0
-  struct output_block *ob;
-  struct lto_out_decl_state *ds;
-
-  lto_streamer_hooks_init ();
-  ds = lto_new_out_decl_state();
-  lto_push_out_decl_state (ds);
-  ob = create_output_block (LTO_section_decls);
-  produce_asm (ob, NULL);
-  stream_write_tree (ob, *node, false);
-  destroy_output_block (ob);
-  lto_pop_out_decl_state ();
-  lto_delete_out_decl_state(ds);
-
-  const char *asm_name = NULL;
-  const char *cxx_prototype = NULL;
-
-  if (nargs >= 2 && args && TREE_CHAIN (args))
-    {
-      tree arg2 = TREE_CHAIN (args);
-      if (TREE_CODE (arg2) != STRING_CST)
-	{
-	  error ("Parameter must be a string constant");
-	  return integer_zero_node;
-	}
-
-      cxx_prototype = TREE_STRING_POINTER (arg2);
-    }
-
-  if (nargs >= 1 && args)
-    {
-      tree arg1 = args;
-      if (TREE_CODE (arg1) != STRING_CST)
-	{
-	  error ("Parameter must be a string constant");
-	  return integer_zero_node;
-	}
-
-      asm_name = TREE_STRING_POINTER (arg1);
-    }
-
-  asmjs_jsexport(node, attr_name, args);
-#endif
-
   if (TREE_CODE (*node) == TYPE_DECL)
-    asmjs_jsexport (*node, NULL, &asmjs_jsexport_decls);
+    {
+      asmjs_jsexport_parse_args (args, &opts);
+      asmjs_jsexport (*node, &opts, &asmjs_jsexport_decls);
+    }
 
   return NULL_TREE;
 }
