@@ -1187,129 +1187,77 @@ compare_values_warnv (tree val1, tree val2, bool *strict_overflow_p)
   val2 = fold_convert (TREE_TYPE (val1), val2);
   STRIP_USELESS_TYPE_CONVERSION (val2);
 
-  if ((TREE_CODE (val1) == SSA_NAME
-       || (TREE_CODE (val1) == NEGATE_EXPR
-	   && TREE_CODE (TREE_OPERAND (val1, 0)) == SSA_NAME)
-       || TREE_CODE (val1) == PLUS_EXPR
-       || TREE_CODE (val1) == MINUS_EXPR)
-      && (TREE_CODE (val2) == SSA_NAME
-	  || (TREE_CODE (val2) == NEGATE_EXPR
-	      && TREE_CODE (TREE_OPERAND (val2, 0)) == SSA_NAME)
-	  || TREE_CODE (val2) == PLUS_EXPR
-	  || TREE_CODE (val2) == MINUS_EXPR))
+  const bool overflow_undefined
+    = INTEGRAL_TYPE_P (TREE_TYPE (val1))
+      && TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (val1));
+  tree inv1, inv2;
+  bool neg1, neg2;
+  tree sym1 = get_single_symbol (val1, &neg1, &inv1);
+  tree sym2 = get_single_symbol (val2, &neg2, &inv2);
+
+  /* If VAL1 and VAL2 are of the form '[-]NAME [+ CST]', return -1 or +1
+     accordingly.  If VAL1 and VAL2 don't use the same name, return -2.  */
+  if (sym1 && sym2)
     {
-      tree n1, c1, n2, c2;
-      enum tree_code code1, code2;
-
-      /* If VAL1 and VAL2 are of the form '[-]NAME [+-] CST' or 'NAME',
-	 return -1 or +1 accordingly.  If VAL1 and VAL2 don't use the
-	 same name, return -2.  */
-      if (TREE_CODE (val1) == SSA_NAME || TREE_CODE (val1) == NEGATE_EXPR)
-	{
-	  code1 = SSA_NAME;
-	  n1 = val1;
-	  c1 = NULL_TREE;
-	}
-      else
-	{
-	  code1 = TREE_CODE (val1);
-	  n1 = TREE_OPERAND (val1, 0);
-	  c1 = TREE_OPERAND (val1, 1);
-	  if (tree_int_cst_sgn (c1) == -1)
-	    {
-	      if (is_negative_overflow_infinity (c1))
-		return -2;
-	      c1 = fold_unary_to_constant (NEGATE_EXPR, TREE_TYPE (c1), c1);
-	      if (!c1)
-		return -2;
-	      code1 = code1 == MINUS_EXPR ? PLUS_EXPR : MINUS_EXPR;
-	    }
-	}
-
-      if (TREE_CODE (val2) == SSA_NAME || TREE_CODE (val2) == NEGATE_EXPR)
-	{
-	  code2 = SSA_NAME;
-	  n2 = val2;
-	  c2 = NULL_TREE;
-	}
-      else
-	{
-	  code2 = TREE_CODE (val2);
-	  n2 = TREE_OPERAND (val2, 0);
-	  c2 = TREE_OPERAND (val2, 1);
-	  if (tree_int_cst_sgn (c2) == -1)
-	    {
-	      if (is_negative_overflow_infinity (c2))
-		return -2;
-	      c2 = fold_unary_to_constant (NEGATE_EXPR, TREE_TYPE (c2), c2);
-	      if (!c2)
-		return -2;
-	      code2 = code2 == MINUS_EXPR ? PLUS_EXPR : MINUS_EXPR;
-	    }
-	}
-
-      /* Both values must use the same name.  */
-      if (TREE_CODE (n1) == NEGATE_EXPR && TREE_CODE (n2) == NEGATE_EXPR)
-	{
-	  n1 = TREE_OPERAND (n1, 0);
-	  n2 = TREE_OPERAND (n2, 0);
-	}
-      if (n1 != n2)
+      /* Both values must use the same name with the same sign.  */
+      if (sym1 != sym2 || neg1 != neg2)
 	return -2;
 
-      if (code1 == SSA_NAME && code2 == SSA_NAME)
-	/* NAME == NAME  */
+      /* [-]NAME + CST == [-]NAME + CST.  */
+      if (inv1 == inv2)
 	return 0;
 
       /* If overflow is defined we cannot simplify more.  */
-      if (!TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (val1)))
+      if (!overflow_undefined)
 	return -2;
 
       if (strict_overflow_p != NULL
-	  && (code1 == SSA_NAME || !TREE_NO_WARNING (val1))
-	  && (code2 == SSA_NAME || !TREE_NO_WARNING (val2)))
+	  && (!inv1 || !TREE_NO_WARNING (val1))
+	  && (!inv2 || !TREE_NO_WARNING (val2)))
 	*strict_overflow_p = true;
 
-      if (code1 == SSA_NAME)
-	{
-	  if (code2 == PLUS_EXPR)
-	    /* NAME < NAME + CST  */
-	    return -1;
-	  else if (code2 == MINUS_EXPR)
-	    /* NAME > NAME - CST  */
-	    return 1;
-	}
-      else if (code1 == PLUS_EXPR)
-	{
-	  if (code2 == SSA_NAME)
-	    /* NAME + CST > NAME  */
-	    return 1;
-	  else if (code2 == PLUS_EXPR)
-	    /* NAME + CST1 > NAME + CST2, if CST1 > CST2  */
-	    return compare_values_warnv (c1, c2, strict_overflow_p);
-	  else if (code2 == MINUS_EXPR)
-	    /* NAME + CST1 > NAME - CST2  */
-	    return 1;
-	}
-      else if (code1 == MINUS_EXPR)
-	{
-	  if (code2 == SSA_NAME)
-	    /* NAME - CST < NAME  */
-	    return -1;
-	  else if (code2 == PLUS_EXPR)
-	    /* NAME - CST1 < NAME + CST2  */
-	    return -1;
-	  else if (code2 == MINUS_EXPR)
-	    /* NAME - CST1 > NAME - CST2, if CST1 < CST2.  Notice that
-	       C1 and C2 are swapped in the call to compare_values.  */
-	    return compare_values_warnv (c2, c1, strict_overflow_p);
-	}
+      if (!inv1)
+	inv1 = build_int_cst (TREE_TYPE (val1), 0);
+      if (!inv2)
+	inv2 = build_int_cst (TREE_TYPE (val2), 0);
 
-      gcc_unreachable ();
+      return compare_values_warnv (inv1, inv2, strict_overflow_p);
     }
 
-  /* We cannot compare non-constants.  */
-  if (!is_gimple_min_invariant (val1) || !is_gimple_min_invariant (val2))
+  const bool cst1 = is_gimple_min_invariant (val1);
+  const bool cst2 = is_gimple_min_invariant (val2);
+
+  /* If one is of the form '[-]NAME + CST' and the other is constant, then
+     it might be possible to say something depending on the constants.  */
+  if ((sym1 && inv1 && cst2) || (sym2 && inv2 && cst1))
+    {
+      if (!overflow_undefined)
+	return -2;
+
+      if (strict_overflow_p != NULL
+	  && (!sym1 || !TREE_NO_WARNING (val1))
+	  && (!sym2 || !TREE_NO_WARNING (val2)))
+	*strict_overflow_p = true;
+
+      const signop sgn = TYPE_SIGN (TREE_TYPE (val1));
+      tree cst = cst1 ? val1 : val2;
+      tree inv = cst1 ? inv2 : inv1;
+
+      /* Compute the difference between the constants.  If it overflows or
+	 underflows, this means that we can trivially compare the NAME with
+	 it and, consequently, the two values with each other.  */
+      wide_int diff = wi::sub (cst, inv);
+      if (wi::cmp (0, inv, sgn) != wi::cmp (diff, cst, sgn))
+	{
+	  const int res = wi::cmp (cst, inv, sgn);
+	  return cst1 ? res : -res;
+	}
+
+      return -2;
+    }
+
+  /* We cannot say anything more for non-constants.  */
+  if (!cst1 || !cst2)
     return -2;
 
   if (!POINTER_TYPE_P (TREE_TYPE (val1)))
@@ -2519,20 +2467,13 @@ extract_range_from_binary_expr_1 (value_range *vr,
 		  min = wide_int_to_tree (expr_type, tmin);
 		  max = wide_int_to_tree (expr_type, tmax);
 		}
-	      else if (min_ovf == -1 && max_ovf == 1)
-		{
-		  /* Underflow and overflow, drop to VR_VARYING.  */
-		  set_value_range_to_varying (vr);
-		  return;
-		}
-	      else
+	      else if ((min_ovf == -1 && max_ovf == 0)
+		       || (max_ovf == 1 && min_ovf == 0))
 		{
 		  /* Min underflow or max overflow.  The range kind
 		     changes to VR_ANTI_RANGE.  */
 		  bool covers = false;
 		  wide_int tem = tmin;
-		  gcc_assert ((min_ovf == -1 && max_ovf == 0)
-			      || (max_ovf == 1 && min_ovf == 0));
 		  type = VR_ANTI_RANGE;
 		  tmin = tmax + 1;
 		  if (wi::cmp (tmin, tmax, sgn) < 0)
@@ -2550,6 +2491,12 @@ extract_range_from_binary_expr_1 (value_range *vr,
 		    }
 		  min = wide_int_to_tree (expr_type, tmin);
 		  max = wide_int_to_tree (expr_type, tmax);
+		}
+	      else
+		{
+		  /* Other underflow and/or overflow, drop to VR_VARYING.  */
+		  set_value_range_to_varying (vr);
+		  return;
 		}
 	    }
 	  else
@@ -8940,6 +8887,11 @@ simplify_truth_ops_using_ranges (gimple_stmt_iterator *gsi, gimple *stmt)
       gassign *newop
 	= gimple_build_assign (tem, BIT_XOR_EXPR, op0, op1);
       gsi_insert_before (gsi, newop, GSI_SAME_STMT);
+      if (INTEGRAL_TYPE_P (TREE_TYPE (tem))
+	  && TYPE_PRECISION (TREE_TYPE (tem)) > 1)
+	set_range_info (tem, VR_RANGE,
+			wi::zero (TYPE_PRECISION (TREE_TYPE (tem))),
+			wi::one (TYPE_PRECISION (TREE_TYPE (tem))));
       gimple_assign_set_rhs_with_ops (gsi, NOP_EXPR, tem);
     }
   /* Or without.  */
@@ -9648,7 +9600,6 @@ simplify_conversion_using_ranges (gimple *stmt)
 {
   tree innerop, middleop, finaltype;
   gimple *def_stmt;
-  value_range *innervr;
   signop inner_sgn, middle_sgn, final_sgn;
   unsigned inner_prec, middle_prec, final_prec;
   widest_int innermin, innermed, innermax, middlemin, middlemed, middlemax;
@@ -9666,18 +9617,17 @@ simplify_conversion_using_ranges (gimple *stmt)
       || SSA_NAME_OCCURS_IN_ABNORMAL_PHI (innerop))
     return false;
 
-  /* Get the value-range of the inner operand.  */
-  innervr = get_value_range (innerop);
-  if (innervr->type != VR_RANGE
-      || TREE_CODE (innervr->min) != INTEGER_CST
-      || TREE_CODE (innervr->max) != INTEGER_CST)
+  /* Get the value-range of the inner operand.  Use get_range_info in
+     case innerop was created during substitute-and-fold.  */
+  wide_int imin, imax;
+  if (!INTEGRAL_TYPE_P (TREE_TYPE (innerop))
+      || get_range_info (innerop, &imin, &imax) != VR_RANGE)
     return false;
+  innermin = widest_int::from (imin, TYPE_SIGN (TREE_TYPE (innerop)));
+  innermax = widest_int::from (imax, TYPE_SIGN (TREE_TYPE (innerop)));
 
   /* Simulate the conversion chain to check if the result is equal if
      the middle conversion is removed.  */
-  innermin = wi::to_widest (innervr->min);
-  innermax = wi::to_widest (innervr->max);
-
   inner_prec = TYPE_PRECISION (TREE_TYPE (innerop));
   middle_prec = TYPE_PRECISION (TREE_TYPE (middleop));
   final_prec = TYPE_PRECISION (finaltype);

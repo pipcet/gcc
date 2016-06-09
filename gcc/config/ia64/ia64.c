@@ -6558,6 +6558,7 @@ rtx_needs_barrier (rtx x, struct reg_flags flags, int pred)
 	    case USE:
 	    case CALL:
 	    case ASM_OPERANDS:
+	    case ASM_INPUT:
 	      need_barrier |= rtx_needs_barrier (pat, flags, pred);
 	      break;
 
@@ -10624,8 +10625,6 @@ ia64_vms_init_libfuncs (void)
   set_optab_libfunc (smod_optab, DImode, "OTS$REM_L");
   set_optab_libfunc (umod_optab, SImode, "OTS$REM_UI");
   set_optab_libfunc (umod_optab, DImode, "OTS$REM_UL");
-  abort_libfunc = init_one_libfunc ("decc$abort");
-  memcmp_libfunc = init_one_libfunc ("decc$memcmp");
 #ifdef MEM_LIBFUNCS_INIT
   MEM_LIBFUNCS_INIT;
 #endif

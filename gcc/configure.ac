@@ -35,6 +35,9 @@ AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
+# Determine the noncanonical host name, for Ada.
+ACX_NONCANONICAL_HOST
+
 # Determine the noncanonical target name, for directory use.
 ACX_NONCANONICAL_TARGET
 
@@ -864,6 +867,14 @@ AC_ARG_ENABLE(tls,
 Valid choices are 'yes' and 'no'.]) ;;
   esac
 ], [enable_tls=''])
+
+AC_ARG_ENABLE(vtable-verify,
+[AS_HELP_STRING([--enable-vtable-verify],
+		[enable vtable verification feature])],,
+[enable_vtable_verify=no])
+vtable_verify=`if test x$enable_vtable_verify = xyes; then echo 1; else echo 0; fi`
+AC_DEFINE_UNQUOTED(ENABLE_VTABLE_VERIFY, $vtable_verify,
+[Define 0/1 if vtable verification feature is enabled.])
 
 AC_ARG_ENABLE(objc-gc,
 [AS_HELP_STRING([--enable-objc-gc],
@@ -2024,7 +2035,7 @@ elif test "x$TARGET_SYSTEM_ROOT" != x; then
 fi
 
 if test x$host != x$target || test "x$TARGET_SYSTEM_ROOT" != x; then
-  if test "x$with_headers" != x; then
+  if test "x$with_headers" != x && test "x$with_headers" != xyes; then
     target_header_dir=$with_headers
   elif test "x$with_sysroot" = x; then
     target_header_dir="${test_exec_prefix}/${target_noncanonical}/sys-include"
@@ -3916,6 +3927,18 @@ foo:
        kasumi_fi_xor %f46, %f48, %f50, %f52],,
       [AC_DEFINE(HAVE_AS_SPARC4, 1,
                 [Define if your assembler supports SPARC4 instructions.])])
+
+    gcc_GAS_CHECK_FEATURE([SPARC5 and VIS 4.0 instructions],
+      gcc_cv_as_sparc_sparc5,,
+      [-xarch=sparc5],
+      [.text
+       .register %g2, #scratch
+       .register %g3, #scratch
+       .align 4
+       subxc %g1, %g2, %g3
+       fpadd8 %f0, %f2, %f4],,
+      [AC_DEFINE(HAVE_AS_SPARC5_VIS4, 1,
+                [Define if your assembler supports SPARC5 and VIS 4.0 instructions.])])
 
     gcc_GAS_CHECK_FEATURE([LEON instructions],
       gcc_cv_as_sparc_leon,,

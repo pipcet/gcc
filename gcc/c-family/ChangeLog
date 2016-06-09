@@ -1,3 +1,71 @@
+2016-06-08  Martin Sebor  <msebor@redhat.com>
+	    Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/70507
+	PR c/68120
+	* c-common.c (check_builtin_function_arguments): Handle
+	BUILT_IN_{ADD,SUB,MUL}_OVERFLOW_P.
+
+2016-06-08  Richard Biener  <rguenther@suse.de>
+
+	* c-common.c (parse_optimize_options): Improve diagnostic messages.
+
+2016-06-07  Richard Biener  <rguenther@suse.de>
+
+	PR c/61564
+	* c-common.c (parse_optimize_options): Only apply CL_OPTIMIZATION
+	options and warn about others.
+
+2016-06-01  Eduard Sanou  <dhole@openmailbox.org>
+
+	* c-common.c (get_source_date_epoch): Rename to
+	cb_get_source_date_epoch.
+	* c-common.c (cb_get_source_date_epoch): Use a single generic erorr
+	message when the parsing fails.  Use error_at instead of fatal_error.
+	* c-common.h (get_source_date_epoch): Rename to
+	cb_get_source_date_epoch.
+	* c-common.h (cb_get_source_date_epoch): Prototype.
+	* c-common.h (MAX_SOURCE_DATE_EPOCH): Define.
+	* c-common.h (c_omp_region_type): Remove trailing comma.
+	* c-lex.c (init_c_lex): Set cb->get_source_date_epoch callback.
+	* c-lex.c (c_lex_with_flags): Remove initialization of
+	pfile->source_date_epoch.
+
+2016-05-30  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/71349
+	* c-omp.c (c_omp_split_clauses): Put OMP_CLAUSE_DEPEND to
+	C_OMP_CLAUSE_SPLIT_TARGET.  Put OMP_CLAUSE_NOWAIT to
+	C_OMP_CLAUSE_SPLIT_TARGET if combined with target construct,
+	instead of C_OMP_CLAUSE_SPLIT_FOR.
+
+2016-05-24  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/70434
+	PR c/69504
+	* c-common.h (convert_vector_to_pointer_for_subscript): Rename to ...
+	(convert_vector_to_array_for_subscript): ... this.
+	* c-common.c (convert_vector_to_pointer_for_subscript): Use a
+	VIEW_CONVERT_EXPR to an array type.  Rename to ...
+	(convert_vector_to_array_for_subscript): ... this.
+
+2016-05-12  Marek Polacek  <polacek@redhat.com>
+
+	PR c/70756
+	* c-common.c (pointer_int_sum): Call size_in_bytes_loc instead of
+	size_in_bytes and pass LOC to it.
+
+2016-05-11  Mikhail Maltsev  <maltsevm@gmail.com>
+
+	PR c/43651
+	* c.opt (Wduplicate-decl-specifier): New option.
+
+2016-05-11  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/71024
+	* c-common.c (diagnose_mismatched_attributes): New function.
+	* c-common.h (diagnose_mismatched_attributes): Declare.
+
 2016-05-04  Marek Polacek  <polacek@redhat.com>
 
 	* c.opt (Wdangling-else): New option.

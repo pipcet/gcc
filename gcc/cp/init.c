@@ -798,7 +798,8 @@ perform_member_init (tree member, tree init)
 						tf_warning_or_error);
 
       if (init)
-	finish_expr_stmt (cp_build_modify_expr (decl, INIT_EXPR, init,
+	finish_expr_stmt (cp_build_modify_expr (input_location, decl,
+						INIT_EXPR, init,
 						tf_warning_or_error));
     }
 
@@ -1254,8 +1255,8 @@ expand_virtual_init (tree binfo, tree decl)
 
   /* Assign the vtable to the vptr.  */
   vtbl = convert_force (TREE_TYPE (vtbl_ptr), vtbl, 0, tf_warning_or_error);
-  finish_expr_stmt (cp_build_modify_expr (vtbl_ptr, NOP_EXPR, vtbl,
-					  tf_warning_or_error));
+  finish_expr_stmt (cp_build_modify_expr (input_location, vtbl_ptr, NOP_EXPR,
+					  vtbl, tf_warning_or_error));
 }
 
 /* If an exception is thrown in a constructor, those base classes already
@@ -2375,7 +2376,8 @@ warn_placement_new_too_small (tree type, tree nelts, tree size, tree oper)
 
   STRIP_NOPS (oper);
 
-  if (TREE_CODE (oper) == ARRAY_REF)
+  if (TREE_CODE (oper) == ARRAY_REF
+      && (addr_expr || TREE_CODE (TREE_TYPE (oper)) == ARRAY_TYPE))
     {
       /* Similar to the offset computed above, see if the array index
 	 is a compile-time constant.  If so, and unless the offset was
@@ -2404,8 +2406,8 @@ warn_placement_new_too_small (tree type, tree nelts, tree size, tree oper)
   bool compref = TREE_CODE (oper) == COMPONENT_REF;
 
   /* Descend into a struct or union to find the member whose address
-     is being used as the agument.  */
-  while (TREE_CODE (oper) == COMPONENT_REF)
+     is being used as the argument.  */
+  if (TREE_CODE (oper) == COMPONENT_REF)
     {
       tree op0 = oper;
       while (TREE_CODE (op0 = TREE_OPERAND (op0, 0)) == COMPONENT_REF);
@@ -3208,8 +3210,8 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
 
 	      ie = build_x_compound_expr_from_vec (*init, "new initializer",
 						   complain);
-	      init_expr = cp_build_modify_expr (init_expr, INIT_EXPR, ie,
-						complain);
+	      init_expr = cp_build_modify_expr (input_location, init_expr,
+						INIT_EXPR, ie, complain);
 	    }
 	  stable = stabilize_init (init_expr, &init_preeval_expr);
 	}
@@ -3596,7 +3598,7 @@ build_vec_delete_1 (tree base, tree maxindex, tree type,
 
   tbase = create_temporary_var (ptype);
   tbase_init
-    = cp_build_modify_expr (tbase, NOP_EXPR,
+    = cp_build_modify_expr (input_location, tbase, NOP_EXPR,
 			    fold_build_pointer_plus_loc (input_location,
 							 fold_convert (ptype,
 								       base),
@@ -3613,7 +3615,7 @@ build_vec_delete_1 (tree base, tree maxindex, tree type,
 			 fold_convert (ptype, base)));
   tmp = fold_build1_loc (input_location, NEGATE_EXPR, sizetype, size_exp);
   tmp = fold_build_pointer_plus (tbase, tmp);
-  tmp = cp_build_modify_expr (tbase, NOP_EXPR, tmp, complain);
+  tmp = cp_build_modify_expr (input_location, tbase, NOP_EXPR, tmp, complain);
   if (tmp == error_mark_node)
     return error_mark_node;
   body = build_compound_expr (input_location, body, tmp);
@@ -3735,8 +3737,8 @@ get_temp_regvar (tree type, tree init)
   decl = create_temporary_var (type);
   add_decl_expr (decl);
 
-  finish_expr_stmt (cp_build_modify_expr (decl, INIT_EXPR, init, 
-					  tf_warning_or_error));
+  finish_expr_stmt (cp_build_modify_expr (input_location, decl, INIT_EXPR,
+					  init, tf_warning_or_error));
 
   return decl;
 }
@@ -4000,8 +4002,8 @@ build_vec_init (tree base, tree maxindex, tree init,
 	  else if (MAYBE_CLASS_TYPE_P (type) || TREE_CODE (type) == ARRAY_TYPE)
 	    one_init = build_aggr_init (baseref, elt, 0, complain);
 	  else
-	    one_init = cp_build_modify_expr (baseref, NOP_EXPR,
-					     elt, complain);
+	    one_init = cp_build_modify_expr (input_location, baseref,
+					     NOP_EXPR, elt, complain);
 	  if (one_init == error_mark_node)
 	    errors = true;
 	  if (try_const)
@@ -4128,12 +4130,12 @@ build_vec_init (tree base, tree maxindex, tree init,
 	    from = NULL_TREE;
 
 	  if (from_array == 2)
-	    elt_init = cp_build_modify_expr (to, NOP_EXPR, from, 
-					     complain);
+	    elt_init = cp_build_modify_expr (input_location, to, NOP_EXPR,
+					     from, complain);
 	  else if (type_build_ctor_call (type))
 	    elt_init = build_aggr_init (to, from, 0, complain);
 	  else if (from)
-	    elt_init = cp_build_modify_expr (to, NOP_EXPR, from,
+	    elt_init = cp_build_modify_expr (input_location, to, NOP_EXPR, from,
 					     complain);
 	  else
 	    gcc_unreachable ();

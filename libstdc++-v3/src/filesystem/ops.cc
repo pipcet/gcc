@@ -220,8 +220,9 @@ fs::canonical(const path& p, const path& base)
 {
   error_code ec;
   path can = canonical(p, base, ec);
-  if (ec.value())
-    _GLIBCXX_THROW_OR_ABORT(filesystem_error("cannot canonicalize", p, ec));
+  if (ec)
+    _GLIBCXX_THROW_OR_ABORT(filesystem_error("cannot canonicalize", p, base,
+					     ec));
   return can;
 }
 
@@ -449,7 +450,7 @@ namespace
 	ec = std::make_error_code(std::errc::io_error);
 	return false;
       }
-    if (sbout.close() || sbin.close())
+    if (!sbout.close() || !sbin.close())
       {
 	ec.assign(errno, std::generic_category());
 	return false;
@@ -659,22 +660,26 @@ namespace
   bool
   create_dir(const fs::path& p, fs::perms perm, std::error_code& ec)
   {
+    bool created = false;
 #ifdef _GLIBCXX_HAVE_SYS_STAT_H
     ::mode_t mode = static_cast<std::underlying_type_t<fs::perms>>(perm);
     if (::mkdir(p.c_str(), mode))
       {
-	ec.assign(errno, std::generic_category());
-	return false;
+	const int err = errno;
+	if (err != EEXIST || !is_directory(p))
+	  ec.assign(err, std::generic_category());
+	else
+	  ec.clear();
       }
     else
       {
 	ec.clear();
-	return true;
+	created = true;
       }
 #else
     ec = std::make_error_code(std::errc::not_supported);
-    return false;
 #endif
+    return created;
   }
 } // namespace
 
@@ -1079,6 +1084,28 @@ fs::permissions(const path& p, perms prms)
 
 void fs::permissions(const path& p, perms prms, error_code& ec) noexcept
 {
+  const bool add = is_set(prms, perms::add_perms);
+  const bool remove = is_set(prms, perms::remove_perms);
+  if (add && remove)
+    {
+      ec = std::make_error_code(std::errc::invalid_argument);
+      return;
+    }
+
+  prms &= perms::mask;
+
+  if (add || remove)
+    {
+      auto st = status(p, ec);
+      if (ec)
+	return;
+      auto curr = st.permissions();
+      if (add)
+	prms |= curr;
+      else
+	prms = curr & ~prms;
+    }
+
 #if _GLIBCXX_USE_FCHMODAT
   if (::fchmodat(AT_FDCWD, p.c_str(), static_cast<mode_t>(prms), 0))
 #else

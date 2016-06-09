@@ -194,7 +194,8 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
 /* FPU supports half-precision floating-point with NEON element load/store.  */
 #define TARGET_NEON_FP16						\
   (TARGET_VFP								\
-   && ARM_FPU_FSET_HAS (TARGET_FPU_FEATURES, FPU_FL_NEON | FPU_FL_FP16))
+   && ARM_FPU_FSET_HAS (TARGET_FPU_FEATURES, FPU_FL_NEON)		\
+   && ARM_FPU_FSET_HAS (TARGET_FPU_FEATURES, FPU_FL_FP16))
 
 /* FPU supports VFP half-precision floating-point.  */
 #define TARGET_FP16							\
@@ -477,6 +478,9 @@ extern int arm_tune_cortex_a9;
    problems in GLD which doesn't understand that armv5t code is
    interworking clean.  */
 extern int arm_cpp_interwork;
+
+/* Nonzero if chip supports Thumb 1.  */
+extern int arm_arch_thumb1;
 
 /* Nonzero if chip supports Thumb 2.  */
 extern int arm_arch_thumb2;
@@ -2187,13 +2191,9 @@ extern int making_const_table;
 #define TARGET_ARM_ARCH	\
   (arm_base_arch)	\
 
-#define TARGET_ARM_V6M (!arm_arch_notm && !arm_arch_thumb2)
-#define TARGET_ARM_V7M (!arm_arch_notm && arm_arch_thumb2)
-
 /* The highest Thumb instruction set version supported by the chip.  */
-#define TARGET_ARM_ARCH_ISA_THUMB 		\
-  (arm_arch_thumb2 ? 2				\
-	           : ((TARGET_ARM_ARCH >= 5 || arm_arch4t) ? 1 : 0))
+#define TARGET_ARM_ARCH_ISA_THUMB		\
+  (arm_arch_thumb2 ? 2 : (arm_arch_thumb1 ? 1 : 0))
 
 /* Expands to an upper-case char of the target's architectural
    profile.  */

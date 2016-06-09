@@ -155,8 +155,19 @@ static void
 nvptx_option_override (void)
 {
   init_machine_status = nvptx_init_machine_status;
-  /* Gives us a predictable order, which we need especially for variables.  */
-  flag_toplevel_reorder = 1;
+
+  /* Set toplevel_reorder, unless explicitly disabled.  We need
+     reordering so that we emit necessary assembler decls of
+     undeclared variables. */
+  if (!global_options_set.x_flag_toplevel_reorder)
+    flag_toplevel_reorder = 1;
+
+  /* Set flag_no_common, unless explicitly disabled.  We fake common
+     using .weak, and that's not entirely accurate, so avoid it
+     unless forced.  */
+  if (!global_options_set.x_flag_no_common)
+    flag_no_common = 1;
+
   /* Assumes that it will see only hard registers.  */
   flag_var_tracking = 0;
 
@@ -258,7 +269,10 @@ section_for_decl (const_tree decl)
 
 /* Check NAME for special function names and redirect them by returning a
    replacement.  This applies to malloc, free and realloc, for which we
-   want to use libgcc wrappers, and call, which triggers a bug in ptxas.  */
+   want to use libgcc wrappers, and call, which triggers a bug in
+   ptxas.  We can't use TARGET_MANGLE_DECL_ASSEMBLER_NAME, as that's
+   not active in an offload compiler -- the names are all set by the
+   host-side compiler.  */
 
 static const char *
 nvptx_name_replacement (const char *name)
@@ -459,6 +473,17 @@ nvptx_function_arg_advance (cumulative_args_t cum_v,
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
 
   cum->count++;
+}
+
+/* Implement TARGET_FUNCTION_ARG_BOUNDARY.
+
+   For nvptx This is only used for varadic args.  The type has already
+   been promoted and/or converted to invisible reference.  */
+
+static unsigned
+nvptx_function_arg_boundary (machine_mode mode, const_tree ARG_UNUSED (type))
+{
+  return GET_MODE_ALIGNMENT (mode);
 }
 
 /* Handle the TARGET_STRICT_ARGUMENT_NAMING target hook.
@@ -751,6 +776,26 @@ write_fn_proto (std::stringstream &s, bool is_defn,
   tree fntype = TREE_TYPE (decl);
   tree result_type = TREE_TYPE (fntype);
 
+  /* atomic_compare_exchange_$n builtins have an exceptional calling
+     convention.  */
+  int not_atomic_weak_arg = -1;
+  if (DECL_BUILT_IN_CLASS (decl) == BUILT_IN_NORMAL)
+    switch (DECL_FUNCTION_CODE (decl))
+      {
+      case BUILT_IN_ATOMIC_COMPARE_EXCHANGE_1:
+      case BUILT_IN_ATOMIC_COMPARE_EXCHANGE_2:
+      case BUILT_IN_ATOMIC_COMPARE_EXCHANGE_4:
+      case BUILT_IN_ATOMIC_COMPARE_EXCHANGE_8:
+      case BUILT_IN_ATOMIC_COMPARE_EXCHANGE_16:
+	/* These atomics skip the 'weak' parm in an actual library
+	   call.  We must skip it in the prototype too.  */
+	not_atomic_weak_arg = 3;
+	break;
+
+      default:
+	break;
+      }
+
   /* Declare the result.  */
   bool return_in_mem = write_return_type (s, true, result_type);
 
@@ -775,11 +820,14 @@ write_fn_proto (std::stringstream &s, bool is_defn,
       prototyped = false;
     }
 
-  for (; args; args = TREE_CHAIN (args))
+  for (; args; args = TREE_CHAIN (args), not_atomic_weak_arg--)
     {
       tree type = prototyped ? TREE_VALUE (args) : TREE_TYPE (args);
-
-      argno = write_arg_type (s, -1, argno, type, prototyped);
+      
+      if (not_atomic_weak_arg)
+	argno = write_arg_type (s, -1, argno, type, prototyped);
+      else
+	gcc_assert (type == boolean_type_node);
     }
 
   if (stdarg_p (fntype))
@@ -1729,6 +1777,12 @@ nvptx_assemble_undefined_decl (FILE *file, const char *name, const_tree decl)
   if (DECL_IN_CONSTANT_POOL (decl))
     return;
 
+  /*  We support weak defintions, and hence have the right
+      ASM_WEAKEN_DECL definition.  Diagnose the problem here.  */
+  if (DECL_WEAK (decl))
+    error_at (DECL_SOURCE_LOCATION (decl),
+	      "PTX does not support weak declarations"
+	      " (only weak definitions)");
   write_var_marker (file, false, TREE_PUBLIC (decl), name);
 
   fprintf (file, "\t.extern ");
@@ -4809,6 +4863,8 @@ nvptx_goacc_reduction (gcall *call)
 #define TARGET_FUNCTION_INCOMING_ARG nvptx_function_incoming_arg
 #undef TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE nvptx_function_arg_advance
+#undef TARGET_FUNCTION_ARG_BOUNDARY
+#define TARGET_FUNCTION_ARG_BOUNDARY nvptx_function_arg_boundary
 #undef TARGET_PASS_BY_REFERENCE
 #define TARGET_PASS_BY_REFERENCE nvptx_pass_by_reference
 #undef TARGET_FUNCTION_VALUE_REGNO_P

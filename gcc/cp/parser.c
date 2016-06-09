@@ -6851,7 +6851,7 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 		tree fn = TREE_OPERAND (postfix_expression, 1);
 
 		if (processing_template_decl
-		    && (type_dependent_expression_p (instance)
+		    && (type_dependent_object_expression_p (instance)
 			|| (!BASELINK_P (fn)
 			    && TREE_CODE (fn) != FIELD_DECL)
 			|| type_dependent_expression_p (fn)
@@ -7186,8 +7186,9 @@ cp_parser_postfix_dot_deref_expression (cp_parser *parser,
   if (token_type == CPP_DEREF)
     postfix_expression = build_x_arrow (location, postfix_expression,
 					tf_warning_or_error);
-  /* Check to see whether or not the expression is type-dependent.  */
-  dependent_p = type_dependent_expression_p (postfix_expression);
+  /* Check to see whether or not the expression is type-dependent and
+     not the current instantiation.  */
+  dependent_p = type_dependent_object_expression_p (postfix_expression);
   /* The identifier following the `->' or `.' is not qualified.  */
   parser->scope = NULL_TREE;
   parser->qualifying_scope = NULL_TREE;
@@ -7207,18 +7208,15 @@ cp_parser_postfix_dot_deref_expression (cp_parser *parser,
 	 underlying type here.  */
       scope = non_reference (scope);
       /* The type of the POSTFIX_EXPRESSION must be complete.  */
-      if (scope == unknown_type_node)
-	{
-	  error_at (location, "%qE does not have class type",
-		    postfix_expression.get_value ());
-	  scope = NULL_TREE;
-	}
       /* Unlike the object expression in other contexts, *this is not
 	 required to be of complete type for purposes of class member
 	 access (5.2.5) outside the member function body.  */
-      else if (postfix_expression != current_class_ref
-	       && !(processing_template_decl && scope == current_class_type))
-	scope = complete_type_or_else (scope, NULL_TREE);
+      if (postfix_expression != current_class_ref
+	  && !(processing_template_decl
+	       && current_class_type
+	       && (same_type_ignoring_top_level_qualifiers_p
+		   (scope, current_class_type))))
+	scope = complete_type_or_else (scope, postfix_expression);
       /* Let the name lookup machinery know that we are processing a
 	 class member access expression.  */
       parser->context->object_type = scope;
@@ -12890,7 +12888,8 @@ cp_parser_function_specifier_opt (cp_parser* parser,
       /* 14.5.2.3 [temp.mem]
 
 	 A member function template shall not be virtual.  */
-      if (PROCESSING_REAL_TEMPLATE_DECL_P ())
+      if (PROCESSING_REAL_TEMPLATE_DECL_P ()
+	  && current_class_type)
 	error_at (token->location, "templates may not be %<virtual%>");
       else
 	set_and_check_decl_spec_loc (decl_specs, ds_virtual, token);
@@ -13793,8 +13792,9 @@ cp_parser_operator (cp_parser* parser)
 	    /* Consume the `[' token.  */
 	    cp_lexer_consume_token (parser->lexer);
 	    /* Look for the `]' token.  */
-	    end_loc = cp_parser_require (parser, CPP_CLOSE_SQUARE,
-                                         RT_CLOSE_SQUARE)->location;
+	    if (cp_token *close_token
+		= cp_parser_require (parser, CPP_CLOSE_SQUARE, RT_CLOSE_SQUARE))
+	      end_loc = close_token->location;
 	    id = ansi_opname (op == NEW_EXPR
 			      ? VEC_NEW_EXPR : VEC_DELETE_EXPR);
 	  }
@@ -14837,11 +14837,11 @@ cp_parser_template_id (cp_parser *parser,
   /* If we find the sequence `[:' after a template-name, it's probably
      a digraph-typo for `< ::'. Substitute the tokens and check if we can
      parse correctly the argument list.  */
-  next_token = cp_lexer_peek_token (parser->lexer);
-  next_token_2 = cp_lexer_peek_nth_token (parser->lexer, 2);
-  if (next_token->type == CPP_OPEN_SQUARE
+  if (((next_token = cp_lexer_peek_token (parser->lexer))->type
+       == CPP_OPEN_SQUARE)
       && next_token->flags & DIGRAPH
-      && next_token_2->type == CPP_COLON
+      && ((next_token_2 = cp_lexer_peek_nth_token (parser->lexer, 2))->type
+	  == CPP_COLON)
       && !(next_token_2->flags & PREV_WHITE))
     {
       cp_parser_parse_tentatively (parser);
@@ -17550,7 +17550,7 @@ cp_parser_namespace_definition (cp_parser* parser)
     }
 
   /* Start the namespace.  */
-  push_namespace (identifier);
+  bool ok = push_namespace (identifier);
 
   /* Parse any nested namespace definition. */
   if (cp_lexer_next_token_is (parser->lexer, CPP_SCOPE))
@@ -17583,7 +17583,7 @@ cp_parser_namespace_definition (cp_parser* parser)
 
   /* "inline namespace" is equivalent to a stub namespace definition
      followed by a strong using directive.  */
-  if (is_inline)
+  if (is_inline && ok)
     {
       tree name_space = current_namespace;
       /* Set up namespace association.  */
@@ -17611,7 +17611,8 @@ cp_parser_namespace_definition (cp_parser* parser)
     pop_namespace ();
 
   /* Finish the namespace.  */
-  pop_namespace ();
+  if (ok)
+    pop_namespace ();
   /* Look for the final `}'.  */
   cp_parser_require (parser, CPP_CLOSE_BRACE, RT_CLOSE_BRACE);
 }
@@ -20801,6 +20802,9 @@ cp_parser_initializer (cp_parser* parser, bool* is_direct_init,
       init = error_mark_node;
     }
 
+  if (check_for_bare_parameter_packs (init))
+    init = error_mark_node;
+
   return init;
 }
 
@@ -21188,7 +21192,7 @@ cp_parser_class_name (cp_parser *parser,
 	     resolution operator, object, function, and enumerator
 	     names are ignored.  */
 	  if (cp_lexer_next_token_is (parser->lexer, CPP_SCOPE))
-	    tag_type = typename_type;
+	    tag_type = scope_type;
 	  /* Look up the name.  */
 	  decl = cp_parser_lookup_name (parser, identifier,
 					tag_type,
@@ -22004,8 +22008,8 @@ cp_parser_class_head (cp_parser* parser,
     {
       error_at (type_start_token->location, "redefinition of %q#T",
 		type);
-      error_at (type_start_token->location, "previous definition of %q+#T",
-		type);
+      inform (location_of (type), "previous definition of %q#T",
+	      type);
       type = NULL_TREE;
       goto done;
     }
@@ -22046,9 +22050,8 @@ cp_parser_class_head (cp_parser* parser,
 
   /* If we're really defining a class, process the base classes.
      If they're invalid, fail.  */
-  if (type && cp_lexer_next_token_is (parser->lexer, CPP_OPEN_BRACE)
-      && !xref_basetypes (type, bases))
-    type = NULL_TREE;
+  if (type && cp_lexer_next_token_is (parser->lexer, CPP_OPEN_BRACE))
+    xref_basetypes (type, bases);
 
  done:
   /* Leave the scope given by the nested-name-specifier.  We will
@@ -24593,6 +24596,24 @@ cp_parser_nested_requirement (cp_parser *parser)
 
 /* Support Functions */
 
+/* Return the appropriate prefer_type argument for lookup_name_real based on
+   tag_type and template_mem_access.  */
+
+static inline int
+prefer_type_arg (tag_types tag_type, bool template_mem_access = false)
+{
+  /* DR 141: When looking in the current enclosing context for a template-name
+     after -> or ., only consider class templates.  */
+  if (template_mem_access)
+    return 2;
+  switch (tag_type)
+    {
+    case none_type:  return 0;	// No preference.
+    case scope_type: return 1;	// Type or namespace.
+    default:         return 2;	// Type only.
+    }
+}
+
 /* Looks up NAME in the current scope, as given by PARSER->SCOPE.
    NAME should have one of the representations used for an
    id-expression.  If NAME is the ERROR_MARK_NODE, the ERROR_MARK_NODE
@@ -24729,7 +24750,7 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
 	     errors may be issued.  Even if we rollback the current
 	     tentative parse, those errors are valid.  */
 	  decl = lookup_qualified_name (parser->scope, name,
-					tag_type != none_type,
+					prefer_type_arg (tag_type),
 					/*complain=*/true);
 
 	  /* 3.4.3.1: In a lookup in which the constructor is an acceptable
@@ -24750,7 +24771,7 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
 	      && DECL_SELF_REFERENCE_P (decl)
 	      && same_type_p (DECL_CONTEXT (decl), parser->scope))
 	    decl = lookup_qualified_name (parser->scope, ctor_identifier,
-					  tag_type != none_type,
+					  prefer_type_arg (tag_type),
 					  /*complain=*/true);
 
 	  /* If we have a single function from a using decl, pull it out.  */
@@ -24806,30 +24827,17 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
 	decl = lookup_member (object_type,
 			      name,
 			      /*protect=*/0,
-			      tag_type != none_type,
+			      prefer_type_arg (tag_type),
 			      tf_warning_or_error);
       else
 	decl = NULL_TREE;
 
       if (!decl)
-	{
-	  /* Look it up in the enclosing context.  */
-	  decl = lookup_name_real (name, tag_type != none_type,
-				   /*nonclass=*/0,
-				   /*block_p=*/true, is_namespace, 0);
-	  /* DR 141 says when looking for a template-name after -> or ., only
-	     consider class templates.  We need to fix our handling of
-	     dependent expressions to implement that properly, but for now
-	     let's ignore namespace-scope function templates.  */
-	  if (decl && is_template && !DECL_TYPE_TEMPLATE_P (decl))
-	    {
-	      tree d = decl;
-	      if (is_overloaded_fn (d))
-		d = get_first_fn (d);
-	      if (DECL_P (d) && !DECL_CLASS_SCOPE_P (d))
-		decl = NULL_TREE;
-	    }
-	}
+	/* Look it up in the enclosing context.  DR 141: When looking for a
+	   template-name after -> or ., only consider class templates.  */
+	decl = lookup_name_real (name, prefer_type_arg (tag_type, is_template),
+				 /*nonclass=*/0,
+				 /*block_p=*/true, is_namespace, 0);
       if (object_type == unknown_type_node)
 	/* The object is type-dependent, so we can't look anything up; we used
 	   this to get the DR 141 behavior.  */
@@ -24839,7 +24847,7 @@ cp_parser_lookup_name (cp_parser *parser, tree name,
     }
   else
     {
-      decl = lookup_name_real (name, tag_type != none_type,
+      decl = lookup_name_real (name, prefer_type_arg (tag_type),
 			       /*nonclass=*/0,
 			       /*block_p=*/true, is_namespace, 0);
       parser->qualifying_scope = NULL_TREE;
@@ -33910,7 +33918,9 @@ cp_parser_omp_for (cp_parser *parser, cp_token *pragma_tok,
 
   strcat (p_name, " for");
   mask |= OMP_FOR_CLAUSE_MASK;
-  if (cclauses)
+  /* parallel for{, simd} disallows nowait clause, but for
+     target {teams distribute ,}parallel for{, simd} it should be accepted.  */
+  if (cclauses && (mask & (OMP_CLAUSE_MASK_1 << PRAGMA_OMP_CLAUSE_MAP)) == 0)
     mask &= ~(OMP_CLAUSE_MASK_1 << PRAGMA_OMP_CLAUSE_NOWAIT);
   /* Composite distribute parallel for{, simd} disallows ordered clause.  */
   if ((mask & (OMP_CLAUSE_MASK_1 << PRAGMA_OMP_CLAUSE_DIST_SCHEDULE)) != 0)
@@ -34249,7 +34259,8 @@ cp_parser_omp_parallel (cp_parser *parser, cp_token *pragma_tok,
 	}
     }
 
-  clauses = cp_parser_omp_all_clauses (parser, mask, p_name, pragma_tok);
+  clauses = cp_parser_omp_all_clauses (parser, mask, p_name, pragma_tok,
+				       cclauses == NULL);
   if (cclauses)
     {
       cp_omp_split_clauses (loc, OMP_PARALLEL, mask, clauses, cclauses);
@@ -35225,6 +35236,7 @@ cp_parser_oacc_declare (cp_parser *parser, cp_token *pragma_tok)
       gcc_assert (OMP_CLAUSE_CODE (t) == OMP_CLAUSE_MAP);
       switch (OMP_CLAUSE_MAP_KIND (t))
 	{
+	case GOMP_MAP_FIRSTPRIVATE_POINTER:
 	case GOMP_MAP_FORCE_ALLOC:
 	case GOMP_MAP_FORCE_TO:
 	case GOMP_MAP_FORCE_DEVICEPTR:

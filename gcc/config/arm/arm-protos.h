@@ -321,6 +321,7 @@ extern int vfp3_const_double_for_bits (rtx);
 
 extern void arm_emit_coreregs_64bit_shift (enum rtx_code, rtx, rtx, rtx, rtx,
 					   rtx);
+extern bool arm_fusion_enabled_p (tune_params::fuse_ops);
 extern bool arm_valid_symbolic_address_p (rtx);
 extern bool arm_validize_comparison (rtx *, rtx *, rtx *);
 #endif /* RTX_CODE */
@@ -602,6 +603,9 @@ extern int arm_tune_cortex_a9;
    problems in GLD which doesn't understand that armv5t code is
    interworking clean.  */
 extern int arm_cpp_interwork;
+
+/* Nonzero if chip supports Thumb 1.  */
+extern int arm_arch_thumb1;
 
 /* Nonzero if chip supports Thumb 2.  */
 extern int arm_arch_thumb2;

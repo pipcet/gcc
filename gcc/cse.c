@@ -5505,7 +5505,7 @@ cse_insn (rtx_insn *insn)
       else if (n_sets == 1 && dest == pc_rtx && src == pc_rtx)
 	{
 	  /* One less use of the label this insn used to jump to.  */
-	  delete_insn_and_edges (insn);
+	  cse_cfg_altered |= delete_insn_and_edges (insn);
 	  cse_jumps_altered = true;
 	  /* No more processing for this set.  */
 	  sets[i].rtl = 0;
@@ -5516,7 +5516,7 @@ cse_insn (rtx_insn *insn)
 	{
 	  if (cfun->can_throw_non_call_exceptions && can_throw_internal (insn))
 	    cse_cfg_altered = true;
-	  delete_insn_and_edges (insn);
+	  cse_cfg_altered |= delete_insn_and_edges (insn);
 	  /* No more processing for this set.  */
 	  sets[i].rtl = 0;
 	}
@@ -5551,7 +5551,7 @@ cse_insn (rtx_insn *insn)
 		  REG_NOTES (new_rtx) = note;
 		}
 
-	      delete_insn_and_edges (insn);
+	      cse_cfg_altered |= delete_insn_and_edges (insn);
 	      insn = new_rtx;
 	    }
 	  else
@@ -6669,6 +6669,10 @@ cse_main (rtx_insn *f ATTRIBUTE_UNUSED, int nregs)
   int *rc_order = XNEWVEC (int, last_basic_block_for_fn (cfun));
   int i, n_blocks;
 
+  /* CSE doesn't use dominane info but can invalidate it in different ways.
+     For simplicity free dominance info here.  */
+  free_dominance_info (CDI_DOMINATORS);
+
   df_set_flags (DF_LR_RUN_DCE);
   df_note_add_problem ();
   df_analyze ();
@@ -7131,7 +7135,7 @@ delete_trivially_dead_insns (rtx_insn *insns, int nreg)
 	      count_reg_usage (insn, counts, NULL_RTX, -1);
 	      ndead++;
 	    }
-	  delete_insn_and_edges (insn);
+	  cse_cfg_altered |= delete_insn_and_edges (insn);
 	}
     }
 
@@ -7427,7 +7431,7 @@ cse_cc_succs (basic_block bb, basic_block orig_bb, rtx cc_reg, rtx cc_src,
 				    newreg);
 	}
 
-      delete_insn_and_edges (insns[i]);
+      cse_cfg_altered |= delete_insn_and_edges (insns[i]);
     }
 
   return mode;
@@ -7562,11 +7566,11 @@ rest_of_handle_cse (void)
     {
       timevar_push (TV_JUMP);
       rebuild_jump_labels (get_insns ());
-      cleanup_cfg (CLEANUP_CFG_CHANGED);
+      cse_cfg_altered |= cleanup_cfg (CLEANUP_CFG_CHANGED);
       timevar_pop (TV_JUMP);
     }
   else if (tem == 1 || optimize > 1)
-    cleanup_cfg (0);
+    cse_cfg_altered |= cleanup_cfg (0);
 
   return 0;
 }
@@ -7631,11 +7635,11 @@ rest_of_handle_cse2 (void)
     {
       timevar_push (TV_JUMP);
       rebuild_jump_labels (get_insns ());
-      cleanup_cfg (CLEANUP_CFG_CHANGED);
+      cse_cfg_altered |= cleanup_cfg (CLEANUP_CFG_CHANGED);
       timevar_pop (TV_JUMP);
     }
   else if (tem == 1)
-    cleanup_cfg (0);
+    cse_cfg_altered |= cleanup_cfg (0);
 
   cse_not_expected = 1;
   return 0;
@@ -7695,7 +7699,7 @@ rest_of_handle_cse_after_global_opts (void)
 
   rebuild_jump_labels (get_insns ());
   tem = cse_main (get_insns (), max_reg_num ());
-  purge_all_dead_edges ();
+  cse_cfg_altered |= purge_all_dead_edges ();
   delete_trivially_dead_insns (get_insns (), max_reg_num ());
 
   cse_not_expected = !flag_rerun_cse_after_loop;
@@ -7705,11 +7709,11 @@ rest_of_handle_cse_after_global_opts (void)
     {
       timevar_push (TV_JUMP);
       rebuild_jump_labels (get_insns ());
-      cleanup_cfg (CLEANUP_CFG_CHANGED);
+      cse_cfg_altered |= cleanup_cfg (CLEANUP_CFG_CHANGED);
       timevar_pop (TV_JUMP);
     }
   else if (tem == 1)
-    cleanup_cfg (0);
+    cse_cfg_altered |= cleanup_cfg (0);
 
   flag_cse_follow_jumps = save_cfj;
   return 0;

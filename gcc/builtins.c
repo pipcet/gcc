@@ -64,6 +64,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl-chkp.h"
 #include "internal-fn.h"
 #include "case-cfn-macros.h"
+#include "gimple-fold.h"
 
 
 struct target_builtins default_target_builtins;
@@ -3671,53 +3672,24 @@ expand_cmpstr (insn_code icode, rtx target, rtx arg1_rtx, rtx arg2_rtx,
   return NULL_RTX;
 }
 
-/* Try to expand cmpstrn or cmpmem operation ICODE with the given operands.
-   ARG3_TYPE is the type of ARG3_RTX.  Return the result rtx on success,
-   otherwise return null.  */
-
-static rtx
-expand_cmpstrn_or_cmpmem (insn_code icode, rtx target, rtx arg1_rtx,
-			  rtx arg2_rtx, tree arg3_type, rtx arg3_rtx,
-			  HOST_WIDE_INT align)
-{
-  machine_mode insn_mode = insn_data[icode].operand[0].mode;
-
-  if (target && (!REG_P (target) || HARD_REGISTER_P (target)))
-    target = NULL_RTX;
-
-  struct expand_operand ops[5];
-  create_output_operand (&ops[0], target, insn_mode);
-  create_fixed_operand (&ops[1], arg1_rtx);
-  create_fixed_operand (&ops[2], arg2_rtx);
-  create_convert_operand_from (&ops[3], arg3_rtx, TYPE_MODE (arg3_type),
-			       TYPE_UNSIGNED (arg3_type));
-  create_integer_operand (&ops[4], align);
-  if (maybe_expand_insn (icode, 5, ops))
-    return ops[0].value;
-  return NULL_RTX;
-}
-
 /* Expand expression EXP, which is a call to the memcmp built-in function.
    Return NULL_RTX if we failed and the caller should emit a normal call,
-   otherwise try to get the result in TARGET, if convenient.  */
+   otherwise try to get the result in TARGET, if convenient.
+   RESULT_EQ is true if we can relax the returned value to be either zero
+   or nonzero, without caring about the sign.  */
 
 static rtx
-expand_builtin_memcmp (tree exp, rtx target)
+expand_builtin_memcmp (tree exp, rtx target, bool result_eq)
 {
   if (!validate_arglist (exp,
  			 POINTER_TYPE, POINTER_TYPE, INTEGER_TYPE, VOID_TYPE))
     return NULL_RTX;
 
-  /* Note: The cmpstrnsi pattern, if it exists, is not suitable for
-     implementing memcmp because it will stop if it encounters two
-     zero bytes.  */
-  insn_code icode = direct_optab_handler (cmpmem_optab, SImode);
-  if (icode == CODE_FOR_nothing)
-    return NULL_RTX;
-
   tree arg1 = CALL_EXPR_ARG (exp, 0);
   tree arg2 = CALL_EXPR_ARG (exp, 1);
   tree len = CALL_EXPR_ARG (exp, 2);
+  machine_mode mode = TYPE_MODE (TREE_TYPE (exp));
+  location_t loc = EXPR_LOCATION (exp);
 
   unsigned int arg1_align = get_pointer_alignment (arg1) / BITS_PER_UNIT;
   unsigned int arg2_align = get_pointer_alignment (arg2) / BITS_PER_UNIT;
@@ -3726,22 +3698,38 @@ expand_builtin_memcmp (tree exp, rtx target)
   if (arg1_align == 0 || arg2_align == 0)
     return NULL_RTX;
 
-  machine_mode mode = TYPE_MODE (TREE_TYPE (exp));
-  location_t loc = EXPR_LOCATION (exp);
   rtx arg1_rtx = get_memory_rtx (arg1, len);
   rtx arg2_rtx = get_memory_rtx (arg2, len);
-  rtx arg3_rtx = expand_normal (fold_convert_loc (loc, sizetype, len));
+  rtx len_rtx = expand_normal (fold_convert_loc (loc, sizetype, len));
 
   /* Set MEM_SIZE as appropriate.  */
-  if (CONST_INT_P (arg3_rtx))
+  if (CONST_INT_P (len_rtx))
     {
-      set_mem_size (arg1_rtx, INTVAL (arg3_rtx));
-      set_mem_size (arg2_rtx, INTVAL (arg3_rtx));
+      set_mem_size (arg1_rtx, INTVAL (len_rtx));
+      set_mem_size (arg2_rtx, INTVAL (len_rtx));
     }
 
-  rtx result = expand_cmpstrn_or_cmpmem (icode, target, arg1_rtx, arg2_rtx,
-					 TREE_TYPE (len), arg3_rtx,
-					 MIN (arg1_align, arg2_align));
+  by_pieces_constfn constfn = NULL;
+
+  const char *src_str = c_getstr (arg1);
+  if (src_str == NULL)
+    src_str = c_getstr (arg2);
+  else
+    std::swap (arg1_rtx, arg2_rtx);
+
+  /* If SRC is a string constant and block move would be done
+     by pieces, we can avoid loading the string from memory
+     and only stored the computed constants.  */
+  if (src_str
+      && CONST_INT_P (len_rtx)
+      && (unsigned HOST_WIDE_INT) INTVAL (len_rtx) <= strlen (src_str) + 1)
+    constfn = builtin_memcpy_read_str;
+
+  rtx result = emit_block_cmp_hints (arg1_rtx, arg2_rtx, len_rtx,
+				     TREE_TYPE (len), target,
+				     result_eq, constfn,
+				     CONST_CAST (char *, src_str));
+
   if (result)
     {
       /* Return the value in the proper mode for this function.  */
@@ -3757,20 +3745,7 @@ expand_builtin_memcmp (tree exp, rtx target)
       return convert_to_mode (mode, result, 0);
     }
 
-  result = target;
-  if (! (result != 0
-	 && REG_P (result) && GET_MODE (result) == mode
-	 && REGNO (result) >= FIRST_PSEUDO_REGISTER))
-    result = gen_reg_rtx (mode);
-
-  emit_library_call_value (memcmp_libfunc, result, LCT_PURE,
-			   TYPE_MODE (integer_type_node), 3,
-			   XEXP (arg1_rtx, 0), Pmode,
-			   XEXP (arg2_rtx, 0), Pmode,
-			   convert_to_mode (TYPE_MODE (sizetype), arg3_rtx,
-					    TYPE_UNSIGNED (sizetype)),
-			   TYPE_MODE (sizetype));
-  return result;
+  return NULL_RTX;
 }
 
 /* Expand expression EXP, which is a call to the strcmp builtin.  Return NULL_RTX
@@ -4455,7 +4430,12 @@ expand_builtin_trap (void)
 	add_reg_note (insn, REG_ARGS_SIZE, GEN_INT (stack_pointer_delta));
     }
   else
-    emit_library_call (abort_libfunc, LCT_NORETURN, VOIDmode, 0);
+    {
+      tree fn = builtin_decl_implicit (BUILT_IN_ABORT);
+      tree call_expr = build_call_expr (fn, 0);
+      expand_call (call_expr, NULL_RTX, false);
+    }
+
   emit_barrier ();
 }
 
@@ -6081,9 +6061,15 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
 
     case BUILT_IN_BCMP:
     case BUILT_IN_MEMCMP:
-      target = expand_builtin_memcmp (exp, target);
+    case BUILT_IN_MEMCMP_EQ:
+      target = expand_builtin_memcmp (exp, target, fcode == BUILT_IN_MEMCMP_EQ);
       if (target)
 	return target;
+      if (fcode == BUILT_IN_MEMCMP_EQ)
+	{
+	  tree newdecl = builtin_decl_explicit (BUILT_IN_MEMCMP);
+	  TREE_OPERAND (exp, 1) = build_fold_addr_expr (newdecl);
+	}
       break;
 
     case BUILT_IN_SETJMP:
@@ -7958,18 +7944,28 @@ fold_builtin_unordered_cmp (location_t loc, tree fndecl, tree arg0, tree arg1,
 /* Fold __builtin_{,s,u}{add,sub,mul}{,l,ll}_overflow, either into normal
    arithmetics if it can never overflow, or into internal functions that
    return both result of arithmetics and overflowed boolean flag in
-   a complex integer result, or some other check for overflow.  */
+   a complex integer result, or some other check for overflow.
+   Similarly fold __builtin_{add,sub,mul}_overflow_p to just the overflow
+   checking part of that.  */
 
 static tree
 fold_builtin_arith_overflow (location_t loc, enum built_in_function fcode,
 			     tree arg0, tree arg1, tree arg2)
 {
   enum internal_fn ifn = IFN_LAST;
-  tree type = TREE_TYPE (TREE_TYPE (arg2));
-  tree mem_arg2 = build_fold_indirect_ref_loc (loc, arg2);
+  /* The code of the expression corresponding to the type-generic
+     built-in, or ERROR_MARK for the type-specific ones.  */
+  enum tree_code opcode = ERROR_MARK;
+  bool ovf_only = false;
+
   switch (fcode)
     {
+    case BUILT_IN_ADD_OVERFLOW_P:
+      ovf_only = true;
+      /* FALLTHRU */
     case BUILT_IN_ADD_OVERFLOW:
+      opcode = PLUS_EXPR;
+      /* FALLTHRU */
     case BUILT_IN_SADD_OVERFLOW:
     case BUILT_IN_SADDL_OVERFLOW:
     case BUILT_IN_SADDLL_OVERFLOW:
@@ -7978,7 +7974,12 @@ fold_builtin_arith_overflow (location_t loc, enum built_in_function fcode,
     case BUILT_IN_UADDLL_OVERFLOW:
       ifn = IFN_ADD_OVERFLOW;
       break;
+    case BUILT_IN_SUB_OVERFLOW_P:
+      ovf_only = true;
+      /* FALLTHRU */
     case BUILT_IN_SUB_OVERFLOW:
+      opcode = MINUS_EXPR;
+      /* FALLTHRU */
     case BUILT_IN_SSUB_OVERFLOW:
     case BUILT_IN_SSUBL_OVERFLOW:
     case BUILT_IN_SSUBLL_OVERFLOW:
@@ -7987,7 +7988,12 @@ fold_builtin_arith_overflow (location_t loc, enum built_in_function fcode,
     case BUILT_IN_USUBLL_OVERFLOW:
       ifn = IFN_SUB_OVERFLOW;
       break;
+    case BUILT_IN_MUL_OVERFLOW_P:
+      ovf_only = true;
+      /* FALLTHRU */
     case BUILT_IN_MUL_OVERFLOW:
+      opcode = MULT_EXPR;
+      /* FALLTHRU */
     case BUILT_IN_SMUL_OVERFLOW:
     case BUILT_IN_SMULL_OVERFLOW:
     case BUILT_IN_SMULLL_OVERFLOW:
@@ -7999,6 +8005,25 @@ fold_builtin_arith_overflow (location_t loc, enum built_in_function fcode,
     default:
       gcc_unreachable ();
     }
+
+  /* For the "generic" overloads, the first two arguments can have different
+     types and the last argument determines the target type to use to check
+     for overflow.  The arguments of the other overloads all have the same
+     type.  */
+  tree type = ovf_only ? TREE_TYPE (arg2) : TREE_TYPE (TREE_TYPE (arg2));
+
+  /* For the __builtin_{add,sub,mul}_overflow_p builtins, when the first two
+     arguments are constant, attempt to fold the built-in call into a constant
+     expression indicating whether or not it detected an overflow.  */
+  if (ovf_only
+      && TREE_CODE (arg0) == INTEGER_CST
+      && TREE_CODE (arg1) == INTEGER_CST)
+    /* Perform the computation in the target type and check for overflow.  */
+    return omit_one_operand_loc (loc, boolean_type_node,
+				 arith_overflowed_p (opcode, type, arg0, arg1)
+				 ? boolean_true_node : boolean_false_node,
+				 arg2);
+
   tree ctype = build_complex_type (type);
   tree call = build_call_expr_internal_loc (loc, ifn, ctype,
 					    2, arg0, arg1);
@@ -8006,6 +8031,11 @@ fold_builtin_arith_overflow (location_t loc, enum built_in_function fcode,
   tree intres = build1_loc (loc, REALPART_EXPR, type, tgt);
   tree ovfres = build1_loc (loc, IMAGPART_EXPR, type, tgt);
   ovfres = fold_convert_loc (loc, boolean_type_node, ovfres);
+
+  if (ovf_only)
+    return omit_one_operand_loc (loc, boolean_type_node, ovfres, arg2);
+
+  tree mem_arg2 = build_fold_indirect_ref_loc (loc, arg2);
   tree store
     = fold_build2_loc (loc, MODIFY_EXPR, void_type_node, mem_arg2, intres);
   return build2_loc (loc, COMPOUND_EXPR, boolean_type_node, store, ovfres);
@@ -8355,6 +8385,9 @@ fold_builtin_3 (location_t loc, tree fndecl,
     case BUILT_IN_ADD_OVERFLOW:
     case BUILT_IN_SUB_OVERFLOW:
     case BUILT_IN_MUL_OVERFLOW:
+    case BUILT_IN_ADD_OVERFLOW_P:
+    case BUILT_IN_SUB_OVERFLOW_P:
+    case BUILT_IN_MUL_OVERFLOW_P:
     case BUILT_IN_SADD_OVERFLOW:
     case BUILT_IN_SADDL_OVERFLOW:
     case BUILT_IN_SADDLL_OVERFLOW:
@@ -9888,42 +9921,19 @@ fold_call_stmt (gcall *stmt, bool ignore)
 void
 set_builtin_user_assembler_name (tree decl, const char *asmspec)
 {
-  tree builtin;
   gcc_assert (TREE_CODE (decl) == FUNCTION_DECL
 	      && DECL_BUILT_IN_CLASS (decl) == BUILT_IN_NORMAL
 	      && asmspec != 0);
 
-  builtin = builtin_decl_explicit (DECL_FUNCTION_CODE (decl));
+  tree builtin = builtin_decl_explicit (DECL_FUNCTION_CODE (decl));
   set_user_assembler_name (builtin, asmspec);
-  switch (DECL_FUNCTION_CODE (decl))
+
+  if (DECL_FUNCTION_CODE (decl) == BUILT_IN_FFS
+      && INT_TYPE_SIZE < BITS_PER_WORD)
     {
-    case BUILT_IN_MEMCPY:
-      init_block_move_fn (asmspec);
-      memcpy_libfunc = set_user_assembler_libfunc ("memcpy", asmspec);
-      break;
-    case BUILT_IN_MEMSET:
-      init_block_clear_fn (asmspec);
-      memset_libfunc = set_user_assembler_libfunc ("memset", asmspec);
-      break;
-    case BUILT_IN_MEMMOVE:
-      memmove_libfunc = set_user_assembler_libfunc ("memmove", asmspec);
-      break;
-    case BUILT_IN_MEMCMP:
-      memcmp_libfunc = set_user_assembler_libfunc ("memcmp", asmspec);
-      break;
-    case BUILT_IN_ABORT:
-      abort_libfunc = set_user_assembler_libfunc ("abort", asmspec);
-      break;
-    case BUILT_IN_FFS:
-      if (INT_TYPE_SIZE < BITS_PER_WORD)
-	{
-	  set_user_assembler_libfunc ("ffs", asmspec);
-	  set_optab_libfunc (ffs_optab, mode_for_size (INT_TYPE_SIZE,
-						       MODE_INT, 0), "ffs");
-	}
-      break;
-    default:
-      break;
+      set_user_assembler_libfunc ("ffs", asmspec);
+      set_optab_libfunc (ffs_optab, mode_for_size (INT_TYPE_SIZE, MODE_INT, 0),
+			 "ffs");
     }
 }
 

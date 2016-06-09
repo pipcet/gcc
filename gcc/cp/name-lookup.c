@@ -3333,8 +3333,6 @@ do_class_using_decl (tree scope, tree name)
   /* True if any of the bases of CURRENT_CLASS_TYPE are dependent.  */
   bool bases_dependent_p;
   tree binfo;
-  tree base_binfo;
-  int i;
 
   if (name == error_mark_node)
     return NULL_TREE;
@@ -3371,16 +3369,7 @@ do_class_using_decl (tree scope, tree name)
 		      || (IDENTIFIER_TYPENAME_P (name)
 			  && dependent_type_p (TREE_TYPE (name))));
 
-  bases_dependent_p = false;
-  if (processing_template_decl)
-    for (binfo = TYPE_BINFO (current_class_type), i = 0;
-	 BINFO_BASE_ITERATE (binfo, i, base_binfo);
-	 i++)
-      if (dependent_type_p (TREE_TYPE (base_binfo)))
-	{
-	  bases_dependent_p = true;
-	  break;
-	}
+  bases_dependent_p = any_dependent_bases_p ();
 
   decl = NULL_TREE;
 
@@ -3694,9 +3683,10 @@ handle_namespace_attrs (tree ns, tree attributes)
 }
   
 /* Push into the scope of the NAME namespace.  If NAME is NULL_TREE, then we
-   select a name that is unique to this compilation unit.  */
+   select a name that is unique to this compilation unit.  Returns FALSE if
+   pushdecl fails, TRUE otherwise.  */
 
-void
+bool
 push_namespace (tree name)
 {
   tree d = NULL_TREE;
@@ -3770,7 +3760,11 @@ push_namespace (tree name)
 	TREE_PUBLIC (d) = 0;
       else
 	TREE_PUBLIC (d) = 1;
-      pushdecl (d);
+      if (pushdecl (d) == error_mark_node)
+	{
+	  timevar_cond_stop (TV_NAME_LOOKUP, subtime);
+	  return false;
+	}
       if (anon)
 	{
 	  /* Clear DECL_NAME for the benefit of debugging back ends.  */
@@ -3788,6 +3782,7 @@ push_namespace (tree name)
   current_namespace = d;
 
   timevar_cond_stop (TV_NAME_LOOKUP, subtime);
+  return true;
 }
 
 /* Pop from the scope of the current namespace.  */
@@ -4518,8 +4513,10 @@ unqualified_namespace_lookup (tree name, int flags)
 }
 
 /* Look up NAME (an IDENTIFIER_NODE) in SCOPE (either a NAMESPACE_DECL
-   or a class TYPE).  If IS_TYPE_P is TRUE, then ignore non-type
-   bindings.
+   or a class TYPE).
+
+   If PREFER_TYPE is > 0, we only return TYPE_DECLs or namespaces.
+   If PREFER_TYPE is > 1, we only return TYPE_DECLs.
 
    Returns a DECL (or OVERLOAD, or BASELINK) representing the
    declaration found.  If no suitable declaration can be found,
@@ -4527,28 +4524,25 @@ unqualified_namespace_lookup (tree name, int flags)
    neither a class-type nor a namespace a diagnostic is issued.  */
 
 tree
-lookup_qualified_name (tree scope, tree name, bool is_type_p, bool complain,
+lookup_qualified_name (tree scope, tree name, int prefer_type, bool complain,
 		       bool find_hidden)
 {
-  int flags = 0;
   tree t = NULL_TREE;
-
-  if (find_hidden)
-    flags |= LOOKUP_HIDDEN;
 
   if (TREE_CODE (scope) == NAMESPACE_DECL)
     {
       struct scope_binding binding = EMPTY_SCOPE_BINDING;
 
-      if (is_type_p)
-	flags |= LOOKUP_PREFER_TYPES;
+      int flags = lookup_flags (prefer_type, /*namespaces_only*/false);
+      if (find_hidden)
+	flags |= LOOKUP_HIDDEN;
       if (qualified_lookup_using_namespace (name, scope, &binding, flags))
 	t = binding.value;
     }
   else if (cxx_dialect != cxx98 && TREE_CODE (scope) == ENUMERAL_TYPE)
     t = lookup_enumerator (scope, name);
   else if (is_class_type (scope, complain))
-    t = lookup_member (scope, name, 2, is_type_p, tf_warning_or_error);
+    t = lookup_member (scope, name, 2, prefer_type, tf_warning_or_error);
 
   if (!t)
     return error_mark_node;

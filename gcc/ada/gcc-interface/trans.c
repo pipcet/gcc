@@ -7137,11 +7137,19 @@ gnat_to_gnu (Node_Id gnat_node)
     /***************************/
 
     case N_Subprogram_Declaration:
-      /* Unless there is a freeze node, declare the subprogram.  We consider
-	 this a "definition" even though we're not generating code for
-	 the subprogram because we will be making the corresponding GCC
-	 node here.  */
-
+      /* Unless there is a freeze node, declare the entity.  We consider
+	 this a definition even though we're not generating code for the
+	 subprogram because we will be making the corresponding GCC node.
+	 When there is a freeze node, it is considered the definition of
+	 the subprogram and we do nothing until after it is encountered.
+	 That's an efficiency issue: the types involved in the profile
+	 are far more likely to be frozen between the declaration and
+	 the freeze node than before the declaration, so we save some
+	 updates of the GCC node by waiting until the freeze node.
+	 The counterpart is that we assume that there is no reference
+	 to the subprogram between the declaration and the freeze node
+	 in the expanded code; otherwise, it will be interpreted as an
+	 external reference and very likely give rise to a link failure.  */
       if (No (Freeze_Node (Defining_Entity (Specification (gnat_node)))))
 	gnat_to_gnu_entity (Defining_Entity (Specification (gnat_node)),
 			    NULL_TREE, true);
@@ -7572,7 +7580,6 @@ gnat_to_gnu (Node_Id gnat_node)
     case N_Itype_Reference:
       if (!present_gnu_tree (Itype (gnat_node)))
 	process_type (Itype (gnat_node));
-
       gnu_result = alloc_stmt_list ();
       break;
 
@@ -7633,10 +7640,11 @@ gnat_to_gnu (Node_Id gnat_node)
 	  else
 	    gnu_actual_obj_type = gnu_obj_type;
 
+	  tree gnu_size = TYPE_SIZE_UNIT (gnu_actual_obj_type);
+	  gnu_size = SUBSTITUTE_PLACEHOLDER_IN_EXPR (gnu_size, gnu_ptr);
+
 	  gnu_result
-	      = build_call_alloc_dealloc (gnu_ptr,
-					  TYPE_SIZE_UNIT (gnu_actual_obj_type),
-					  gnu_obj_type,
+	      = build_call_alloc_dealloc (gnu_ptr, gnu_size, gnu_obj_type,
 					  Procedure_To_Call (gnat_node),
 					  Storage_Pool (gnat_node),
 					  gnat_node);
@@ -7679,10 +7687,11 @@ gnat_to_gnu (Node_Id gnat_node)
     current_function_decl = NULL_TREE;
 
   /* When not optimizing, turn boolean rvalues B into B != false tests
-     so that the code just below can put the location information of the
-     reference to B on the inequality operator for better debug info.  */
+     so that we can put the location information of the reference to B on
+     the inequality operator for better debug info.  */
   if (!optimize
       && TREE_CODE (gnu_result) != INTEGER_CST
+      && TREE_CODE (gnu_result) != TYPE_DECL
       && (kind == N_Identifier
 	  || kind == N_Expanded_Name
 	  || kind == N_Explicit_Dereference
@@ -7691,15 +7700,19 @@ gnat_to_gnu (Node_Id gnat_node)
 	  || kind == N_Selected_Component)
       && TREE_CODE (get_base_type (gnu_result_type)) == BOOLEAN_TYPE
       && !lvalue_required_p (gnat_node, gnu_result_type, false, false, false))
-    gnu_result = build_binary_op (NE_EXPR, gnu_result_type,
-				  convert (gnu_result_type, gnu_result),
-				  convert (gnu_result_type,
-					   boolean_false_node));
+    {
+      gnu_result
+	= build_binary_op (NE_EXPR, gnu_result_type,
+			   convert (gnu_result_type, gnu_result),
+			   convert (gnu_result_type, boolean_false_node));
+      if (TREE_CODE (gnu_result) != INTEGER_CST)
+	set_gnu_expr_location_from_node (gnu_result, gnat_node);
+    }
 
-  /* Set the location information on the result.  Note that we may have
-     no result if we tried to build a CALL_EXPR node to a procedure with
-     no side-effects and optimization is enabled.  */
-  if (gnu_result && EXPR_P (gnu_result))
+  /* Set the location information on the result if it's not a simple name.
+     Note that we may have no result if we tried to build a CALL_EXPR node
+     to a procedure with no side-effects and optimization is enabled.  */
+  else if (kind != N_Identifier && gnu_result && EXPR_P (gnu_result))
     set_gnu_expr_location_from_node (gnu_result, gnat_node);
 
   /* If we're supposed to return something of void_type, it means we have
@@ -7717,16 +7730,22 @@ gnat_to_gnu (Node_Id gnat_node)
 				    N_Raise_Constraint_Error));
     }
 
-  /* If the result has side-effects and is of an unconstrained type, make a
-     SAVE_EXPR so that we can be sure it will only be referenced once.  But
-     this is useless for a call to a function that returns an unconstrained
-     type with default discriminant, as we cannot compute the size of the
-     actual returned object.  We must do this before any conversions.  */
+  /* If the result has side-effects and is of an unconstrained type, protect
+     the expression in case it will be referenced multiple times, i.e. for
+     its value and to compute the size of an object.  But do it neither for
+     an object nor a renaming declaration, nor a return statement of a call
+     to a function that returns an unconstrained record type with default
+     discriminant, because there is no size to be computed in these cases
+     and this will create a useless temporary.  We must do this before any
+     conversions.  */
   if (TREE_SIDE_EFFECTS (gnu_result)
-      && !(TREE_CODE (gnu_result) == CALL_EXPR
-	   && type_is_padding_self_referential (TREE_TYPE (gnu_result)))
       && (TREE_CODE (gnu_result_type) == UNCONSTRAINED_ARRAY_TYPE
-	  || CONTAINS_PLACEHOLDER_P (TYPE_SIZE (gnu_result_type))))
+	  || CONTAINS_PLACEHOLDER_P (TYPE_SIZE (gnu_result_type)))
+      && !(TREE_CODE (gnu_result) == CALL_EXPR
+	   && type_is_padding_self_referential (TREE_TYPE (gnu_result))
+	   && (Nkind (Parent (gnat_node)) == N_Object_Declaration
+	       || Nkind (Parent (gnat_node)) == N_Object_Renaming_Declaration
+	       || Nkind (Parent (gnat_node)) == N_Simple_Return_Statement)))
     gnu_result = gnat_protect_expr (gnu_result);
 
   /* Now convert the result to the result type, unless we are in one of the
@@ -7850,6 +7869,10 @@ gnat_to_gnu_external (Node_Id gnat_node)
   force_global = save_force_global;
   if (went_into_elab_proc)
     current_function_decl = NULL_TREE;
+
+  /* Do not import locations from external units.  */
+  if (gnu_result && EXPR_P (gnu_result))
+    SET_EXPR_LOCATION (gnu_result, UNKNOWN_LOCATION);
 
   return gnu_result;
 }
@@ -8437,6 +8460,8 @@ elaborate_all_entities_for_package (Entity_Id gnat_package)
 	continue;
       if (IN (kind, Subprogram_Kind) && Is_Intrinsic_Subprogram (gnat_entity))
 	continue;
+      if (Is_Itype (gnat_entity))
+	continue;
 
       /* Skip named numbers.  */
       if (IN (kind, Named_Kind))
@@ -8444,6 +8469,10 @@ elaborate_all_entities_for_package (Entity_Id gnat_package)
 
       /* Skip generic declarations.  */
       if (IN (kind, Generic_Unit_Kind))
+	continue;
+
+      /* Skip formal objects.  */
+      if (IN (kind, Formal_Object_Kind))
 	continue;
 
       /* Skip package bodies.  */
@@ -8567,9 +8596,8 @@ process_freeze_entity (Node_Id gnat_node)
 	      && kind == E_Subprogram_Type)))
     return;
 
-  /* If we have a non-dummy type old tree, we have nothing to do, except
-     aborting if this is the public view of a private type whose full view was
-     not delayed, as this node was never delayed as it should have been.  We
+  /* If we have a non-dummy type old tree, we have nothing to do, except for
+     aborting, since this node was never delayed as it should have been.  We
      let this happen for concurrent types and their Corresponding_Record_Type,
      however, because each might legitimately be elaborated before its own
      freeze node, e.g. while processing the other.  */
@@ -8577,10 +8605,7 @@ process_freeze_entity (Node_Id gnat_node)
       && !(TREE_CODE (gnu_old) == TYPE_DECL
 	   && TYPE_IS_DUMMY_P (TREE_TYPE (gnu_old))))
     {
-      gcc_assert ((IN (kind, Incomplete_Or_Private_Kind)
-		   && Present (Full_View (gnat_entity))
-		   && No (Freeze_Node (Full_View (gnat_entity))))
-		  || Is_Concurrent_Type (gnat_entity)
+      gcc_assert (Is_Concurrent_Type (gnat_entity)
 		  || (IN (kind, Record_Kind)
 		      && Is_Concurrent_Record_Type (gnat_entity)));
       return;
@@ -9452,28 +9477,22 @@ addressable_p (tree gnu_expr, tree gnu_type)
     }
 }
 
-/* Do the processing for the declaration of a GNAT_ENTITY, a type.  If
-   a separate Freeze node exists, delay the bulk of the processing.  Otherwise
-   make a GCC type for GNAT_ENTITY and set up the correspondence.  */
+/* Do the processing for the declaration of a GNAT_ENTITY, a type or subtype.
+   If a Freeze node exists for the entity, delay the bulk of the processing.
+   Otherwise make a GCC type for GNAT_ENTITY and set up the correspondence.  */
 
 void
 process_type (Entity_Id gnat_entity)
 {
   tree gnu_old
-    = present_gnu_tree (gnat_entity) ? get_gnu_tree (gnat_entity) : 0;
-  tree gnu_new;
+    = present_gnu_tree (gnat_entity) ? get_gnu_tree (gnat_entity) : NULL_TREE;
 
-  /* If we are to delay elaboration of this type, just do any
-     elaborations needed for expressions within the declaration and
-     make a dummy type entry for this node and its Full_View (if
-     any) in case something points to it.  Don't do this if it
-     has already been done (the only way that can happen is if
-     the private completion is also delayed).  */
-  if (Present (Freeze_Node (gnat_entity))
-      || (IN (Ekind (gnat_entity), Incomplete_Or_Private_Kind)
-	  && Present (Full_View (gnat_entity))
-	  && Present (Freeze_Node (Full_View (gnat_entity)))
-	  && !present_gnu_tree (Full_View (gnat_entity))))
+  /* If we are to delay elaboration of this type, just do any elaboration
+     needed for expressions within the declaration and make a dummy node
+     for it and its Full_View (if any), in case something points to it.
+     Do not do this if it has already been done (the only way that can
+     happen is if the private completion is also delayed).  */
+  if (Present (Freeze_Node (gnat_entity)))
     {
       elaborate_entity (gnat_entity);
 
@@ -9493,10 +9512,11 @@ process_type (Entity_Id gnat_entity)
       return;
     }
 
-  /* If we saved away a dummy type for this node it means that this
-     made the type that corresponds to the full type of an incomplete
-     type.  Clear that type for now and then update the type in the
-     pointers.  */
+  /* If we saved away a dummy type for this node, it means that this made the
+     type that corresponds to the full type of an incomplete type.  Clear that
+     type for now and then update the type in the pointers below.  But, if the
+     saved type is not dummy, it very likely means that we have a use before
+     declaration for the type in the tree, what we really cannot handle.  */
   if (gnu_old)
     {
       gcc_assert (TREE_CODE (gnu_old) == TYPE_DECL
@@ -9506,7 +9526,7 @@ process_type (Entity_Id gnat_entity)
     }
 
   /* Now fully elaborate the type.  */
-  gnu_new = gnat_to_gnu_entity (gnat_entity, NULL_TREE, true);
+  tree gnu_new = gnat_to_gnu_entity (gnat_entity, NULL_TREE, true);
   gcc_assert (TREE_CODE (gnu_new) == TYPE_DECL);
 
   /* If we have an old type and we've made pointers to this type, update those

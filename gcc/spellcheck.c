@@ -23,6 +23,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "spellcheck.h"
+#include "selftest.h"
 
 /* The Levenshtein distance is an "edit-distance": the minimal
    number of one-character insertions, removals or substitutions
@@ -165,3 +166,83 @@ find_closest_string (const char *target,
 
   return best_candidate;
 }
+
+#if CHECKING_P
+
+namespace selftest {
+
+/* Selftests.  */
+
+/* Verify that the levenshtein_distance (A, B) equals the expected
+   value.  */
+
+static void
+levenshtein_distance_unit_test_oneway (const char *a, const char *b,
+				       edit_distance_t expected)
+{
+  edit_distance_t actual = levenshtein_distance (a, b);
+  ASSERT_EQ (actual, expected);
+}
+
+/* Verify that both
+     levenshtein_distance (A, B)
+   and
+     levenshtein_distance (B, A)
+   equal the expected value, to ensure that the function is symmetric.  */
+
+static void
+levenshtein_distance_unit_test (const char *a, const char *b,
+				edit_distance_t expected)
+{
+  levenshtein_distance_unit_test_oneway (a, b, expected);
+  levenshtein_distance_unit_test_oneway (b, a, expected);
+}
+
+/* Verify that find_closest_string is sane.  */
+
+static void
+test_find_closest_string ()
+{
+  auto_vec<const char *> candidates;
+
+  /* Verify that it can handle an empty vec.  */
+  ASSERT_EQ (NULL, find_closest_string ("", &candidates));
+
+  /* Verify that it works sanely for non-empty vecs.  */
+  candidates.safe_push ("apple");
+  candidates.safe_push ("banana");
+  candidates.safe_push ("cherry");
+
+  ASSERT_STREQ ("apple", find_closest_string ("app", &candidates));
+  ASSERT_STREQ ("banana", find_closest_string ("banyan", &candidates));
+  ASSERT_STREQ ("cherry", find_closest_string ("berry", &candidates));
+  ASSERT_EQ (NULL, find_closest_string ("not like the others", &candidates));
+}
+
+/* Verify levenshtein_distance for a variety of pairs of pre-canned
+   inputs, comparing against known-good values.  */
+
+void
+spellcheck_c_tests ()
+{
+  levenshtein_distance_unit_test ("", "nonempty", strlen ("nonempty"));
+  levenshtein_distance_unit_test ("saturday", "sunday", 3);
+  levenshtein_distance_unit_test ("foo", "m_foo", 2);
+  levenshtein_distance_unit_test ("hello_world", "HelloWorld", 3);
+  levenshtein_distance_unit_test
+    ("the quick brown fox jumps over the lazy dog", "dog", 40);
+  levenshtein_distance_unit_test
+    ("the quick brown fox jumps over the lazy dog",
+     "the quick brown dog jumps over the lazy fox",
+     4);
+  levenshtein_distance_unit_test
+    ("Lorem ipsum dolor sit amet, consectetur adipiscing elit,",
+     "All your base are belong to us",
+     44);
+
+  test_find_closest_string ();
+}
+
+} // namespace selftest
+
+#endif /* #if CHECKING_P */

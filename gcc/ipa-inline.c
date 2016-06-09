@@ -233,11 +233,11 @@ report_inline_failed_reason (struct cgraph_edge *e)
       if ((e->inline_failed == CIF_TARGET_OPTION_MISMATCH
 	   || e->inline_failed == CIF_OPTIMIZATION_MISMATCH)
 	  && e->caller->lto_file_data
-	  && e->callee->function_symbol ()->lto_file_data)
+	  && e->callee->ultimate_alias_target ()->lto_file_data)
 	{
 	  fprintf (dump_file, "  LTO objects: %s, %s\n",
 		   e->caller->lto_file_data->file_name,
-		   e->callee->function_symbol ()->lto_file_data->file_name);
+		   e->callee->ultimate_alias_target ()->lto_file_data->file_name);
 	}
       if (e->inline_failed == CIF_TARGET_OPTION_MISMATCH)
 	cl_target_option_print_diff
@@ -429,6 +429,7 @@ can_inline_edge_p (struct cgraph_edge *e, bool report,
 		      || check_maybe_up (flag_signed_zeros)
 		      || check_maybe_down (flag_associative_math)
 		      || check_maybe_down (flag_reciprocal_math)
+		      || check_maybe_down (flag_fp_int_builtin_inexact)
 		      /* Strictly speaking only when the callee contains function
 			 calls that may end up setting errno.  */
 		      || check_maybe_up (flag_errno_math)))
@@ -1163,7 +1164,7 @@ edge_badness (struct cgraph_edge *edge, bool dump)
 	  fprintf (dump_file,
 		   "      %f: guessed profile. frequency %f, count %" PRId64
 		   " caller count %" PRId64
-		   " time w/o inlining %f, time w inlining %f"
+		   " time w/o inlining %f, time w/ inlining %f"
 		   " overall growth %i (current) %i (original)"
 		   " %i (compensated)\n",
 		   badness.to_double (),
@@ -2027,7 +2028,7 @@ inline_small_functions (void)
 	  inline_call (edge, true, &new_indirect_edges, &overall_size, true);
 	  add_new_edges_to_heap (&edge_heap, new_indirect_edges);
 
-	  reset_edge_caches (edge->callee->function_symbol ());
+	  reset_edge_caches (edge->callee);
 
 	  update_callee_keys (&edge_heap, where, updated_nodes);
 	}

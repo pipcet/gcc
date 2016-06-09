@@ -3214,6 +3214,9 @@ Floating point register if the LFIWZX instruction is enabled or NO_REGS.
 @item wD
 Int constant that is the element number of the 64-bit scalar in a vector.
 
+@item wE
+Vector constant that can be loaded with the XXSPLTIB instruction.
+
 @item wF
 Memory operand suitable for power9 fusion load/stores.
 
@@ -3221,12 +3224,21 @@ Memory operand suitable for power9 fusion load/stores.
 Memory operand suitable for TOC fusion memory references.
 
 @item wL
-Int constant that is the element number that the MFVSRLD instruction
+Int constant that is the element number that the MFVSRLD instruction.
 targets.
+
+@item wM
+Match vector constant with all 1's if the XXLORC instruction is available.
+
+@item wO
+A memory operand suitable for the ISA 3.0 vector d-form instructions.
 
 @item wQ
 A memory address that will work with the @code{lq} and @code{stq}
 instructions.
+
+@item wS
+Vector constant that can be loaded with XXSPLTIB & sign extension.
 
 @item h
 @samp{MQ}, @samp{CTR}, or @samp{LINK} register
@@ -5015,7 +5027,7 @@ it is unspecified which of the two operands is returned as the result.
 IEEE-conformant minimum and maximum operations.  If one operand is a quiet
 @code{NaN}, then the other operand is returned.  If both operands are quiet
 @code{NaN}, then a quiet @code{NaN} is returned.  In the case when gcc supports
-signalling @code{NaN} (-fsignaling-nans) an invalid floating point exception is
+signaling @code{NaN} (-fsignaling-nans) an invalid floating point exception is
 raised and a quiet @code{NaN} is returned.
 
 All operands have mode @var{m}, which is a scalar or vector
@@ -5542,7 +5554,9 @@ This pattern is not allowed to @code{FAIL}.
 @item @samp{floor@var{m}2}
 Store the largest integral value not greater than operand 1 in operand 0.
 Both operands have mode @var{m}, which is a scalar or vector
-floating-point mode.
+floating-point mode.  If @option{-ffp-int-builtin-inexact} is in
+effect, the ``inexact'' exception may be raised for noninteger
+operands; otherwise, it may not.
 
 This pattern is not allowed to @code{FAIL}.
 
@@ -5550,7 +5564,9 @@ This pattern is not allowed to @code{FAIL}.
 @item @samp{btrunc@var{m}2}
 Round operand 1 to an integer, towards zero, and store the result in
 operand 0.  Both operands have mode @var{m}, which is a scalar or
-vector floating-point mode.
+vector floating-point mode.  If @option{-ffp-int-builtin-inexact} is
+in effect, the ``inexact'' exception may be raised for noninteger
+operands; otherwise, it may not.
 
 This pattern is not allowed to @code{FAIL}.
 
@@ -5558,7 +5574,10 @@ This pattern is not allowed to @code{FAIL}.
 @item @samp{round@var{m}2}
 Round operand 1 to the nearest integer, rounding away from zero in the
 event of a tie, and store the result in operand 0.  Both operands have
-mode @var{m}, which is a scalar or vector floating-point mode.
+mode @var{m}, which is a scalar or vector floating-point mode.  If
+@option{-ffp-int-builtin-inexact} is in effect, the ``inexact''
+exception may be raised for noninteger operands; otherwise, it may
+not.
 
 This pattern is not allowed to @code{FAIL}.
 
@@ -5566,7 +5585,9 @@ This pattern is not allowed to @code{FAIL}.
 @item @samp{ceil@var{m}2}
 Store the smallest integral value not less than operand 1 in operand 0.
 Both operands have mode @var{m}, which is a scalar or vector
-floating-point mode.
+floating-point mode.  If @option{-ffp-int-builtin-inexact} is in
+effect, the ``inexact'' exception may be raised for noninteger
+operands; otherwise, it may not.
 
 This pattern is not allowed to @code{FAIL}.
 

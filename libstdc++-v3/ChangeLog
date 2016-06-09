@@ -1,3 +1,205 @@
+2016-06-07  François Dumont  <fdumont@gcc.gnu.org>
+
+	* include/std/tuple (_Head_base<>): Default specialization condition at
+	type declaration.
+
+2016-06-06  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Support allocators in tuples of zero size.
+	* include/std/tuple (tuple<>::tuple(),
+	tuple<>::tuple(allocator_arg_t, const _Alloc&),
+	tuple<>::tuple(allocator_arg_t, const _Alloc&, const tuple&)): New.
+	* testsuite/20_util/tuple/cons/allocators.cc: Adjust.
+
+2016-06-06  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/71320
+	* src/filesystem/ops.cc (permissions(const path&, perms, error_code&)):
+	Add or remove permissions according to perms argument.
+	* testsuite/experimental/filesystem/operations/permissions.cc: New
+	test.
+
+2016-06-05  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Protect allocator-overloads of tuple-from-tuple constructors
+	from cases that would create dangling references.
+	* include/std/tuple (tuple(allocator_arg_t, const _Alloc&,
+	const tuple<_UElements...>&), tuple(allocator_arg_t, const _Alloc&,
+	tuple<_UElements...>&&)): Add a check for _NonNestedTuple.
+	* testsuite/20_util/tuple/cons/nested_tuple_construct.cc: Adjust.
+
+2016-05-29  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/xml/manual/backwards_compatibility.xml: Adjust
+	lists.debian.org link to https.
+	* doc/html/manual/backwards.html: Regenerate.
+
+2016-05-27  Jonathan Wakely  <jwakely@redhat.com>
+
+	* doc/xml/manual/abi.xml: Adjust URL to use https.
+	* doc/html/manual/*: Regenerate.
+
+2016-05-27  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	PR libstdc++/66338
+	* include/std/tuple (_TMC): Add a check for _NotSameTuple.
+	* include/std/tuple (tuple(_UElements&&...)): Remove the separate
+	check for _NotSameTuple.
+	* include/std/tuple (_TMCT): New.
+	* include/std/tuple (tuple(const tuple<_UElements...>&)): Use it.
+	* include/std/tuple (tuple(tuple<_UElements...>&&)): Likewise.
+	* include/std/tuple (tuple(allocator_arg_t, const _Alloc&,
+	      const tuple<_UElements...>&)): Likewise.
+	* include/std/tuple (tuple(allocator_arg_t, const _Alloc&,
+	      tuple<_UElements...>&&)): Likewise.
+	* testsuite/20_util/tuple/cons/66338.cc: New.
+
+2016-05-25  Jonathan Wakely  <jwakely@redhat.com>
+
+	* acinclude.m4 (GLIBCXX_CHECK_FILESYSTEM_DEPS): Fix test for sendfile.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+
+	* include/bits/c++config (_GLIBCXX14_USE_CONSTEXPR): Remove it.
+	* include/bits/hashtable_policy.h (_Power2_rehash_policy::_M_next_bkt):
+	Remove const qualification on function. Replace
+	_GLIBCXX14_USE_CONSTEXPR on automatic variables with const.
+	(_Power2_rehash_policy::_M_need_rehash): Remove const qualification.
+	(_Power2_rehash_policy::_M_next_bkt): Remove mutable specifier.
+
+2016-05-24  François Dumont  <fdumont@gcc.gnu.org>
+
+	* include/bits/c++config (_GLIBCXX14_USE_CONSTEXPR): New.
+	* include/bits/hashtable_policy.h
+	(_Prime_rehash_policy::__has_load_factor): New. Mark rehash policy
+	having load factor management.
+	(_Mask_range_hashing): New.
+	(__clp2): New.
+	(_Power2_rehash_policy): New.
+	(_Inserts<>): Remove last template parameter, _Unique_keys, so that
+	partial specializations only depend on whether iterators are constant
+	or not.
+	* testsuite/23_containers/unordered_set/hash_policy/26132.cc: Adapt to
+	test new hash policy.
+	* testsuite/23_containers/unordered_set/hash_policy/load_factor.cc:
+	Likewise.
+	* testsuite/23_containers/unordered_set/hash_policy/rehash.cc:
+	Likewise.
+	* testsuite/23_containers/unordered_set/insert/hash_policy.cc:
+	Likewise.
+	* testsuite/23_containers/unordered_set/max_load_factor/robustness.cc:
+	Likewise.
+	* testsuite/23_containers/unordered_set/hash_policy/power2_rehash.cc:
+	New.
+	* testsuite/performance/23_containers/insert/54075.cc: Add benchmark
+	using the new hash policy.
+	* testsuite/performance/23_containers/insert_erase/41975.cc: Likewise.
+
+2016-05-24  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/stl_queue.h (priority_queue::value_compare): Define.
+
+2016-05-23  François Dumont  <fdumont@gcc.gnu.org>
+
+	* include/debug/safe_iterator.h
+	(_Safe_iterator<>::operator->()): Implement using underlying iterator
+	operator ->.
+	* include/debug/safe_local_iterator.h
+	(_Safe_local_iterator<>::operator->()): Likewise.
+
+2016-05-20  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+	* testsuite/experimental/memory_resource/1.cc: Add required argument
+	to dg-require-atomic-builtins.
+
+2016-05-13  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/71073
+	* include/debug/bitset: Add #pragma GCC system_header.
+	* include/debug/deque: Likewise.
+	* include/debug/list: Likewise.
+	* include/debug/map: Likewise.
+	* include/debug/set: Likewise.
+	* include/debug/string: Likewise.
+	* include/debug/unordered_map: Likewise.
+	* include/debug/unordered_set: Likewise.
+	* include/debug/vector: Likewise.
+	* include/debug/functions.h: Adjust whitespace.
+
+2016-05-12  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/71081
+	* testsuite/experimental/memory_resource/1.cc: Require atomics.
+
+2016-05-11  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/71049
+	* src/c++11/cow-stdexcept.cc [!_GLIBCXX_USE_DUAL_ABI]: Don't define
+	exception constructors with __sso_string parameters.
+
+2016-05-10  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/experimental/bits/fs_dir.h (begin, end): Add noexcept.
+	* testsuite/experimental/filesystem/iterators/directory_iterator.cc:
+	Test begin and end functions.
+	* testsuite/experimental/filesystem/iterators/
+	recursive_directory_iterator.cc: Likewise.
+
+	PR libstdc++/71038
+	* src/filesystem/ops.cc (do_copy_file): Fix backwards conditions.
+	* testsuite/experimental/filesystem/operations/copy_file.cc: New test.
+
+	* include/experimental/bits/fs_dir.h (__directory_iterator_proxy):
+	Overload operator* to move from rvalues.
+
+	PR libstdc++/71036
+	* src/filesystem/ops.cc (create_dir): Handle EEXIST from mkdir.
+	* testsuite/experimental/filesystem/operations/create_directory.cc:
+	New test.
+
+	PR libstdc++/71037
+	* src/filesystem/ops.cc (canonical(const path&, const path&)): Add
+	base path to exception.
+	* testsuite/experimental/filesystem/operations/canonical.cc: Test
+	paths contained in exception.
+
+	* testsuite/experimental/type_erased_allocator/2.cc: Remove unused
+	using declaration.
+
+	PR libstdc++/71005
+	* include/experimental/bits/fs_dir.h (__directory_iterator_proxy):
+	New type.
+	(directory_iterator::operator++(int)): Return proxy.
+	(recursive_directory_iterator::operator++(int)): Likewise.
+	* testsuite/experimental/filesystem/iterators/directory_iterator.cc:
+	Test post-increment.
+	* testsuite/experimental/filesystem/iterators/
+	recursive_directory_iterator.cc: Likewise.
+
+2016-05-09  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/71004
+	* testsuite/experimental/filesystem/iterators/
+	recursive_directory_iterator.cc: Fix test02 to not call member
+	functions on invalid iterator, and use VERIFY not assert.
+
+2016-05-09  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Avoid endless run-time recursion for copying single-element
+	tuples where the element type is by-value constructible
+	from any type.
+	* include/std/tuple (_NotSameTuple): New.
+	* include/std/tuple (tuple(_UElements&&...): Use it.
+	* testsuite/20_util/tuple/cons/element_accepts_anything_byval.cc: New.
+
+2016-05-09  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/71004
+	* include/experimental/bits/fs_dir.h (recursive_directory_iterator):
+	Initialize scalar member variables in default constructor.
+	* testsuite/experimental/filesystem/iterators/
+	recursive_directory_iterator.cc: Test default construction.
+
 2016-05-05  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
 
 	* testsuite/lib/libstdc++.exp (libstdc++_init): Enable on *-*-solaris*.

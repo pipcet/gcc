@@ -835,6 +835,9 @@ input_cfg (struct lto_input_block *ib, struct data_in *data_in,
       loop->any_upper_bound = streamer_read_hwi (ib);
       if (loop->any_upper_bound)
 	loop->nb_iterations_upper_bound = streamer_read_wi (ib);
+      loop->any_likely_upper_bound = streamer_read_hwi (ib);
+      if (loop->any_likely_upper_bound)
+	loop->nb_iterations_likely_upper_bound = streamer_read_wi (ib);
       loop->any_estimate = streamer_read_hwi (ib);
       if (loop->any_estimate)
 	loop->nb_iterations_estimate = streamer_read_wi (ib);
@@ -953,7 +956,8 @@ fixup_call_stmt_edges (struct cgraph_node *orig, gimple **stmts)
   if (orig->clones)
     for (node = orig->clones; node != orig;)
       {
-	fixup_call_stmt_edges_1 (node, stmts, fn);
+	if (!node->thunk.thunk_p)
+	  fixup_call_stmt_edges_1 (node, stmts, fn);
 	if (node->clones)
 	  node = node->clones;
 	else if (node->next_sibling_clone)

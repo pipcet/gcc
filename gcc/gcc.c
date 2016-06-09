@@ -989,9 +989,18 @@ proper position among the other output files.  */
     the vtable verification runtime functions are in libstdc++, so we use
     the spec just below this one.  */
 #ifndef VTABLE_VERIFICATION_SPEC
+#if ENABLE_VTABLE_VERIFY
 #define VTABLE_VERIFICATION_SPEC "\
 %{!nostdlib:%{fvtable-verify=std: -lvtv -u_vtable_map_vars_start -u_vtable_map_vars_end}\
     %{fvtable-verify=preinit: -lvtv -u_vtable_map_vars_start -u_vtable_map_vars_end}}"
+#else
+#define VTABLE_VERIFICATION_SPEC "\
+%{fvtable-verify=none:} \
+%{fvtable-verify=std: \
+  %e-fvtable-verify=std is not supported in this configuration} \
+%{fvtable-verify=preinit: \
+  %e-fvtable-verify=preinit is not supported in this configuration}"
+#endif
 #endif
 
 #ifndef CHKP_SPEC
@@ -3538,6 +3547,29 @@ save_switch (const char *opt, size_t n_args, const char *const *args,
   n_switches++;
 }
 
+/* Set the SOURCE_DATE_EPOCH environment variable to the current time if it is
+   not set already.  */
+
+static void
+set_source_date_epoch_envvar ()
+{
+  /* Array size is 21 = ceil(log_10(2^64)) + 1 to hold string representations
+     of 64 bit integers.  */
+  char source_date_epoch[21];
+  time_t tt;
+
+  errno = 0;
+  tt = time (NULL);
+  if (tt < (time_t) 0 || errno != 0)
+    tt = (time_t) 0;
+
+  snprintf (source_date_epoch, 21, "%llu", (unsigned long long) tt);
+  /* Using setenv instead of xputenv because we want the variable to remain
+     after finalizing so that it's still set in the second run when using
+     -fcompare-debug.  */
+  setenv ("SOURCE_DATE_EPOCH", source_date_epoch, 0);
+}
+
 /* Handle an option DECODED that is unknown to the option-processing
    machinery.  */
 
@@ -3837,6 +3869,7 @@ driver_handle_option (struct gcc_options *opts,
       else
 	compare_debug_opt = arg;
       save_switch (compare_debug_replacement_opt, 0, NULL, validated, true);
+      set_source_date_epoch_envvar ();
       return true;
 
     case OPT_fdiagnostics_color_:

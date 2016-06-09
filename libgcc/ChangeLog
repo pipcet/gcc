@@ -1,3 +1,46 @@
+2016-06-05  Aaron Conole  <aconole@redhat.com>
+	    Nathan Sidwell  <nathan@acm.org>
+
+	PR libgcc/71400
+	* libgcov-driver-system.c (__gcov_error_file): Disable if IN_GCOV_TOOL.
+	(get_gcov_error_file): Check __gcov_error_file before trying to
+	initialize it.
+	(gcov_error): Always use get_gcov_error_file.
+
+2016-06-02  Aaron Conole  <aconole@redhat.com>
+
+	* libgcov-driver-system.c (__gcov_error_file): New.
+	(get_gcov_error_file): New.
+	(gcov_error): Use and set __gcov_error_file.
+	(gcov_error_exit): New.
+	* libgcov-driver.c (gcov_exit): Call gcov_error_exit.
+
+2016-05-26  Nathan Sidwell  <nathan@acm.org>
+
+	* config/nvptx/free.asm: Delete.
+	* config/nvptx/malloc.asm: Delete.
+	* config/nvptx/realloc.c: Delete.
+	* t-nvptx: Update.
+
+2016-05-25  Nathan Sidwell  <nathan@acm.org>
+
+	* config/nvptx/crt0.s: Delete.
+	* config/nvptx/crt0.c: New.
+	* t-nvptx: Update.
+
+2016-05-19  Sandra Loosemore  <sandra@codesourcery.com>
+
+	* config.host [x86_64-*-cygwin*]: Handle tmake_eh_file for mixed 
+	dw2/seh configuration.
+	[x86_64-*-mingw*]: Likewise.
+
+2016-05-10  Joel Sherrill <joel@rtems.org>
+
+	PR libgcc/70720
+	* config.host (moxie-*-rtems*): Merge this stanza with other moxie
+	targets so the same extra_parts are built.  Also have tmake_file add
+	on to its value rather than override.
+
 2016-04-30  Oleg Endo  <olegendo@gcc.gnu.org>
 
 	* config.host: Remove SH5 support.

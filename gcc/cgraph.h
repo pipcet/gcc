@@ -1579,9 +1579,14 @@ struct GTY(()) cgraph_indirect_call_info
   unsigned agg_contents : 1;
   /* Set when this is a call through a member pointer.  */
   unsigned member_ptr : 1;
-  /* When the previous bit is set, this one determines whether the destination
-     is loaded from a parameter passed by reference. */
+  /* When the agg_contents bit is set, this one determines whether the
+     destination is loaded from a parameter passed by reference. */
   unsigned by_ref : 1;
+  /* When the agg_contents bit is set, this one determines whether we can
+     deduce from the function body that the loaded value from the reference is
+     never modified between the invocation of the function and the load
+     point.  */
+  unsigned guaranteed_unmodified : 1;
   /* For polymorphic calls this specify whether the virtual table pointer
      may have changed in between function entry and the call.  */
   unsigned vptr_changed : 1;
@@ -2299,6 +2304,7 @@ void cgraphunit_c_finalize (void);
     IN_SSA is true if the gimple is in SSA.  */
 basic_block init_lowered_empty_function (tree, bool, gcov_type);
 
+tree thunk_adjust (gimple_stmt_iterator *, tree, bool, HOST_WIDE_INT, tree);
 /* In cgraphclones.c  */
 
 tree clone_function_name_1 (const char *, const char *);

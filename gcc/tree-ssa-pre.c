@@ -1464,6 +1464,12 @@ phi_translate_1 (pre_expr expr, bitmap_set_t set1, bitmap_set_t set2,
 	    pre_expr constant;
 	    unsigned int new_val_id;
 
+	    PRE_EXPR_NARY (expr) = newnary;
+	    constant = fully_constant_expression (expr);
+	    PRE_EXPR_NARY (expr) = nary;
+	    if (constant != expr)
+	      return constant;
+
 	    tree result = vn_nary_op_lookup_pieces (newnary->length,
 						    newnary->opcode,
 						    newnary->type,
@@ -1478,10 +1484,6 @@ phi_translate_1 (pre_expr expr, bitmap_set_t set1, bitmap_set_t set2,
 	    if (nary)
 	      {
 		PRE_EXPR_NARY (expr) = nary;
-		constant = fully_constant_expression (expr);
-		if (constant != expr)
-		  return constant;
-
 		new_val_id = nary->value_id;
 		get_or_alloc_expression_id (expr);
 	      }
@@ -1495,9 +1497,6 @@ phi_translate_1 (pre_expr expr, bitmap_set_t set1, bitmap_set_t set2,
 						 &newnary->op[0],
 						 result, new_val_id);
 		PRE_EXPR_NARY (expr) = nary;
-		constant = fully_constant_expression (expr);
-		if (constant != expr)
-		  return constant;
 		get_or_alloc_expression_id (expr);
 	      }
 	    add_to_value (new_val_id, expr);
@@ -3855,19 +3854,28 @@ eliminate_insert (gimple_stmt_iterator *gsi, tree val)
   gimple *stmt = gimple_seq_first_stmt (VN_INFO (val)->expr);
   if (!is_gimple_assign (stmt)
       || (!CONVERT_EXPR_CODE_P (gimple_assign_rhs_code (stmt))
-	  && gimple_assign_rhs_code (stmt) != VIEW_CONVERT_EXPR))
+	  && gimple_assign_rhs_code (stmt) != VIEW_CONVERT_EXPR
+	  && gimple_assign_rhs_code (stmt) != BIT_FIELD_REF))
     return NULL_TREE;
 
   tree op = gimple_assign_rhs1 (stmt);
-  if (gimple_assign_rhs_code (stmt) == VIEW_CONVERT_EXPR)
+  if (gimple_assign_rhs_code (stmt) == VIEW_CONVERT_EXPR
+      || gimple_assign_rhs_code (stmt) == BIT_FIELD_REF)
     op = TREE_OPERAND (op, 0);
   tree leader = TREE_CODE (op) == SSA_NAME ? eliminate_avail (op) : op;
   if (!leader)
     return NULL_TREE;
 
   gimple_seq stmts = NULL;
-  tree res = gimple_build (&stmts, gimple_assign_rhs_code (stmt),
-			   TREE_TYPE (val), leader);
+  tree res;
+  if (gimple_assign_rhs_code (stmt) == BIT_FIELD_REF)
+    res = gimple_build (&stmts, BIT_FIELD_REF,
+			TREE_TYPE (val), leader,
+			TREE_OPERAND (gimple_assign_rhs1 (stmt), 1),
+			TREE_OPERAND (gimple_assign_rhs1 (stmt), 2));
+  else
+    res = gimple_build (&stmts, gimple_assign_rhs_code (stmt),
+			TREE_TYPE (val), leader);
   gsi_insert_seq_before (gsi, stmts, GSI_SAME_STMT);
   VN_INFO_GET (res)->valnum = val;
 

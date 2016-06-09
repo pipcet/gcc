@@ -48,7 +48,24 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
    *  @{
    */
 
-  template<std::size_t _Idx, typename _Head, bool _IsEmptyNotFinal>
+  template<typename... _Elements>
+    class tuple;
+
+  template<typename _Tp>
+    struct __is_empty_non_tuple : is_empty<_Tp> { };
+
+  // Using EBO for elements that are tuples causes ambiguous base errors.
+  template<typename _El0, typename... _El>
+    struct __is_empty_non_tuple<tuple<_El0, _El...>> : false_type { };
+
+  // Use the Empty Base-class Optimization for empty, non-final types.
+  template<typename _Tp>
+    using __empty_not_final
+    = typename conditional<__is_final(_Tp), false_type,
+			   __is_empty_non_tuple<_Tp>>::type;
+
+  template<std::size_t _Idx, typename _Head,
+	   bool = __empty_not_final<_Head>::value>
     struct _Head_base;
 
   template<std::size_t _Idx, typename _Head>
@@ -158,19 +175,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<std::size_t _Idx, typename... _Elements>
     struct _Tuple_impl; 
 
-  template<typename _Tp>
-    struct __is_empty_non_tuple : is_empty<_Tp> { };
-
-  // Using EBO for elements that are tuples causes ambiguous base errors.
-  template<typename _El0, typename... _El>
-    struct __is_empty_non_tuple<tuple<_El0, _El...>> : false_type { };
-
-  // Use the Empty Base-class Optimization for empty, non-final types.
-  template<typename _Tp>
-    using __empty_not_final
-    = typename conditional<__is_final(_Tp), false_type,
-			   __is_empty_non_tuple<_Tp>>::type;
-
   /**
    * Recursive tuple implementation. Here we store the @c Head element
    * and derive from a @c Tuple_impl containing the remaining elements
@@ -179,12 +183,12 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<std::size_t _Idx, typename _Head, typename... _Tail>
     struct _Tuple_impl<_Idx, _Head, _Tail...>
     : public _Tuple_impl<_Idx + 1, _Tail...>,
-      private _Head_base<_Idx, _Head, __empty_not_final<_Head>::value>
+      private _Head_base<_Idx, _Head>
     {
       template<std::size_t, typename...> friend class _Tuple_impl;
 
       typedef _Tuple_impl<_Idx + 1, _Tail...> _Inherited;
-      typedef _Head_base<_Idx, _Head, __empty_not_final<_Head>::value> _Base;
+      typedef _Head_base<_Idx, _Head> _Base;
 
       static constexpr _Head&  
       _M_head(_Tuple_impl& __t) noexcept { return _Base::_M_head(__t); }
@@ -336,11 +340,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   // Basis case of inheritance recursion.
   template<std::size_t _Idx, typename _Head>
     struct _Tuple_impl<_Idx, _Head>
-    : private _Head_base<_Idx, _Head, __empty_not_final<_Head>::value>
+    : private _Head_base<_Idx, _Head>
     {
       template<std::size_t, typename...> friend class _Tuple_impl;
 
-      typedef _Head_base<_Idx, _Head, __empty_not_final<_Head>::value> _Base;
+      typedef _Head_base<_Idx, _Head> _Base;
 
       static constexpr _Head&
       _M_head(_Tuple_impl& __t) noexcept { return _Base::_M_head(__t); }
@@ -457,9 +461,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       }
     };
 
-  template<typename... _Elements>
-    class tuple;
-
   // Concept utility functions, reused in conditionally-explicit
   // constructors.
   template<bool, typename... _Elements>
@@ -500,6 +501,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
                      __not_<is_constructible<_Elements..., _SrcTuple>>
               >::value;
     }
+    template<typename... _UElements>
+    static constexpr bool _NotSameTuple()
+    {
+      return  __not_<is_same<tuple<_Elements...>,
+			     typename remove_const<
+			       typename remove_reference<_UElements...>::type
+			       >::type>>::value;
+    }
   };
 
   template<typename... _Elements>
@@ -533,6 +542,11 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     static constexpr bool _NonNestedTuple()
     {
       return true;
+    }
+    template<typename... _UElements>
+    static constexpr bool _NotSameTuple()
+    {
+      return  true;
     }
   };
 
@@ -607,11 +621,22 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       // Shortcut for the cases where constructors taking _UElements...
       // need to be constrained.
       template<typename... _UElements> using _TMC =
-                  _TC<(sizeof...(_Elements) == sizeof...(_UElements)),
+                  _TC<(sizeof...(_Elements) == sizeof...(_UElements))
+		      && (_TC<(sizeof...(_UElements)==1), _Elements...>::
+			  template _NotSameTuple<_UElements...>()),
+                      _Elements...>;
+
+      // Shortcut for the cases where constructors taking tuple<_UElements...>
+      // need to be constrained.
+      template<typename... _UElements> using _TMCT =
+                  _TC<(sizeof...(_Elements) == sizeof...(_UElements))
+		      && !is_same<tuple<_Elements...>,
+				  tuple<_UElements...>>::value,
                       _Elements...>;
 
       template<typename... _UElements, typename
-        enable_if<_TMC<_UElements...>::template
+	       enable_if<
+		  _TMC<_UElements...>::template
                     _MoveConstructibleTuple<_UElements...>()
                   && _TMC<_UElements...>::template
                     _ImplicitlyMoveConvertibleTuple<_UElements...>()
@@ -621,7 +646,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         : _Inherited(std::forward<_UElements>(__elements)...) { }
 
       template<typename... _UElements, typename
-        enable_if<_TMC<_UElements...>::template
+        enable_if<
+		  _TMC<_UElements...>::template
                     _MoveConstructibleTuple<_UElements...>()
                   && !_TMC<_UElements...>::template
                     _ImplicitlyMoveConvertibleTuple<_UElements...>()
@@ -641,9 +667,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
             _Elements...>;
 
       template<typename... _UElements, typename _Dummy = void, typename
-        enable_if<_TMC<_UElements...>::template
+        enable_if<_TMCT<_UElements...>::template
                     _ConstructibleTuple<_UElements...>()
-                  && _TMC<_UElements...>::template
+                  && _TMCT<_UElements...>::template
                     _ImplicitlyConvertibleTuple<_UElements...>()
                   && _TNTC<_Dummy>::template
                     _NonNestedTuple<const tuple<_UElements...>&>(),
@@ -653,9 +679,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         { }
 
       template<typename... _UElements, typename _Dummy = void, typename
-        enable_if<_TMC<_UElements...>::template
+        enable_if<_TMCT<_UElements...>::template
                     _ConstructibleTuple<_UElements...>()
-                  && !_TMC<_UElements...>::template
+                  && !_TMCT<_UElements...>::template
                     _ImplicitlyConvertibleTuple<_UElements...>()
                   && _TNTC<_Dummy>::template
                     _NonNestedTuple<const tuple<_UElements...>&>(),
@@ -665,9 +691,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         { }
 
       template<typename... _UElements, typename _Dummy = void, typename
-        enable_if<_TMC<_UElements...>::template
+        enable_if<_TMCT<_UElements...>::template
                     _MoveConstructibleTuple<_UElements...>()
-                  && _TMC<_UElements...>::template
+                  && _TMCT<_UElements...>::template
                     _ImplicitlyMoveConvertibleTuple<_UElements...>()
                   && _TNTC<_Dummy>::template
                     _NonNestedTuple<tuple<_UElements...>&&>(),
@@ -676,9 +702,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
         : _Inherited(static_cast<_Tuple_impl<0, _UElements...>&&>(__in)) { }
 
       template<typename... _UElements, typename _Dummy = void, typename
-        enable_if<_TMC<_UElements...>::template
+        enable_if<_TMCT<_UElements...>::template
                     _MoveConstructibleTuple<_UElements...>()
-                  && !_TMC<_UElements...>::template
+                  && !_TMCT<_UElements...>::template
                     _ImplicitlyMoveConvertibleTuple<_UElements...>()
                   && _TNTC<_Dummy>::template
                     _NonNestedTuple<tuple<_UElements...>&&>(),
@@ -744,11 +770,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	tuple(allocator_arg_t __tag, const _Alloc& __a, tuple&& __in)
 	: _Inherited(__tag, __a, static_cast<_Inherited&&>(__in)) { }
 
-      template<typename _Alloc, typename... _UElements, typename
-        enable_if<_TMC<_UElements...>::template
+      template<typename _Alloc, typename _Dummy = void,
+	       typename... _UElements, typename
+        enable_if<_TMCT<_UElements...>::template
                     _ConstructibleTuple<_UElements...>()
-                  && _TMC<_UElements...>::template
-                    _ImplicitlyConvertibleTuple<_UElements...>(),
+                  && _TMCT<_UElements...>::template
+                    _ImplicitlyConvertibleTuple<_UElements...>()
+                  && _TNTC<_Dummy>::template
+                    _NonNestedTuple<tuple<_UElements...>&&>(),
         bool>::type=true>
 	tuple(allocator_arg_t __tag, const _Alloc& __a,
 	      const tuple<_UElements...>& __in)
@@ -756,11 +785,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	             static_cast<const _Tuple_impl<0, _UElements...>&>(__in))
 	{ }
 
-      template<typename _Alloc, typename... _UElements, typename
-        enable_if<_TMC<_UElements...>::template
+      template<typename _Alloc, typename _Dummy = void,
+	       typename... _UElements, typename
+        enable_if<_TMCT<_UElements...>::template
                     _ConstructibleTuple<_UElements...>()
-                  && !_TMC<_UElements...>::template
-                    _ImplicitlyConvertibleTuple<_UElements...>(),
+                  && !_TMCT<_UElements...>::template
+                    _ImplicitlyConvertibleTuple<_UElements...>()
+                  && _TNTC<_Dummy>::template
+                    _NonNestedTuple<tuple<_UElements...>&&>(),
         bool>::type=false>
 	explicit tuple(allocator_arg_t __tag, const _Alloc& __a,
 	      const tuple<_UElements...>& __in)
@@ -768,11 +800,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	             static_cast<const _Tuple_impl<0, _UElements...>&>(__in))
 	{ }
 
-      template<typename _Alloc, typename... _UElements, typename
-        enable_if<_TMC<_UElements...>::template
+      template<typename _Alloc, typename _Dummy = void,
+	       typename... _UElements, typename
+        enable_if<_TMCT<_UElements...>::template
                     _MoveConstructibleTuple<_UElements...>()
-                  && _TMC<_UElements...>::template
-                    _ImplicitlyMoveConvertibleTuple<_UElements...>(),
+                  && _TMCT<_UElements...>::template
+                    _ImplicitlyMoveConvertibleTuple<_UElements...>()
+                  && _TNTC<_Dummy>::template
+                    _NonNestedTuple<tuple<_UElements...>&&>(),
         bool>::type=true>
 	tuple(allocator_arg_t __tag, const _Alloc& __a,
 	      tuple<_UElements...>&& __in)
@@ -780,11 +815,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	             static_cast<_Tuple_impl<0, _UElements...>&&>(__in))
 	{ }
 
-      template<typename _Alloc, typename... _UElements, typename
-        enable_if<_TMC<_UElements...>::template
+      template<typename _Alloc, typename _Dummy = void,
+	       typename... _UElements, typename
+        enable_if<_TMCT<_UElements...>::template
                     _MoveConstructibleTuple<_UElements...>()
-                  && !_TMC<_UElements...>::template
-                    _ImplicitlyMoveConvertibleTuple<_UElements...>(),
+                  && !_TMCT<_UElements...>::template
+                    _ImplicitlyMoveConvertibleTuple<_UElements...>()
+                  && _TNTC<_Dummy>::template
+                    _NonNestedTuple<tuple<_UElements...>&&>(),
         bool>::type=false>
 	explicit tuple(allocator_arg_t __tag, const _Alloc& __a,
 	      tuple<_UElements...>&& __in)
@@ -839,6 +877,14 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
     public:
       void swap(tuple&) noexcept { /* no-op */ }
+      // We need the default since we're going to define no-op
+      // allocator constructors.
+      tuple() = default;
+      // No-op allocator constructors.
+      template<typename _Alloc>
+	tuple(allocator_arg_t, const _Alloc&) { }
+      template<typename _Alloc>
+	tuple(allocator_arg_t, const _Alloc&, const tuple&) { }
     };
 
   /// Partial specialization, 2-element tuple.

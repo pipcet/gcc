@@ -81,11 +81,14 @@ struct die_struct;
 /* The function does not lead to calls within current function unit.  */
 #define ECF_LEAF		  (1 << 10)
 
+/* Nonzero if this call returns its first argument.  */
+#define ECF_RET1		  (1 << 11)
+
 /* Nonzero if this call does not affect transactions.  */
-#define ECF_TM_PURE		  (1 << 11)
+#define ECF_TM_PURE		  (1 << 12)
 
 /* Nonzero if this call is into the transaction runtime library.  */
-#define ECF_TM_BUILTIN		  (1 << 12)
+#define ECF_TM_BUILTIN		  (1 << 13)
 
 /* Call argument flags.  */
 /* Nonzero if the argument is not dereferenced recursively, thus only
@@ -312,9 +315,6 @@ enum omp_clause_code {
   /* Internal structure to hold OpenACC cache directive's variable-list.
      #pragma acc cache (variable-list).  */
   OMP_CLAUSE__CACHE_,
-
-  /* OpenACC clause: device_resident (variable_list).  */
-  OMP_CLAUSE_DEVICE_RESIDENT,
 
   /* OpenACC clause: gang [(gang-argument-list)].
      Where
@@ -997,6 +997,9 @@ struct GTY(()) tree_base {
 
        SSA_NAME_ANTI_RANGE_P in
 	   SSA_NAME
+
+       MUST_TAIL_CALL in
+	   CALL_EXPR
 
    public_flag:
 

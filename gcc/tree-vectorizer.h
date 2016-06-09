@@ -442,6 +442,9 @@ enum stmt_vec_info_type {
    block.  */
 enum vect_relevant {
   vect_unused_in_scope = 0,
+
+  /* The def is only used outside the loop.  */
+  vect_used_only_live,
   /* The def is in the inner loop, and the use is in the outer loop, and the
      use is a reduction stmt.  */
   vect_used_in_outer_by_reduction,
@@ -994,6 +997,7 @@ extern unsigned record_stmt_cost (stmt_vector_for_cost *, int,
 extern void vect_finish_stmt_generation (gimple *, gimple *,
                                          gimple_stmt_iterator *);
 extern bool vect_mark_stmts_to_be_vectorized (loop_vec_info);
+extern tree vect_get_vec_def_for_operand_1 (gimple *, enum vect_def_type);
 extern tree vect_get_vec_def_for_operand (tree, gimple *, tree = NULL);
 extern tree vect_init_vector (gimple *, tree, tree,
                               gimple_stmt_iterator *);
@@ -1004,8 +1008,6 @@ extern void vect_remove_stores (gimple *);
 extern bool vect_analyze_stmt (gimple *, bool *, slp_tree);
 extern bool vectorizable_condition (gimple *, gimple_stmt_iterator *,
 				    gimple **, tree, int, slp_tree);
-extern bool vectorizable_comparison (gimple *, gimple_stmt_iterator *,
-				     gimple **, tree, int, slp_tree);
 extern void vect_get_load_cost (struct data_reference *, int, bool,
 				unsigned int *, unsigned int *,
 				stmt_vector_for_cost *,
@@ -1073,7 +1075,7 @@ extern loop_vec_info vect_analyze_loop (struct loop *);
 extern void vect_transform_loop (loop_vec_info);
 extern loop_vec_info vect_analyze_loop_form (struct loop *);
 extern bool vectorizable_live_operation (gimple *, gimple_stmt_iterator *,
-					 gimple **);
+					 slp_tree, int, gimple **);
 extern bool vectorizable_reduction (gimple *, gimple_stmt_iterator *,
 				    gimple **, slp_tree);
 extern bool vectorizable_induction (gimple *, gimple_stmt_iterator *, gimple **);
@@ -1099,6 +1101,7 @@ extern void vect_get_slp_defs (vec<tree> , slp_tree,
 			       vec<vec<tree> > *, int);
 extern bool vect_slp_bb (basic_block);
 extern gimple *vect_find_last_scalar_stmt_in_slp (slp_tree);
+extern bool is_simple_and_all_uses_invariant (gimple *, loop_vec_info);
 
 /* In tree-vect-patterns.c.  */
 /* Pattern recognition functions.

@@ -129,9 +129,11 @@ extern tree make_aligning_type (tree type, unsigned int align, tree size,
    as the field type of a packed record if IN_RECORD is true, or as the
    component type of a packed array if IN_RECORD is false.  See if we can
    rewrite it either as a type that has a non-BLKmode, which we can pack
-   tighter in the packed record case, or as a smaller type.  If so, return
-   the new type.  If not, return the original type.  */
-extern tree make_packable_type (tree type, bool in_record);
+   tighter in the packed record case, or as a smaller type with at most
+   MAX_ALIGN alignment if the value is non-zero.  If so, return the new
+   type; if not, return the original type.  */
+extern tree make_packable_type (tree type, bool in_record,
+				unsigned int max_align = 0);
 
 /* Given a type TYPE, return a new type whose size is appropriate for SIZE.
    If TYPE is the best type, return it.  Otherwise, make a new type.  We
@@ -735,9 +737,9 @@ extern tree create_subprog_decl (tree name, tree asm_name, tree type,
 				 bool artificial_p, bool debug_info_p,
 				 struct attrib *attr_list, Node_Id gnat_node);
 
-/* Given a subprogram declaration DECL and its TYPE, finish constructing the
-   subprogram declaration from TYPE.  */
-extern void finish_subprog_decl (tree decl, tree type);
+/* Given a subprogram declaration DECL, its assembler name and its type,
+   finish constructing the subprogram declaration from ASM_NAME and TYPE.  */
+extern void finish_subprog_decl (tree decl, tree asm_name, tree type);
 
 /* Process the attributes in ATTR_LIST for NODE, which is either a DECL or
    a TYPE.  If IN_PLACE is true, the tree pointed to by NODE should not be

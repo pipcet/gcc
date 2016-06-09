@@ -850,6 +850,7 @@ extern bool keyword_is_type_qualifier (enum rid);
 extern bool keyword_is_decl_specifier (enum rid);
 extern bool cxx_fundamental_alignment_p (unsigned);
 extern bool pointer_to_zero_sized_aggr_p (tree);
+extern bool diagnose_mismatched_attributes (tree, tree);
 
 #define c_sizeof(LOC, T)  c_sizeof_or_alignof_type (LOC, T, true, false, 1)
 #define c_alignof(LOC, T) c_sizeof_or_alignof_type (LOC, T, false, false, 1)
@@ -1086,6 +1087,16 @@ extern vec<tree, va_gc> *make_tree_vector_copy (const vec<tree, va_gc> *);
 /* Used for communication between c_common_type_for_mode and
    c_register_builtin_type.  */
 extern GTY(()) tree registered_builtin_types;
+
+/* Read SOURCE_DATE_EPOCH from environment to have a deterministic
+   timestamp to replace embedded current dates to get reproducible
+   results.  Returns -1 if SOURCE_DATE_EPOCH is not defined.  */
+extern time_t cb_get_source_date_epoch (cpp_reader *pfile);
+
+/* The value (as a unix timestamp) corresponds to date
+   "Dec 31 9999 23:59:59 UTC", which is the latest date that __DATE__ and
+   __TIME__ can store.  */
+#define MAX_SOURCE_DATE_EPOCH HOST_WIDE_INT_C (253402300799)
 
 /* In c-gimplify.c  */
 extern void c_genericize (tree);
@@ -1367,7 +1378,7 @@ extern tree build_userdef_literal (tree suffix_id, tree value,
 				   enum overflow_type overflow,
 				   tree num_string);
 
-extern bool convert_vector_to_pointer_for_subscript (location_t, tree *, tree);
+extern bool convert_vector_to_array_for_subscript (location_t, tree *, tree);
 
 /* Possibe cases of scalar_to_vector conversion.  */
 enum stv_conv {
@@ -1480,10 +1491,5 @@ extern bool valid_array_size_p (location_t, tree, tree);
 
 extern bool cilk_ignorable_spawn_rhs_op (tree);
 extern bool cilk_recognize_spawn (tree, tree *);
-
-/* Read SOURCE_DATE_EPOCH from environment to have a deterministic
-   timestamp to replace embedded current dates to get reproducible
-   results.  Returns -1 if SOURCE_DATE_EPOCH is not defined.  */
-extern time_t get_source_date_epoch (void);
 
 #endif /* ! GCC_C_COMMON_H */

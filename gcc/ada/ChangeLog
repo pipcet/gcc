@@ -1,3 +1,227 @@
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (Gigi_Equivalent_Type): Make sure equivalent
+	types are present before returning them.  Remove final assertion.
+	(gnat_to_gnu_entity) <E_Access_Protected_Subprogram_Type>: Adjust to
+	above change.
+	<E_Protected_Type>: Likewise.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (elaborate_all_entities_for_package): Also do
+	not elaborate Itypes.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/utils.c (gnat_internal_attribute_table): Add support
+	for noinline and noclone attributes.
+	(handle_noinline_attribute): New handler.
+	(handle_noclone_attribute): Likewise.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (process_type): Beef up comment.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/utils2.c (build_call_alloc_dealloc): Do not substitute
+	placeholder expressions here but...
+	* gcc-interface/trans.c (gnat_to_gnu) <N_Free_Statement>: ...here.
+	Make an exception to the protection of a CALL_EXPR result with an
+	unconstrained type only in the same cases as Call_to_gnu.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (gnat_to_gnu): Rework special code dealing
+	with boolean rvalues and set the location directly.  Do not set the
+	location in the other cases for a simple name.
+	(gnat_to_gnu_external): Clear the location on the expression.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Component>: Remove
+	useless 'else' statements and tidy up.
+	<E_Array_Subtype>: Fully deal with the declaration here.
+	<E_Incomplete_Type>: Use properly-typed constant.
+	Assert that we don't apply the special type treatment to dummy types.
+	Separate this treatment from the final back-annotation and simplify
+	the condition for the RM size.
+	(gnat_to_gnu_param): Add GNU_PARAM_TYPE parameter and adjust.
+	(gnat_to_gnu_subprog_type): Ajust call to gnat_to_gnu_param.
+	* gcc-interface/trans.c (gnat_to_gnu) <N_Subprogram_Declaration>: Add
+	comment.
+	(process_freeze_entity): Remove obsolete code.
+	(process_type): Minor tweaks.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* einfo.ads (Returns_Limited_View): Remove.
+	(Set_Returns_Limited_View ): Likewise.
+	* einfo.adb (Returns_Limited_View): Likewise.
+	(Set_Returns_Limited_View ): Likewise.
+	* freeze.adb (Late_Freeze_Subprogram): Remove.
+	(Freeze_Entity): Do not defer the freezing of functions returning an
+	incomplete type coming from a limited context.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/gigi.h (finish_subprog_decl): Add ASM_NAME parameter.
+	* gcc-interface/decl.c (gnu_ext_name_for_subprog): New function.
+	(gnat_to_gnu_entity) <E_Subprogram_Type>: Do not check compatibility
+	of profiles for builtins here...  Call gnu_ext_name_for_subprog.
+	Also update profiles if pointers to limited_with'ed types are
+	updated.
+	(gnat_to_gnu_param): Restore the correct source location information
+	for vector ABI warnings.
+	(associate_subprog_with_dummy_type): Add comment about AI05-019.
+	Set TYPE_DUMMY_IN_PROFILE_P flag unconditionally.
+	(update_profile): Deal with builtin declarations.
+	Call gnu_ext_name_for_subprog.  Adjust call to finish_subprog_decl.
+	(update_profiles_with): Add comment.
+	(gnat_to_gnu_subprog_type): Reuse the return type if it is complete.
+	Likewise for parameter declarations in most cases.  Do not change
+	the return type for the CICO mechanism if the profile is incomplete.
+	...but here instead.  Always reset the slot for the parameters.
+	* gcc-interface/utils.c (create_subprog_decl): Call
+	gnu_ext_name_for_subprog.  Do not set the assembler name here but...
+	(finish_subprog_decl): ...but here instead.  Add ASM_NAME parameter.
+
+2016-06-06  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_ch9.adb (Expand_N_Protected_Type_Declaration): Insert the
+	declaration of the corresponding record type before that of the
+	unprotected version of the subprograms that operate on it.
+	(Expand_Access_Protected_Subprogram_Type): Declare the Equivalent_Type
+	just before the original type.
+	* sem_ch3.adb (Handle_Late_Controlled_Primitive): Point the current
+	declaration to the newly created declaration for the primitive.
+	(Analyze_Subtype_Declaration): Remove obsolete code forcing the
+	freezing of the subtype before its declaration.
+	(Replace_Anonymous_Access_To_Protected_Subprogram): Insert the new
+	declaration in the nearest enclosing scope for formal parameters too.
+	(Build_Derived_Access_Type): Restore the status of the created Itype
+	after it is erased by Copy_Node.
+	* sem_ch6.adb (Exchange_Limited_Views): Remove guard on entry.
+	(Analyze_Subprogram_Body_Helper): Call Exchange_Limited_Views only if
+	the specification is present.
+	Move around the code changing the designated view of the return type
+	and save the original view.  Restore it on exit.
+	* sem_ch13.adb (Build_Predicate_Function_Declaration): Always insert
+	the declaration right after that of the type.
+
+2016-06-01  Simon Wright  <simon@pushface.org>
+
+	PR ada/71358
+	* g-comlin.adb (Display_Section_Help): Do not dereference
+	Config.Switches if it's null.
+	(Getopt): Likewise.
+
+2016-05-31  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* s-osinte-kfreebsd-gnu.ads (clock_getres): Define.
+	(Get_Page_Size): Remove duplicate and return int.
+
+2016-05-31  Jan Sommer  <soja-lists@aries.uberspace.de>
+
+	PR ada/71317
+	* s-osinte-rtems.ads (clock_getres): Define.
+	(Get_Page_Size): Remove duplicate and return int.
+
+2016-05-20  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Signed_Integer_Subtype>:
+	Make same-sized subtypes of signed base types signed.
+	* gcc-interface/utils.c (make_type_from_size): Adjust to above change.
+	(unchecked_convert): Likewise.
+
+2016-05-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Variable>: Do not build
+	a specific type for the object if it is deemed a constant.
+
+2016-05-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* freeze.adb (Freeze_Record_Type): Extend pragma Implicit_Packing to
+	components of any elementary types and of composite types.
+
+2016-05-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* freeze.adb (Freeze_Array_Type): Call Addressable predicate instead
+	of testing for individual sizes.
+	(Freeze_Entity): Rework implementation of pragma Implicit_Packing for
+	array types, in particular test for suitable sizes upfront and do not
+	mimic the processing that will be redone later in Freeze_Array_Type.
+
+2016-05-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/trans.c (elaborate_all_entities_for_package): Also skip
+	formal objects.
+
+2016-05-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* doc/gnat_rm/implementation_defined_attributes.rst
+	(Scalar_Storage_Order): Adjust restriction for packed array types.
+	* einfo.ads (Is_Bit_Packed_Array): Adjust description.
+	(Is_Packed): Likewise.
+	(Is_Packed_Array_Impl_Type): Likewise.
+	(Packed_Array_Impl_Type): Likewise.
+	* exp_ch4.adb (Expand_N_Indexed_Component): Do not do anything special
+	if the prefix is not a packed array implemented specially.
+	* exp_ch6.adb (Expand_Actuals): Expand indexed components only for
+	bit-packed array types.
+	* exp_pakd.adb (Install_PAT): Set Is_Packed_Array_Impl_Type flag on
+	the PAT before analyzing its declaration.
+	(Create_Packed_Array_Impl_Type): Remove redundant statements.
+	* freeze.adb (Check_Component_Storage_Order): Reject packed array
+	components only if they are bit packed.
+	(Freeze_Array_Type): Fix logic detecting bit packing and do not bit
+	pack for composite types whose size is multiple of a byte.
+	Create the implementation type for packed array types only when it is
+	needed, i.e. bit packing or packing because of holes in index types.
+	Make sure the Has_Non_Standard_Rep and Is_Packed flags agree.
+	* gcc-interface/gigi.h (make_packable_type): Add MAX_ALIGN parameter.
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Signed_Integer_Subtype>:
+	Call maybe_pad_type instead of building the padding type manually.
+	(gnat_to_gnu_entity) <E_Array_Subtype>: Do not assert that
+	Packed_Array_Impl_Type is present for packed arrays.
+	(gnat_to_gnu_component_type): Also handle known alignment for packed
+	types by passing it to make_packable_type.
+	* gcc-interface/utils.c (make_packable_type): Add MAX_ALIGN parameter
+	and deal with it in the array case.  Adjust recursive call.  Simplify
+	computation of new size and cap the alignment to BIGGEST_ALIGNMENT.
+
+2016-05-16  Thomas Quinot  <quinot@adacore.com>
+
+	* freeze.adb (Check_Component_Storage_Order): Also get full view of
+	enclosing type.
+
+2016-05-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* exp_util.adb (Remove_Side_Effects): Also make a constant if we need
+	to capture the value for a small not by-reference record type.
+	* freeze.ads (Check_Compile_Time_Size): Adjust comment.
+	* freeze.adb (Set_Small_Size): Likewise.  Accept a size in the range
+	of 33 .. 64 bits.
+	(Check_Compile_Time_Size): Merge scalar and access type cases. Change
+	variable name in array type case.  For the computation of the packed
+	size, deal with record components and remove redundant test.
+	(Freeze_Array_Type): Also adjust packing status when the size of the
+	component type is in the range 33 .. 64 bits.
+	* doc/gnat_rm/representation_clauses_and_pragmas.rst: Turn primitive
+	into elementary type throughout.  Minor tweaks.
+	(Alignment Clauses): Document actual alignment of packed array types.
+	(Pragma Pack for Arrays): List only the 3 main cases and adjust.  Add
+	"simple" to the record case.  Document effect on non packable types.
+	(Pragma Pack for Records): Likewise.  Add record case and adjust.
+
+2016-05-16  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/Make-lang.in (GNATMAKE_FOR_HOST): In the canadian
+	cross case, use host_noncanonical instead of host as prefix.
+	(GNATBIND_FOR_HOST): Likewise.
+	(GNATLINK_FOR_HOST): Likewise.
+	(GNATLS_FOR_HOST): Likewise.
+
 2016-05-06  Eric Botcazou  <ebotcazou@adacore.com>
 
 	PR ada/70969
