@@ -85,7 +85,7 @@ asmjs_jsexport_format_type (tree type)
 }
 
 void
-asmjs_jsexport_declare_type (tree type, const char *jsname ATTRIBUTE_UNUSED,
+asmjs_jsexport_declare_type (tree type, struct asmjs_jsexport_opts *opts,
 			     vec<struct asmjs_jsexport_decl> *decls)
 {
   tree origtype = type;
@@ -122,16 +122,18 @@ asmjs_canonicalize_type (tree type)
 }
 
 void
-asmjs_jsexport_type (tree type, const char *jsname ATTRIBUTE_UNUSED,
+asmjs_jsexport_type (tree type, struct asmjs_jsexport_opts *opts,
 		     vec<struct asmjs_jsexport_decl> *decls);
 
 void
-asmjs_jsexport_record_type (tree type, const char *jsname ATTRIBUTE_UNUSED,
+asmjs_jsexport_record_type (tree type, struct asmjs_jsexport_opts *opts,
 			     vec<struct asmjs_jsexport_decl> *decls)
 {
   if (asmjs_jsexport_exported.add (type))
     return;
 
+  const char *jsname = opts->jsname;
+  int recurse = opts->recurse;
   struct asmjs_jsexport_decl ret;
 
   ret.fragments = vec<const char *>();
@@ -146,7 +148,7 @@ asmjs_jsexport_record_type (tree type, const char *jsname ATTRIBUTE_UNUSED,
 
   ret.jsname = jsname;
 
-  asmjs_jsexport_declare_type (type, jsname, decls);
+  asmjs_jsexport_declare_type (type, opts, decls);
   ret.fragments.safe_push(concat ("asmjs_register_record_type(\"", ret.jsname,
 			     "\", ", typestr, ");", NULL));
 
@@ -175,7 +177,7 @@ asmjs_jsexport_record_type (tree type, const char *jsname ATTRIBUTE_UNUSED,
 
       asmjs_jsexport_declare_type (fieldtype, NULL, decls);
       asmjs_jsexport_type (fieldtype, NULL, decls);
-      
+
       ret.fragments.safe_push(concat ("asmjs_register_field(\"", ret.jsname,
 				      "\", ",
 				      IDENTIFIER_POINTER (DECL_NAME (field)),
@@ -191,25 +193,25 @@ asmjs_jsexport_record_type (tree type, const char *jsname ATTRIBUTE_UNUSED,
 }
 
 void
-asmjs_jsexport_type (tree type, const char *jsname ATTRIBUTE_UNUSED,
+asmjs_jsexport_type (tree type, struct asmjs_jsexport_opts *opts,
 		     vec<struct asmjs_jsexport_decl> *decls)
 {
   if (TREE_CODE (type) == POINTER_TYPE) {
-    asmjs_jsexport_type (TREE_TYPE (type), jsname, decls);
+    asmjs_jsexport_type (TREE_TYPE (type), opts, decls);
     return;
   }
   if (TYPE_CANONICAL (type) != type) {
-    asmjs_jsexport_type (TYPE_CANONICAL (type), jsname, decls);
+    asmjs_jsexport_type (TYPE_CANONICAL (type), opts, decls);
     return;
   }
   if (TREE_CODE (type) == RECORD_TYPE) {
-    asmjs_jsexport_record_type (type, jsname, decls);
+    asmjs_jsexport_record_type (type, opts, decls);
     return;
   }
 }
 
 void
-asmjs_jsexport_function_decl (tree decl, const char *jsname,
+asmjs_jsexport_function_decl (tree decl, struct asmjs_jsexport_opts *opts,
 			      vec<struct asmjs_jsexport_decl> *decls)
 {
   struct asmjs_jsexport_decl ret;
@@ -217,6 +219,8 @@ asmjs_jsexport_function_decl (tree decl, const char *jsname,
   const char *typestr;
   const char *rettypestr;
   const char *classtypestr = "void";
+  const char *jsname = opts->jsname;
+  int recurse = opts->recurse;
 
   const char *types = "";
   if (TREE_CODE (decl) == FUNCTION_DECL)
@@ -310,14 +314,14 @@ asmjs_jsexport_function_decl (tree decl, const char *jsname,
 }
 
 void
-asmjs_jsexport_type_decl (tree node, const char *jsname,
+asmjs_jsexport_type_decl (tree node, struct asmjs_jsexport_opts *opts,
 			  vec<struct asmjs_jsexport_decl> *decls)
 {
-  asmjs_jsexport_type (TREE_TYPE (node), jsname, decls);
+  asmjs_jsexport_type (TREE_TYPE (node), opts, decls);
 }
 
 void
-asmjs_jsexport_var_decl (tree decl, const char *jsname,
+asmjs_jsexport_var_decl (tree decl, struct asmjs_jsexport_opts *opts,
 			 vec<struct asmjs_jsexport_decl> *decls)
 {
   struct asmjs_jsexport_decl ret;
@@ -373,6 +377,7 @@ asmjs_jsexport_var_decl (tree decl, const char *jsname,
   if (!type_jsname)
     type_jsname = "";
 
+  const char *jsname = opts->jsname;
   if (!jsname)
     {
       jsname = "";
@@ -393,19 +398,19 @@ asmjs_jsexport_var_decl (tree decl, const char *jsname,
 }
 
 void
-asmjs_jsexport_decl (tree node, const char *jsname,
+asmjs_jsexport_decl (tree node, struct asmjs_jsexport_opts *opts,
 		     vec<struct asmjs_jsexport_decl> *decls)
 {
   switch (TREE_CODE (node))
     {
     case FUNCTION_DECL:
-      asmjs_jsexport_function_decl (node, jsname, decls);
+      asmjs_jsexport_function_decl (node, opts, decls);
       return;
     case TYPE_DECL:
-      asmjs_jsexport_type_decl (node, jsname, decls);
+      asmjs_jsexport_type_decl (node, opts, decls);
       return;
     case VAR_DECL:
-      asmjs_jsexport_var_decl (node, jsname, decls);
+      asmjs_jsexport_var_decl (node, opts, decls);
       return;
     default:
       printf("unknown code:\n");
@@ -415,7 +420,7 @@ asmjs_jsexport_decl (tree node, const char *jsname,
 }
 
 void
-asmjs_jsexport (tree node, const char *jsname,
+asmjs_jsexport (tree node, struct asmjs_jsexport_opts *opts,
 		vec<struct asmjs_jsexport_decl> *decls)
 {
 #if 0
@@ -436,10 +441,10 @@ asmjs_jsexport (tree node, const char *jsname,
 #endif
 
   if (DECL_P (node)) {
-    asmjs_jsexport_decl (node, jsname, decls);
+    asmjs_jsexport_decl (node, opts, decls);
     return;
   } else if (TYPE_P (node)) {
-    asmjs_jsexport_type (node, jsname, decls);
+    asmjs_jsexport_type (node, opts, decls);
     return;
   } else
     {

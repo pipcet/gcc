@@ -487,7 +487,7 @@ static vec<struct asmjs_jsexport_decl> asmjs_jsexport_decls;
 
 __attribute__((weak)) void
 asmjs_jsexport (tree node ATTRIBUTE_UNUSED,
-		const char *jsname ATTRIBUTE_UNUSED,
+		struct asmjs_jsexport_opts *opts,
 		vec<struct asmjs_jsexport_decl> *decls ATTRIBUTE_UNUSED)
 {
   error("jsexport not defined for this frontend");
@@ -528,7 +528,7 @@ static void asmjs_jsexport_unit_callback (void *, void *)
 			case '\"':
 			  fprintf (asm_out_file, "\\\"");
 			  break;
-			  
+
 			default:
 			  fprintf (asm_out_file, "%c", c);
 			  break;
@@ -545,11 +545,25 @@ static void asmjs_jsexport_unit_callback (void *, void *)
   asmjs_jsexport_decls = vec<struct asmjs_jsexport_decl>();
 }
 
+static void asmjs_jsexport_parse_args (tree args, struct asmjs_jsexport_opts *opts)
+{
+  while (args)
+    {
+      if (TREE_CODE (args) == STRING_CST)
+	opts->jsname = TREE_STRING_POINTER (args);
+      else if (TREE_CODE (args) == INTEGER_CST)
+	opts->recurse = !compare_tree_int (args, 0);
+      args = TREE_CHAIN (args);
+    }
+}
+
 static void asmjs_jsexport_decl_callback (void *gcc_data, void *)
 {
   tree decl = (tree)gcc_data;
   bool found = false;
   const char *jsname = NULL;
+  int recurse = 0;
+  struct asmjs_jsexport_opts opts;
 
   if (DECL_P (decl))
     {
@@ -560,28 +574,21 @@ static void asmjs_jsexport_decl_callback (void *gcc_data, void *)
 	  if ((attr = lookup_attribute ("jsexport", attrs)))
 	    {
 	      found = true;
-	      tree arg1 = TREE_VALUE (attr);
-
-	      if (arg1)
-		{
-		  if (TREE_CODE (arg1) != STRING_CST)
-		    {
-		      error ("Parameter must be a string constant");
-		      return;
-		    }
-
-		  jsname = TREE_STRING_POINTER (arg1);
-		}
+	      asmjs_jsexport_parse_args (TREE_VALUE (attr), &opts);
 	    }
 	}
     }
   else if (TYPE_P (decl))
     {
       tree attrs = TYPE_ATTRIBUTES (decl);
+      tree attr;
       if (attrs != NULL_TREE)
 	{
-	  if (lookup_attribute ("jsexport", attrs))
-	    found = true;
+	  if ((attr = lookup_attribute ("jsexport", attrs)))
+	    {
+	      found = true;
+	      asmjs_jsexport_parse_args (TREE_VALUE (attr), &opts);
+	    }
 	}
     }
 
@@ -591,7 +598,7 @@ static void asmjs_jsexport_decl_callback (void *gcc_data, void *)
     }
 
   if (found)
-    asmjs_jsexport(decl, jsname, &asmjs_jsexport_decls);
+    asmjs_jsexport(decl, &opts, &asmjs_jsexport_decls);
 }
 
 static bool asmjs_jsexport_plugin_inited = false;
@@ -663,7 +670,7 @@ asmjs_handle_jsexport_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
 
   if (TREE_CODE (*node) == TYPE_DECL)
     asmjs_jsexport (*node, NULL, &asmjs_jsexport_decls);
-  
+
   return NULL_TREE;
 }
 
@@ -2458,7 +2465,7 @@ rtx asmjs_expand_prologue()
   RTX_FRAME_RELATED_P (insn = emit_move_insn (sp, plus_constant (Pmode, sp, -regsize))) = 0;
   RTX_FRAME_RELATED_P (insn = emit_move_insn (frame_pointer_rtx, sp)) = 1;
   add_reg_note (insn, REG_CFA_DEF_CFA,
-  		plus_constant (Pmode, frame_pointer_rtx, 0));
+		plus_constant (Pmode, frame_pointer_rtx, 0));
   add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, gen_rtx_PLUS (Pmode, sp, gen_rtx_MINUS (Pmode, gen_rtx_MEM (Pmode, sp), sp))), frame_pointer_rtx));
   add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, 8)), pc_rtx));
 
@@ -2789,4 +2796,3 @@ asmjs_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
 #include "target-def.h"
 
 struct gcc_target targetm = TARGET_INITIALIZER;
-

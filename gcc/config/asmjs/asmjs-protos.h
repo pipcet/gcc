@@ -114,6 +114,11 @@ extern int asmjs_memory_move_cost(machine_mode, reg_class_t, bool in);
 extern bool asmjs_function_arg_regno_p(int);
 extern bool asmjs_lra_p();
 
+struct asmjs_jsexport_opts {
+  const char *jsname;
+  int recurse;
+};
+
 struct asmjs_jsexport_decl {
   tree decl;
   const char *jsname;
@@ -121,5 +126,7 @@ struct asmjs_jsexport_decl {
   vec<const char *> fragments;
 };
 
-extern void asmjs_jsexport (tree, const char *, vec<struct asmjs_jsexport_decl> *);
+
+extern void asmjs_jsexport (tree, struct asmjs_jsexport_opts *,
+			    vec<struct asmjs_jsexport_decl> *);
 
