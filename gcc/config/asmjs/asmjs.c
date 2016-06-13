@@ -565,6 +565,9 @@ static void asmjs_jsexport_decl_callback (void *gcc_data, void *)
   int recurse = 0;
   struct asmjs_jsexport_opts opts;
 
+  opts.jsname = NULL;
+  opts.recurse = 0;
+
   if (DECL_P (decl))
     {
       tree attrs = DECL_ATTRIBUTES (decl);
@@ -622,6 +625,9 @@ asmjs_handle_jsexport_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
 				 bool *no_add_attrs ATTRIBUTE_UNUSED)
 {
   struct asmjs_jsexport_opts opts;
+
+  opts.jsname = NULL;
+  opts.recurse = 0;
 
   if (!asmjs_jsexport_plugin_inited)
     asmjs_jsexport_plugin_init ();
