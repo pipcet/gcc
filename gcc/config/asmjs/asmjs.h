@@ -236,7 +236,7 @@ typedef struct {
 #define SLOW_UNALIGNED_ACCESS(MODE, ALIGN) 1
 
 #define NO_FUNCTION_CSE true
-#define LOGICAL_OP_NON_SHORT_CIRCUIT 1
+//#define LOGICAL_OP_NON_SHORT_CIRCUIT 1
 
 #define TEXT_SECTION_ASM_OP "\t.text\n\t.pushsection .javascript%S,\"a\""
 #define DATA_SECTION_ASM_OP "\t.data"
