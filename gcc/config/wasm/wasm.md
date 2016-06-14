@@ -339,7 +339,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "if (%O0) { dpc = ($\n\t.dpc %l3\n\t); $\n\t.cont_or_break %l3\n\t }"
+  "(if %O0 (then (set $dpc $\n\t.dpc %l3\n\t) (jump)))"
   )
 
 (define_expand "cbranchsi4"

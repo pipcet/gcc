@@ -1,4 +1,46 @@
 #NO_APP
+        .macro .wasmtextlabeldef label
+.LAT\@0:
+        .popsection
+        .long 0
+        .long 0
+\label\():
+        .long 0
+        .long 0
+        .pushsection .javascript%S,"a"
+        .endm
+
+        .macro .wasmtextlabeldeffirst label
+.LAT\@0:
+        .popsection
+\label\():
+.LAT\@1:
+        .long 0
+        .long 0
+        .pushsection .javascript%S,"a"
+        .set .L__pc0, .LAT\@1
+        .endm
+
+        .macro .wasmtextlabeldeflast label
+.LAT\@0:
+        .popsection
+        .long 0
+        .long 0
+\label\():
+        .pushsection .javascript%S,"a"
+        .endm
+
+        .macro .rpcr4 a, b
+        .ascii ",(string->number (string-delete \""
+        .reloc .,R_ASMJS_HEX16R4,\b-\a
+        .ascii "0000000000000000"
+        .ascii "\" #\\ 0) 16)"
+        .endm
+
+        .macro .dpc label
+        .rpcr4 .L__pc0, \label
+        .endm
+
         .macro .labeldef_debug label
         .popsection
         .set \label, . - 8
@@ -44,15 +86,6 @@
         .ascii "0x0000000000000000"
         .endm
 
-        .macro .rpcr4 a, b
-        .reloc .+2,R_ASMJS_HEX16R4,\b-\a
-        .ascii "0x0000000000000000"
-        .endm
-
-        .macro .dpc label
-        .rpcr4 .L__pc0, \label
-        .endm
-
         .macro .flush
         rp = fp|1;
         dpc = $
@@ -64,7 +97,6 @@
 
         .macro .textlabeldef label
 .LAT\@0:
-        case $
         .popsection
 \label\():
 .LAT\@1:
@@ -74,7 +106,6 @@
         .long 0
         .pushsection .javascript%S,"a"
         .dpc .LAT\@1
-        .ascii ":\n"
         .endm
 
         .macro .codetextlabeldef label
@@ -89,7 +120,6 @@
         continue;
         .endif
         .endif
-        .ascii "case "
         .popsection
 .LAT\@1:
         .long .LAT\@0
@@ -98,13 +128,11 @@
         .long .LAT\@0
         .long 0
         .pushsection .javascript%S,"a"
-        .dpc .LAT\@1+8
-        .ascii ":\n"
+        (label)
         .endm
 
         .macro .codetextlabeldeffirst label
 .LAT\@0:
-        .ascii "case "
         .popsection
 \label\():
 .L.\()\label:
@@ -114,7 +142,6 @@
         .pushsection .javascript%S,"a"
         .set .L__pc0, .LAT\@1
         .rpcr4 .L__pc0, .LAT\@1
-        .ascii ":\n"
         .set __wasm_fallthrough, 1
         .endm
 

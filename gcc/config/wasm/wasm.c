@@ -838,7 +838,7 @@ wasm_kind wasm_rtx_kind(rtx x)
 }
 
 void wasm_print_assignment(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind want_kind);
-void wasm_print_operation(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind want_kind)
+void wasm_print_operation(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind want_kind, bool want_lval)
 {
   wasm_kind have_kind = wasm_rtx_kind (x);
 
@@ -846,20 +846,11 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind wa
     want_kind = kind_lval;
 
   if (want_kind == kind_signed) {
-    wasm_print_lparen (stream, want_prec, prec_bitor);
-    wasm_print_operation (stream, x, prec_bitor, kind_lval);
-    asm_fprintf(stream, "|0");
-    wasm_print_rparen (stream, want_prec, prec_bitor);
+    wasm_print_operation (stream, x, prec_bitor, kind_lval, want_lval);
   } else if (want_kind == kind_unsigned) {
-    wasm_print_lparen (stream, want_prec, prec_shift);
-    wasm_print_operation (stream, x, prec_shift, kind_lval);
-    asm_fprintf(stream, ">>>0");
-    wasm_print_rparen (stream, want_prec, prec_shift);
+    wasm_print_operation (stream, x, prec_shift, kind_lval, want_lval);
   } else if (want_kind == kind_float) {
-    wasm_print_lparen (stream, want_prec, prec_unary);
-    asm_fprintf(stream, "+");
-    wasm_print_operation (stream, x, prec_unary, kind_lval);
-    wasm_print_rparen (stream, want_prec, prec_unary);
+    wasm_print_operation (stream, x, prec_unary, kind_lval, want_lval);
   } else if (want_kind == kind_lval) {
     switch (GET_CODE (x)) {
     case PC: {
@@ -867,31 +858,31 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind wa
       break;
     }
     case REG: {
-      asm_fprintf (stream, "%s", reg_names[REGNO (x)]);
+      if (want_lval)
+	asm_fprintf (stream, "$%s", reg_names[REGNO (x)]);
+      else
+	asm_fprintf (stream, "(get_local $%s)", reg_names[REGNO (x)]);
       break;
     }
     case ZERO_EXTEND: {
       rtx mem = XEXP (x, 0);
       if (GET_CODE (mem) == MEM)
 	{
-	  rtx addr = XEXP (mem, 0);
-	  const char *heappre = wasm_heap2pre (mem, 1);
-	  const char *heappost = wasm_heap2post (mem);
-
-	  asm_fprintf (stream, "%s", heappre);
-	  wasm_print_operation (stream, addr, prec_shift, kind_lval);
-	  asm_fprintf (stream, "%s", heappost);
+	  rtx addr = XEXP (x, 1);
+	  asm_fprintf (stream, "(mem ");
+	  wasm_print_operation (stream, addr, prec_shift, kind_lval, false);
+	  asm_fprintf (stream, ")");
 	}
       else if (GET_CODE (mem) == SUBREG)
 	{
 	  rtx reg = XEXP (mem, 0);
 
-	  wasm_print_operation (stream, reg, prec_assign, kind_lval);
+	  wasm_print_operation (stream, reg, prec_assign, kind_lval, false);
 	  asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
 	}
       else if (GET_CODE (mem) == REG)
 	{
-	  wasm_print_operation (stream, mem, prec_assign, kind_lval);
+	  wasm_print_operation (stream, mem, prec_assign, kind_lval, false);
 	  asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
 	}
       else
@@ -903,16 +894,14 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind wa
     }
     case MEM: {
       rtx addr = XEXP (x, 0);
-      const char *heappre = wasm_heap2pre (x, 0);
-      const char *heappost = wasm_heap2post (x);
 
-      asm_fprintf (stream, "%s", heappre);
-      wasm_print_operation (stream, addr, prec_shift, kind_lval);
-      asm_fprintf (stream, "%s", heappost);
+      asm_fprintf (stream, "(mem ");
+      wasm_print_operation (stream, addr, prec_shift, kind_lval, false);
+      asm_fprintf (stream, ")");
       break;
     }
     case CONST_INT: {
-      asm_fprintf (stream, "%d", (int) XWINT (x, 0));
+      asm_fprintf (stream, "(i32.const %d)", (int) XWINT (x, 0));
       break;
     }
     case CONST_DOUBLE: {
@@ -1011,7 +1000,7 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind wa
       break;
     }
     case CONST: {
-      wasm_print_operation (stream, XEXP (x, 0), want_prec, want_kind);
+      wasm_print_operation (stream, XEXP (x, 0), want_prec, want_kind, false);
       break;
     }
     default:
@@ -1022,26 +1011,16 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind wa
   }
 }
 
-void wasm_print_predicate(FILE *stream, rtx x)
-{
-  asm_fprintf(stream, "if(");
-  wasm_print_operation (stream, x, prec_comma, kind_signed);
-  asm_fprintf(stream, ")");
-}
-
 static unsigned wasm_function_regsize(tree decl ATTRIBUTE_UNUSED);
 
 void wasm_print_operand(FILE *stream, rtx x, int code)
 {
   //print_rtl (stderr, x);
   if (code == 'O') {
-    wasm_print_operation (stream, x, prec_comma, kind_lval);
+    wasm_print_operation (stream, x, prec_comma, kind_lval, false);
     //asm_fprintf (stream, "\n/* RTL: ");
     //print_rtl(stream, x);
     //asm_fprintf (stream, "*/");
-    return;
-  } else if (code == 'C') {
-    wasm_print_predicate (stream, x);
     return;
   } else if (code == '/') {
     asm_fprintf (stream, "%d", wasm_function_regsize (NULL_TREE));
@@ -1091,27 +1070,27 @@ struct wasm_operator {
 struct wasm_operator wasm_operators[] = {
   {
     PLUS, SImode, SImode,
-    "", "+", "",
+    "", "", "add",
     prec_add, kind_signed, kind_lval
   },
   {
     MINUS, SImode, SImode,
-    "", "-", "",
+    "", "", "sub",
     prec_add, kind_signed, kind_lval
   },
   {
     MULT, SImode, SImode,
-    "imul(", ",", ")",
+    "", "", "mul",
     prec_comma, kind_signed, kind_signed
   },
   {
     DIV, SImode, SImode,
-    "", "/", "",
+    "", "", "div_s",
     prec_mult, kind_signed, kind_lval
   },
   {
     MOD, SImode, SImode,
-    "", "%", "",
+    "", "", "rem_s",
     prec_mult, kind_signed, kind_lval
   },
   {
@@ -1156,32 +1135,32 @@ struct wasm_operator wasm_operators[] = {
   },
   {
     EQ, SImode, VOIDmode,
-    "", "==", "",
+    "", "", "eq",
     prec_comp, kind_signed, kind_signed
   },
   {
     NE, SImode, VOIDmode,
-    "", "!=", "",
+    "", "", "ne",
     prec_comp, kind_signed, kind_signed
   },
   {
     LT, SImode, VOIDmode,
-    "", "<", "",
+    "", "", "lt",
     prec_comp, kind_signed, kind_signed
   },
   {
     LE, SImode, VOIDmode,
-    "", "<=", "",
+    "", "", "le",
     prec_comp, kind_signed, kind_signed
   },
   {
     GT, SImode, VOIDmode,
-    "", ">", "",
+    "", "", "gt",
     prec_comp, kind_signed, kind_signed
   },
   {
     GE, SImode, VOIDmode,
-    "", ">=", "",
+    "", "", "ge",
     prec_comp, kind_signed, kind_signed
   },
   {
@@ -1387,7 +1366,7 @@ void wasm_print_op(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind want_kind
   wasm_prec prec2;
   struct wasm_operator *oper;
   rtx a = XEXP (x, 0);
-  rtx b = NULL;
+  rtx b;
 
   for (oper = wasm_operators; oper->prefix; oper++) {
     if (oper->code == GET_CODE (x) &&
@@ -1397,71 +1376,17 @@ void wasm_print_op(FILE *stream, rtx x, wasm_prec want_prec, wasm_kind want_kind
       break;
   }
 
-  if (!oper->prefix) {
-    asm_fprintf (stream, "BROKEN (unknown operator:1041): ");
-    print_rtl (stream, x);
-    return;
-  }
-
   if (oper->infix)
     b = XEXP (x, 1);
 
-  /* cases:
-   * 0  A X B
-   * 1  (A X B) UNUSED
-   * 2  +A X B
-   * 3  +(A X B)
-   * 4  A X B|0
-   * 5  (A X B)|0
-   * 6  A X B>>>0
-   * 7  (A X B)>>>0
-   */
-
-  int code = 0;
-
-  prec2 = oper->prec;
-  if (want_kind == kind_lval || want_kind == oper->outkind) {
-    prec2 = oper->prec;
-  } else if (want_kind == kind_float) {
-    prec2 = prec_unary;
-    code = 2;
-  } else if (want_kind == kind_signed) {
-    prec2 = prec_bitor;
-    code = 4;
-  } else if (want_kind == kind_unsigned) {
-    prec2 = prec_shift;
-    code = 6;
-  }
-  if (code && prec2 >= oper->prec)
-    code++;
-  wasm_print_lparen (stream, want_prec, prec2);
-
-  if ((code & 6) == 2)
-    asm_fprintf (stream, "+");
-  if (code & 1)
-    asm_fprintf (stream, "(");
-
-  asm_fprintf (stream, "%s", oper->prefix);
-  wasm_print_operation (stream, a, oper->prec, oper->inkind);
-  if (b) {
-    if (strcmp(oper->infix, "+") == 0 &&
-	GET_CODE (b) == CONST_INT &&
-	wasm_rtx_kind (b) != kind_lval &&
-	XWINT (b, 0) < 0)
-      ;
-    else
-      asm_fprintf (stream, "%s", oper->infix);
-    wasm_print_operation (stream, b, oper->prec, oper->inkind);
-  }
+  asm_fprintf (stream, "(");
+  asm_fprintf (stream, "i32.");
   asm_fprintf (stream, "%s", oper->suffix);
-
-  if (code & 1)
-    asm_fprintf (stream, ")");
-  if ((code & 6) == 4)
-    asm_fprintf (stream, "|0");
-  if ((code & 6) == 6)
-    asm_fprintf (stream, ">>>0");
-  wasm_print_rparen (stream, want_prec, prec2);
+  asm_fprintf (stream, " ");
+  wasm_print_operation(stream, a, oper->prec, oper->inkind, false);
+  asm_fprintf (stream, " ");
+  wasm_print_operation(stream, b, oper->prec, oper->inkind, false);
+  asm_fprintf (stream, ")");
 }
 
 void wasm_print_assignment(FILE *stream, rtx x, wasm_prec want_prec ATTRIBUTE_UNUSED, wasm_kind want_kind ATTRIBUTE_UNUSED)
@@ -1482,41 +1407,12 @@ void wasm_print_assignment(FILE *stream, rtx x, wasm_prec want_prec ATTRIBUTE_UN
     break;
   }
 
-  if (rkind == kind_lval)
-    {
-      asm_fprintf (stream, "BROKEN: (unknown mode:1131)");
-    }
+  asm_fprintf (stream, "(set ");
+  wasm_print_operation (stream, XEXP (x, 0), prec_assign, kind_lval, true);
+  asm_fprintf (stream, " ");
 
-  if (GET_CODE (XEXP (x, 1)) == IF_THEN_ELSE)
-    {
-      rtx ite = XEXP (x, 1);
-      rtx cond = XEXP (ite, 0);
-      rtx lval = XEXP (x, 0);
-      rtx rval_if = XEXP (ite, 1);
-      rtx rval_else = XEXP (ite, 2);
-
-      wasm_print_predicate (stream, cond);
-      wasm_print_operation (stream, lval, prec_assign, kind_lval);
-      asm_fprintf (stream, " = ");
-
-      wasm_print_operation (stream, rval_if, prec_assign, rkind);
-
-      asm_fprintf (stream, ";\n\telse ");
-      wasm_print_operation (stream, lval, prec_assign, kind_lval);
-      asm_fprintf (stream, " = ");
-
-      wasm_print_operation (stream, rval_else, prec_assign, rkind);
-
-      return;
-    }
-
-  wasm_print_operation (stream, XEXP (x, 0), prec_assign, kind_lval);
-  asm_fprintf (stream, " = ");
-
-  wasm_print_operation (stream, XEXP (x, 1), prec_assign, rkind);
-  if (rkind == kind_lval) {
-    asm_fprintf (stream, "BROKEN: (unknown mode:1131)");
-  }
+  wasm_print_operation (stream, XEXP (x, 1), prec_assign, rkind, false);
+  asm_fprintf (stream, ")");
 }
 
 rtx wasm_function_value(const_tree ret_type, const_tree fn_decl ATTRIBUTE_UNUSED,
@@ -1874,79 +1770,12 @@ void wasm_start_function(FILE *f, const char *name, tree decl)
   asm_fprintf(f, "\t.popsection\n");
   asm_fprintf(f, "\t.p2align 4+8\n");
   asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
-  asm_fprintf(f, "    function f_$\n\t.codetextlabel .L.%s\n", cooked_name);
-  asm_fprintf(f, "\t/* %s */ (dpc, sp1, r0, r1, rpc, pc0) {\n", name);
-  asm_fprintf(f, "\tdpc = dpc|0;\n");
-  asm_fprintf(f, "\tsp1 = sp1|0;\n");
-  asm_fprintf(f, "\tr0 = r0|0;\n");
-  asm_fprintf(f, "\tr1 = r1|0;\n");
-  asm_fprintf(f, "\trpc = rpc|0;\n");
-  asm_fprintf(f, "\tpc0 = pc0|0;\n");
-  asm_fprintf(f, "\tvar sp = 0;\n");
-  asm_fprintf(f, "\tvar fp = 0;\n");
-  asm_fprintf(f, "\tvar rp = 0;\n");
-  for (regno = R2_REG; regno <= I7_REG; regno++)
-    {
-      if (df_regs_ever_live_p (regno) || crtl->calls_eh_return)
-	asm_fprintf(f, "\tvar %s = 0;\n", reg_names[regno]);
-    }
-  for (regno = F0_REG; regno <= F7_REG; regno++)
-    {
-      if (df_regs_ever_live_p (regno) || crtl->calls_eh_return)
-	asm_fprintf(f, "\tvar %s = 0.0;\n", reg_names[regno]);
-    }
-  asm_fprintf(f, "\tvar pc = 0;\n");
-  asm_fprintf(f, "\tvar a = 0;\n");
-  asm_fprintf(f, "\tsp = sp1-16|0;\n");
-  asm_fprintf(f, "\tmainloop:\n");
-  asm_fprintf(f, "\twhile(1) {\n");
-  switch (breakpoints_type) {
-  case BP_SINGLE:
-    asm_fprintf(f, "\tif ((HEAP32[bp_addr>>2]|0) == (pc|0)) {\n");
-    asm_fprintf(f, "\t\tbp_hit = 1;\n");
-    asm_fprintf(f, "\t}\n");
-    break;
-  case BP_MANY:
-    asm_fprintf(f, "\tfor (a = bp_addr|0; (HEAP32[a>>2]|0) != -1; a = ((a|0)+4)|0) {\n");
-    asm_fprintf(f, "\t\tif ((HEAP32[a>>2]|0) == (pc|0)) bp_hit = 1;\n");
-    asm_fprintf(f, "\t}\n");
-    break;
-  case BP_PLETHORA:
-    asm_fprintf(f, "\tif (foreign_breakpoint_p(pc|0)|0) bp_hit = 1;\n");
-    break;
-  case BP_NONE:
-  default:
-    break;
-  }
-  if (bt_type != BOGOTICS_NONE)
-    {
-      asm_fprintf(f, "\tbogotics = (bogotics|0)-1|0;\n");
-    }
-  if ((bt_type == BOGOTICS_ALL) && breakpoints_type != BP_NONE) {
-    asm_fprintf(f, "\ta = ((bp_hit)|0) | ((bogotics|0)<0);\n");
-    asm_fprintf(f, "\tif ((a|0) != 0) {\n");
-    asm_fprintf(f, "\t\tif (fp|0) {\n");
-    asm_fprintf(f, "\t\t\trp = fp|1;\n");
-    asm_fprintf(f, "\t\t\tbreak mainloop;\n");
-    asm_fprintf(f, "\t\t}\n");
-    asm_fprintf(f, "\t}\n");
-  } else if (bt_type == BOGOTICS_ALL) {
-    asm_fprintf(f, "\tif ((bogotics|0) < 0) {\n");
-    asm_fprintf(f, "\t\tif (fp|0) {\n");
-    asm_fprintf(f, "\t\t\trp = fp|1;\n");
-    asm_fprintf(f, "\t\t\tbreak mainloop;\n");
-    asm_fprintf(f, "\t\t}\n");
-    asm_fprintf(f, "\t}\n");
-  } else if (breakpoints_type != BP_NONE) {
-    asm_fprintf(f, "\tif ((bp_hit|0) != 0) {\n");
-    asm_fprintf(f, "\t\tif (fp|0) {\n");
-    asm_fprintf(f, "\t\t\trp = fp|1;\n");
-    asm_fprintf(f, "\t\t\tbreak mainloop;\n");
-    asm_fprintf(f, "\t\t}\n");
-    asm_fprintf(f, "\t}\n");
-  }
-  asm_fprintf(f, "\tswitch (dpc|0) {\n");
-  asm_fprintf(f, "\t.codetextlabeldeffirst %s\n", cooked_name);
+  asm_fprintf(f, "(\n");
+  asm_fprintf(f, "\t.wasmtextlabeldeffirst %s\n", cooked_name);
+  asm_fprintf(f, "\t\"f_$\n");
+  asm_fprintf(f, "\t.textlabel %s\n", cooked_name);
+  asm_fprintf(f, "\"\n");
+  asm_fprintf(f, "\t(set $sp (i32.add (get_local $sp1) (i32.const -16)))\n");
 }
 
 
@@ -1958,23 +1787,6 @@ void wasm_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   enum wasm_bogotics_type bt_type = bogotics_type;
   tree type = decl ? TREE_TYPE (decl) : NULL;
 
-  if (type)
-    {
-      tree attrs = TYPE_ATTRIBUTES (type);
-
-      if (attrs)
-	{
-	  if (lookup_attribute("nobogotics", attrs))
-	    bt_type = BOGOTICS_NONE;
-
-	  if (lookup_attribute("bogotics", attrs))
-	    bt_type = BOGOTICS_ALL;
-
-	  if (lookup_attribute("bogotics_backwards", attrs))
-	    bt_type = BOGOTICS_BACKWARDS;
-	}
-    }
-
   for (p = name; *p; p++)
     *q++ = *p;
 
@@ -1983,77 +1795,8 @@ void wasm_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   while (cooked_name[0] == '*')
     cooked_name++;
 
-  asm_fprintf(f, "\t.codetextlabeldeflast .ends.%s\n", cooked_name);
-  asm_fprintf(f, " default:\n");
-  asm_fprintf(f, "\tif ((dpc+pc0|0) == 0) {\n");
-  asm_fprintf(f, "\t\trp = sp|0;\n");
-  wasm_function_regload (f, decl);
-  asm_fprintf(f, "\t\tfp = rp|0;\n");
-  asm_fprintf(f, "\t\tcontinue;\n");
-  asm_fprintf(f, "\t} else {\n");
-  asm_fprintf(f, "\t\tforeign_abort(0|0, dpc|0, pc0|0, 0, 0);\n");
-  asm_fprintf(f, "\t}\n");
-  asm_fprintf(f, "\t}\n");
-  if (use_interrupts)
-    {
-      asm_fprintf(f, "\tif ((HEAP32[0>>2]|0) != 0) {\n");
-      asm_fprintf(f, "\t\tif (fp|0) {\n");
-      asm_fprintf(f, "\t\t\trp = fp|1;\n");
-      asm_fprintf(f, "\t\t\tbreak mainloop;\n");
-      asm_fprintf(f, "\t\t}\n");
-      asm_fprintf(f, "\t}\n");
-    }
-  if (bt_type != BOGOTICS_NONE)
-    {
-      asm_fprintf(f, "\t{\n");
-      asm_fprintf(f, "\tbogotics = (bogotics|0)-1|0;\n");
-    }
-  if ((bt_type != BOGOTICS_NONE) && breakpoints_type != BP_NONE) {
-    asm_fprintf(f, "\ta = ((bp_hit)|0) | ((bogotics|0)<0);\n");
-    asm_fprintf(f, "\tif ((a|0) != 0) {\n");
-    asm_fprintf(f, "\t\tif (fp|0) {\n");
-    asm_fprintf(f, "\t\t\trp = fp|1;\n");
-    asm_fprintf(f, "\t\t\tbreak mainloop;\n");
-    asm_fprintf(f, "\t\t}\n");
-    asm_fprintf(f, "\t}\n");
-    asm_fprintf(f, "\t}\n");
-  } else if (bt_type != BOGOTICS_NONE) {
-    asm_fprintf(f, "\tif ((bogotics|0) < 0) {\n");
-    asm_fprintf(f, "\t\tif (fp|0) {\n");
-    asm_fprintf(f, "\t\t\trp = fp|1;\n");
-    asm_fprintf(f, "\t\t\tbreak mainloop;\n");
-    asm_fprintf(f, "\t\t}\n");
-    asm_fprintf(f, "\t}\n");
-    asm_fprintf(f, "\t}\n");
-  } else if (breakpoints_type != BP_NONE) {
-    asm_fprintf(f, "\tif ((bp_hit|0) != 0) {\n");
-    asm_fprintf(f, "\t\tif (fp|0) {\n");
-    asm_fprintf(f, "\t\t\trp = fp|1;\n");
-    asm_fprintf(f, "\t\t\tbreak mainloop;\n");
-    asm_fprintf(f, "\t\t}\n");
-    asm_fprintf(f, "\t}\n");
-  }
-  asm_fprintf(f, "\t}\n");
-  asm_fprintf(f, "\tif ((rp&3) == 1) {\n");
-  asm_fprintf(f, "\t\tHEAP32[sp-16>>2] = fp;\n");
-  wasm_function_regstore (f, decl);
-  asm_fprintf(f, "\t}\n");
-  asm_fprintf(f, "\treturn rp|0;}\n");
-  asm_fprintf(f, "\t.popsection\n");
-  asm_fprintf(f, "\t.pushsection .special.export,\"a\"\n");
-  asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
-  asm_fprintf(f, "\t.ascii \"f_\"\n\t.codetextlabel .L.%s\n\t.ascii \": f_\"\n\t.codetextlabel .L.%s\n\t.ascii \",\\n\"\n", cooked_name, cooked_name);
-  asm_fprintf(f, "\t.popsection\n");
-
-  asm_fprintf(f, "\t.section .special.define,\"a\"\n");
-  asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
-  asm_fprintf(f, "\t.ascii \"\\tdeffun({name: \\\"f_\"\n\t.codetextlabel .L.%s\n\t.ascii \"\\\", symbol: \\\"%s\\\", pc0: \"\n\t.codetextlabel .L.%s\n\t.ascii \", pc1: \"\n\t.codetextlabel .ends.%s\n\t.ascii \", regsize: %d, regmask: 0x%x});\\n\"\n", cooked_name, cooked_name, cooked_name, cooked_name, wasm_function_regsize(decl), wasm_function_regmask(decl));
-  asm_fprintf(f, "\t.popsection\n");
-
-  asm_fprintf(f, "\t.section .special.fpswitch,\"a\"\n");
-  asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
-  asm_fprintf(f, "\tcase $\n\t.codetextlabelr12 .L.%s\n\t:\n\treturn f_$\n\t.codetextlabel .L.%s\n\t(dpc|0, sp|0, r0|0, r1|0, rpc|0, pc0|0)|0;\n", cooked_name, cooked_name);
-  asm_fprintf(f, "\t.popsection\n");
+  asm_fprintf(f, "\t.wasmtextlabeldeflast .ends.%s\n", cooked_name);
+  asm_fprintf(f, ")\n");
 }
 
 void wasm_output_ascii (FILE *f, const void *ptr, size_t len)
@@ -2472,7 +2215,7 @@ rtx wasm_expand_epilogue()
 const char *wasm_expand_ret_insn()
 {
   char buf[1024];
-  snprintf (buf, 1022, "return fp+%d|0;\n\t.set __wasm_fallthrough, 0",
+  snprintf (buf, 1022, "(return (i32.add (get_local $fp) (i32.const %d)))\n\t.set __wasm_fallthrough, 0",
 	    wasm_function_regsize (NULL_TREE));
 
   return ggc_strdup (buf);
