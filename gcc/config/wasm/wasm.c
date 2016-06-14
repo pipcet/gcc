@@ -667,50 +667,10 @@ void wasm_print_operand_address(FILE *stream, rtx x)
   }
 }
 
-enum wasm_kind {
-  kind_lval, kind_signed, kind_unsigned, kind_float
-};
+void wasm_print_op(FILE *stream, rtx x);
 
-void wasm_print_op(FILE *stream, rtx x, wasm_kind want_kind);
-
-wasm_kind wasm_op_kind(rtx x);
-wasm_kind wasm_rtx_kind(rtx x)
-{
-  switch (GET_CODE (x)) {
-  case REG: {
-    return kind_lval;
-  }
-  case CONST_INT: {
-    if (XWINT (x, 0) < (1<<20) &&
-	XWINT (x, 0) > -(1<<20))
-      return kind_signed;
-    return kind_lval;
-  }
-  case CONST_DOUBLE: {
-    return kind_float;
-  }
-  case AND:
-  case XOR:
-  case IOR:
-  case ASHIFT:
-  case ASHIFTRT:
-    return kind_signed;
-  case LSHIFTRT:
-    return kind_unsigned;
-  case PLUS:
-  case MINUS:
-  case DIV:
-  case MOD:
-  case UDIV:
-  case UMOD:
-    return wasm_op_kind(x);
-  default:
-    return kind_lval;
-  }
-}
-
-void wasm_print_assignment(FILE *stream, rtx x, wasm_kind want_kind);
-void wasm_print_operation(FILE *stream, rtx x, wasm_kind want_kind, bool want_lval)
+void wasm_print_assignment(FILE *stream, rtx x);
+void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
 {
   switch (GET_CODE (x)) {
   case PC: {
@@ -730,19 +690,19 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_kind want_kind, bool want_lv
       {
 	rtx addr = XEXP (x, 1);
 	asm_fprintf (stream, "(mem ");
-	wasm_print_operation (stream, addr, kind_lval, false);
+	wasm_print_operation (stream, addr, false);
 	asm_fprintf (stream, ")");
       }
     else if (GET_CODE (mem) == SUBREG)
       {
 	rtx reg = XEXP (mem, 0);
 
-	wasm_print_operation (stream, reg, kind_lval, false);
+	wasm_print_operation (stream, reg, false);
 	asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
       }
     else if (GET_CODE (mem) == REG)
       {
-	wasm_print_operation (stream, mem, kind_lval, false);
+	wasm_print_operation (stream, mem, false);
 	asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
       }
     else
@@ -756,7 +716,7 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_kind want_kind, bool want_lv
     rtx addr = XEXP (x, 0);
 
     asm_fprintf (stream, "(mem ");
-    wasm_print_operation (stream, addr, kind_lval, false);
+    wasm_print_operation (stream, addr, false);
     asm_fprintf (stream, ")");
     break;
   }
@@ -827,11 +787,11 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_kind want_kind, bool want_lv
   case AND:
   case IOR:
   case XOR: {
-    wasm_print_op (stream, x, want_kind);
+    wasm_print_op (stream, x);
     break;
   }
   case SET: {
-    wasm_print_assignment (stream, x, want_kind);
+    wasm_print_assignment (stream, x);
     break;
   }
   case EQ:
@@ -840,14 +800,14 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_kind want_kind, bool want_lv
   case LT:
   case GE:
   case LE: {
-    wasm_print_op (stream, x, want_kind);
+    wasm_print_op (stream, x);
     break;
   }
   case GTU:
   case LTU:
   case GEU:
   case LEU: {
-    wasm_print_op (stream, x, want_kind);
+    wasm_print_op (stream, x);
     break;
   }
   case FLOAT:
@@ -856,11 +816,11 @@ void wasm_print_operation(FILE *stream, rtx x, wasm_kind want_kind, bool want_lv
   case FIX:
   case NEG:
   case NOT: {
-    wasm_print_op (stream, x, want_kind);
+    wasm_print_op (stream, x);
     break;
   }
   case CONST: {
-    wasm_print_operation (stream, XEXP (x, 0), want_kind, false);
+    wasm_print_operation (stream, XEXP (x, 0), false);
     break;
   }
   default:
@@ -876,7 +836,7 @@ void wasm_print_operand(FILE *stream, rtx x, int code)
 {
   //print_rtl (stderr, x);
   if (code == 'O') {
-    wasm_print_operation (stream, x, kind_lval, false);
+    wasm_print_operation (stream, x, false);
     //asm_fprintf (stream, "\n/* RTL: ");
     //print_rtl(stream, x);
     //asm_fprintf (stream, "*/");
@@ -921,9 +881,6 @@ struct wasm_operator {
   const char *infix;
   const char *suffix;
 
-  wasm_kind inkind;
-  wasm_kind outkind;
-
   int nargs;
 };
 
@@ -931,314 +888,241 @@ struct wasm_operator wasm_operators[] = {
   {
     PLUS, SImode, SImode,
     "", "", "add",
-    kind_signed, kind_lval,
     2
   },
   {
     MINUS, SImode, SImode,
     "", "", "sub",
-    kind_signed, kind_lval,
     2
   },
   {
     MULT, SImode, SImode,
     "", "", "mul",
-    kind_signed, kind_signed,
     2
   },
   {
     DIV, SImode, SImode,
     "", "", "div_s",
-    kind_signed, kind_lval,
     2
   },
   {
     MOD, SImode, SImode,
     "", "", "rem_s",
-    kind_signed, kind_lval,
     2
   },
   {
     UDIV, SImode, SImode,
     "", "", "div_u",
-    kind_unsigned, kind_lval,
     2
   },
   {
     UMOD, SImode, SImode,
     "", "", "rem_u",
-    kind_unsigned, kind_lval,
     2
   },
   {
     XOR, SImode, SImode,
     "", "", "xor",
-    kind_lval, kind_signed,
     2
   },
   {
     IOR, SImode, SImode,
     "", "", "or",
-    kind_lval, kind_signed,
     2
   },
   {
     AND, SImode, SImode,
     "", "", "and",
-    kind_lval, kind_signed,
     2
   },
   {
     ASHIFT, SImode, SImode,
     "", "", "lsh",
-    kind_lval, kind_signed,
     2
   },
   {
     ASHIFTRT, SImode, SImode,
     "", "", "rsh",
-    kind_lval, kind_signed,
     2
   },
   {
     LSHIFTRT, SImode, SImode,
     "", "", "rsh",
-    kind_lval, kind_unsigned,
     2
   },
   {
     EQ, SImode, VOIDmode,
     "", "", "eq",
-    kind_signed, kind_signed,
     2
   },
   {
     NE, SImode, VOIDmode,
     "", "", "ne",
-    kind_signed, kind_signed,
     2
   },
   {
     LT, SImode, VOIDmode,
     "", "", "lt",
-    kind_signed, kind_signed,
     2
   },
   {
     LE, SImode, VOIDmode,
     "", "", "le",
-    kind_signed, kind_signed,
     2
   },
   {
     GT, SImode, VOIDmode,
     "", "", "gt",
-    kind_signed, kind_signed,
     2
   },
   {
     GE, SImode, VOIDmode,
     "", "", "ge",
-    kind_signed, kind_signed,
     2
   },
   {
     LTU, SImode, VOIDmode,
     "", "<", "",
-    kind_unsigned, kind_signed,
     2
   },
   {
     LEU, SImode, VOIDmode,
     "", "<=", "",
-    kind_unsigned, kind_signed
   },
   {
     GTU, SImode, VOIDmode,
     "", ">", "",
-    kind_unsigned, kind_signed
   },
   {
     GEU, SImode, VOIDmode,
     "", ">=", "",
-    kind_unsigned, kind_signed
   },
   {
     EQ, SImode, SImode,
     "", "==", "",
-    kind_signed, kind_lval
   },
   {
     NE, SImode, SImode,
     "", "!=", "",
-    kind_signed, kind_lval
   },
   {
     LT, SImode, SImode,
     "", "<", "",
-    kind_signed, kind_lval
   },
   {
     LE, SImode, SImode,
     "", "<=", "",
-    kind_signed, kind_lval
   },
   {
     GT, SImode, SImode,
     "", ">", "",
-    kind_signed, kind_lval
   },
   {
     GE, SImode, SImode,
     "", ">=", "",
-    kind_signed, kind_lval
   },
   {
     LTU, SImode, SImode,
     "", "<", "",
-    kind_unsigned, kind_lval
   },
   {
     LEU, SImode, SImode,
     "", "<=", "",
-    kind_unsigned, kind_lval
   },
   {
     GTU, SImode, SImode,
     "", ">", "",
-    kind_unsigned, kind_lval
   },
   {
     GEU, SImode, SImode,
     "", ">=", "",
-    kind_unsigned, kind_lval
   },
   {
     PLUS, DFmode, DFmode,
     "", "+", "",
-    kind_float, kind_float
   },
   {
     MINUS, DFmode, DFmode,
     "", "-", "",
-    kind_float, kind_float
   },
   {
     MULT, DFmode, DFmode,
     "", "*", "",
-    kind_float, kind_float
   },
   {
     DIV, DFmode, DFmode,
     "", "/", "",
-    kind_float, kind_float
   },
   {
     MOD, DFmode, DFmode,
     "", "%", "",
-    kind_float, kind_float
   },
   {
     NEG, DFmode, DFmode,
     "-", NULL, "",
-    kind_float, kind_float
   },
   {
     EQ, DFmode, VOIDmode,
     "", "==", "",
-    kind_float, kind_signed
   },
   {
     NE, DFmode, VOIDmode,
     "", "!=", "",
-    kind_float, kind_signed
   },
   {
     LT, DFmode, VOIDmode,
     "", "<", "",
-    kind_float, kind_signed
   },
   {
     LE, DFmode, VOIDmode,
     "", "<=", "",
-    kind_float, kind_signed
   },
   {
     GT, DFmode, VOIDmode,
     "", ">", "",
-    kind_float, kind_signed
   },
   {
     GE, DFmode, VOIDmode,
     "", ">=", "",
-    kind_float, kind_signed
   },
   {
     NEG, SImode, SImode,
     "-", NULL, "",
-    kind_signed, kind_lval
   },
   {
     NOT, SImode, SImode,
     "~", NULL, "",
-    kind_signed, kind_signed
   },
   {
     FIX, DFmode, SImode,
     "~~", NULL, "",
-    kind_float, kind_signed
   },
   {
     FLOAT, SImode, DFmode,
     "+", NULL, "",
-    kind_signed, kind_float
   },
   /* I think this is wrong and we should use the libgcc definition instead. XXX */
   {
     FLOAT, DImode, DFmode,
     "+", NULL, "",
-    kind_signed, kind_float
   },
   {
     FLOAT_EXTEND, SFmode, DFmode,
     "+", NULL, "",
-    kind_float, kind_float
   },
   {
     FLOAT_TRUNCATE, DFmode, SFmode,
     "+fround(+", NULL, ")",
-    kind_float, kind_float
   },
   {
     0, SImode, SImode,
     NULL, NULL, NULL,
-    kind_lval, kind_unsigned
   }
 };
 
 bool modes_compatible (machine_mode mode1, machine_mode mode2)
 {
   return mode1 == mode2 || mode1 == VOIDmode || mode2 == VOIDmode;
-}
-
-wasm_kind wasm_op_kind(rtx x)
-{
-  struct wasm_operator *oper;
-  rtx a = XEXP (x, 0);
-
-  for (oper = wasm_operators; oper->prefix; oper++) {
-    if (oper->code == GET_CODE (x) &&
-	oper->outmode == GET_MODE (x) &&
-	modes_compatible(GET_MODE (a), oper->inmode) &&
-	(!oper->infix || modes_compatible (GET_MODE (XEXP (x,1)), oper->inmode)))
-      break;
-  }
-
-  if (!oper->prefix) {
-    return kind_lval;
-  }
-
-  return oper->outkind;
 }
 
 const char *wasm_mode (machine_mode mode)
@@ -1257,7 +1141,7 @@ const char *wasm_mode (machine_mode mode)
   }
 }
 
-void wasm_print_op(FILE *stream, rtx x, wasm_kind want_kind)
+void wasm_print_op(FILE *stream, rtx x)
 {
   struct wasm_operator *oper;
   rtx a = XEXP (x, 0);
@@ -1274,39 +1158,22 @@ void wasm_print_op(FILE *stream, rtx x, wasm_kind want_kind)
   asm_fprintf (stream, "(");
   asm_fprintf (stream, "%s.%s", wasm_mode (GET_MODE (x)), oper->suffix);
   asm_fprintf (stream, " ");
-  wasm_print_operation(stream, a, oper->inkind, false);
+  wasm_print_operation(stream, a, false);
   if (oper->nargs == 2) {
     b = XEXP (x, 1);
 
     asm_fprintf (stream, " ");
-    wasm_print_operation(stream, b, oper->inkind, false);
+    wasm_print_operation(stream, b, false);
   }
   asm_fprintf (stream, ")");
 }
 
-void wasm_print_assignment(FILE *stream, rtx x, wasm_kind want_kind ATTRIBUTE_UNUSED)
+void wasm_print_assignment(FILE *stream, rtx x)
 {
-  wasm_kind rkind;
-  switch (GET_MODE (XEXP (x, 0))) {
-  case QImode:
-  case HImode:
-  case SImode:
-    rkind = kind_signed;
-    break;
-  case SFmode:
-  case DFmode:
-    rkind = kind_float;
-    break;
-  default:
-    rkind = kind_lval;
-    break;
-  }
-
   asm_fprintf (stream, "(set ");
-  wasm_print_operation (stream, XEXP (x, 0), kind_lval, true);
+  wasm_print_operation (stream, XEXP (x, 0), true);
   asm_fprintf (stream, " ");
-
-  wasm_print_operation (stream, XEXP (x, 1), rkind, false);
+  wasm_print_operation (stream, XEXP (x, 1), false);
   asm_fprintf (stream, ")");
 }
 
