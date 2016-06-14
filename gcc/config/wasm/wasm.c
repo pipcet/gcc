@@ -474,15 +474,6 @@ wasm_handle_bogotics_attribute (tree *node ATTRIBUTE_UNUSED,
   return NULL;
 }
 
-#if 0
-extern void debug_tree (tree t);
-extern void debug_c_tree (tree t);
-
-#include "gimple.h"
-#include "lto-streamer.h"
-#include "streamer-hooks.h"
-#endif
-
 static vec<struct wasm_jsexport_decl> wasm_jsexport_decls;
 
 __attribute__((weak)) void
@@ -660,66 +651,6 @@ static const struct attribute_spec wasm_attribute_table[] =
   { NULL, 0, 0, false, false, false, NULL, false }
 };
 
-const char *wasm_heap(rtx x, int *shift, bool wantsign)
-{
-  switch (GET_MODE (x)) {
-  case QImode:
-    *shift = 0;
-    return wantsign ? "HEAP8" : "HEAPU8";
-  case HImode:
-    *shift = 1;
-    return wantsign ? "HEAP16" : "HEAPU16";
-  case SImode:
-    *shift = 2;
-    return wantsign ? "HEAP32" : "HEAPU32";
-  case SFmode:
-    *shift = 2;
-    return "HEAPF32";
-  case DFmode:
-    *shift = 3;
-    return "HEAPF64";
-  default:
-    *shift = 0;
-    return "HEAPU8";
-  }
-}
-
-const char *wasm_heap2pre(rtx x, int nosign)
-{
-  switch (GET_MODE (x)) {
-  case QImode:
-    return nosign ? "HEAPU8[" : "HEAP8[";
-  case HImode:
-    return nosign ? "HEAPU16[" : "HEAP16[";
-  case SImode:
-    return nosign ? "HEAPU32[" : "HEAP32[";
-  case SFmode:
-    return "HEAPF32[";
-  case DFmode:
-    return "HEAPF64[";
-  default:
-    return "HEAPU8[";
-  }
-}
-
-const char *wasm_heap2post(rtx x)
-{
-  switch (GET_MODE (x)) {
-  case QImode:
-    return ">>0]";
-  case HImode:
-    return ">>1]";
-  case SImode:
-    return ">>2]";
-  case SFmode:
-    return ">>2]";
-  case DFmode:
-    return ">>3]";
-  default:
-    return ">>0]";
-  }
-}
-
 void wasm_print_operand_address(FILE *stream, rtx x)
 {
   switch (GET_CODE (x)) {
@@ -781,174 +712,161 @@ wasm_kind wasm_rtx_kind(rtx x)
 void wasm_print_assignment(FILE *stream, rtx x, wasm_kind want_kind);
 void wasm_print_operation(FILE *stream, rtx x, wasm_kind want_kind, bool want_lval)
 {
-  wasm_kind have_kind = wasm_rtx_kind (x);
-
-  if (have_kind == want_kind)
-    want_kind = kind_lval;
-
-  if (want_kind == kind_signed) {
-    wasm_print_operation (stream, x, kind_lval, want_lval);
-  } else if (want_kind == kind_unsigned) {
-    wasm_print_operation (stream, x, kind_lval, want_lval);
-  } else if (want_kind == kind_float) {
-    wasm_print_operation (stream, x, kind_lval, want_lval);
-  } else if (want_kind == kind_lval) {
-    switch (GET_CODE (x)) {
-    case PC: {
-      asm_fprintf (stream, "pc");
-      break;
-    }
-    case REG: {
-      if (want_lval)
-	asm_fprintf (stream, "$%s", reg_names[REGNO (x)]);
-      else
-	asm_fprintf (stream, "(get_local $%s)", reg_names[REGNO (x)]);
-      break;
-    }
-    case ZERO_EXTEND: {
-      rtx mem = XEXP (x, 0);
-      if (GET_CODE (mem) == MEM)
-	{
-	  rtx addr = XEXP (x, 1);
-	  asm_fprintf (stream, "(mem ");
-	  wasm_print_operation (stream, addr, kind_lval, false);
-	  asm_fprintf (stream, ")");
-	}
-      else if (GET_CODE (mem) == SUBREG)
-	{
-	  rtx reg = XEXP (mem, 0);
-
-	  wasm_print_operation (stream, reg, kind_lval, false);
-	  asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
-	}
-      else if (GET_CODE (mem) == REG)
-	{
-	  wasm_print_operation (stream, mem, kind_lval, false);
-	  asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
-	}
-      else
-	{
-	  print_rtl (stderr, x);
-	  gcc_unreachable ();
-	}
-      break;
-    }
-    case MEM: {
-      rtx addr = XEXP (x, 0);
-
-      asm_fprintf (stream, "(mem ");
-      wasm_print_operation (stream, addr, kind_lval, false);
-      asm_fprintf (stream, ")");
-      break;
-    }
-    case CONST_INT: {
-      asm_fprintf (stream, "(i32.const %d)", (int) XWINT (x, 0));
-      break;
-    }
-    case CONST_DOUBLE: {
-      REAL_VALUE_TYPE r;
-      char buf[512];
-      long l[2];
-
-      r = *CONST_DOUBLE_REAL_VALUE (x);
-      REAL_VALUE_TO_TARGET_DOUBLE (r, l);
-
-      real_to_decimal_for_mode (buf, &r, 510, 0, 1, DFmode);
-
-      if (strcmp(buf, "+Inf") == 0) {
-	asm_fprintf (stream, "+(1.0/0.0)");
-      } else if (strcmp (buf, "-Inf") == 0) {
-	asm_fprintf (stream, "+(-1.0/0.0)");
-      } else if (buf[0] == '+')
-	asm_fprintf (stream, "%s", buf+1);
-      else
-	asm_fprintf (stream, "%s", buf);
-      break;
-    }
-    case SYMBOL_REF: {
-      const char *name = XSTR (x, 0);
-      if (!SYMBOL_REF_FUNCTION_P (x)) {
-	asm_fprintf (stream, "$\n\t.datatextlabel ");
-	asm_fprintf (stream, "%s", name + (name[0] == '*'));
-	asm_fprintf (stream, "\n\t");
-	asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
-      } else if (in_section->common.flags & SECTION_CODE) {
-	asm_fprintf (stream, "$\n\t.codetextlabel ");
-	asm_fprintf (stream, "%s", name + (name[0] == '*'));
-	asm_fprintf (stream, "\n\t");
-	asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
-      } else {
-	asm_fprintf (stream, "BROKEN");
-	asm_fprintf (stream, "$\n\t.codetextlabel ");
-	asm_fprintf (stream, "%s", name + (name[0] == '*'));
-	asm_fprintf (stream, "\n\t");
+  switch (GET_CODE (x)) {
+  case PC: {
+    asm_fprintf (stream, "pc");
+    break;
+  }
+  case REG: {
+    if (want_lval)
+      asm_fprintf (stream, "$%s", reg_names[REGNO (x)]);
+    else
+      asm_fprintf (stream, "(get_local $%s)", reg_names[REGNO (x)]);
+    break;
+  }
+  case ZERO_EXTEND: {
+    rtx mem = XEXP (x, 0);
+    if (GET_CODE (mem) == MEM)
+      {
+	rtx addr = XEXP (x, 1);
+	asm_fprintf (stream, "(mem ");
+	wasm_print_operation (stream, addr, kind_lval, false);
+	asm_fprintf (stream, ")");
       }
-      break;
-    }
-    case LABEL_REF: {
-      char buf[256];
-      x = LABEL_REF_LABEL (x);
-      asm_fprintf (stream, "$\n\t.codetextlabel ");
-      ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
-      ASM_OUTPUT_LABEL_REF (stream, buf);
+    else if (GET_CODE (mem) == SUBREG)
+      {
+	rtx reg = XEXP (mem, 0);
+
+	wasm_print_operation (stream, reg, kind_lval, false);
+	asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
+      }
+    else if (GET_CODE (mem) == REG)
+      {
+	wasm_print_operation (stream, mem, kind_lval, false);
+	asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
+      }
+    else
+      {
+	print_rtl (stderr, x);
+	gcc_unreachable ();
+      }
+    break;
+  }
+  case MEM: {
+    rtx addr = XEXP (x, 0);
+
+    asm_fprintf (stream, "(mem ");
+    wasm_print_operation (stream, addr, kind_lval, false);
+    asm_fprintf (stream, ")");
+    break;
+  }
+  case CONST_INT: {
+    asm_fprintf (stream, "(i32.const %d)", (int) XWINT (x, 0));
+    break;
+  }
+  case CONST_DOUBLE: {
+    REAL_VALUE_TYPE r;
+    char buf[512];
+    long l[2];
+
+    r = *CONST_DOUBLE_REAL_VALUE (x);
+    REAL_VALUE_TO_TARGET_DOUBLE (r, l);
+
+    real_to_decimal_for_mode (buf, &r, 510, 0, 1, DFmode);
+
+    if (strcmp(buf, "+Inf") == 0) {
+      asm_fprintf (stream, "+(1.0/0.0)");
+    } else if (strcmp (buf, "-Inf") == 0) {
+      asm_fprintf (stream, "+(-1.0/0.0)");
+    } else if (buf[0] == '+')
+      asm_fprintf (stream, "%s", buf+1);
+    else
+      asm_fprintf (stream, "%s", buf);
+    break;
+  }
+  case SYMBOL_REF: {
+    const char *name = XSTR (x, 0);
+    if (!SYMBOL_REF_FUNCTION_P (x)) {
+      asm_fprintf (stream, "$\n\t.datatextlabel ");
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
-      asm_fprintf (stream, "/*%s*/", buf + (buf[0] == '*'));
-      break;
+      asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
+    } else if (in_section->common.flags & SECTION_CODE) {
+      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      asm_fprintf (stream, "\n\t");
+      asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
+    } else {
+      asm_fprintf (stream, "BROKEN");
+      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      asm_fprintf (stream, "\n\t");
     }
-    case PLUS:
-    case MINUS:
-    case ASHIFT:
-    case ASHIFTRT:
-    case LSHIFTRT:
-    case MULT:
-    case DIV:
-    case MOD:
-    case UMOD:
-    case UDIV:
-    case AND:
-    case IOR:
-    case XOR: {
-      wasm_print_op (stream, x, want_kind);
-      break;
-    }
-    case SET: {
-      wasm_print_assignment (stream, x, want_kind);
-      break;
-    }
-    case EQ:
-    case NE:
-    case GT:
-    case LT:
-    case GE:
-    case LE: {
-      wasm_print_op (stream, x, want_kind);
-      break;
-    }
-    case GTU:
-    case LTU:
-    case GEU:
-    case LEU: {
-      wasm_print_op (stream, x, want_kind);
-      break;
-    }
-    case FLOAT:
-    case FLOAT_TRUNCATE:
-    case FLOAT_EXTEND:
-    case FIX:
-    case NEG:
-    case NOT: {
-      wasm_print_op (stream, x, want_kind);
-      break;
-    }
-    case CONST: {
-      wasm_print_operation (stream, XEXP (x, 0), want_kind, false);
-      break;
-    }
-    default:
-      asm_fprintf (stream, "BROKEN (unknown code:746): ");
-      print_rtl (stream, x);
-      return;
-    }
+    break;
+  }
+  case LABEL_REF: {
+    char buf[256];
+    x = LABEL_REF_LABEL (x);
+    asm_fprintf (stream, "$\n\t.codetextlabel ");
+    ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
+    ASM_OUTPUT_LABEL_REF (stream, buf);
+    asm_fprintf (stream, "\n\t");
+    asm_fprintf (stream, "/*%s*/", buf + (buf[0] == '*'));
+    break;
+  }
+  case PLUS:
+  case MINUS:
+  case ASHIFT:
+  case ASHIFTRT:
+  case LSHIFTRT:
+  case MULT:
+  case DIV:
+  case MOD:
+  case UMOD:
+  case UDIV:
+  case AND:
+  case IOR:
+  case XOR: {
+    wasm_print_op (stream, x, want_kind);
+    break;
+  }
+  case SET: {
+    wasm_print_assignment (stream, x, want_kind);
+    break;
+  }
+  case EQ:
+  case NE:
+  case GT:
+  case LT:
+  case GE:
+  case LE: {
+    wasm_print_op (stream, x, want_kind);
+    break;
+  }
+  case GTU:
+  case LTU:
+  case GEU:
+  case LEU: {
+    wasm_print_op (stream, x, want_kind);
+    break;
+  }
+  case FLOAT:
+  case FLOAT_TRUNCATE:
+  case FLOAT_EXTEND:
+  case FIX:
+  case NEG:
+  case NOT: {
+    wasm_print_op (stream, x, want_kind);
+    break;
+  }
+  case CONST: {
+    wasm_print_operation (stream, XEXP (x, 0), want_kind, false);
+    break;
+  }
+  default:
+    asm_fprintf (stream, "BROKEN (unknown code:746): ");
+    print_rtl (stream, x);
+    return;
   }
 }
 
@@ -1091,37 +1009,44 @@ struct wasm_operator wasm_operators[] = {
   {
     EQ, SImode, VOIDmode,
     "", "", "eq",
-    kind_signed, kind_signed
+    kind_signed, kind_signed,
+    2
   },
   {
     NE, SImode, VOIDmode,
     "", "", "ne",
-    kind_signed, kind_signed
+    kind_signed, kind_signed,
+    2
   },
   {
     LT, SImode, VOIDmode,
     "", "", "lt",
-    kind_signed, kind_signed
+    kind_signed, kind_signed,
+    2
   },
   {
     LE, SImode, VOIDmode,
     "", "", "le",
-    kind_signed, kind_signed
+    kind_signed, kind_signed,
+    2
   },
   {
     GT, SImode, VOIDmode,
     "", "", "gt",
-    kind_signed, kind_signed
+    kind_signed, kind_signed,
+    2
   },
   {
     GE, SImode, VOIDmode,
     "", "", "ge",
-    kind_signed, kind_signed
+    kind_signed, kind_signed,
+    2
   },
   {
     LTU, SImode, VOIDmode,
     "", "<", "",
-    kind_unsigned, kind_signed
+    kind_unsigned, kind_signed,
+    2
   },
   {
     LEU, SImode, VOIDmode,
@@ -1328,7 +1253,7 @@ const char *wasm_mode (machine_mode mode)
   case SFmode:
     return "f32";
   default:
-    gcc_unreachable ();
+    return "i32"; /* why is this happening? */
   }
 }
 
@@ -1346,15 +1271,16 @@ void wasm_print_op(FILE *stream, rtx x, wasm_kind want_kind)
       break;
   }
 
-  if (oper->infix)
-    b = XEXP (x, 1);
-
   asm_fprintf (stream, "(");
   asm_fprintf (stream, "%s.%s", wasm_mode (GET_MODE (x)), oper->suffix);
   asm_fprintf (stream, " ");
   wasm_print_operation(stream, a, oper->inkind, false);
-  asm_fprintf (stream, " ");
-  wasm_print_operation(stream, b, oper->inkind, false);
+  if (oper->nargs == 2) {
+    b = XEXP (x, 1);
+
+    asm_fprintf (stream, " ");
+    wasm_print_operation(stream, b, oper->inkind, false);
+  }
   asm_fprintf (stream, ")");
 }
 
