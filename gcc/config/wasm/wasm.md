@@ -225,8 +225,8 @@
           (match_operand:SI 1 "general_operand" "rmi,rmi"))]
       ""
       "@
-      (set $rp (call $f_$\n\t%O0\n\t (int.const 0) $sp $r0 $r1 (int.add $pc0\n\t.codetextlabel past\n\t) (int.rsh %O0 (int.const 4))))\n\t(if (int.and (get_local $rp) (int.const 3)) (br $mainloop))
-      (set_local $rp (call_indirect $f_$\n\t%O0\n\t (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) (get_local $dpc)), (i32.rsh %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) 3) (br $mainloop))")
+      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call $f_%L0\n\t (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
+      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call $indcall (i32.const 0) $sp $r0 $r1 (i32.add (get_local $pc0) \n\t.codetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)

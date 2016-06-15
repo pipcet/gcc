@@ -670,6 +670,40 @@ void wasm_print_operand_address(FILE *stream, rtx x)
 void wasm_print_op(FILE *stream, rtx x);
 
 void wasm_print_assignment(FILE *stream, rtx x);
+void wasm_print_label(FILE *stream, rtx x)
+{
+  switch (GET_CODE (x)) {
+  case SYMBOL_REF: {
+    const char *name = XSTR (x, 0);
+    if (!SYMBOL_REF_FUNCTION_P (x)) {
+      asm_fprintf (stream, "$\n\t.datatextlabel ");
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      asm_fprintf (stream, "\n\t");
+    } else if (in_section->common.flags & SECTION_CODE) {
+      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      asm_fprintf (stream, "\n\t");
+    } else {
+      asm_fprintf (stream, "BROKEN");
+      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      asm_fprintf (stream, "\n\t");
+    }
+    break;
+  }
+  case LABEL_REF: {
+    char buf[256];
+    x = LABEL_REF_LABEL (x);
+    asm_fprintf (stream, "$\n\t.codetextlabel ");
+    ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
+    ASM_OUTPUT_LABEL_REF (stream, buf);
+    asm_fprintf (stream, "\n\t");
+    break;
+  }
+  default:
+    gcc_unreachable ();
+  }
+}
 void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
 {
   switch (GET_CODE (x)) {
@@ -747,18 +781,16 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
   case SYMBOL_REF: {
     const char *name = XSTR (x, 0);
     if (!SYMBOL_REF_FUNCTION_P (x)) {
-      asm_fprintf (stream, "$\n\t.datatextlabel ");
+      asm_fprintf (stream, "$\n\t.ndatatextlabel ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
-      asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
     } else if (in_section->common.flags & SECTION_CODE) {
-      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "$\n\t.ncodetextlabel ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
-      asm_fprintf (stream, "/*%s*/", name + (name[0] == '*'));
     } else {
       asm_fprintf (stream, "BROKEN");
-      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "$\n\t.ncodetextlabel ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
     }
@@ -771,7 +803,6 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
     ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
     ASM_OUTPUT_LABEL_REF (stream, buf);
     asm_fprintf (stream, "\n\t");
-    asm_fprintf (stream, "/*%s*/", buf + (buf[0] == '*'));
     break;
   }
   case PLUS:
@@ -843,6 +874,9 @@ void wasm_print_operand(FILE *stream, rtx x, int code)
     return;
   } else if (code == '/') {
     asm_fprintf (stream, "%d", wasm_function_regsize (NULL_TREE));
+    return;
+  } else if (code == 'L') {
+    wasm_print_label (stream, x);
     return;
   }
 

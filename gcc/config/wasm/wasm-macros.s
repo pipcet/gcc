@@ -56,14 +56,41 @@
         .ascii "0x0000000000000000"
         .endm
 
+        .macro .codetextlabel label
+        .reloc .+2,R_ASMJS_HEX16,\label
+        .ascii "0x0000000000000000"
+        .endm
+
         .macro .datatextlabel label
         .reloc .+2,R_ASMJS_HEX16,\label
         .ascii "0x0000000000000000"
         .endm
 
-        .macro .codetextlabel label
-        .reloc .+2,R_ASMJS_HEX16,\label
-        .ascii "0x0000000000000000"
+        .macro .ntextlabel label
+        .ascii "(i32.const "
+        .ascii ",(string->number (string-delete \""
+        .reloc .,R_ASMJS_HEX16,\label
+        .ascii "0000000000000000"
+        .ascii "\" #\\ 0) 16)"
+        .ascii ")"
+        .endm
+
+        .macro .ncodetextlabel label
+        .ascii "(i32.const "
+        .ascii ",(string->number (string-delete \""
+        .reloc .,R_ASMJS_HEX16,\label
+        .ascii "0000000000000000"
+        .ascii "\" #\\ 0) 16)"
+        .ascii ")"
+        .endm
+
+        .macro .ndatatextlabel label
+        .ascii "(i32.const "
+        .ascii ",(string->number (string-delete \""
+        .reloc .,R_ASMJS_HEX16,\label
+        .ascii "0000000000000000"
+        .ascii "\" #\\ 0) 16)"
+        .ascii ")"
         .endm
 
         .macro .textlabelr4 label
