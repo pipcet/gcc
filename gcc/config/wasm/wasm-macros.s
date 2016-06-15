@@ -114,11 +114,11 @@
         .endm
 
         .macro .flush
-        rp = fp|1;
-        dpc = $
+        (set_local $rp (i32.or (get_local $fp) (i32.const 1)))
+        (set_local $dpc $
         .dpc .LFl\@
-        ;
-        break mainloop;
+        )
+        (br $mainloop)
         .labeldef_internal .LFl\@
         .endm
 
@@ -188,14 +188,6 @@
         .reloc .+2,R_ASMJS_HEX16,\label
         .ascii "0x0000000000000000"
         .ascii ")"
-        .endm
-
-        .macro .cont_or_break label
-        .ifdef \label
-        break;
-        .else
-        continue;
-        .endif
         .endm
 
         .macro .lbranch label
