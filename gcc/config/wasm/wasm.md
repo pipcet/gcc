@@ -176,13 +176,13 @@
   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
         (zero_extend:SI (subreg:HI (match_operand:HI 1 "register_operand" "r") 0)))]
   ""
-  "%O0 = (%O1)&65535;")
+  "(set %O0 (i32.and %O1 (i32.const 65535)))")
 
 (define_insn "*zero_extendhisi2"
   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
         (zero_extend:SI (match_operand:HI 1 "general_operand" "rmi")))]
   ""
-  "%O0 = (%O1)&65535;")
+  "(set %O0 (i32.and %O1 (i32.const 65535)))")
 
 (define_expand "zero_extendhisi2"
   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
@@ -195,14 +195,14 @@
       [(match_operand:SF 0 "nonimmediate_operand" "=rm")
        (float_truncate:SF (match_operand:DF 1 "general_operand" "rmi"))])]
   ""
-  "%O2;")
+  "%O2")
 
 (define_insn "*extendsfdf"
   [(match_operator 2 "set_operator"
       [(match_operand:DF 0 "nonimmediate_operand" "=rm")
        (float_extend:DF (match_operand:SF 1 "general_operand" "rmi"))])]
   ""
-  "%O2;")
+  "%O2")
 
 (define_insn "*movsicc"
    [(match_operator 5 "set_operator"
@@ -213,7 +213,7 @@
                          (match_operand:SI 3 "general_operand" "rmi")
                          (match_operand:SI 4 "general_operand" "rmi"))])]
    ""
-   "%O5;")
+   "%O5")
 
 ;; I attempted to open-code this, but failed.  In theory once
 ;; open-coded we should be able to combine a call and a subsequent
@@ -268,22 +268,10 @@
 (define_insn "*jump"
   [(set (pc) (match_operand:SI 0 "general_operand" "rmi"))]
   ""
-  "/* indirect jump */\n\tdpc = (((%O0|0)>>4)-(pc0|0))|0;\n\tbreak;")
-
-;;(define_expand "jump"
-;;   [(set (pc) (label_ref (match_operand 0)))]
-;;   ""
-;;   "")
-
-;; (define_expand "jump"
-;;   [(set (reg:SI PC_REG) (label_ref (match_operand 0)))
-;;    (set (pc) (reg:SI PC_REG))]
-;;   ""
-;;   "")
+  "(set_local $dpc (i32.sub (i32.shr_u %O0 (i32.const 4)) (i32.get_local $pc0)))\n\t(jump)")
 
 (define_expand "jump"
   [
-;;   (set (pc) (match_operand:SI 0 "general_operand" "rmi"))
    (set (pc) (label_ref (match_operand:SI 0 "general_operand" "rmi")))
   ]
   "1" ;; avoid zero-size array insn_conditions
@@ -362,8 +350,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "if (%O0) { dpc = ($\n\t.dpc %l3\n\t); $\n\t.cont_or_break %l3\n\t }"
-  )
+  "(if %O0 (then (set $dpc $\n\t.dpc%l3\n\t) (jump)))")
 
 (define_expand "cbranchdf4"
   [(set (pc) (if_then_else
@@ -733,7 +720,7 @@
 (define_insn "nop"
   [(const_int 0)]
   ""
-  "/* nop */;")
+  "(nop)")
 
 ;; Special insn to flush register windows.
 
@@ -741,12 +728,6 @@
   [(unspec_volatile [(const_int 0)] UNSPECV_FLUSHW)]
   ""
   ".flush")
-
-;; (define_insn "eh_return"
-;;    [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")]
-;;      UNSPECV_EH_RETURN)]
-;;    ""
-;;    "/* eh_return */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tr3 = %O0|0;\n\tr0 = (fp|0)+16|0;\n\ta0 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+20|0;\n\ta1 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+24|0;\n\ta2 = HEAP32[r0>>2]|0;\n\tr0 = (fp|0)+28|0;\n\tif (0) a3 = HEAP32[r0>>2]|0;\n\tr0 = HEAP32[fp+12>>2]|0;\n\tr1 = ((fp|0) + (r0|0))|0;\n\tr2 = HEAP32[r1+4>>2]|0;\n\tHEAP32[r2+4>>2] = r3|0;\n\tdebug2('eh_return: r0 is ' + r0.toString(16));\n\tdebug2('eh_return: r2 is ' + r2.toString(16));\n\tdebug2('eh_return: r3 is ' + r3.toString(16));\n\tdebug2('eh_return: r1 is ' + r1.toString(16));\n\tdebug2('eh_return: a0 is ' + a0.toString(16));\n\tdebug2('eh_return: a1 is ' + a1.toString(16));\n\tdebug2('eh_return: a2 is ' + a2.toString(16));\n\tdebug2('eh_return: a3 is ' + a3.toString(16));\n\tdebug2('eh_return: fp is ' + fp.toString(16));\n\tdebug2('eh_return: sp is ' + sp.toString(16));\n\t")
 
 ;; This is tricky enough that we delegate it to a JavaScript function, so we end up doing all of the following:
 ;;  1. flush
@@ -759,7 +740,7 @@
    [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")]
      UNSPECV_EH_RETURN)]
    ""
-   "/* eh_return */\n\t.flush\n\treturn foreign_eh_return(fp|0, sp|0, %O0|0)|0;")
+   "(return (call_import $eh_return (get_local $fp) (get_local $sp) %O0))")
 
 (define_insn "*nonlocal_goto"
   [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")
@@ -768,25 +749,7 @@
                      (match_operand:SI 3 "register_operand" "r")]
     UNSPECV_NONLOCAL_GOTO)]
   ""
-  "/* nonlocal_goto */\n\t.flush\n\tHEAP32[(HEAP32[fp>>2]|0)+8>>2] = %O1;\n\tHEAP32[(HEAP32[fp>>2]|0)+12>>2] = %O0;\n\trv = %O3; /* unused %O2 */\n\tbreak mainloop;")
-
-;; (define_insn "*nonlocal_goto"
-;;   [(unspec_volatile [(match_operand 0)
-;;                      (match_operand:SI 2 "general_operand" "rm")
-;;                      (match_operand:SI 3 "general_operand" "rm")]
-;;     UNSPECV_NONLOCAL_GOTO)
-;;     (set (pc) (label_ref (match_operand 1)))]
-;;   ""
-;;   "/* nonlocal_goto */\n\trp = fp|1;\n\tpc = $\n\t.codetextlabel .LI%=\n\t>>4;\n\tbreak mainloop;\n\t.labeldef_internal .LI%=\n\tHEAP32[fp+HEAP32[fp+12>>2]>>2] = %O1;\n\tHEAP32[fp+HEAP32[fp+12>>2]+4>>2] = %O0;\n\trv = %O3; /* unused %O2 */")
-
-;; (define_insn "nonlocal_goto"
-;;   [(unspec_volatile [(match_operand 0)
-;;                      (match_operand 2)
-;;                      (match_operand 3)]
-;;     UNSPECV_NONLOCAL_GOTO)
-;;     (set (pc) (match_operand 1))]
-;;   ""
-;;   "/* nonlocal_goto */\n\t.flush\n\tHEAP32[fp+HEAP32[fp+12>>2]>>2] = %O1;\n\tHEAP32[fp+HEAP32[fp+12>>2]+4>>2] = %O0;\n\trv = %O3; /* unused %O2 */")
+  ".flush\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 8)) %O1)\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 12)) %O0)\n\t(set $rv %O3)\n\t(br $mainloop)")
 
 (define_expand "builtin_longjmp"
    [(set (pc) (unspec_volatile [(match_operand 0)]
@@ -801,7 +764,7 @@
    [(set (pc) (unspec_volatile [(match_operand 0)]
                UNSPECV_BUILTIN_LONGJMP))]
    ""
-   "/* longjmp */\n\t.flush\n\tfp = HEAP32[%O0>>2]|0;\n\tHEAP32[fp+8>>2] = HEAP32[%O0+4>>2]|0;\n\tHEAP32[fp+12>>2] = HEAP32[%O0+8>>2]|0;\n\treturn fp|3;")
+   ".flush\n\t(set_local $fp (i32.load %O0))\n\t(i32.store (i32.add (get_local $fp) (i32.const 8)) (i32.load (i32.add %O0 (i32.const 4))))\n\t(i32.store (i32.add (get_local $fp) (i32.const 12)) (i32.load (i32.add %O0 (i32.const 8))))\n\t(return (i32.or (get_local $fp) (i32.const 3)))")
 
 (define_expand "nonlocal_goto"
   [(set (pc)
@@ -826,7 +789,7 @@
                           ] UNSPECV_NONLOCAL_GOTO))
    ]
   ""
-  "/* nonlocal_goto */\n\t.flush\n\tHEAP32[(HEAP32[fp>>2]|0)+8>>2] = %O1;\n\tHEAP32[(HEAP32[fp>>2]|0)+12>>2] = %O2\n\trv = %O3;\n\t/* unused %O0 */\n\treturn HEAP32[(HEAP32[fp>>2]|0)+8>>2]|3;")
+  ".flush\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 8)) %O1)\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 12)) %O2)\n\t(set $rv %O3)\n\t(return (i32.or (i32.load (i32.add (i32.load (get_local $fp)) (i32.const 8))) (i32.const 3)))")
 
 (define_expand "nonlocal_goto_receiver"
   [(unspec_volatile [(const_int 0)] UNSPECV_NONLOCAL_GOTO_RECEIVER)]
@@ -845,4 +808,4 @@
                           ] UNSPECV_THUNK_GOTO))
    ]
   ""
-  "/* thunk_goto */\n\treturn f_$\n\t.codetextlabel %O0\n\t(0, sp+16|0, r0|0, r1|0, (dpc+pc0)|0, %O0>>4);")
+  "(return (call_import f_$\n\t.ncodetextlabel %O0\n\t(i32.const 0) (i32.add (get_local $sp) (i32.const 16)) (get_local $r0) (get_local $r1) (i32.add (get_local $dpc) (get_local $pc0)) (i32.shr_u %O0 (i32.const 4))))")
