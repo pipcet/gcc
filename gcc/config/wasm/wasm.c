@@ -2233,33 +2233,33 @@ wasm_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
   const char *name = XSTR (XEXP (DECL_RTL (thunk), 0), 0);
   bool stackcall = wasm_is_stackcall (TREE_TYPE (function));
   bool structret = aggregate_value_p (TREE_TYPE (TREE_TYPE (function)), TREE_TYPE (function));
-  const char *r = (structret && !stackcall) ? "r1" : "r0";
+  const char *r = (structret && !stackcall) ? "$r1" : "$r0";
 
   tname += tname[0] == '*';
   name += name[0] == '*';
 
   if (stackcall)
     {
-      asm_fprintf (f, "\t%s = (sp|0) + %d|0;\n", r,
-		   structret ? 20 : 16);
-      asm_fprintf (f, "\t%s = HEAP32[%s>>2]|0;\n", r, r);
+      asm_fprintf (f, "\t(set_local %s (i32.add (get_local $sp) (i32.const %d)))\n", r, structret ? 20 : 16);
+      asm_fprintf (f, "\t(set_local %s (i32.load (get_local %s)))\n", r, r);
     }
 
-  asm_fprintf (f, "\t%s = (%s|0) + (%d)|0;\n", r, r, (int)delta);
+  asm_fprintf (f, "\t(set_local %s (i32.add (get_local %s) (i32.const %d)))\n",
+	       r, r, (int) delta);
   if (vcall_offset)
     {
-      asm_fprintf (f, "\trv = HEAP32[%s>>2]|0;\n", r);
-      asm_fprintf (f, "\trv = (rv|0) + %d|0;\n", (int)vcall_offset);
-      asm_fprintf (f, "\trv = HEAP32[rv>>2]|0;\n");
-      asm_fprintf (f, "\t%s = (%s|0) + (rv|0)|0;\n", r, r);
+      asm_fprintf (f, "\t(set $rv (get_local %s))\n", r);
+      asm_fprintf (f, "\t(set $rv (i32.add $rv (i32.const %d)))\n", (int)vcall_offset);
+      asm_fprintf (f, "\t(set $rv (i32.load $rv))\n");
+      asm_fprintf (f, "\t(set_local %s (i32.add (get_local %s) $rv))\n",
+		   r, r);
     }
 
   if (stackcall)
-    asm_fprintf (f, "\tHEAP32[(sp|0)+%d>>2] = %s|0;\n",
-		 structret ? 20 : 16, r);
+    asm_fprintf (f, "\t(i32.store (i32.add (get_local $sp) (i32.const %d)) (get_local %s))\n", structret ? 20 : 16, r);
 
-  asm_fprintf (f, "\treturn f_$\n\t.codetextlabel %s\n\t(0, sp+16|0, r0|0, r1|0, pc|0, $\n\t.codetextlabel %s\n\t>>4)|0;\n",
-	       tname,tname);
+  asm_fprintf (f, "\t(return (call $f_$\n\t.codetextlabel %s\n\t(i32.const 0) (i32.add (get_local $sp) (i32.const 16)) (get_local $r0) (get_local $r1) (i32.add (get_local $dpc) (get_local $pc0))\n\t.ncodetextlabel %s\n\t))\n",
+	       tname, tname);
 }
 
 #undef TARGET_ASM_GLOBALIZE_LABEL
