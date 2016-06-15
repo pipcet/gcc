@@ -254,7 +254,7 @@ typedef struct {
 	"r1 = 0;\n\tr2 = 0;\n\tsp = ((sp|0)-16)|0;\n\t.labeldef_internal .LI" #FUNC "\n\tHEAP32[(sp+12)>>2] = r1;\n\tHEAP32[(sp+4)>>2] = fp;\n\tHEAP32[(sp+8)>>2] = r2;\n\tHEAP32[sp>>2] = ($\n\t.codetextlabel .LI" #FUNC "B\n\t);\n\trp = foreign_indcall($\n\t.codetextlabel " #FUNC "\n\t>>4, sp|0)|0;\n\tif (rp&3) {\n\t\tpc = HEAP32[sp>>2]>>4;\n\t\tbreak mainloop;\n\t}\n\t.labeldef_internal .LI" #FUNC "B\n\tsp = ((sp|0)+16)|0;\n" \
         TEXT_SECTION_ASM_OP);
 
-#define ASM_COMMENT_START "//"
+#define ASM_COMMENT_START ";;"
 #define ASM_APP_ON ""
 #define ASM_APP_OFF ""
 
