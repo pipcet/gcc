@@ -704,6 +704,28 @@ void wasm_print_label(FILE *stream, rtx x)
     gcc_unreachable ();
   }
 }
+
+const char *wasm_mode (machine_mode mode)
+{
+  switch (mode) {
+  case QImode:
+    return "i8";
+  case HImode:
+    return "i16";
+  case SImode:
+    return "i32";
+  case DImode:
+    return "i64";
+  case SFmode:
+    return "f32";
+  case DFmode:
+    return "f64";
+  default:
+    return "i32"; /* why is this happening? */
+  }
+}
+#include <print-tree.h>
+
 void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
 {
   switch (GET_CODE (x)) {
@@ -712,7 +734,7 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
     break;
   }
   case REG: {
-    if (want_lval)
+    if (want_lval || REGNO (x) == RV_REG)
       asm_fprintf (stream, "$%s", reg_names[REGNO (x)]);
     else
       asm_fprintf (stream, "(get_local $%s)", reg_names[REGNO (x)]);
@@ -722,8 +744,8 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
     rtx mem = XEXP (x, 0);
     if (GET_CODE (mem) == MEM)
       {
-	rtx addr = XEXP (x, 1);
-	asm_fprintf (stream, "(mem ");
+	rtx addr = XEXP (mem, 0);
+	asm_fprintf (stream, "(%s.mem_u ", wasm_mode (GET_MODE (x)));
 	wasm_print_operation (stream, addr, false);
 	asm_fprintf (stream, ")");
       }
@@ -731,13 +753,15 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
       {
 	rtx reg = XEXP (mem, 0);
 
+	asm_fprintf (stream, "(i32.and ");
 	wasm_print_operation (stream, reg, false);
-	asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
+	asm_fprintf (stream, " %d)", GET_MODE (mem) == HImode ? 65535 : 255);
       }
     else if (GET_CODE (mem) == REG)
       {
+	asm_fprintf (stream, "(i32.and ");
 	wasm_print_operation (stream, mem, false);
-	asm_fprintf (stream, "&%d", GET_MODE (mem) == HImode ? 65535 : 255);
+	asm_fprintf (stream, " %d)", GET_MODE (mem) == HImode ? 65535 : 255);
       }
     else
       {
@@ -749,7 +773,7 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
   case MEM: {
     rtx addr = XEXP (x, 0);
 
-    asm_fprintf (stream, "(mem ");
+    asm_fprintf (stream, "(%s.mem ", wasm_mode (GET_MODE (x)));
     wasm_print_operation (stream, addr, false);
     asm_fprintf (stream, ")");
     break;
@@ -971,17 +995,17 @@ struct wasm_operator wasm_operators[] = {
   },
   {
     ASHIFT, SImode, SImode,
-    "", "", "lsh",
+    "", "", "shl",
     2
   },
   {
     ASHIFTRT, SImode, SImode,
-    "", "", "rsh",
+    "", "", "shr_s",
     2
   },
   {
     LSHIFTRT, SImode, SImode,
-    "", "", "rsh",
+    "", "", "shr_u",
     2
   },
   {
@@ -996,157 +1020,189 @@ struct wasm_operator wasm_operators[] = {
   },
   {
     LT, SImode, VOIDmode,
-    "", "", "lt",
+    "", "", "lt_s",
     2
   },
   {
     LE, SImode, VOIDmode,
-    "", "", "le",
+    "", "", "le_s",
     2
   },
   {
     GT, SImode, VOIDmode,
-    "", "", "gt",
+    "", "", "gt_s",
     2
   },
   {
     GE, SImode, VOIDmode,
-    "", "", "ge",
+    "", "", "ge_s",
     2
   },
   {
     LTU, SImode, VOIDmode,
-    "", "<", "",
+    "", "", "lt_u",
     2
   },
   {
     LEU, SImode, VOIDmode,
-    "", "<=", "",
+    "", "", "le_u",
+    2
   },
   {
     GTU, SImode, VOIDmode,
-    "", ">", "",
+    "", "", "gt_u",
+    2
   },
   {
     GEU, SImode, VOIDmode,
-    "", ">=", "",
+    "", "", "ge_u",
+    2
   },
   {
     EQ, SImode, SImode,
-    "", "==", "",
+    "", "", "eq",
+    2
   },
   {
     NE, SImode, SImode,
-    "", "!=", "",
+    "", "", "ne",
+    2
   },
   {
     LT, SImode, SImode,
-    "", "<", "",
+    "", "", "lt_s",
+    2
   },
   {
     LE, SImode, SImode,
-    "", "<=", "",
+    "", "", "le_s",
+    2
   },
   {
     GT, SImode, SImode,
-    "", ">", "",
+    "", "", "gt_s",
+    2
   },
   {
     GE, SImode, SImode,
-    "", ">=", "",
+    "", "", "ge_s",
+    2
   },
   {
     LTU, SImode, SImode,
-    "", "<", "",
+    "", "", "lt_u",
+    2
   },
   {
     LEU, SImode, SImode,
-    "", "<=", "",
+    "", "", "le_u",
+    2
   },
   {
     GTU, SImode, SImode,
-    "", ">", "",
+    "", "", "gt_u",
+    2
   },
   {
     GEU, SImode, SImode,
-    "", ">=", "",
+    "", "", "ge_u",
+    2
   },
   {
     PLUS, DFmode, DFmode,
-    "", "+", "",
+    "", "", "add",
+    2
   },
   {
     MINUS, DFmode, DFmode,
-    "", "-", "",
+    "", "", "sub",
+    2
   },
   {
     MULT, DFmode, DFmode,
-    "", "*", "",
+    "", "", "mul",
+    2
   },
   {
     DIV, DFmode, DFmode,
-    "", "/", "",
+    "", "", "div",
+    2
   },
   {
     MOD, DFmode, DFmode,
     "", "%", "",
+    2
   },
   {
     NEG, DFmode, DFmode,
-    "-", NULL, "",
+    "", "", "neg",
+    1
   },
   {
     EQ, DFmode, VOIDmode,
-    "", "==", "",
+    "", "", "eq",
+    2
   },
   {
     NE, DFmode, VOIDmode,
-    "", "!=", "",
+    "", "", "ne",
+    2
   },
   {
     LT, DFmode, VOIDmode,
-    "", "<", "",
+    "", "", "lt",
+    2
   },
   {
     LE, DFmode, VOIDmode,
-    "", "<=", "",
+    "", "", "le",
+    2
   },
   {
     GT, DFmode, VOIDmode,
-    "", ">", "",
+    "", "", "gt",
+    2
   },
   {
     GE, DFmode, VOIDmode,
-    "", ">=", "",
+    "", "", "ge",
+    2
   },
   {
     NEG, SImode, SImode,
-    "-", NULL, "",
+    ",", "`", "neg",
+    1
   },
   {
     NOT, SImode, SImode,
-    "~", NULL, "",
+    "", "", "not",
+    1
   },
   {
     FIX, DFmode, SImode,
-    "~~", NULL, "",
+    "", "", "trunc_s_f64",
+    1
   },
   {
     FLOAT, SImode, DFmode,
-    "+", NULL, "",
+    "", "", "convert_s_i32",
+    1
   },
   /* I think this is wrong and we should use the libgcc definition instead. XXX */
   {
     FLOAT, DImode, DFmode,
-    "+", NULL, "",
+    "", "", "convert_s_i32",
+    1
   },
   {
     FLOAT_EXTEND, SFmode, DFmode,
-    "+", NULL, "",
+    "", "", "promote_f32",
+    1
   },
   {
     FLOAT_TRUNCATE, DFmode, SFmode,
-    "+fround(+", NULL, ")",
+    "", "", "demote_f64",
+    1
   },
   {
     0, SImode, SImode,
@@ -1159,22 +1215,6 @@ bool modes_compatible (machine_mode mode1, machine_mode mode2)
   return mode1 == mode2 || mode1 == VOIDmode || mode2 == VOIDmode;
 }
 
-const char *wasm_mode (machine_mode mode)
-{
-  switch (mode) {
-  case DImode:
-    return "i64";
-  case SImode:
-    return "i32";
-  case DFmode:
-    return "f64";
-  case SFmode:
-    return "f32";
-  default:
-    return "i32"; /* why is this happening? */
-  }
-}
-
 void wasm_print_op(FILE *stream, rtx x)
 {
   struct wasm_operator *oper;
@@ -1185,18 +1225,18 @@ void wasm_print_op(FILE *stream, rtx x)
     if (oper->code == GET_CODE (x) &&
 	oper->outmode == GET_MODE (x) &&
 	modes_compatible(GET_MODE (a), oper->inmode) &&
-	(!oper->infix || modes_compatible (GET_MODE (XEXP (x,1)), oper->inmode)))
+	(oper->nargs == 1 || modes_compatible (GET_MODE (XEXP (x,1)), oper->inmode)))
       break;
   }
 
-  asm_fprintf (stream, "(");
+  asm_fprintf (stream, "%s(", oper->prefix);
   asm_fprintf (stream, "%s.%s", wasm_mode (GET_MODE (x)), oper->suffix);
-  asm_fprintf (stream, " ");
+  asm_fprintf (stream, " %s", oper->infix);
   wasm_print_operation(stream, a, false);
   if (oper->nargs == 2) {
     b = XEXP (x, 1);
 
-    asm_fprintf (stream, " ");
+    asm_fprintf (stream, " %s", oper->infix);
     wasm_print_operation(stream, b, false);
   }
   asm_fprintf (stream, ")");
@@ -1432,22 +1472,24 @@ static unsigned wasm_function_regstore(FILE *stream,
   unsigned size = 0;
   unsigned total_size = wasm_function_regsize (decl);
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = (fp + 0x%08x)|0;\n", size, total_size);
+  asm_fprintf (stream, "\t(block\n");
+  asm_fprintf (stream, "\t\t(if (i32.ne (i32.and (get_local $rp) (i32.const 3)) (i32.const 1)) (return (get_local $rp)))\n");
+  asm_fprintf (stream, "\t\t(i32.store (i32.add (get_local $fp) (i32.const %d)) (i32.add (get_local $fp) (i32.const %d)))\n", size, total_size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = pc0<<4;\n", size);
+  asm_fprintf (stream, "\t\t(i32.store (i32.add (get_local $fp) (i32.const %d)) (i32.shl (get_local $pc0) (i32.const 4)))\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = (pc0 + dpc)<<4;\n", size);
+  asm_fprintf (stream, "\t\t(i32.store (i32.add (get_local $fp) (i32.const %d)) (i32.shl (i32.add (get_local $pc0) (get_local $dpc)) (i32.const 4)))\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = rpc|0;\n", size);
+  asm_fprintf (stream, "\t\t(i32.store (i32.add (get_local $fp) (i32.const %d)) (get_local $rpc))\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = sp|0;\n", size);
+  asm_fprintf (stream, "\t\t(i32.store (i32.add (get_local $fp) (i32.const %d)) (get_local $sp))\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tHEAP32[fp+%d>>2] = 0x%08x;\n", size, mask);
+  asm_fprintf (stream, "\t\t(i32.store (i32.add (get_local $fp) (i32.const %d)) (i32.const %d))\n", size, mask);
   size += 4;
 
   int i;
@@ -1458,20 +1500,22 @@ static unsigned wasm_function_regstore(FILE *stream,
 	  if (wasm_regno_reg_class (i) == FLOAT_REGS)
 	    {
 	      size += size&4;
-	      asm_fprintf(stream, "\t\tHEAPF64[fp+%d>>3] = +%s;\n",
+	      asm_fprintf(stream, "\t\t(f64.store (i32.add (get_local $fp) (i32.const %d)) (get_local $%s))\n",
 			  size, reg_names[i]);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-		asm_fprintf(stream, "\t\tHEAP32[fp+%d>>2] = %s|0;\n",
+		asm_fprintf(stream, "\t\t(i32.store (i32.add (get_local $fp) (i32.const %d)) (get_local $%s))\n",
 			    size, reg_names[i]);
 	      size += 4;
 	    }
 	}
     }
 
+  asm_fprintf (stream, "\t\t(return (get_local $rp))\n");
+  asm_fprintf (stream, "\t)\n");
   size += size&4;
   return size;
 }
@@ -1485,16 +1529,16 @@ static unsigned wasm_function_regload(FILE *stream,
 
   size += 4;
 
-  asm_fprintf (stream, "\t\tpc0 = HEAP32[rp+%d>>2]>>4;\n", size);
+  asm_fprintf (stream, "\t\t(set_local $pc0 (i32.shr_u (i32.load (i32.add (get_local $rp) (i32.const %d))) (i32.const 4)))\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tdpc = ((HEAP32[rp+%d>>2]>>4) - (pc0|0))|0;\n", size);
+  asm_fprintf (stream, "\t\t(set_local $dpc (i32.sub (i32.shr_u (i32.load (i32.add (get_local $rp) (i32.const %d))) (i32.const 4)) (get_local $pc0)))\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\trpc = HEAP32[rp+%d>>2]|0;\n", size);
+  asm_fprintf (stream, "\t\t(set_local $rpc (i32.load (i32.add (get_local $rp) (i32.const %d))))\n", size);
   size += 4;
 
-  asm_fprintf (stream, "\t\tsp = HEAP32[rp+%d>>2]|0;\n", size);
+  asm_fprintf (stream, "\t\t(set_local $sp (i32.load (i32.add (get_local $rp) (i32.const %d))))\n", size);
   size += 4;
 
   size += 4;
@@ -1507,14 +1551,14 @@ static unsigned wasm_function_regload(FILE *stream,
 	  if (wasm_regno_reg_class (i) == FLOAT_REGS)
 	    {
 	      size += size&4;
-	      asm_fprintf (stream, "\t\t%s = +HEAPF64[rp+%d>>3];\n",
+	      asm_fprintf (stream, "\t\t(set_local %s (f64.load (i32.add (get_local $rp) (i32.const %d))))\n",
 			   reg_names[i], size);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-		asm_fprintf (stream, "\t\t%s = HEAP32[rp+%d>>2]|0;\n",
+		asm_fprintf (stream, "\t\t(set_local %s (i32.load (i32.add (get_local $rp) (i32.const %d))))\n",
 			     reg_names[i], size);
 	      size += 4;
 	    }
@@ -1571,6 +1615,7 @@ void wasm_start_function(FILE *f, const char *name, tree decl)
   asm_fprintf(f, "\t\"f_$\n");
   asm_fprintf(f, "\t.textlabel %s\n", cooked_name);
   asm_fprintf(f, "\"\n");
+  wasm_function_regstore(f, decl);
   asm_fprintf(f, "\t(set $sp (i32.add (get_local $sp1) (i32.const -16)))\n");
 }
 
@@ -1592,6 +1637,10 @@ void wasm_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
     cooked_name++;
 
   asm_fprintf(f, "\t.wasmtextlabeldeflast .ends.%s\n", cooked_name);
+  //asm_fprintf(f, "(if (i32.ne (i32.add $dpc $pc0) (i32.const 0)) (call_import $abort (i32.const 0) (i32.const 0) (i32.const 0) (i32.const 0)))\n");
+  asm_fprintf(f, "\t(set_local $rp (i32.add (get_local $sp1) (i32.const -16)))\n");
+  wasm_function_regload (f, decl);
+  asm_fprintf(f, "\t(set_local $fp (get_local $rp))\n");
   asm_fprintf(f, ")\n");
 }
 
