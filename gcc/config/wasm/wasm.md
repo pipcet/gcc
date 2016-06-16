@@ -89,7 +89,7 @@
       [(match_operand:SI 0 "nonimmediate_operand" "=rm")
        (label_ref (match_operand 1))])]
   ""
-  "(set %O0 \n\t.codetextlabel %l1\n\t)")
+  "(set %S0 \n\t.ncodetextlabel %l1\n\t)")
 
 (define_insn "*assignsi"
   [(match_operator 2 "set_operator"
@@ -146,49 +146,49 @@
    ""
    "%O4")
 
-(define_insn "*zero_extendqisi2"
-  [(match_operator 2 "set_operator"
-      [(match_operand:SI 0 "nonimmediate_operand" "=rm")
-       (zero_extend:SI (match_operand:QI 1 "memory_operand" "m"))])]
-  ""
-  "%O2")
+;; (define_insn "*zero_extendqisi2"
+;;   [(match_operator 2 "set_operator"
+;;       [(match_operand:SI 0 "nonimmediate_operand" "=rm")
+;;        (zero_extend:SI (match_operand:QI 1 "memory_operand" "m"))])]
+;;   ""
+;;   "%O2")
 
-(define_insn "*zero_extendqisi2"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-        (zero_extend:SI (match_operand:QI 1 "general_operand" "rmi")))]
-  ""
-  "(set %O0 (zero_extend %O1))")
+;; (define_insn "*zero_extendqisi2"
+;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+;;         (zero_extend:SI (match_operand:QI 1 "general_operand" "rmi")))]
+;;   ""
+;;   "(set %S0 (zero_extend %O1))")
 
-(define_expand "zero_extendqisi2"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-        (zero_extend:SI (match_operand:QI 1 "general_operand" "rmi")))]
-  ""
-  "")
+;; (define_expand "zero_extendqisi2"
+;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+;;         (zero_extend:SI (match_operand:QI 1 "general_operand" "rmi")))]
+;;   ""
+;;   "")
 
-(define_insn "*zero_extendhisi2"
-  [(match_operator 2 "set_operator"
-      [(match_operand:SI 0 "nonimmediate_operand" "=rm")
-       (zero_extend:SI (match_operand:HI 1 "memory_operand" "m"))])]
-  ""
-  "(set %O2 (zero_extend %O1))")
+;; (define_insn "*zero_extendhisi2"
+;;   [(match_operator 2 "set_operator"
+;;       [(match_operand:SI 0 "nonimmediate_operand" "=rm")
+;;        (zero_extend:SI (match_operand:HI 1 "memory_operand" "m"))])]
+;;   ""
+;;   "(set %S0 (zero_extend %O1))")
 
-(define_insn "*zero_extendhisi2"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-        (zero_extend:SI (subreg:HI (match_operand:HI 1 "register_operand" "r") 0)))]
-  ""
-  "(set %O0 (i32.and %O1 (i32.const 65535)))")
+;; (define_insn "*zero_extendhisi2"
+;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+;;         (zero_extend:SI (subreg:HI (match_operand:HI 1 "register_operand" "r") 0)))]
+;;   ""
+;;   "(set %S0 (i32.and %O1 (i32.const 65535)))")
 
-(define_insn "*zero_extendhisi2"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-        (zero_extend:SI (match_operand:HI 1 "general_operand" "rmi")))]
-  ""
-  "(set %O0 (i32.and %O1 (i32.const 65535)))")
+;; (define_insn "*zero_extendhisi2"
+;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+;;         (zero_extend:SI (match_operand:HI 1 "general_operand" "rmi")))]
+;;   ""
+;;   "(set %S0 (i32.and %O1 (i32.const 65535)))")
 
-(define_expand "zero_extendhisi2"
-  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-        (zero_extend:SI (match_operand:HI 1 "general_operand" "rmi")))]
-  ""
-  "")
+;; (define_expand "zero_extendhisi2"
+;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+;;         (zero_extend:SI (match_operand:HI 1 "general_operand" "rmi")))]
+;;   ""
+;;   "")
 
 (define_insn "*truncdfsf"
   [(match_operator 2 "set_operator"
@@ -204,16 +204,16 @@
   ""
   "%O2")
 
-(define_insn "*movsicc"
-   [(match_operator 5 "set_operator"
-       [(match_operand:SI 0)
-        (if_then_else:SI  (match_operator 6 "ordered_comparison_operator"
-                          [(match_operand:SI 1 "general_operand" "rmi")
-                           (match_operand:SI 2 "general_operand" "rmi")])
-                         (match_operand:SI 3 "general_operand" "rmi")
-                         (match_operand:SI 4 "general_operand" "rmi"))])]
-   ""
-   "%O5")
+;; (define_insn "*movsicc"
+;;    [(match_operator 5 "set_operator"
+;;        [(match_operand:SI 0)
+;;         (if_then_else:SI  (match_operator 6 "ordered_comparison_operator"
+;;                           [(match_operand:SI 1 "general_operand" "rmi")
+;;                            (match_operand:SI 2 "general_operand" "rmi")])
+;;                          (match_operand:SI 3 "general_operand" "rmi")
+;;                          (match_operand:SI 4 "general_operand" "rmi"))])]
+;;    ""
+;;    "%O5")
 
 ;; I attempted to open-code this, but failed.  In theory once
 ;; open-coded we should be able to combine a call and a subsequent
@@ -224,9 +224,9 @@
    [(call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
           (match_operand:SI 1 "general_operand" "rmi,rmi"))]
       ""
-      "@
+      "@ 
       (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call $f_%L0\n\t (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
-      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call $indcall (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
+      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call_import $indcall (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
@@ -235,7 +235,7 @@
       ""
       "@
       (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call $f_%L0\n\t (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
-      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call $indcall (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
+      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call_import $indcall (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -263,12 +263,12 @@
 (define_insn "*jump"
   [(set (pc) (label_ref (match_operand 0)))]
   ""
-  "(set_local $dpc $\n\t.dpc %l0\n\t) (br $switch)")
+  "(set $dpc $\n\t.dpc %l0\n\t) (jump)")
 
 (define_insn "*jump"
   [(set (pc) (match_operand:SI 0 "general_operand" "rmi"))]
   ""
-  "(set_local $dpc (i32.sub (i32.shr_u %O0 (i32.const 4)) (i32.get_local $pc0)))\n\t(jump)")
+  "(set_local $dpc (i32.sub (i32.shr_u %O0 (i32.const 4)) (get_local $pc0)))\n\t(jump)")
 
 (define_expand "jump"
   [
@@ -350,7 +350,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "(if %O0 (then (set $dpc $\n\t.dpc%l3\n\t) (jump)))")
+  "(if %O0 (then (set $dpc $\n\t.dpc %l3\n\t) (jump)))")
 
 (define_expand "cbranchdf4"
   [(set (pc) (if_then_else
@@ -662,13 +662,13 @@
   ""
   "")
 
-(define_expand "movsicc"
-   [(set (match_operand:SI 0)
-         (if_then_else:SI (match_operand 1 "ordered_comparison_operator")
-                          (match_operand:SI 2)
-                          (match_operand:SI 3)))]
-   "my_use_cmov"
-   "")
+;; (define_expand "movsicc"
+;;    [(set (match_operand:SI 0)
+;;          (if_then_else:SI (match_operand 1 "ordered_comparison_operator")
+;;                           (match_operand:SI 2)
+;;                           (match_operand:SI 3)))]
+;;    "my_use_cmov"
+;;    "")
 
 ;; XXX
 (define_expand "fixuns_truncdfsi2"
@@ -800,7 +800,7 @@
 (define_insn "nonlocal_goto_receiver_insn"
   [(unspec_volatile [(const_int 0)] UNSPECV_NONLOCAL_GOTO_RECEIVER)]
   ""
-  "/* nonlocal_goto_receiver */")
+  "")
 
 (define_insn "thunk_goto_insn"
   [(set (pc)

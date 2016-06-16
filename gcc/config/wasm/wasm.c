@@ -734,8 +734,12 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
     break;
   }
   case REG: {
-    if (want_lval || REGNO (x) == RV_REG)
+    if (want_lval)
       asm_fprintf (stream, "$%s", reg_names[REGNO (x)]);
+    else if (REGNO (x) == RV_REG)
+      asm_fprintf (stream, "(i32.load (i32.const 4096))");
+    else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
+      asm_fprintf (stream, "(i32.load (i32.const %d))", 4104 + 8*(REGNO (x)-A0_REG));
     else
       asm_fprintf (stream, "(get_local $%s)", reg_names[REGNO (x)]);
     break;
@@ -745,7 +749,7 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
     if (GET_CODE (mem) == MEM)
       {
 	rtx addr = XEXP (mem, 0);
-	asm_fprintf (stream, "(%s.mem_u ", wasm_mode (GET_MODE (x)));
+	asm_fprintf (stream, "%s(%s.mem_u %s", want_lval ? "" : ",", wasm_mode (GET_MODE (x)), want_lval ? "" : "`");
 	wasm_print_operation (stream, addr, false);
 	asm_fprintf (stream, ")");
       }
@@ -773,7 +777,7 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
   case MEM: {
     rtx addr = XEXP (x, 0);
 
-    asm_fprintf (stream, "(%s.mem ", wasm_mode (GET_MODE (x)));
+    asm_fprintf (stream, "%s(%s.mem %s", want_lval ? "" : ",", wasm_mode (GET_MODE (x)), want_lval ? "" : "`");
     wasm_print_operation (stream, addr, false);
     asm_fprintf (stream, ")");
     break;
@@ -793,13 +797,17 @@ void wasm_print_operation(FILE *stream, rtx x, bool want_lval)
     real_to_decimal_for_mode (buf, &r, 510, 0, 1, DFmode);
 
     if (strcmp(buf, "+Inf") == 0) {
-      asm_fprintf (stream, "+(1.0/0.0)");
+      asm_fprintf (stream, "(f64.div (f64.const 1.0) (f64.const 0.0))");
     } else if (strcmp (buf, "-Inf") == 0) {
-      asm_fprintf (stream, "+(-1.0/0.0)");
+      asm_fprintf (stream, "(f64.div (f64.const -1.0) (f64.const 0.0))");
+    } else if (strcmp (buf, "+QNaN") == 0) {
+      asm_fprintf (stream, "(f64.div (f64.const 0.0) (f64.const 0.0))");
+    } else if (strcmp (buf, "+SNaN") == 0) {
+      asm_fprintf (stream, "(f64.div (f64.const -0.0) (f64.const 0.0))");
     } else if (buf[0] == '+')
-      asm_fprintf (stream, "%s", buf+1);
+      asm_fprintf (stream, "(f64.const %s)", buf+1);
     else
-      asm_fprintf (stream, "%s", buf);
+      asm_fprintf (stream, "(f64.const %s)", buf);
     break;
   }
   case SYMBOL_REF: {
@@ -895,6 +903,9 @@ void wasm_print_operand(FILE *stream, rtx x, int code)
     //asm_fprintf (stream, "\n/* RTL: ");
     //print_rtl(stream, x);
     //asm_fprintf (stream, "*/");
+    return;
+  } else if (code == 'S') {
+    wasm_print_operation (stream, x, true);
     return;
   } else if (code == '/') {
     asm_fprintf (stream, "%d", wasm_function_regsize (NULL_TREE));
@@ -1175,7 +1186,7 @@ struct wasm_operator wasm_operators[] = {
   },
   {
     NOT, SImode, SImode,
-    "", "", "not",
+    ",", "`", "not",
     1
   },
   {
@@ -1227,6 +1238,10 @@ void wasm_print_op(FILE *stream, rtx x)
 	modes_compatible(GET_MODE (a), oper->inmode) &&
 	(oper->nargs == 1 || modes_compatible (GET_MODE (XEXP (x,1)), oper->inmode)))
       break;
+  }
+
+  if (oper->code == 0) {
+    gcc_unreachable ();
   }
 
   asm_fprintf (stream, "%s(", oper->prefix);
@@ -1551,14 +1566,14 @@ static unsigned wasm_function_regload(FILE *stream,
 	  if (wasm_regno_reg_class (i) == FLOAT_REGS)
 	    {
 	      size += size&4;
-	      asm_fprintf (stream, "\t\t(set_local %s (f64.load (i32.add (get_local $rp) (i32.const %d))))\n",
+	      asm_fprintf (stream, "\t\t(set_local $%s (f64.load (i32.add (get_local $rp) (i32.const %d))))\n",
 			   reg_names[i], size);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-		asm_fprintf (stream, "\t\t(set_local %s (i32.load (i32.add (get_local $rp) (i32.const %d))))\n",
+		asm_fprintf (stream, "\t\t(set_local $%s (i32.load (i32.add (get_local $rp) (i32.const %d))))\n",
 			     reg_names[i], size);
 	      size += 4;
 	    }

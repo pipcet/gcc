@@ -8,6 +8,7 @@
         .long 0
         .long 0
         .pushsection .javascript%S,"a"
+        (label)
         .endm
 
         .macro .wasmtextlabeldeffirst label
@@ -115,7 +116,7 @@
 
         .macro .flush
         (set_local $rp (i32.or (get_local $fp) (i32.const 1)))
-        (set_local $dpc $
+        (set $dpc $
         .dpc .LFl\@
         )
         (br $mainloop)
