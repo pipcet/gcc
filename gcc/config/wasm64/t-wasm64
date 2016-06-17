@@ -1,0 +1,32 @@
+MULTILIB_OPTIONS     =
+MULTILIB_DIRNAMES    = wasm64
+MULTILIB_EXCEPTIONS  =
+MULTILIB_MATCHES     =
+
+install-driver: install-macros install-import-macros
+
+install-macros: config/wasm64/wasm64-macros.s installdirs
+	$(mkinstalldirs) $(DESTDIR)$(libsubdir)/gas-macros
+	$(INSTALL_DATA) $< $(DESTDIR)$(libsubdir)/gas-macros/wasm64-macros.s
+
+install-import-macros: config/wasm64/wasm64-import-macros.s installdirs
+	$(mkinstalldirs) $(DESTDIR)$(libsubdir)/gas-macros
+	$(INSTALL_DATA) $< $(DESTDIR)$(libsubdir)/gas-macros/wasm64-import-macros.s
+
+gas-macros/wasm64-macros.s: config/wasm64/wasm64-macros.s
+	-if [ -d gas-macros ]; then true; else mkdir gas-macros; chmod a+rx gas-macros; fi
+	cat $< > $@
+
+gas-macros/wasm64-import-macros.s: config/wasm64/wasm64-import-macros.s
+	-if [ -d gas-macros ]; then true; else mkdir gas-macros; chmod a+rx gas-macros; fi
+	cat $< > $@
+
+wasm64-c.o: $(srcdir)/config/wasm64/wasm64-c.c
+	  $(COMPILE) $<
+	  $(POSTCOMPILE)
+
+wasm64-cxx.o: $(srcdir)/config/wasm64/wasm64-cxx.c
+	  $(COMPILE) $<
+	  $(POSTCOMPILE)
+
+GCC_PASSES += gas-macros/wasm64-macros.s gas-macros/wasm64-import-macros.s

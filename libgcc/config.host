@@ -1332,6 +1332,10 @@ wasm-*)
         tmake_file="$tmake_file asmjs/t-asmjs"
 	extra_parts="crtbegin.o crtend.o crtbeginT.o crtbeginS.o"
         ;;
+wasm64-*)
+        tmake_file="$tmake_file asmjs/t-asmjs"
+	extra_parts="crtbegin.o crtend.o crtbeginT.o crtbeginS.o"
+        ;;
 *)
 	echo "*** Configuration ${host} not supported" 1>&2
 	exit 1

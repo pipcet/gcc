@@ -3046,6 +3046,12 @@ wasm-*-wasm)
         c_target_objs="wasm-c.o"
         cxx_target_objs="wasm-cxx.o"
         ;;
+wasm64-*-wasm64)
+        tm_file="${tm_file}"
+        tmake_file="${tmake_file} wasm64/t-wasm64"
+        c_target_objs="wasm64-c.o"
+        cxx_target_objs="wasm64-cxx.o"
+        ;;
 *)
 	echo "*** Configuration ${target} not supported" 1>&2
 	exit 1
