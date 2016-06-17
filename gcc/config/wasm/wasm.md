@@ -89,7 +89,7 @@
       [(match_operand:SI 0 "nonimmediate_operand" "=rm")
        (label_ref (match_operand 1))])]
   ""
-  "(set %S0 \n\t.ncodetextlabel %l1\n\t)")
+  "(%S0 \n\t.ncodetextlabel %l1\n\t)")
 
 (define_insn "*assignsi"
   [(match_operator 2 "set_operator"
@@ -100,8 +100,8 @@
 
 (define_insn "*assignsf"
   [(match_operator 2 "set_operator"
-      [(match_operand:SF 0 "nonimmediate_operand" "=rm")
-       (match_operand:SF 1 "general_operand" "rmi")])]
+      [(match_operand:SF 0 "nonimmediate_operand" "=m")
+       (match_operand:SF 1 "general_operand" "mi")])]
   ""
   "%O2")
 
@@ -192,7 +192,7 @@
 
 (define_insn "*truncdfsf"
   [(match_operator 2 "set_operator"
-      [(match_operand:SF 0 "nonimmediate_operand" "=rm")
+      [(match_operand:SF 0 "nonimmediate_operand" "=m")
        (float_truncate:SF (match_operand:DF 1 "general_operand" "rmi"))])]
   ""
   "%O2")
@@ -200,7 +200,7 @@
 (define_insn "*extendsfdf"
   [(match_operator 2 "set_operator"
       [(match_operand:DF 0 "nonimmediate_operand" "=rm")
-       (float_extend:DF (match_operand:SF 1 "general_operand" "rmi"))])]
+       (float_extend:DF (match_operand:SF 1 "general_operand" "mi"))])]
   ""
   "%O2")
 
@@ -225,8 +225,8 @@
           (match_operand:SI 1 "general_operand" "rmi,rmi"))]
       ""
       "@ 
-      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call $f_%L0\n\t (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
-      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call_import $indcall (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
+      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_%L0\n\t (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
+      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_indcall (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
@@ -234,8 +234,8 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call $f_%L0\n\t (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
-      (set $dpc \n\t.dpc .LI%=\n\t)\n\t(set $rp (call_import $indcall (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
+      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_%L0\n\t (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
+      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_indcall (i32.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i32.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i32.shr_u %O0 (i32.const 4))))\n\t(if (i32.and (get_local $rp) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -263,7 +263,7 @@
 (define_insn "*jump"
   [(set (pc) (label_ref (match_operand 0)))]
   ""
-  "(set $dpc $\n\t.dpc %l0\n\t) (jump)")
+  "(set_local $dpc $\n\t.dpc %l0\n\t) (jump)")
 
 (define_insn "*jump"
   [(set (pc) (match_operand:SI 0 "general_operand" "rmi"))]
@@ -327,7 +327,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "(if %O0 (then (set $dpc $\n\t.dpc %l3\n\t) (jump)))"
+  "(if %O0 (then (set_local $dpc $\n\t.dpc %l3\n\t) (jump)))"
   )
 
 (define_expand "cbranchsi4"
@@ -350,7 +350,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "(if %O0 (then (set $dpc $\n\t.dpc %l3\n\t) (jump)))")
+  "(if %O0 (then (set_local $dpc $\n\t.dpc %l3\n\t) (jump)))")
 
 (define_expand "cbranchdf4"
   [(set (pc) (if_then_else
@@ -381,8 +381,8 @@
   "")
 
 (define_expand "movsf"
-  [(set (match_operand:SF 0 "nonimmediate_operand" "=rm")
-        (match_operand:SF 1 "general_operand" "rmi"))]
+  [(set (match_operand:SF 0 "nonimmediate_operand" "=m")
+        (match_operand:SF 1 "general_operand" "mi"))]
   ""
   "")
 
@@ -639,12 +639,12 @@
 
 (define_expand "extendsfdf2"
   [(set (match_operand:DF 0 "nonimmediate_operand" "=rm")
-        (float_extend:DF (match_operand:SF 1 "general_operand" "rmi")))]
+        (float_extend:DF (match_operand:SF 1 "general_operand" "mi")))]
   ""
   "")
 
 (define_expand "truncdfsf2"
-  [(set (match_operand:SF 0 "nonimmediate_operand" "=rm")
+  [(set (match_operand:SF 0 "nonimmediate_operand" "=m")
         (float_truncate:SF (match_operand:DF 1 "general_operand" "rmi")))]
   ""
   "")
@@ -749,7 +749,7 @@
                      (match_operand:SI 3 "register_operand" "r")]
     UNSPECV_NONLOCAL_GOTO)]
   ""
-  ".flush\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 8)) %O1)\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 12)) %O0)\n\t(set $rv %O3)\n\t(br $mainloop)")
+  ".flush\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 8)) %O1)\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 12)) %O0)\n\t(i32.store (i32.const 4096) %O3)\n\t(br $mainloop)")
 
 (define_expand "builtin_longjmp"
    [(set (pc) (unspec_volatile [(match_operand 0)]
@@ -789,7 +789,7 @@
                           ] UNSPECV_NONLOCAL_GOTO))
    ]
   ""
-  ".flush\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 8)) %O1)\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 12)) %O2)\n\t(set $rv %O3)\n\t(return (i32.or (i32.load (i32.add (i32.load (get_local $fp)) (i32.const 8))) (i32.const 3)))")
+  ".flush\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 8)) %O1)\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 12)) %O2)\n\t(i32.store (i32.const 4096) %O3)\n\t(return (i32.or (i32.load (i32.add (i32.load (get_local $fp)) (i32.const 8))) (i32.const 3)))")
 
 (define_expand "nonlocal_goto_receiver"
   [(unspec_volatile [(const_int 0)] UNSPECV_NONLOCAL_GOTO_RECEIVER)]

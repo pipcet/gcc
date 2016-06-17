@@ -7,7 +7,7 @@
 \label\():
         .long 0
         .long 0
-        .pushsection .javascript%S,"a"
+        .pushsection .wasm-pwas%S,"a"
         (label)
         .endm
 
@@ -15,10 +15,11 @@
 .LAT\@0:
         .popsection
 \label\():
+.L.\()\label:
 .LAT\@1:
         .long 0
         .long 0
-        .pushsection .javascript%S,"a"
+        .pushsection .wasm-pwas%S,"a"
         .set .L__pc0, .LAT\@1
         .endm
 
@@ -28,24 +29,26 @@
         .long 0
         .long 0
 \label\():
-        .pushsection .javascript%S,"a"
+        .pushsection .wasm-pwas%S,"a"
         .endm
 
         .macro .rpcr4 a, b
-        .ascii ",(string->number (string-delete \""
+        .ascii ",(hex \""
         .reloc .,R_ASMJS_HEX16R4,\b-\a
         .ascii "0000000000000000"
-        .ascii "\" #\\ 0) 16)"
+        .ascii "\")"
         .endm
 
         .macro .dpc label
+        .ascii "(i32.const "
         .rpcr4 .L__pc0, \label
+        .ascii ")"
         .endm
 
         .macro .labeldef_debug label
         .popsection
         .set \label, . - 8
-        .pushsection .javascript%S,"a"
+        .pushsection .wasm-pwas%S,"a"
         .endm
 
         .macro .labeldef_internal label
@@ -69,28 +72,28 @@
 
         .macro .ntextlabel label
         .ascii "(i32.const "
-        .ascii ",(string->number (string-delete \""
+        .ascii ",(hex \""
         .reloc .,R_ASMJS_HEX16,\label
         .ascii "0000000000000000"
-        .ascii "\" #\\ 0) 16)"
+        .ascii "\")"
         .ascii ")"
         .endm
 
         .macro .ncodetextlabel label
         .ascii "(i32.const "
-        .ascii ",(string->number (string-delete \""
+        .ascii ",(hex \""
         .reloc .,R_ASMJS_HEX16,\label
         .ascii "0000000000000000"
-        .ascii "\" #\\ 0) 16)"
+        .ascii "\")"
         .ascii ")"
         .endm
 
         .macro .ndatatextlabel label
         .ascii "(i32.const "
-        .ascii ",(string->number (string-delete \""
+        .ascii ",(hex \""
         .reloc .,R_ASMJS_HEX16,\label
         .ascii "0000000000000000"
-        .ascii "\" #\\ 0) 16)"
+        .ascii "\")"
         .ascii ")"
         .endm
 
@@ -116,38 +119,15 @@
 
         .macro .flush
         (set_local $rp (i32.or (get_local $fp) (i32.const 1)))
-        (set $dpc $
+        (set_local $dpc $
         .dpc .LFl\@
         )
         (br $mainloop)
         .labeldef_internal .LFl\@
         .endm
 
-        .macro .textlabeldef label
-.LAT\@0:
-        .popsection
-\label\():
-.LAT\@1:
-        .long .LAT\@0
-        .long 0
-        .long 0
-        .long 0
-        .pushsection .javascript%S,"a"
-        .dpc .LAT\@1
-        .endm
-
         .macro .codetextlabeldef label
 .LAT\@0:
-        .if __wasm_fallthrough
-        .if __gcc_pc_update
-        pc = $
-        .textlabelr4 .LAT\@1+8
-        ;
-        .endif
-        .ifge __gcc_pc_update-2
-        continue;
-        .endif
-        .endif
         .popsection
 .LAT\@1:
         .long .LAT\@0
@@ -155,7 +135,7 @@
 \label\():
         .long .LAT\@0
         .long 0
-        .pushsection .javascript%S,"a"
+        .pushsection .wasm-pwas%S,"a"
         (label)
         .endm
 
@@ -167,7 +147,7 @@
 .LAT\@1:
         .long .LAT\@0
         .long 0
-        .pushsection .javascript%S,"a"
+        .pushsection .wasm-pwas%S,"a"
         .set .L__pc0, .LAT\@1
         .rpcr4 .L__pc0, .LAT\@1
         .set __wasm_fallthrough, 1
@@ -180,7 +160,7 @@
         .long .LAT\@0
         .long 0
 \label\():
-        .pushsection .javascript%S,"a"
+        .pushsection .wasm-pwas%S,"a"
         .set __wasm_fallthrough, 1
         .endm
 
@@ -195,9 +175,9 @@
         .if __gcc_bogotics_backwards
         .popsection
         .ifle label-.
-        .pushsection .javascript%S,"ax"
+        .pushsection .wasm-pwas%S,"ax"
         .endif
-        .pushsection .javascript%S,"ax"
+        .pushsection .wasm-pwas%S,"ax"
         .endif
         .endm
 

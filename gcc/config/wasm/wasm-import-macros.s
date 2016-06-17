@@ -13,7 +13,7 @@ __str_\module:
         .text
         .p2align 4+8
         .global \name
-        .pushsection .javascript%S,"a"
+        .pushsection .wasm-pwas%S,"a"
  (                              
 	.wasmtextlabeldeffirst \name
 	.ascii "\""
@@ -30,12 +30,12 @@ __str_\module:
 		(i32.store (i32.add (get_local $fp) (i32.const 20)) (i32.const 1008))
 		(return (get_local $rp))
 	)
-	(set $sp (i32.add (get_local $sp1) (i32.const -16)))
+	(set_local $sp (i32.add (get_local $sp1) (i32.const -16)))
 	.labeldef_debug .LFB0
-	(set $sp (i32.add (get_local $sp) (i32.const -48)))
-	(set $fp (get_local $sp))
+	(set_local $sp (i32.add (get_local $sp) (i32.const -48)))
+	(set_local $fp (get_local $sp))
 	.labeldef_debug .LCFI0
-	(set $sp (i32.add (get_local $sp) (i32.const -8)))
+	(set_local $sp (i32.add (get_local $sp) (i32.const -8)))
         .labeldef_internal .LSC0_\module\()_\name
 ;; 6 "subrepos/gcc/gcc//config/wasm/import.c" 1
 	(set_local $rp (call_import $extcall
@@ -43,15 +43,15 @@ __str_\module:
                 .ndatatextlabel __str_\name
                 (i32.add (get_local $pc0) (get_local $dpc)) (i32.add (get_local $sp) (i32.const 48))))
         (if (i32.and (get_local $rp) (i32.const 3)) (then
-                (set_local $dpc (i32.const $
+                (set_local $dpc
                 .dpc .LSC0_\module\()_\name
-                ))
+                )
                 (set_local $rp (i32.or (get_local $fp) (i32.const 1)))
                 (br $mainloop)
         ) (else
-                (set_local $dpc (i32.const $
+                (set_local $dpc
                 .dpc .LSC1_\module\()_\name
-                ))
+                )
         ))
         .labeldef_internal .LSC1_\module\()_\name
 	(return (i32.add (get_local $fp) (i32.const 48)))

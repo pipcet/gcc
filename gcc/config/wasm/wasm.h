@@ -238,7 +238,7 @@ typedef struct {
 #define NO_FUNCTION_CSE true
 //#define LOGICAL_OP_NON_SHORT_CIRCUIT 1
 
-#define TEXT_SECTION_ASM_OP "\t.text\n\t.pushsection .javascript%S,\"a\""
+#define TEXT_SECTION_ASM_OP "\t.text\n\t.pushsection .wasm-pwas%S,\"a\""
 #define DATA_SECTION_ASM_OP "\t.data"
 #define READONLY_DATA_SECTION_ASM_OP "\t.section .rodata"
 #define BSS_SECTION_ASM_OP "\t.data"
@@ -247,7 +247,7 @@ typedef struct {
 #define FINI_ARRAY_SECTION_ASM_OP
 
 /* hand-crafted version of "call". It's a bit of a hack to use #FUNC
- * as the unique identifier since we don't have %=... */
+ * as the unique identifier since we don't have %=... (there's __COUNTER__) */
 /* XXX is this still needed? */
 #define CRT_CALL_STATIC_FUNCTION(SECTION_OP, FUNC)		\
    asm (SECTION_OP "\n\t"					\
