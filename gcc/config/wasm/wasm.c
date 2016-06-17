@@ -1746,13 +1746,14 @@ void wasm_start_function(FILE *f, const char *name, tree decl)
 
   asm_fprintf(f, "\t.popsection\n");
   asm_fprintf(f, "\t.p2align 4+8\n");
-  asm_fprintf(f, "\t.pushsection .wasm-pwas%%S,\"a\"\n");
+  asm_fprintf(f, "\t.pushsection .wasm_pwas%%S,\"a\"\n");
   asm_fprintf(f, "(\n");
   asm_fprintf(f, "\t.wasmtextlabeldeffirst %s\n", cooked_name);
   asm_fprintf(f, "\t\"f_$\n");
   asm_fprintf(f, "\t.textlabel %s\n", cooked_name);
   asm_fprintf(f, "\"\n");
   wasm_function_regstore(f, decl);
+  asm_fprintf(f, "\t(call_import $cp $\n\t.ncodetextlabel %s\n\t)\n", cooked_name);
   asm_fprintf(f, "\t(set_local $sp (i32.add (get_local $sp1) (i32.const -16)))\n");
 }
 
@@ -1793,9 +1794,9 @@ wasm_fpswitch_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
     cooked_name++;
 
   asm_fprintf(f, "\t.section .special.fpswitch,\"a\"\n");
-  asm_fprintf(f, "\t.pushsection .wasm-pwas%%S,\"a\"\n");
+  asm_fprintf(f, "\t.pushsection .wasm_pwas%%S,\"a\"\n");
   asm_fprintf(f, "\t.rept (.L.ends.%s-.L.%s+4096)/4096\n", cooked_name, cooked_name);
-  asm_fprintf(f, "\t(return (call $f_$\n\t.codetextlabel .L.%s\n\t (get_local $dpc) (get_local $sp1) (get_local $r0) (get_local $r1) (get_local $pc0) (get_local $rpc)))\n", cooked_name);
+  asm_fprintf(f, "\t(return (call $f_$\n\t.codetextlabel .L.%s\n\t (get_local $dpc) (get_local $sp1) (get_local $r0) (get_local $r1) (get_local $rpc) (get_local $pc0)))\n", cooked_name);
   asm_fprintf(f, "\t.endr\n");
   asm_fprintf(f, "\t.popsection\n");
 }
@@ -1955,7 +1956,7 @@ wasm_asm_named_section (const char *name, unsigned int flags,
 
   if (flags & SECTION_CODE)
     {
-      fprintf (asm_out_file, "\t.pushsection .wasm-pwas%%S,\"a\"\n");
+      fprintf (asm_out_file, "\t.pushsection .wasm_pwas%%S,\"a\"\n");
     }
 }
 

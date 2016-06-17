@@ -7,7 +7,7 @@
 \label\():
         .long 0
         .long 0
-        .pushsection .wasm-pwas%S,"a"
+        .pushsection .wasm_pwas%S,"a"
         (label)
         .endm
 
@@ -19,7 +19,7 @@
 .LAT\@1:
         .long 0
         .long 0
-        .pushsection .wasm-pwas%S,"a"
+        .pushsection .wasm_pwas%S,"a"
         .set .L__pc0, .LAT\@1
         .endm
 
@@ -29,7 +29,7 @@
         .long 0
         .long 0
 \label\():
-        .pushsection .wasm-pwas%S,"a"
+        .pushsection .wasm_pwas%S,"a"
         .endm
 
         .macro .rpcr4 a, b
@@ -48,7 +48,7 @@
         .macro .labeldef_debug label
         .popsection
         .set \label, . - 8
-        .pushsection .wasm-pwas%S,"a"
+        .pushsection .wasm_pwas%S,"a"
         .endm
 
         .macro .labeldef_internal label
@@ -135,7 +135,7 @@
 \label\():
         .long .LAT\@0
         .long 0
-        .pushsection .wasm-pwas%S,"a"
+        .pushsection .wasm_pwas%S,"a"
         (label)
         .endm
 
@@ -147,7 +147,7 @@
 .LAT\@1:
         .long .LAT\@0
         .long 0
-        .pushsection .wasm-pwas%S,"a"
+        .pushsection .wasm_pwas%S,"a"
         .set .L__pc0, .LAT\@1
         .rpcr4 .L__pc0, .LAT\@1
         .set __wasm_fallthrough, 1
@@ -160,7 +160,7 @@
         .long .LAT\@0
         .long 0
 \label\():
-        .pushsection .wasm-pwas%S,"a"
+        .pushsection .wasm_pwas%S,"a"
         .set __wasm_fallthrough, 1
         .endm
 
@@ -175,9 +175,9 @@
         .if __gcc_bogotics_backwards
         .popsection
         .ifle label-.
-        .pushsection .wasm-pwas%S,"ax"
+        .pushsection .wasm_pwas%S,"ax"
         .endif
-        .pushsection .wasm-pwas%S,"ax"
+        .pushsection .wasm_pwas%S,"ax"
         .endif
         .endm
 

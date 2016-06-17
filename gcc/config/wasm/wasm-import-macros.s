@@ -13,7 +13,7 @@ __str_\module:
         .text
         .p2align 4+8
         .global \name
-        .pushsection .wasm-pwas%S,"a"
+        .pushsection .wasm_pwas%S,"a"
  (                              
 	.wasmtextlabeldeffirst \name
 	.ascii "\""
