@@ -65,4 +65,23 @@ __str_\module:
 		(set_local $sp (i32.load (i32.add (get_local $rp) (i32.const 16))))
 	(set_local $fp (get_local $rp))
  )
+        .pushsection .special.define,"a"
+        .pushsection .javascript%S,"a"
+        .ascii "\tdeffun({name: \"f_"
+        .codetextlabel .L.\name
+        .ascii "\", symbol: \"\name\", pc0: "
+        .codetextlabel .L.\name
+        .ascii ", pc1: "
+        .codetextlabel .ends.\name
+        .ascii ", regsize: 0, regmask: 0});\n"
+        .popsection
+        .popsection
+
+        .pushsection .special.fpswitch,"a"
+        .pushsection .wasm_pwas%S,"a"
+        (return (call $f_$
+        .codetextlabel \name
+        (get_local $dpc) (get_local $sp1) (get_local $r0) (get_local $r1) (get_local $rpc) (get_local $pc0)))
+        .popsection
+        .popsection
         .endm
