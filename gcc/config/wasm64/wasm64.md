@@ -107,8 +107,8 @@
 
 (define_insn "*assignsf"
   [(match_operator 2 "set_operator"
-      [(match_operand:SF 0 "nonimmediate_operand" "=rm")
-       (match_operand:SF 1 "general_operand" "rmi")])]
+      [(match_operand:SF 0 "nonimmediate_operand" "=m")
+       (match_operand:SF 1 "general_operand" "mi")])]
   ""
   "%O2")
 
@@ -134,6 +134,15 @@
          [(match_operand 2 "general_operand" "rmi")])])]
    ""
    "%O3")
+
+;; (define_insn "*assignsi_cmpop"
+;;   [(match_operator 4 "set_operator"
+;;      [(match_operand:SI 0 "nonimmediate_operand" "=m")
+;;       (match_operator 1 "comparison_operator"
+;;         [(match_operand:DI 2 "general_operand" "rmi")
+;;          (match_operand:DI 3 "general_operand" "rmi")])])]
+;;     ""
+;;     "%O4")
 
 (define_insn "*assigndi_binop"
   [(match_operator 4 "set_operator"
@@ -232,8 +241,8 @@
           (match_operand:DI 1 "general_operand" "rmi,rmi"))]
       ""
       "@
-      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_%L0\n\t (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i64.and (get_local $rp) (i64.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
-      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_indcall (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i64.and (get_local $rp) (i64.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
+      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_%L0\n\t (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i32.and (i32.wrap_i64 (get_local $rp)) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
+      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_indcall (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i32.and (i32.wrap_i64 (get_local $rp)) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:DI RV_REG)
@@ -241,8 +250,8 @@
             (match_operand:DI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_%L0\n\t (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i64.and (get_local $rp) (i64.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
-      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_indcall (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i64.and (get_local $rp) (i64.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
+      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_%L0\n\t (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i32.and (i32.wrap_i64 (get_local $rp)) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
+      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_indcall (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i32.and (i32.wrap_i64 (get_local $rp)) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -294,17 +303,7 @@
   (match_code "set"))
 
 (define_predicate "binary_operator"
-  (ior (match_code "eq")
-       (match_code "ne")
-       (match_code "lt")
-       (match_code "gt")
-       (match_code "le")
-       (match_code "ge")
-       (match_code "ltu")
-       (match_code "gtu")
-       (match_code "leu")
-       (match_code "geu")
-       (match_code "and")
+  (ior (match_code "and")
        (match_code "ior")
        (match_code "mult")
        (match_code "div")
@@ -508,72 +507,72 @@
   ""
   "")
 
-(define_expand "eqdi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (eq:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "eqdi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (eq:SI (match_operand:DI 1 "general_operand" "rmi")
                (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "nedi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (ne:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "nedi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (ne:SI (match_operand:DI 1 "general_operand" "rmi")
                (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "gtdi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (gt:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "gtdi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (gt:SI (match_operand:DI 1 "general_operand" "rmi")
                (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "ledi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (le:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "ledi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (le:SI (match_operand:DI 1 "general_operand" "rmi")
                (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "gedi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (ge:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "gedi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (ge:SI (match_operand:DI 1 "general_operand" "rmi")
                (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "ltdi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (lt:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "ltdi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (lt:SI (match_operand:DI 1 "general_operand" "rmi")
                (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "gtudi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (gtu:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "gtudi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (gtu:SI (match_operand:DI 1 "general_operand" "rmi")
                 (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "leudi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (leu:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "leudi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (leu:SI (match_operand:DI 1 "general_operand" "rmi")
                 (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "geudi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (geu:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "geudi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (geu:SI (match_operand:DI 1 "general_operand" "rmi")
                 (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")
 
-(define_expand "ltudi3"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (ltu:DI (match_operand:DI 1 "general_operand" "rmi")
+(define_expand "ltudi2si"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (ltu:SI (match_operand:DI 1 "general_operand" "rmi")
                 (match_operand:DI 2 "general_operand" "rmi")))]
   ""
   "")

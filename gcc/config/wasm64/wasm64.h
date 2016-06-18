@@ -34,6 +34,8 @@
 
 #define TARGET_ASM_ALIGNED_DI_OP "\t.di\t"
 
+/* #define SHIFT_COUNT_TRUNCATED should technically be set. */
+
 /* XXX include elfos.h? */
 
 /* XXX TARGET_FLOAT_EXCEPTIONS_ROUNDING_SUPPORTED_P -> 0 */
