@@ -1798,7 +1798,6 @@ void wasm64_start_function(FILE *f, const char *name, tree decl)
   asm_fprintf(f, "\t.textlabel %s\n", cooked_name);
   asm_fprintf(f, "\"\n");
   wasm64_function_regstore(f, decl);
-  asm_fprintf(f, "\t(call_import $cp $\n\t.ncodetextlabel %s\n\t)\n", cooked_name);
   asm_fprintf(f, "\t(set_local $sp (i64.add (get_local $sp1) (i64.const -16)))\n");
 }
 
