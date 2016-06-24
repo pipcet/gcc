@@ -680,16 +680,16 @@ void wasm64_print_label(FILE *stream, rtx x)
   case SYMBOL_REF: {
     const char *name = XSTR (x, 0);
     if (!SYMBOL_REF_FUNCTION_P (x)) {
-      asm_fprintf (stream, "$\n\t.datatextlabel ");
+      asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
     } else if (in_section->common.flags & SECTION_CODE) {
-      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
     } else {
       asm_fprintf (stream, "BROKEN");
-      asm_fprintf (stream, "$\n\t.codetextlabel ");
+      asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
     }
@@ -735,38 +735,38 @@ const char *wasm64_load (machine_mode outmode, machine_mode inmode, bool sign)
   case SImode:
     switch (inmode) {
     case SImode:
-      return "i32.load";
+      return "i32.load a=2 0";
     case HImode:
-      return sign ? "i32.load16_s" : "i32.load16_u";
+      return sign ? "i32.load16_s a=1 0" : "i32.load16_u a=1 0";
     case QImode:
-      return sign ? "i32.load8_s" : "i32.load8_u";
+      return sign ? "i32.load8_s a=0 0" : "i32.load8_u a=0 0";
     default: ;
     }
     gcc_unreachable ();
   case DImode:
     switch (inmode) {
     case DImode:
-      return "call $i64_load";
+      return "call[1] $i64_load";
     case SImode:
-      return sign ? "call $i64_load32_s" : "call $i64_load32_u";
+      return sign ? "call[1] $i64_load32_s" : "call[1] $i64_load32_u";
     case HImode:
-      return sign ? "call $i64_load16_s" : "call $i64_load16_u";
+      return sign ? "call[1] $i64_load16_s" : "call[1] $i64_load16_u";
     case QImode:
-      return sign ? "call $i64_load8_s" : "call $i64_load8_u";
+      return sign ? "call[1] $i64_load8_s" : "call[1] $i64_load8_u";
     default: ;
     }
     gcc_unreachable ();
   case SFmode:
     switch (inmode) {
     case SFmode:
-      return "f32.load";
+      return "f32.load a=2 0";
     default: ;
     }
     gcc_unreachable ();
   case DFmode:
     switch (inmode) {
     case DFmode:
-      return "f64.load";
+      return "f64.load a=3 0";
     default: ;
     }
     gcc_unreachable ();
@@ -781,38 +781,38 @@ const char *wasm64_store (machine_mode outmode, machine_mode inmode)
   case SImode:
     switch (inmode) {
     case SImode:
-      return "i32.store";
+      return "i32.store a=2 0";
     case HImode:
-      return "i32.store16";
+      return "i32.store16 a=1 0";
     case QImode:
-      return "i32.store8";
+      return "i32.store8 a=0 0";
     default: ;
     }
     gcc_unreachable ();
   case DImode:
     switch (inmode) {
     case DImode:
-      return "call $i64_store";
+      return "call[2] $i64_store";
     case SImode:
-      return "call $i64_store32";
+      return "call[2] $i64_store32";
     case HImode:
-      return "call $i64_store16";
+      return "call[2] $i64_store16";
     case QImode:
-      return "call $i64_store8";
+      return "call[2] $i64_store8";
     default: ;
     }
     gcc_unreachable ();
   case SFmode:
     switch (inmode) {
     case SFmode:
-      return "f32.store";
+      return "f32.store a=2 0";
     default: ;
     }
     gcc_unreachable ();
   case DFmode:
     switch (inmode) {
     case DFmode:
-      return "f64.store";
+      return "f64.store a=3 0";
     default: ;
     }
     gcc_unreachable ();
@@ -823,7 +823,7 @@ const char *wasm64_store (machine_mode outmode, machine_mode inmode)
 
 #include <print-tree.h>
 
-void wasm64_print_operation(FILE *stream, rtx x, bool want_lval)
+void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = false)
 {
   switch (GET_CODE (x)) {
   case PC: {
@@ -831,20 +831,27 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval)
     break;
   }
   case REG: {
-    if (want_lval) {
+    if (want_lval && lval_l) {
       if (REGNO (x) == RV_REG)
-	asm_fprintf (stream, "call $i64_store (i32.const 4096)");
+	asm_fprintf (stream, "\ti32.const 4096\n");
       else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
-	asm_fprintf (stream, "call $i64_store (i32.const %d)", 4104 + 8*(REGNO (x)-A0_REG));
+	asm_fprintf (stream, "\ti32.const %d\n",
+		     4104 + 8*(REGNO (x)-A0_REG));
+    } else if (want_lval) {
+      if (REGNO (x) == RV_REG)
+	asm_fprintf (stream, "\tcall[2] $i64_store\n");
+      else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
+	asm_fprintf (stream, "\tcall[2] $i64_store\n");
       else
-	asm_fprintf (stream, "set_local $%s", reg_names[REGNO (x)]);
+	asm_fprintf (stream, "\tset_local $%s\n", reg_names[REGNO (x)]);
     } else {
       if (REGNO (x) == RV_REG)
-	asm_fprintf (stream, "(call $i64_load (i32.const 4096))");
+	asm_fprintf (stream, "\ti32.const 4096\n\tcall[1] $i64_load\n");
       else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
-	asm_fprintf (stream, "(call $i64_load (i32.const %d))", 4104 + 8*(REGNO (x)-A0_REG));
+	asm_fprintf (stream, "\ti32.const %d\n\tcall[1] $i64_load\n",
+		     4104 + 8*(REGNO (x)-A0_REG));
       else
-	asm_fprintf (stream, "(get_local $%s)", reg_names[REGNO (x)]);
+	asm_fprintf (stream, "\tget_local $%s\n", reg_names[REGNO (x)]);
     }
     break;
   }
@@ -856,25 +863,23 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval)
 	if (want_lval)
 	  gcc_unreachable ();
 
-	asm_fprintf (stream, "(%s ", wasm64_load (GET_MODE (x), GET_MODE (mem), false));
-	asm_fprintf (stream, "(i32.wrap_i64 ");
 	wasm64_print_operation (stream, addr, false);
-	asm_fprintf (stream, ")");
-	asm_fprintf (stream, ")");
+	asm_fprintf (stream, "\t%s\n", wasm64_load (GET_MODE (x), GET_MODE (mem), false));
+	asm_fprintf (stream, "\ti32.wrap_i64\n");
       }
     else if (GET_CODE (mem) == SUBREG)
       {
 	rtx reg = XEXP (mem, 0);
 
-	asm_fprintf (stream, "(i64.and ");
 	wasm64_print_operation (stream, reg, false);
-	asm_fprintf (stream, " %d)", GET_MODE (mem) == HImode ? 65535 : 255);
+	asm_fprintf (stream, "\ti64.const %d\n", GET_MODE (mem) == HImode ? 65535 : 255);
+	asm_fprintf (stream, "\ti64.and\n");
       }
     else if (GET_CODE (mem) == REG)
       {
-	asm_fprintf (stream, "(i64.and ");
 	wasm64_print_operation (stream, mem, false);
-	asm_fprintf (stream, " %d)", GET_MODE (mem) == HImode ? 65535 : 255);
+	asm_fprintf (stream, "\ti64.const %d\n", GET_MODE (mem) == HImode ? 65535 : 255);
+	asm_fprintf (stream, "\ti64.and\n");
       }
     else
       {
@@ -886,29 +891,27 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval)
   case MEM: {
     rtx addr = XEXP (x, 0);
 
-    if (want_lval) {
+    if (want_lval && lval_l) {
+      wasm64_print_operation (stream, addr, false);
+      asm_fprintf (stream, "\ti32.wrap_i64\n");
+    } else if (want_lval) {
       machine_mode outmode = GET_MODE (x);
       if (outmode == QImode || outmode == HImode || outmode == SImode)
 	outmode = DImode;
-      asm_fprintf (stream, "%s ", wasm64_store (outmode, GET_MODE (x)));
-      asm_fprintf (stream, "(i32.wrap_i64 ");
+      asm_fprintf (stream, "\t%s\n", wasm64_store (outmode, GET_MODE (x)));
     } else {
+      wasm64_print_operation (stream, addr, false);
+      asm_fprintf (stream, "\ti32.wrap_i64\n");
       machine_mode outmode = GET_MODE (x);
       if (outmode == QImode || outmode == HImode || outmode == SImode)
 	outmode = DImode;
-      asm_fprintf (stream, "(%s ", wasm64_load (outmode, GET_MODE (x), true));
-      asm_fprintf (stream, "(i32.wrap_i64 ");
+      asm_fprintf (stream, "\t%s\n", wasm64_load (outmode, GET_MODE (x), true));
     }
-    wasm64_print_operation (stream, addr, false);
-    if (!want_lval)
-      asm_fprintf (stream, "))");
-    else
-      asm_fprintf (stream, ")");
 
     break;
   }
   case CONST_INT: {
-    asm_fprintf (stream, "(i64.const %ld)", (long) XWINT (x, 0));
+    asm_fprintf (stream, "\ti64.const %ld\n", (long) XWINT (x, 0));
     break;
   }
   case CONST_DOUBLE: {
@@ -923,46 +926,46 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval)
 
     if (GET_MODE (x) == DFmode) {
       if (strcmp(buf, "+Inf") == 0) {
-	asm_fprintf (stream, "(f64.div (f64.const 1.0) (f64.const 0.0))");
+	asm_fprintf (stream, "\tf64.const 1.0\n\tf64.const 0.0\n\tf64.div\n");
       } else if (strcmp (buf, "-Inf") == 0) {
-	asm_fprintf (stream, "(f64.div (f64.const -1.0) (f64.const 0.0))");
+	asm_fprintf (stream, "\tf64.const -1.0\n\tf64.const 0.0\n\tf64.div\n");
       } else if (strcmp (buf, "+QNaN") == 0) {
-	asm_fprintf (stream, "(f64.div (f64.const 0.0) (f64.const 0.0))");
+	asm_fprintf (stream, "\tf64.const 0.0\n\tf64.const 0.0\n\tf64.div\n");
       } else if (strcmp (buf, "+SNaN") == 0) {
-	asm_fprintf (stream, "(f64.div (f64.const -0.0) (f64.const 0.0))");
+	asm_fprintf (stream, "\tf64.const -0.0\n\tf64.const 0.0\n\tf64.div\n");
       } else if (buf[0] == '+')
-	asm_fprintf (stream, "(f64.const %s)", buf+1);
+	asm_fprintf (stream, "\tf64.const %s\n", buf+1);
       else
-	asm_fprintf (stream, "(f64.const %s)", buf);
+	asm_fprintf (stream, "\tf64.const %s\n", buf);
     } else {
       if (strcmp(buf, "+Inf") == 0) {
-	asm_fprintf (stream, "(f32.div (f32.const 1.0) (f32.const 0.0))");
+	asm_fprintf (stream, "\tf32.const 1.0\n\tf32.const 0.0\n\tf32.div\n");
       } else if (strcmp (buf, "-Inf") == 0) {
-	asm_fprintf (stream, "(f32.div (f32.const -1.0) (f32.const 0.0))");
+	asm_fprintf (stream, "\tf32.const -1.0\n\tf32.const 0.0\n\tf32.div\n");
       } else if (strcmp (buf, "+QNaN") == 0) {
-	asm_fprintf (stream, "(f32.div (f32.const 0.0) (f32.const 0.0))");
+	asm_fprintf (stream, "\tf32.const 0.0\n\tf32.const 0.0\n\tf32.div\n");
       } else if (strcmp (buf, "+SNaN") == 0) {
-	asm_fprintf (stream, "(f32.div (f32.const -0.0) (f32.const 0.0))");
+	asm_fprintf (stream, "\tf32.const -0.0\n\tf32.const 0.0\n\tf32.div\n");
       } else if (buf[0] == '+')
-	asm_fprintf (stream, "(f32.const %s)", buf+1);
+	asm_fprintf (stream, "\tf32.const %s\n", buf+1);
       else
-	asm_fprintf (stream, "(f32.const %s)", buf);
+	asm_fprintf (stream, "\tf32.const %s\n", buf);
     }
     break;
   }
   case SYMBOL_REF: {
     const char *name = XSTR (x, 0);
     if (!SYMBOL_REF_FUNCTION_P (x)) {
-      asm_fprintf (stream, "$\n\t.ndatatextlabel ");
+      asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
     } else if (in_section->common.flags & SECTION_CODE) {
-      asm_fprintf (stream, "$\n\t.ncodetextlabel ");
+      asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
     } else {
       asm_fprintf (stream, "BROKEN");
-      asm_fprintf (stream, "$\n\t.ncodetextlabel ");
+      asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
     }
@@ -971,7 +974,7 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval)
   case LABEL_REF: {
     char buf[256];
     x = LABEL_REF_LABEL (x);
-    asm_fprintf (stream, "$\n\t.ncodetextlabel ");
+    asm_fprintf (stream, "i64.const ");
     ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
     ASM_OUTPUT_LABEL_REF (stream, buf);
     asm_fprintf (stream, "\n\t");
@@ -1048,8 +1051,11 @@ void wasm64_print_operand(FILE *stream, rtx x, int code)
     //print_rtl(stream, x);
     //asm_fprintf (stream, "*/");
     return;
+  } else if (code == 'R') {
+    wasm64_print_operation (stream, x, true, false);
+    return;
   } else if (code == 'S') {
-    wasm64_print_operation (stream, x, true);
+    wasm64_print_operation (stream, x, true, true);
     return;
   } else if (code == '/') {
     asm_fprintf (stream, "%d", wasm64_function_regsize (NULL_TREE));
@@ -1149,17 +1155,17 @@ struct wasm64_operator wasm64_operators[] = {
   },
   {
     ASHIFT, DImode, DImode,
-    "call $shl",
+    "call[2] $shl",
     2
   },
   {
     ASHIFTRT, DImode, DImode,
-    "call $shr_s",
+    "call[2] $shr_s",
     2
   },
   {
     LSHIFTRT, DImode, DImode,
-    "call $shr_u",
+    "call[2] $shr_u",
     2
   },
   {
@@ -1403,29 +1409,27 @@ bool wasm64_print_op(FILE *stream, rtx x)
     return false;
   }
 
-  if (strncmp (oper->str, "call ", 5))
-    asm_fprintf (stream, "(%s.%s ", wasm64_mode (oper->inmode), oper->str);
-  else
-    asm_fprintf (stream, "(%s ", oper->str);
   wasm64_print_operation(stream, a, false);
   if (oper->nargs == 2) {
     b = XEXP (x, 1);
-
-    asm_fprintf (stream, " ");
     wasm64_print_operation(stream, b, false);
   }
-  asm_fprintf (stream, ")");
+  if (strncmp (oper->str, "call[", 5))
+    if (strstr (oper->str, "mote") || strstr (oper->str, "trunc") || strstr (oper->str, "convert"))
+      asm_fprintf (stream, "\t%s.%s\n", wasm64_mode (oper->outmode), oper->str);
+    else
+      asm_fprintf (stream, "\t%s.%s\n", wasm64_mode (oper->inmode), oper->str);
+  else
+    asm_fprintf (stream, "\t%s\n", oper->str);
 
   return true;
 }
 
 void wasm64_print_assignment(FILE *stream, rtx x)
 {
-  asm_fprintf (stream, "(");
-  wasm64_print_operation (stream, XEXP (x, 0), true);
-  asm_fprintf (stream, " ");
-  wasm64_print_operation (stream, XEXP (x, 1), false);
-  asm_fprintf (stream, ")");
+ wasm64_print_operation (stream, XEXP (x, 0), true, true);
+ wasm64_print_operation (stream, XEXP (x, 1), false);
+ wasm64_print_operation (stream, XEXP (x, 0), true, false);
 }
 
 rtx wasm64_function_value(const_tree ret_type, const_tree fn_decl ATTRIBUTE_UNUSED,
@@ -1659,24 +1663,24 @@ static unsigned wasm64_function_regstore(FILE *stream,
   unsigned size = 0;
   unsigned total_size = wasm64_function_regsize (decl);
 
-  asm_fprintf (stream, "\t(block\n");
-  asm_fprintf (stream, "\t\t(if (i64.ne (i64.and (get_local $rp) (i64.const 3)) (i64.const 1)) (return (get_local $rp)))\n");
-  asm_fprintf (stream, "\t\t(call $i64_store (i32.wrap_i64 (i64.add (get_local $fp) (i64.const %d))) (i64.add (get_local $fp) (i64.const %d)))\n", size, total_size);
+  asm_fprintf (stream, "\tnextcase\n");
+  asm_fprintf (stream, "\t\ti64.const 3\n\t\tget_local $rp\n\t\ti64.and\n\t\ti64.const 1\n\t\ti64.ne\n\t\tif\n\t\tget_local $rp\n\t\treturn[1]\n\t\tend\n");
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $fp\n\t\ti64.const %d\n\t\ti64.add\n\t\tcall[2] $i64_store\n", size, total_size);
   size += 8;
 
-  asm_fprintf (stream, "\t\t(call $i64_store (i32.wrap_i64 (i64.add (get_local $fp) (i64.const %d))) (i64.shl (get_local $pc0) (i64.const 4)))\n", size);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $pc0\n\t\ti64.const 4\n\t\ti64.shl\n\t\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\t(call $i64_store (i32.wrap_i64 (i64.add (get_local $fp) (i64.const %d))) (i64.shl (i64.add (get_local $pc0) (get_local $dpc)) (i64.const 4)))\n", size);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $pc0\n\t\tget_local $dpc\n\t\ti64.add\n\t\ti64.const 4\n\t\ti64.shl\n\t\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\t(call $i64_store (i32.wrap_i64 (i64.add (get_local $fp) (i64.const %d))) (get_local $rpc))\n", size);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $rpc\n\t\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\t(call $i64_store (i32.wrap_i64 (i64.add (get_local $fp) (i64.const %d))) (get_local $sp))\n", size);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $sp\n\t\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\t(call $i64_store (i32.wrap_i64 (i64.add (get_local $fp) (i64.const %d))) (i64.const %d))\n", size, mask);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\ti64.const %d\n\t\tcall[2] $i64_store\n", size);
   size += 8;
 
   int i;
@@ -1686,22 +1690,22 @@ static unsigned wasm64_function_regstore(FILE *stream,
 	{
 	  if (wasm64_regno_reg_class (i) == FLOAT_REGS)
 	    {
-	      asm_fprintf(stream, "\t\t(f64.store (i32.wrap_i64 (i64.add (get_local $fp) (i64.const %d))) (get_local $%s))\n",
+	      asm_fprintf(stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\\t\tget_local $%s\n\t\tf64.store a=3 0\n",
 			  size, reg_names[i]);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-		asm_fprintf(stream, "\t\t(call $i64_store (i32.wrap_i64 (i64.add (get_local $fp) (i64.const %d))) (get_local $%s))\n",
+		asm_fprintf(stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $%s\n\t\tcall[2] $i64_store\n",
 			    size, reg_names[i]);
 	      size += 8;
 	    }
 	}
     }
 
-  asm_fprintf (stream, "\t\t(return (get_local $rp))\n");
-  asm_fprintf (stream, "\t)\n");
+  asm_fprintf (stream, "\t\tget_local $rp\n");
+  asm_fprintf (stream, "\t\treturn[1]\n");
   return size;
 }
 
@@ -1714,16 +1718,16 @@ static unsigned wasm64_function_regload(FILE *stream,
 
   size += 8;
 
-  asm_fprintf (stream, "\t\t(set_local $pc0 (i64.shr_u (call $i64_load (i32.wrap_i64 (i64.add (get_local $rp) (i64.const %d)))) (i64.const 4)))\n", size);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\ti64.const 4\n\t\ti64.shr_u\n\t\tset_local $pc0\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\t(set_local $dpc (i64.sub (i64.shr_u (call $i64_load (i32.wrap_i64 (i64.add (get_local $rp) (i64.const %d)))) (i64.const 4)) (get_local $pc0)))\n", size);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\ti64.const 4\n\t\ti64.shr_u\n\t\tget_local $pc0\n\t\ti64.sub\n\t\tset_local $dpc\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\t(set_local $rpc (call $i64_load (i32.wrap_i64 (i64.add (get_local $rp) (i64.const %d)))))\n", size);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\tset_local $rpc\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\t(set_local $sp (call $i64_load (i32.wrap_i64 (i64.add (get_local $rp) (i64.const %d)))))\n", size);
+  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\tset_local $sp\n", size);
   size += 8;
 
   size += 8;
@@ -1735,15 +1739,13 @@ static unsigned wasm64_function_regload(FILE *stream,
 	{
 	  if (wasm64_regno_reg_class (i) == FLOAT_REGS)
 	    {
-	      asm_fprintf (stream, "\t\t(set_local $%s (f64.load (i32.wrap_i64 (i64.add (get_local $rp) (i64.const %d)))))\n",
-			   reg_names[i], size);
+              asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tf64.load a=3 0\n\t\tset_local $%s\n", size, reg_names[i]);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-		asm_fprintf (stream, "\t\t(set_local $%s (call $i64_load (i32.wrap_i64 (i64.add (get_local $rp) (i64.const %d)))))\n",
-			     reg_names[i], size);
+                asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\tset_local $%s\n", size, reg_names[i]);
 	      size += 8;
 	    }
 	}
@@ -1789,16 +1791,9 @@ void wasm64_start_function(FILE *f, const char *name, tree decl)
   while (cooked_name[0] == '*')
     cooked_name++;
 
-  asm_fprintf(f, "\t.popsection\n");
-  asm_fprintf(f, "\t.p2align 4+8\n");
-  asm_fprintf(f, "\t.pushsection .wasm_pwas%%S,\"a\"\n");
-  asm_fprintf(f, "(\n");
-  asm_fprintf(f, "\t.wasmtextlabeldeffirst %s\n", cooked_name);
-  asm_fprintf(f, "\t\"f_$\n");
-  asm_fprintf(f, "\t.textlabel %s\n", cooked_name);
-  asm_fprintf(f, "\"\n");
-  wasm64_function_regstore(f, decl);
-  asm_fprintf(f, "\t(set_local $sp (i64.add (get_local $sp1) (i64.const -16)))\n");
+  asm_fprintf(f, "\tdefun %s, i64 i64 i64 i64 i64 i64 result i64\n",
+              cooked_name);
+  asm_fprintf (f, "\ti64.const -16\n\tget_local $sp1\n\ti64.add\n\tset_local $sp\n");
 }
 
 static void
@@ -1859,15 +1854,17 @@ void wasm64_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   while (cooked_name[0] == '*')
     cooked_name++;
 
-  asm_fprintf(f, "\t.wasmtextlabeldeflast .L.ends.%s\n", cooked_name);
-  //asm_fprintf(f, "(if (i64.ne (i64.add $dpc $pc0) (i64.const 0)) (call_import $abort (i64.const 0) (i64.const 0) (i64.const 0) (i64.const 0)))\n");
-  asm_fprintf(f, "\t(set_local $rp (i64.add (get_local $sp1) (i64.const -16)))\n");
+  asm_fprintf (f, "\tnextcase\n");
+  asm_fprintf (f, "\ti64.const -16\n\tget_local $sp1\n\ti64.add\n\tset_local $rp\n");
+  asm_fprintf (f, "\tget_local $rp\n\tset_local $fp\n");
   wasm64_function_regload (f, decl);
-  asm_fprintf(f, "\t(set_local $fp (get_local $rp))\n");
-  asm_fprintf(f, ")\n");
+  wasm64_function_regstore(f, decl);
 
-  wasm64_define_function(f, name, decl);
-  wasm64_fpswitch_function(f, name, decl);
+  asm_fprintf(f, "\tendefun %s\n",
+              cooked_name);
+
+  //wasm64_define_function(f, name, decl);
+  //wasm64_fpswitch_function(f, name, decl);
 }
 
 void wasm64_output_ascii (FILE *f, const void *ptr, size_t len)
@@ -1887,7 +1884,7 @@ void wasm64_output_ascii (FILE *f, const void *ptr, size_t len)
 
 void wasm64_output_label (FILE *stream, const char *name)
 {
-  fprintf(stream, "%s:\n", name + (name[0] == '*'));
+  fprintf(stream, "\t%s:\n", name + (name[0] == '*'));
 }
 
 void wasm64_output_debug_label (FILE *stream, const char *prefix, int num)
@@ -1997,11 +1994,6 @@ wasm64_asm_named_section (const char *name, unsigned int flags,
     }
 
   putc ('\n', asm_out_file);
-
-  if (flags & SECTION_CODE)
-    {
-      fprintf (asm_out_file, "\t.pushsection .wasm_pwas%%S,\"a\"\n");
-    }
 }
 
 void wasm64_output_common (FILE *stream, const char *name, size_t size ATTRIBUTE_UNUSED, size_t rounded)
@@ -2283,7 +2275,7 @@ rtx wasm64_expand_epilogue()
 const char *wasm64_expand_ret_insn()
 {
   char buf[1024];
-  snprintf (buf, 1022, "(return (i64.add (get_local $fp) (i64.const %d)))\n\t.set __wasm64_fallthrough, 0",
+  snprintf (buf, 1022, "i64.const %d\n\tget_local $fp\n\ti64.add\n\treturn[1]\n\t.set __wasm64_fallthrough, 0",
 	    wasm64_function_regsize (NULL_TREE));
 
   return ggc_strdup (buf);

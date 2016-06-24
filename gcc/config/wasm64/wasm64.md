@@ -241,8 +241,8 @@
           (match_operand:DI 1 "general_operand" "rmi,rmi"))]
       ""
       "@
-      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_%L0\n\t (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i32.and (i32.wrap_i64 (get_local $rp)) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
-      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_indcall (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i32.and (i32.wrap_i64 (get_local $rp)) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%O0\n\ti64.const 4\n\ti64.shr_u\n\ti64.const %0\n\tcall[6] %0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\t.wasmtextlabeldef .LI%=
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%O0\n\ti64.const 4\n\ti64.shr_u\n\ti64.const %0\n\tcall[6] indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\t.wasmtextlabeldef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:DI RV_REG)
@@ -250,8 +250,8 @@
             (match_operand:DI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_%L0\n\t (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i32.and (i32.wrap_i64 (get_local $rp)) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=
-      (set_local $dpc \n\t.dpc .LI%=\n\t)\n\t(set_local $rp (call $f_indcall (i64.const 0) (get_local $sp) (get_local $r0) (get_local $r1) (i64.add (get_local $pc0) \n\t.ncodetextlabel .LI%=\n\t) (i64.shr_u %O0 (i64.const 4))))\n\t(if (i32.and (i32.wrap_i64 (get_local $rp)) (i32.const 3)) (br $mainloop))\n\t.wasmtextlabeldef .LI%=")
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%O0\n\ti64.const 4\n\ti64.shr_u\n\ti64.const %0\n\tcall[6] %0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\t.wasmtextlabeldef .LI%=
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%O0\n\ti64.const 4\n\ti64.shr_u\n\ti64.const %0\n\tcall[6] indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\t.wasmtextlabeldef .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -279,12 +279,12 @@
 (define_insn "*jump"
   [(set (pc) (label_ref (match_operand 0)))]
   ""
-  "(set_local $dpc $\n\t.dpc %l0\n\t) (jump)")
+  ".dpc %l0\n\tset_local $dpc\n\tjump")
 
 (define_insn "*jump"
   [(set (pc) (match_operand:DI 0 "general_operand" "rmi"))]
   ""
-  "(set_local $dpc (i64.sub (i64.shr_u %O0 (i64.const 4)) (get_local $pc0)))\n\t(jump)")
+  "%O0\n\ti64.const 4\n\ti64.shr_u\n\tget_local $pc0\n\ti64.sub\n\tset_local $dpc\n\tjump")
 
 (define_expand "jump"
   [
@@ -333,8 +333,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "(if %O0 (then (set_local $dpc $\n\t.dpc %l3\n\t) (jump)))"
-  )
+  "%O0\n\tif\n\t.dpc %l3\n\tset_local $dpc\n\tjump1\n\tend")
 
 (define_expand "cbranchdi4"
   [(set (pc) (if_then_else
@@ -356,7 +355,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "(if %O0 (then (set_local $dpc $\n\t.dpc %l3\n\t) (jump)))")
+  "%O0\n\tif\n\t.dpc %l3\n\tset_local $dpc\n\tjump1\n\tend")
 
 (define_expand "cbranchdf4"
   [(set (pc) (if_then_else
@@ -732,7 +731,7 @@
 (define_insn "nop"
   [(const_int 0)]
   ""
-  "(nop)")
+  "nop")
 
 ;; Special insn to flush register windows.
 
@@ -752,7 +751,7 @@
    [(unspec_volatile [(match_operand:DI 0 "register_operand" "r")]
      UNSPECV_EH_RETURN)]
    ""
-   "(return (call_import $eh_return (get_local $fp) (get_local $sp) %O0))")
+   "get_local $fp\n\tget_local $sp\n\t%O0\n\tcall_import[3] $eh_return")
 
 (define_insn "*nonlocal_goto"
   [(unspec_volatile [(match_operand:DI 0 "register_operand" "r")
