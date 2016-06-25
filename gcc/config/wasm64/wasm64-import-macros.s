@@ -77,17 +77,6 @@ __str_\module:
 	set_local $r0
 ;; 0 "" 2
 #APP
-	get_local $r0
-	i64.const 32
-	call[2] $shl
-	set_local $r0
-	get_local $r0
-	i64.const 32
-	call[2] $shr_s
-	set_local $r0
-	i32.const 4096
-	get_local $r0
-	call[2] $i64_store
 	i64.const 96
 	get_local $fp
 	i64.add
