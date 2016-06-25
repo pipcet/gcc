@@ -1091,6 +1091,7 @@ struct wasm64_operator {
   machine_mode inmode;
   machine_mode outmode;
 
+  const char *prefix;
   const char *str;
 
   int nargs;
@@ -1099,274 +1100,272 @@ struct wasm64_operator {
 struct wasm64_operator wasm64_operators[] = {
   {
     PLUS, DImode, DImode,
-    "add",
+    NULL, "i64.add",
     2
   },
   {
     MINUS, DImode, DImode,
-    "sub",
+    NULL, "i64.sub",
     2
   },
   {
     MULT, DImode, DImode,
-    "mul",
+    NULL, "i64.mul",
     2
   },
   {
     DIV, DImode, DImode,
-    "div_s",
+    NULL, "i64.div_s",
     2
   },
   {
     MOD, DImode, DImode,
-    "rem_s",
+    NULL, "i64.rem_s",
     2
   },
   {
     UDIV, DImode, DImode,
-    "div_u",
+    NULL, "i64.div_u",
     2
   },
   {
     UMOD, DImode, DImode,
-    "rem_u",
+    NULL, "i64.rem_u",
     2
   },
   {
     XOR, DImode, DImode,
-    "xor",
+    NULL, "i64.xor",
     2
   },
   {
     IOR, DImode, DImode,
-    "or",
+    NULL, "i64.or",
     2
   },
   {
     AND, DImode, DImode,
-    "and",
+    NULL, "i64.and",
     2
   },
   {
     ASHIFT, DImode, DImode,
-    "call[2] $shl",
+    NULL, "call[2] $shl",
     2
   },
   {
     ASHIFTRT, DImode, DImode,
-    "call[2] $shr_s",
+    NULL, "call[2] $shr_s",
     2
   },
   {
     LSHIFTRT, DImode, DImode,
-    "call[2] $shr_u",
+    NULL, "call[2] $shr_u",
     2
   },
   {
     EQ, DImode, VOIDmode,
-    "eq",
+    NULL, "i64.eq",
     2
   },
   {
     NE, DImode, VOIDmode,
-    "ne",
+    NULL, "i64.ne",
     2
   },
   {
     LT, DImode, VOIDmode,
-    "lt_s",
+    NULL, "i64.lt_s",
     2
   },
   {
     LE, DImode, VOIDmode,
-    "le_s",
+    NULL, "i64.le_s",
     2
   },
   {
     GT, DImode, VOIDmode,
-    "gt_s",
+    NULL, "i64.gt_s",
     2
   },
   {
     GE, DImode, VOIDmode,
-    "ge_s",
+    NULL, "i64.ge_s",
     2
   },
   {
     LTU, DImode, VOIDmode,
-    "lt_u",
+    NULL, "i64.lt_u",
     2
   },
   {
     LEU, DImode, VOIDmode,
-    "le_u",
+    NULL, "i64.le_u",
     2
   },
   {
     GTU, DImode, VOIDmode,
-    "gt_u",
+    NULL, "i64.gt_u",
     2
   },
   {
     GEU, DImode, VOIDmode,
-    "ge_u",
+    NULL, "i64.ge_u",
     2
   },
   {
     EQ, DImode, SImode,
-    "eq",
+    NULL, "i64.eq",
     2
   },
   {
     NE, DImode, SImode,
-    "ne",
+    NULL, "i64.ne",
     2
   },
   {
     LT, DImode, SImode,
-    "lt_s",
+    NULL, "i64.lt_s",
     2
   },
   {
     LE, DImode, SImode,
-    "le_s",
+    NULL, "i64.le_s",
     2
   },
   {
     GT, DImode, SImode,
-    "gt_s",
+    NULL, "i64.gt_s",
     2
   },
   {
     GE, DImode, SImode,
-    "ge_s",
+    NULL, "i64.ge_s",
     2
   },
   {
     LTU, DImode, SImode,
-    "lt_u",
+    NULL, "i64.lt_u",
     2
   },
   {
     LEU, DImode, SImode,
-    "le_u",
+    NULL, "i64.le_u",
     2
   },
   {
     GTU, DImode, SImode,
-    "gt_u",
+    NULL, "i64.gt_u",
     2
   },
   {
     GEU, DImode, SImode,
-    "ge_u",
+    NULL, "i64.ge_u",
     2
   },
   {
     PLUS, DFmode, DFmode,
-    "add",
+    NULL, "f64.add",
     2
   },
   {
     MINUS, DFmode, DFmode,
-    "sub",
+    NULL, "f64.sub",
     2
   },
   {
     MULT, DFmode, DFmode,
-    "mul",
+    NULL, "f64.mul",
     2
   },
   {
     DIV, DFmode, DFmode,
-    "div",
+    NULL, "f64.div",
     2
   },
   {
     NEG, DFmode, DFmode,
-    "neg",
+    NULL, "f64.neg",
     1
   },
   {
     EQ, DFmode, VOIDmode,
-    "eq",
+    NULL, "f64.eq",
     2
   },
   {
     NE, DFmode, VOIDmode,
-    "ne",
+    NULL, "f64.ne",
     2
   },
   {
     LT, DFmode, VOIDmode,
-    "lt",
+    NULL, "f64.lt",
     2
   },
   {
     LE, DFmode, VOIDmode,
-    "le",
+    NULL, "f64.le",
     2
   },
   {
     GT, DFmode, VOIDmode,
-    "gt",
+    NULL, "f64.gt",
     2
   },
   {
     GE, DFmode, VOIDmode,
-    "ge",
+    NULL, "f64.ge",
     2
   },
-#if 0
   {
     NEG, DImode, DImode,
-    "sub (i64.const 0)",
+    "i64.const 0", "i64.sub",
     1
   },
   {
     NOT, DImode, DImode,
-    "i64.const -1\n\txor",
+    "i64.const -1", "i64.xor",
     1
   },
-#endif
   {
     FIX, DFmode, DImode,
-    "trunc_s_f64",
+    NULL, "i64.trunc_s_f64",
     1
   },
   {
     FLOAT, SImode, DFmode,
-    "convert_s_i32",
+    NULL, "f64.convert_s_i32",
     1
   },
   {
     FLOAT, DImode, DFmode,
-    "convert_s_i64",
+    NULL, "f64.convert_s_i64",
     1
   },
   {
     FLOAT_EXTEND, SFmode, DFmode,
-    "promote_f32",
+    NULL, "f64.promote_f32",
     1
   },
   {
     FLOAT_TRUNCATE, DFmode, SFmode,
-    "demote_f64",
+    NULL, "f32.demote_f64",
     1
   },
   {
     SIGN_EXTEND, SImode, DImode,
-    "i64.extend_s_i32",
+    NULL, "i64.extend_s_i32",
     1
   },
   {
     ZERO_EXTEND, SImode, DImode,
-    "i64.extend_u_i32",
+    NULL, "i64.extend_u_i32",
     1
   },
   {
     0, DImode, DImode,
-    NULL,
+    NULL, NULL,
     0
   }
 };
@@ -1405,18 +1404,14 @@ bool wasm64_print_op(FILE *stream, rtx x)
     return false;
   }
 
+  if (oper->prefix)
+    asm_fprintf (stream, "\t%s\n", oper->prefix);
   wasm64_print_operation(stream, a, false);
   if (oper->nargs == 2) {
     b = XEXP (x, 1);
     wasm64_print_operation(stream, b, false);
   }
-  if (strncmp (oper->str, "call[", 5))
-    if (strstr (oper->str, "mote") || strstr (oper->str, "trunc") || strstr (oper->str, "convert"))
-      asm_fprintf (stream, "\t%s.%s\n", wasm64_mode (oper->outmode), oper->str);
-    else
-      asm_fprintf (stream, "\t%s.%s\n", wasm64_mode (oper->inmode), oper->str);
-  else
-    asm_fprintf (stream, "\t%s\n", oper->str);
+  asm_fprintf (stream, "\t%s\n", oper->str);
 
   return true;
 }
@@ -1660,23 +1655,23 @@ static unsigned wasm64_function_regstore(FILE *stream,
   unsigned total_size = wasm64_function_regsize (decl);
 
   asm_fprintf (stream, "\tnextcase\n");
-  asm_fprintf (stream, "\t\ti64.const 3\n\t\tget_local $rp\n\t\ti64.and\n\t\ti64.const 1\n\t\ti64.ne\n\t\tif\n\t\tget_local $rp\n\t\treturn[1]\n\t\tend\n");
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $fp\n\t\ti64.const %d\n\t\ti64.add\n\t\tcall[2] $i64_store\n", size, total_size);
+  asm_fprintf (stream, "\ti64.const 3\n\tget_local $rp\n\ti64.and\n\ti64.const 1\n\ti64.ne\n\tif\n\tget_local $rp\n\treturn[1]\n\tend\n");
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $fp\n\ti64.const %d\n\ti64.add\n\tcall[2] $i64_store\n", size, total_size);
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $pc0\n\t\ti64.const 4\n\t\ti64.shl\n\t\tcall[2] $i64_store\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $pc0\n\ti64.const 4\n\ti64.shl\n\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $pc0\n\t\tget_local $dpc\n\t\ti64.add\n\t\ti64.const 4\n\t\ti64.shl\n\t\tcall[2] $i64_store\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $pc0\n\tget_local $dpc\n\ti64.add\n\ti64.const 4\n\ti64.shl\n\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $rpc\n\t\tcall[2] $i64_store\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $rpc\n\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $sp\n\t\tcall[2] $i64_store\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $sp\n\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\ti64.const %d\n\t\tcall[2] $i64_store\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\ti64.const %d\n\tcall[2] $i64_store\n", size);
   size += 8;
 
   int i;
@@ -1686,22 +1681,22 @@ static unsigned wasm64_function_regstore(FILE *stream,
 	{
 	  if (wasm64_regno_reg_class (i) == FLOAT_REGS)
 	    {
-	      asm_fprintf(stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $%s\n\t\tf64.store a=3 0\n",
+	      asm_fprintf(stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $%s\n\tf64.store a=3 0\n",
 			  size, reg_names[i]);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-		asm_fprintf(stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $%s\n\t\tcall[2] $i64_store\n",
+		asm_fprintf(stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $%s\n\tcall[2] $i64_store\n",
 			    size, reg_names[i]);
 	      size += 8;
 	    }
 	}
     }
 
-  asm_fprintf (stream, "\t\tget_local $rp\n");
-  asm_fprintf (stream, "\t\treturn[1]\n");
+  asm_fprintf (stream, "\tget_local $rp\n");
+  asm_fprintf (stream, "\treturn[1]\n");
   return size;
 }
 
@@ -1714,16 +1709,16 @@ static unsigned wasm64_function_regload(FILE *stream,
 
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\ti64.const 4\n\t\ti64.shr_u\n\t\tset_local $pc0\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\ti64.const 4\n\ti64.shr_u\n\tset_local $pc0\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\ti64.const 4\n\t\ti64.shr_u\n\t\tget_local $pc0\n\t\ti64.sub\n\t\tset_local $dpc\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\ti64.const 4\n\ti64.shr_u\n\tget_local $pc0\n\ti64.sub\n\tset_local $dpc\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\tset_local $rpc\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\tset_local $rpc\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\tset_local $sp\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\tset_local $sp\n", size);
   size += 8;
 
   size += 8;
@@ -1735,13 +1730,13 @@ static unsigned wasm64_function_regload(FILE *stream,
 	{
 	  if (wasm64_regno_reg_class (i) == FLOAT_REGS)
 	    {
-              asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tf64.load a=3 0\n\t\tset_local $%s\n", size, reg_names[i]);
+              asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tf64.load a=3 0\n\tset_local $%s\n", size, reg_names[i]);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-                asm_fprintf (stream, "\t\ti64.const %d\n\t\tget_local $rp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tcall[1] $i64_load\n\t\tset_local $%s\n", size, reg_names[i]);
+                asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\tset_local $%s\n", size, reg_names[i]);
 	      size += 8;
 	    }
 	}
