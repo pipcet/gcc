@@ -32,8 +32,6 @@
 
 #define TARGET_CPU_CPP_BUILTINS() wasm64_cpu_cpp_builtins(pfile)
 
-#define TARGET_ASM_ALIGNED_DI_OP "\t.di\t"
-
 /* #define SHIFT_COUNT_TRUNCATED should technically be set. */
 
 /* XXX include elfos.h? */
@@ -242,7 +240,7 @@ typedef struct {
 #define NO_FUNCTION_CSE true
 //#define LOGICAL_OP_NON_SHORT_CIRCUIT 1
 
-#define TEXT_SECTION_ASM_OP "\t.text\n\t.pushsection .wasm-pwas%S,\"a\""
+#define TEXT_SECTION_ASM_OP "\t.section .wasm.payload.code\n\t.subsection 2*__wasm_counter+1"
 #define DATA_SECTION_ASM_OP "\t.data"
 #define READONLY_DATA_SECTION_ASM_OP "\t.section .rodata"
 #define BSS_SECTION_ASM_OP "\t.data"
@@ -259,8 +257,8 @@ typedef struct {
         TEXT_SECTION_ASM_OP);
 
 #define ASM_COMMENT_START ";;"
-#define ASM_APP_ON ""
-#define ASM_APP_OFF ""
+#define ASM_APP_ON "#APP\n"
+#define ASM_APP_OFF "#APP\n"
 
 #undef ASM_OUTPUT_COMMON
 #define ASM_OUTPUT_COMMON wasm64_output_common

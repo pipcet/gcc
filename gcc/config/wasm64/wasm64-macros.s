@@ -1,4 +1,13 @@
 #NO_APP
+        .local __wasm_counter
+        .local __wasm_block
+        .local __wasm_blocks
+        .local __wasm_depth
+        .local $dpc, $sp1, $r0, $r1, $rpc, $pc0
+        .local $rp, $fp, $sp
+        .local $r2, $r3, $r4, $r5, $r6, $r7
+        .local $i0, $i1, $i2, $i3, $i4, $i5, $i6, $i7
+        .local $f0, $f1, $f2, $f3, $f4, $f5, $f6, $f7
         .set __wasm_counter, 0
         .set $dpc, 0
         .set $sp1, 1
@@ -23,12 +32,20 @@
         .set $i5, 20
         .set $i6, 21
         .set $i7, 22
+        .set $f0, 23
+        .set $f1, 24
+        .set $f2, 25
+        .set $f3, 26
+        .set $f4, 27
+        .set $f5, 28
+        .set $f6, 29
+        .set $f7, 30
 
         .macro .flush
-        .ascii "XXXX"
         .endm
 
         .macro .wasmtextlabeldef label
+        nextcase
         .set \label, __wasm_blocks
         .endm
 
@@ -58,14 +75,21 @@
         .endm
 
         .macro lstring str
-        rleb128 __lstring_\@\()_end - __lstring_\@
-__lstring_\@:
+        rleb128 2f - 1f
+1:
         .ascii "\str"
-__lstring_\@\()_end:
+2:
         .endm
 
         .macro defun name, sig:vararg
+        .local __wasm_blocks_\name\()_sym
+        .local __sigchar_\name\()
+        .local __signature_\name\()
+        .local __name_\name, __name_\name\()_end
         .set __wasm_depth, __wasm_blocks_\name\()_sym
+        .ifc "\sig","i64 i64 i64 i64 i64 i64 result i64"
+        .set __sigchar_\name\(), __wasm_chars_type_std
+        .else
         .pushsection .wasm.chars.type
 __sigchar_\name\():
         .byte 0
@@ -74,9 +98,16 @@ __sigchar_\name\():
 __signature_\name\():
         signature \sig
         .popsection
+        .endif
         .pushsection .wasm.chars.function
 \name\():
         .byte 0
+        .popsection
+        .pushsection .wasm.chars.table
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.table
+        rleb128 \name\()
         .popsection
         .pushsection .wasm.chars.code
         .byte 0
@@ -134,8 +165,6 @@ __body_\name\():
         .endm
 
         .macro throw
-        .ascii "count these:"
-        .long __wasm_depth - __wasm_blocks
         br __wasm_depth - __wasm_blocks
         .endm
 
@@ -148,6 +177,15 @@ __body_\name\():
         .endm
 
         .macro endefun name
+        .local __body_end_\name\()
+        .local __body_start_\name\()
+        .local __wasm_locals_\name\()
+        .local __wasm_locals_\name\()_end
+        .local __wasm_ast_\name\()
+        .local __wasm_blocks_\name\()
+        .local __wasm_blocks_\name\()_end
+        .local __wasm_blocks_\name\()_sym
+        
 __body_end_\name\():
         .pushsection .wasm.dummy
         .popsection
@@ -156,9 +194,11 @@ __body_end_\name\():
         rleb128 __body_end_\name - __body_start_\name
 __body_start_\name\():
 __wasm_locals_\name\():
-        .byte 0x01
-        .byte 0x7f
-        .byte 2
+        .byte 0x02              ; 2 local entries
+        .byte 17                ; 17 variables of type
+        .byte 2                 ; i64
+        .byte 8                 ; 8 variables of type
+        .byte 4                 ; f64
 __wasm_locals_\name\()_end:
         .ifne __wasm_blocks
 __wasm_ast_\name\():
@@ -174,7 +214,7 @@ __wasm_blocks_\name\()_sym:
         .popsection
         get_local 0
         i32.wrap_i64
-        .byte 0x08
+        .byte 0x08              ; br_table[0] [0,1,2,...,n] n
         .byte 0x00
         rleb128 __wasm_blocks-1
         .set __wasm_block, 0

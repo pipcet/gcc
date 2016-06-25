@@ -680,13 +680,9 @@ void wasm64_print_label(FILE *stream, rtx x)
   case SYMBOL_REF: {
     const char *name = XSTR (x, 0);
     if (!SYMBOL_REF_FUNCTION_P (x)) {
-      asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
-      asm_fprintf (stream, "\n\t");
     } else if (in_section->common.flags & SECTION_CODE) {
-      asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
-      asm_fprintf (stream, "\n\t");
     } else {
       asm_fprintf (stream, "BROKEN");
       asm_fprintf (stream, "i64.const ");
@@ -698,10 +694,8 @@ void wasm64_print_label(FILE *stream, rtx x)
   case LABEL_REF: {
     char buf[256];
     x = LABEL_REF_LABEL (x);
-    asm_fprintf (stream, "$\n\t.codetextlabel ");
     ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
     ASM_OUTPUT_LABEL_REF (stream, buf);
-    asm_fprintf (stream, "\n\t");
     break;
   }
   default:
@@ -1323,6 +1317,7 @@ struct wasm64_operator wasm64_operators[] = {
     "ge",
     2
   },
+#if 0
   {
     NEG, DImode, DImode,
     "sub (i64.const 0)",
@@ -1330,9 +1325,10 @@ struct wasm64_operator wasm64_operators[] = {
   },
   {
     NOT, DImode, DImode,
-    "xor (i64.const -1)",
+    "i64.const -1\n\txor",
     1
   },
+#endif
   {
     FIX, DFmode, DImode,
     "trunc_s_f64",
@@ -1690,7 +1686,7 @@ static unsigned wasm64_function_regstore(FILE *stream,
 	{
 	  if (wasm64_regno_reg_class (i) == FLOAT_REGS)
 	    {
-	      asm_fprintf(stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\\t\tget_local $%s\n\t\tf64.store a=3 0\n",
+	      asm_fprintf(stream, "\t\ti64.const %d\n\t\tget_local $fp\n\t\ti64.add\n\t\ti32.wrap_i64\n\t\tget_local $%s\n\t\tf64.store a=3 0\n",
 			  size, reg_names[i]);
 	      size += 8;
 	    }

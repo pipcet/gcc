@@ -120,12 +120,12 @@
   "%O2")
 
 (define_insn "*assigndi_unop"
-  [(match_operator 3 "set_operator"
+  [(match_operator 2 "set_operator"
      [(match_operand:DI 0 "nonimmediate_operand" "=rm")
-      (match_operator 1 "unary_operator"
-         [(match_operand 2 "general_operand" "rmi")])])]
+      (fix:DI
+         (match_operand 1 "general_operand" "rmi"))])]
    ""
-   "%O3")
+   "%O2")
 
 (define_insn "*assigndf_unop"
   [(match_operator 3 "set_operator"
@@ -241,8 +241,8 @@
           (match_operand:DI 1 "general_operand" "rmi,rmi"))]
       ""
       "@
-      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%O0\n\ti64.const 4\n\ti64.shr_u\n\ti64.const %0\n\tcall[6] %0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\t.wasmtextlabeldef .LI%=
-      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%O0\n\ti64.const 4\n\ti64.shr_u\n\ti64.const %0\n\tcall[6] indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\t.wasmtextlabeldef .LI%=")
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:DI RV_REG)
@@ -250,8 +250,8 @@
             (match_operand:DI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%O0\n\ti64.const 4\n\ti64.shr_u\n\ti64.const %0\n\tcall[6] %0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\t.wasmtextlabeldef .LI%=
-      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%O0\n\ti64.const 4\n\ti64.shr_u\n\ti64.const %0\n\tcall[6] indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\t.wasmtextlabeldef .LI%=")
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -438,17 +438,17 @@
   ""
   "")
 
-(define_expand "notdi2"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (not:DI (match_operand:DI 1 "general_operand" "rmi")))]
-  ""
-  "")
+;; (define_expand "notdi2"
+;;   [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
+;;         (not:DI (match_operand:DI 1 "general_operand" "rmi")))]
+;;   ""
+;;   "")
 
-(define_expand "one_cmpldi2"
-  [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
-        (not:DI (match_operand:DI 1 "general_operand" "rmi")))]
-  ""
-  "")
+;; (define_expand "one_cmpldi2"
+;;   [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
+;;         (not:DI (match_operand:DI 1 "general_operand" "rmi")))]
+;;   ""
+;;   "")
 
 (define_expand "muldi3"
   [(set (match_operand:DI 0 "nonimmediate_operand" "=rm")
