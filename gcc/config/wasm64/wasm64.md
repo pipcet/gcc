@@ -284,7 +284,7 @@
 (define_insn "*jump"
   [(set (pc) (match_operand:DI 0 "general_operand" "rmi"))]
   ""
-  "%O0\n\ti64.const 4\n\ti64.shr_u\n\tget_local $pc0\n\ti64.sub\n\tset_local $dpc\n\tjump")
+  "%O0\n\tset_local $dpc\n\tjump")
 
 (define_expand "jump"
   [
