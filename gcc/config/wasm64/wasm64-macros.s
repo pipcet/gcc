@@ -89,24 +89,30 @@
 2:
         .endm
 
+        .macro createsig sig
+        .pushsection .wasm.chars.type,"G",@progbits,__sigchar_\sig,comdat
+        .ifndef __sigchar_\sig
+        .weak __sigchar_\sig
+__sigchar_\sig:
+        .byte 0
+        .size __sigchar_\sig, . - __sigchar_\sig
+        .endif
+        .popsection
+        .pushsection .wasm.payload.type,"G",@progbits,__sigchar_\sig,comdat
+        .ifndef __signature_\sig
+        .weak __signature_\sig
+__signature_\sig:
+        signature \sig
+        .size __signature_\sig, . - __signature_\sig
+        .endif
+        .popsection
+        .endm
+
         .macro defun name, sig:vararg
+        createsig \sig
         .local __wasm_blocks_\name\()_sym
-        .local __sigchar_\name\()
-        .local __signature_\name\()
         .local __name_\name, __name_\name\()_end
         .set __wasm_depth, __wasm_blocks_\name\()_sym
-        .ifc "\sig","i64 i64 i64 i64 i64 i64 result i64"
-        .set __sigchar_\name\(), __wasm_chars_type_std
-        .else
-        .pushsection .wasm.chars.type
-__sigchar_\name\():
-        .byte 0
-        .popsection
-        .pushsection .wasm.payload.type
-__signature_\name\():
-        signature \sig
-        .popsection
-        .endif
         .pushsection .wasm.chars.function
 __wasm_chars_function_\name\():
         .byte 0
@@ -162,7 +168,7 @@ __name_\name\()_end:
         .popsection
         .endif
         .pushsection .wasm.payload.function
-        rleb128 __sigchar_\name\()
+        rleb128 __sigchar_\sig
         .popsection
 
         .set __wasm_counter, __wasm_counter + 1

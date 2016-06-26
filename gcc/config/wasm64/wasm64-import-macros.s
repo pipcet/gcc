@@ -11,7 +11,7 @@ __str_\module:
 .endif
         .text
         .global \name
-	defun \name, i64 i64 i64 i64 i64 i64 result i64
+	defun \name, FlllllllE
 	i64.const -16
 	get_local $sp1
 	i64.add

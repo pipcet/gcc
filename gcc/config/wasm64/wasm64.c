@@ -1782,7 +1782,7 @@ void wasm64_start_function(FILE *f, const char *name, tree decl)
   while (cooked_name[0] == '*')
     cooked_name++;
 
-  asm_fprintf(f, "\tdefun %s, i64 i64 i64 i64 i64 i64 result i64\n",
+  asm_fprintf(f, "\tdefun %s, FlllllllE\n",
               cooked_name);
   asm_fprintf (f, "\ti64.const -16\n\tget_local $sp1\n\ti64.add\n\tset_local $sp\n");
 }
