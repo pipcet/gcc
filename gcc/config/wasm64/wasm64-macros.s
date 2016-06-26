@@ -46,7 +46,7 @@
 
         .macro .wasmtextlabeldef label
         nextcase
-        .set \label, __wasm_blocks
+        .set \label, __wasm_skip_function + __wasm_blocks
         .endm
 
         .macro .ndatatextlabel label
@@ -63,11 +63,19 @@
 
         .macro .labeldef_internal label
         nextcase
-        .set \label, __wasm_blocks
+        .set \label, __wasm_skip_function + __wasm_blocks
         .endm
 
         .macro rleb128 expr:vararg
         .reloc .,R_ASMJS_LEB128,\expr
+        .rept 15
+        .byte 0x80
+        .endr
+        .byte 0x00
+        .endm
+
+        .macro rleb128r32 expr:vararg
+        .reloc .,R_ASMJS_LEB128_R32,\expr
         .rept 15
         .byte 0x80
         .endr
@@ -100,14 +108,20 @@ __signature_\name\():
         .popsection
         .endif
         .pushsection .wasm.chars.function
-\name\():
+__wasm_chars_function_\name\():
         .byte 0
         .popsection
+        .pushsection .wasm.skip.function,"",@nobits
+\name\():
+        .skip 1 << 32
+        .set __wasm_skip_function, \name\()
+        .popsection
         .pushsection .wasm.chars.table
+__wasm_chars_table_\name\():
         .byte 0
         .popsection
         .pushsection .wasm.payload.table
-        rleb128 \name\()
+        rleb128 __wasm_chars_function_\name\()
         .popsection
         .pushsection .wasm.chars.code
         .byte 0

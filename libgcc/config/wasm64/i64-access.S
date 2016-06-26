@@ -29,6 +29,8 @@
         get_local $rpc
         call_import[1] $print
         get_local $pc0
+        i64.const 32
+        i64.shr_u
         i32.wrap_i64
         get_local $dpc
         get_local $sp1
@@ -164,7 +166,7 @@
         .byte 0x00
         .popsection
         .pushsection .wasm.payload.export
-        rleb128 _start
+        rleb128r32 _start
         .byte 20
         .ascii "f_0x4000000000025000"
         .popsection
