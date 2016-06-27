@@ -21,9 +21,9 @@
 extern void wasm64_cpu_cpp_builtins (struct cpp_reader * pfile);
 extern enum reg_class wasm64_regno_reg_class(int regno);
 
-extern void wasm64_print_operand(FILE *stream, rtx x, int code);
+extern bool wasm64_print_operand(FILE *stream, rtx x, int code);
 extern bool wasm64_print_operand_punct_valid_p(int code);
-extern void wasm64_print_operand_address(FILE *stream, rtx x);
+extern bool wasm64_print_operand_address(FILE *stream, rtx x);
 
 extern rtx wasm64_function_value(const_tree ret_type, const_tree fn_decl, bool outgoing);
 extern rtx wasm64_libcall_value(machine_mode mode, const_rtx fun);

@@ -103,7 +103,7 @@
       [(match_operand:DI 0 "nonimmediate_operand" "=rm")
        (label_ref (match_operand 1))])]
   ""
-  "(%S0 \n\t.ncodetextlabel %l1\n\t)")
+  "%S0\n\t.ncodetextlabel %l1\n\t%R0")
 
 (define_insn "*assignsf"
   [(match_operator 2 "set_operator"

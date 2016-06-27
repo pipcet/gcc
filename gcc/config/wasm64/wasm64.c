@@ -326,9 +326,6 @@ bool wasm64_function_arg_regno_p(int regno)
 	  (regno >= A0_REG && regno < A0_REG + N_ARGREG_GLOBAL));
 }
 
-#undef PARM_BOUNDARY
-#define PARM_BOUNDARY 32
-
 unsigned int wasm64_function_arg_boundary(machine_mode mode, const_tree type)
 {
   if (GET_MODE_ALIGNMENT (mode) > PARM_BOUNDARY ||
@@ -655,7 +652,7 @@ static const struct attribute_spec wasm64_attribute_table[] =
   { NULL, 0, 0, false, false, false, NULL, false }
 };
 
-void wasm64_print_operand_address(FILE *stream, rtx x)
+bool wasm64_print_operand_address(FILE *stream, rtx x)
 {
   switch (GET_CODE (x)) {
   case MEM: {
@@ -663,7 +660,7 @@ void wasm64_print_operand_address(FILE *stream, rtx x)
 
     wasm64_print_operand (stream, addr, 0);
 
-    return;
+    return true;
   }
   default: {
     print_rtl(stream, x);
@@ -673,7 +670,7 @@ void wasm64_print_operand_address(FILE *stream, rtx x)
 
 bool wasm64_print_op(FILE *stream, rtx x);
 
-void wasm64_print_assignment(FILE *stream, rtx x);
+bool wasm64_print_assignment(FILE *stream, rtx x);
 void wasm64_print_label(FILE *stream, rtx x)
 {
   switch (GET_CODE (x)) {
@@ -817,7 +814,7 @@ const char *wasm64_store (machine_mode outmode, machine_mode inmode)
 
 #include <print-tree.h>
 
-void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = false)
+bool wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = false)
 {
   switch (GET_CODE (x)) {
   case PC: {
@@ -827,25 +824,29 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
   case REG: {
     if (want_lval && lval_l) {
       if (REGNO (x) == RV_REG)
-	asm_fprintf (stream, "\ti32.const 4096\n");
+	asm_fprintf (stream, "i32.const 4096");
       else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
-	asm_fprintf (stream, "\ti32.const %d\n",
+	asm_fprintf (stream, "i32.const %d",
 		     4104 + 8*(REGNO (x)-A0_REG));
+      else
+	return false;
+
+      return true;
     } else if (want_lval) {
       if (REGNO (x) == RV_REG)
-	asm_fprintf (stream, "\tcall[2] $i64_store\n");
+	asm_fprintf (stream, "call[2] $i64_store");
       else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
-	asm_fprintf (stream, "\tcall[2] $i64_store\n");
+	asm_fprintf (stream, "call[2] $i64_store");
       else
-	asm_fprintf (stream, "\tset_local $%s\n", reg_names[REGNO (x)]);
+	asm_fprintf (stream, "set_local $%s", reg_names[REGNO (x)]);
     } else {
       if (REGNO (x) == RV_REG)
-	asm_fprintf (stream, "\ti32.const 4096\n\tcall[1] $i64_load\n");
+	asm_fprintf (stream, "i32.const 4096\n\tcall[1] $i64_load");
       else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
-	asm_fprintf (stream, "\ti32.const %d\n\tcall[1] $i64_load\n",
+	asm_fprintf (stream, "i32.const %d\n\tcall[1] $i64_load",
 		     4104 + 8*(REGNO (x)-A0_REG));
       else
-	asm_fprintf (stream, "\tget_local $%s\n", reg_names[REGNO (x)]);
+	asm_fprintf (stream, "get_local $%s", reg_names[REGNO (x)]);
     }
     break;
   }
@@ -858,22 +859,22 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
 	  gcc_unreachable ();
 
 	wasm64_print_operation (stream, addr, false);
-	asm_fprintf (stream, "\t%s\n", wasm64_load (GET_MODE (x), GET_MODE (mem), false));
-	asm_fprintf (stream, "\ti32.wrap_i64\n");
+	asm_fprintf (stream, "\n\t%s\n\t", wasm64_load (GET_MODE (x), GET_MODE (mem), false));
+	asm_fprintf (stream, "i32.wrap_i64");
       }
     else if (GET_CODE (mem) == SUBREG)
       {
 	rtx reg = XEXP (mem, 0);
 
 	wasm64_print_operation (stream, reg, false);
-	asm_fprintf (stream, "\ti64.const %d\n", GET_MODE (mem) == HImode ? 65535 : 255);
-	asm_fprintf (stream, "\ti64.and\n");
+	asm_fprintf (stream, "\n\ti64.const %d\n\t", GET_MODE (mem) == HImode ? 65535 : 255);
+	asm_fprintf (stream, "i64.and");
       }
     else if (GET_CODE (mem) == REG)
       {
 	wasm64_print_operation (stream, mem, false);
-	asm_fprintf (stream, "\ti64.const %d\n", GET_MODE (mem) == HImode ? 65535 : 255);
-	asm_fprintf (stream, "\ti64.and\n");
+	asm_fprintf (stream, "\n\ti64.const %d\n\t", GET_MODE (mem) == HImode ? 65535 : 255);
+	asm_fprintf (stream, "i64.and");
       }
     else
       {
@@ -887,25 +888,25 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
 
     if (want_lval && lval_l) {
       wasm64_print_operation (stream, addr, false);
-      asm_fprintf (stream, "\ti32.wrap_i64\n");
+      asm_fprintf (stream, "\n\ti32.wrap_i64");
     } else if (want_lval) {
       machine_mode outmode = GET_MODE (x);
       if (outmode == QImode || outmode == HImode || outmode == SImode)
 	outmode = DImode;
-      asm_fprintf (stream, "\t%s\n", wasm64_store (outmode, GET_MODE (x)));
+      asm_fprintf (stream, "%s", wasm64_store (outmode, GET_MODE (x)));
     } else {
       wasm64_print_operation (stream, addr, false);
-      asm_fprintf (stream, "\ti32.wrap_i64\n");
+      asm_fprintf (stream, "\n\ti32.wrap_i64\n\t");
       machine_mode outmode = GET_MODE (x);
       if (outmode == QImode || outmode == HImode || outmode == SImode)
 	outmode = DImode;
-      asm_fprintf (stream, "\t%s\n", wasm64_load (outmode, GET_MODE (x), true));
+      asm_fprintf (stream, "%s", wasm64_load (outmode, GET_MODE (x), true));
     }
 
     break;
   }
   case CONST_INT: {
-    asm_fprintf (stream, "\ti64.const %ld\n", (long) XWINT (x, 0));
+    asm_fprintf (stream, "i64.const %ld", (long) XWINT (x, 0));
     break;
   }
   case CONST_DOUBLE: {
@@ -920,30 +921,30 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
 
     if (GET_MODE (x) == DFmode) {
       if (strcmp(buf, "+Inf") == 0) {
-	asm_fprintf (stream, "\tf64.const 1.0\n\tf64.const 0.0\n\tf64.div\n");
+	asm_fprintf (stream, "f64.const 1.0\n\tf64.const 0.0\n\tf64.div");
       } else if (strcmp (buf, "-Inf") == 0) {
-	asm_fprintf (stream, "\tf64.const -1.0\n\tf64.const 0.0\n\tf64.div\n");
+	asm_fprintf (stream, "f64.const -1.0\n\tf64.const 0.0\n\tf64.div");
       } else if (strcmp (buf, "+QNaN") == 0) {
-	asm_fprintf (stream, "\tf64.const 0.0\n\tf64.const 0.0\n\tf64.div\n");
+	asm_fprintf (stream, "f64.const 0.0\n\tf64.const 0.0\n\tf64.div");
       } else if (strcmp (buf, "+SNaN") == 0) {
-	asm_fprintf (stream, "\tf64.const -0.0\n\tf64.const 0.0\n\tf64.div\n");
+	asm_fprintf (stream, "f64.const -0.0\n\tf64.const 0.0\n\tf64.div");
       } else if (buf[0] == '+')
-	asm_fprintf (stream, "\tf64.const %s\n", buf+1);
+	asm_fprintf (stream, "f64.const %s", buf+1);
       else
-	asm_fprintf (stream, "\tf64.const %s\n", buf);
+	asm_fprintf (stream, "f64.const %s", buf);
     } else {
       if (strcmp(buf, "+Inf") == 0) {
-	asm_fprintf (stream, "\tf32.const 1.0\n\tf32.const 0.0\n\tf32.div\n");
+	asm_fprintf (stream, "f32.const 1.0\n\tf32.const 0.0\n\tf32.div");
       } else if (strcmp (buf, "-Inf") == 0) {
-	asm_fprintf (stream, "\tf32.const -1.0\n\tf32.const 0.0\n\tf32.div\n");
+	asm_fprintf (stream, "f32.const -1.0\n\tf32.const 0.0\n\tf32.div");
       } else if (strcmp (buf, "+QNaN") == 0) {
-	asm_fprintf (stream, "\tf32.const 0.0\n\tf32.const 0.0\n\tf32.div\n");
+	asm_fprintf (stream, "f32.const 0.0\n\tf32.const 0.0\n\tf32.div");
       } else if (strcmp (buf, "+SNaN") == 0) {
-	asm_fprintf (stream, "\tf32.const -0.0\n\tf32.const 0.0\n\tf32.div\n");
+	asm_fprintf (stream, "f32.const -0.0\n\tf32.const 0.0\n\tf32.div");
       } else if (buf[0] == '+')
-	asm_fprintf (stream, "\tf32.const %s\n", buf+1);
+	asm_fprintf (stream, "f32.const %s", buf+1);
       else
-	asm_fprintf (stream, "\tf32.const %s\n", buf);
+	asm_fprintf (stream, "f32.const %s", buf);
     }
     break;
   }
@@ -952,16 +953,13 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
     if (!SYMBOL_REF_FUNCTION_P (x)) {
       asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
-      asm_fprintf (stream, "\n\t");
     } else if (in_section->common.flags & SECTION_CODE) {
       asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
-      asm_fprintf (stream, "\n\t");
     } else {
       asm_fprintf (stream, "BROKEN");
       asm_fprintf (stream, "i64.const ");
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
-      asm_fprintf (stream, "\n\t");
     }
     break;
   }
@@ -971,8 +969,10 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
     asm_fprintf (stream, "i64.const ");
     ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
     ASM_OUTPUT_LABEL_REF (stream, buf);
-    asm_fprintf (stream, "\n\t");
     break;
+  }
+  case SET: {
+    return wasm64_print_assignment (stream, x);
   }
   case PLUS:
   case MINUS:
@@ -986,43 +986,24 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
   case UDIV:
   case AND:
   case IOR:
-  case XOR: {
-    if (!wasm64_print_op (stream, x))
-      gcc_unreachable ();
-    break;
-  }
-  case SET: {
-    wasm64_print_assignment (stream, x);
-    break;
-  }
+  case XOR:
   case EQ:
   case NE:
   case GT:
   case LT:
   case GE:
-  case LE: {
-    if (!wasm64_print_op (stream, x))
-      gcc_unreachable ();
-    break;
-  }
+  case LE:
   case GTU:
   case LTU:
   case GEU:
-  case LEU: {
-    if (!wasm64_print_op (stream, x))
-      gcc_unreachable ();
-    break;
-  }
+  case LEU:
   case FLOAT:
   case FLOAT_TRUNCATE:
   case FLOAT_EXTEND:
   case FIX:
   case NEG:
-  case NOT: {
-    if (!wasm64_print_op (stream, x))
-      gcc_unreachable ();
-    break;
-  }
+  case NOT:
+    return wasm64_print_op (stream, x);
   case CONST: {
     wasm64_print_operation (stream, XEXP (x, 0), false);
     break;
@@ -1030,39 +1011,40 @@ void wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
   default:
     asm_fprintf (stream, "BROKEN (unknown code:746): ");
     print_rtl (stream, x);
-    return;
+    return true;
   }
+
+  return true;
 }
 
 static unsigned wasm64_function_regsize(tree decl ATTRIBUTE_UNUSED);
 
-void wasm64_print_operand(FILE *stream, rtx x, int code)
+bool wasm64_print_operand(FILE *stream, rtx x, int code)
 {
   //print_rtl (stderr, x);
   if (code == 'O' || code == 0) {
-    wasm64_print_operation (stream, x, false);
+    if (wasm64_print_operation (stream, x, false) == false)
+      asm_fprintf (stream, "\n\t");
     //asm_fprintf (stream, "\n/* RTL: ");
     //print_rtl(stream, x);
     //asm_fprintf (stream, "*/");
-    return;
+    return true;
   } else if (code == 'R') {
-    wasm64_print_operation (stream, x, true, false);
-    return;
+    return wasm64_print_operation (stream, x, true, false);
   } else if (code == 'S') {
-    wasm64_print_operation (stream, x, true, true);
-    return;
+    return wasm64_print_operation (stream, x, true, true);
   } else if (code == '/') {
     asm_fprintf (stream, "%d", wasm64_function_regsize (NULL_TREE));
-    return;
+    return true;
   } else if (code == 'L') {
     wasm64_print_label (stream, x);
-    return;
+    return true;
   }
 
   asm_fprintf (stream, "BROKEN: should be using wasm64_print_operation");
   print_rtl (stream, x);
 
-  return;
+  return true;
 }
 
 bool wasm64_print_operand_punct_valid_p(int code)
@@ -1405,22 +1387,28 @@ bool wasm64_print_op(FILE *stream, rtx x)
   }
 
   if (oper->prefix)
-    asm_fprintf (stream, "\t%s\n", oper->prefix);
+    asm_fprintf (stream, "%s\n\t", oper->prefix);
   wasm64_print_operation(stream, a, false);
+  asm_fprintf (stream, "\n\t");
   if (oper->nargs == 2) {
     b = XEXP (x, 1);
     wasm64_print_operation(stream, b, false);
+    asm_fprintf (stream, "\n\t");
   }
-  asm_fprintf (stream, "\t%s\n", oper->str);
+  asm_fprintf (stream, "%s", oper->str);
 
   return true;
 }
 
-void wasm64_print_assignment(FILE *stream, rtx x)
+bool wasm64_print_assignment(FILE *stream, rtx x)
 {
- wasm64_print_operation (stream, XEXP (x, 0), true, true);
- wasm64_print_operation (stream, XEXP (x, 1), false);
- wasm64_print_operation (stream, XEXP (x, 0), true, false);
+  if (wasm64_print_operation (stream, XEXP (x, 0), true, true))
+    asm_fprintf (stream, "\n\t");
+  wasm64_print_operation (stream, XEXP (x, 1), false);
+  asm_fprintf (stream, "\n\t");
+  wasm64_print_operation (stream, XEXP (x, 0), true, false);
+
+  return true;
 }
 
 rtx wasm64_function_value(const_tree ret_type, const_tree fn_decl ATTRIBUTE_UNUSED,

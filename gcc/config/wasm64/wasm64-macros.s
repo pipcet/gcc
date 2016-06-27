@@ -8,6 +8,7 @@
         .local $r2, $r3, $r4, $r5, $r6, $r7
         .local $i0, $i1, $i2, $i3, $i4, $i5, $i6, $i7
         .local $f0, $f1, $f2, $f3, $f4, $f5, $f6, $f7
+        .local $rv, $a0, $a1, $a2, $a3, $tp
         .set __wasm_counter, 0
         .set $dpc, 0
         .set $sp1, 1
@@ -39,7 +40,14 @@
         .set $f4, 27
         .set $f5, 28
         .set $f6, 29
-        .set $f7, 30
+        .eqv $f7, 30
+
+        .set $rv, 4096
+        .set $a0, 4104
+        .set $a1, 4112
+        .set $a2, 4120
+        .set $a3, 4128
+        .set $tp, 8192
 
         .macro .flush
         .endm
@@ -90,22 +98,17 @@
         .endm
 
         .macro createsig sig
-        .pushsection .wasm.chars.type,"G",@progbits,__sigchar_\sig,comdat
         .ifndef __sigchar_\sig
+        .pushsection .wasm.chars.type,"G",@progbits,__sigchar_\sig,comdat
         .weak __sigchar_\sig
 __sigchar_\sig:
         .byte 0
         .size __sigchar_\sig, . - __sigchar_\sig
-        .endif
         .popsection
         .pushsection .wasm.payload.type,"G",@progbits,__sigchar_\sig,comdat
-        .ifndef __signature_\sig
-        .weak __signature_\sig
-__signature_\sig:
         signature \sig
-        .size __signature_\sig, . - __signature_\sig
-        .endif
         .popsection
+        .endif
         .endm
 
         .macro defun name, sig:vararg
@@ -114,7 +117,6 @@ __signature_\sig:
         .local __name_\name, __name_\name\()_end
         .set __wasm_depth, __wasm_blocks_\name\()_sym
         .pushsection .wasm.chars.function
-__wasm_chars_function_\name\():
         .byte 0
         .popsection
         .pushsection .wasm.skip.function,"",@nobits
@@ -123,11 +125,11 @@ __wasm_chars_function_\name\():
         .set __wasm_skip_function, \name\()
         .popsection
         .pushsection .wasm.chars.table
-__wasm_chars_table_\name\():
+1:
         .byte 0
         .popsection
         .pushsection .wasm.payload.table
-        rleb128 __wasm_chars_function_\name\()
+        rleb128 1b
         .popsection
         .pushsection .wasm.chars.code
         .byte 0
@@ -137,11 +139,8 @@ __wasm_chars_table_\name\():
         .byte 0
         .popsection
         .pushsection .wasm.payload.name
-        rleb128 __name_\name\()_end - __name_\name
-__name_\name:
-        .ascii "\name"
-__name_\name\()_end:
-        .byte 23
+        lstring \name
+        .byte 31
         lstring dpc
         lstring sp1
         lstring r0
@@ -165,6 +164,14 @@ __name_\name\()_end:
         lstring i5
         lstring i6
         lstring i7
+        lstring f0
+        lstring f1
+        lstring f2
+        lstring f3
+        lstring f4
+        lstring f5
+        lstring f6
+        lstring f7
         .popsection
         .endif
         .pushsection .wasm.payload.function
@@ -173,10 +180,6 @@ __name_\name\()_end:
 
         .set __wasm_counter, __wasm_counter + 1
         .set __wasm_blocks, 0
-        .pushsection .wasm.payload.code,2*__wasm_counter
-__body_\name\():
-        .popsection
-
         .pushsection .wasm.payload.code,2*__wasm_counter+1
         .endm
 
@@ -197,22 +200,19 @@ __body_\name\():
         .endm
 
         .macro endefun name
-        .local __body_end_\name\()
-        .local __body_start_\name\()
         .local __wasm_locals_\name\()
         .local __wasm_locals_\name\()_end
         .local __wasm_ast_\name\()
         .local __wasm_blocks_\name\()
         .local __wasm_blocks_\name\()_end
         .local __wasm_blocks_\name\()_sym
-        
-__body_end_\name\():
+2:
         .pushsection .wasm.dummy
         .popsection
         .popsection
         .pushsection .wasm.payload.code,2*__wasm_counter
-        rleb128 __body_end_\name - __body_start_\name
-__body_start_\name\():
+        rleb128 2b - 1f
+1:
 __wasm_locals_\name\():
         .byte 0x02              ; 2 local entries
         .byte 17                ; 17 variables of type
