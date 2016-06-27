@@ -241,8 +241,8 @@
           (match_operand:DI 1 "general_operand" "rmi,rmi"))]
       ""
       "@
-      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ti64.const 32\n\ti64.shl\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=
-      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ti64.const 32\n\ti64.shl\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=")
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:DI RV_REG)
@@ -250,8 +250,8 @@
             (match_operand:DI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ti64.const 32\n\ti64.shl\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=
-      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ti64.const 32\n\ti64.shl\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=")
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\.dpc .LI%=\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=
+      .dpc .LI%=\n\tset_local $dpc\n\ti64.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.wrap_i64\n\ti32.and\n\tif\n\tthrow1\n\tend\n\t.wasmtextlabeldef .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -819,4 +819,4 @@
                           ] UNSPECV_THUNK_GOTO))
    ]
   ""
-  "(return (call_import f_$\n\t.ncodetextlabel %O0\n\t(i64.const 0) (i64.add (get_local $sp) (i64.const 16)) (get_local $r0) (get_local $r1) (i64.add (get_local $dpc) (get_local $pc0)) (i64.shr_u %O0 (i64.const 4))))")
+  "i64.const 0\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti64.add\n\t%0\n\tcall[6] %L0\n\treturn[1]")

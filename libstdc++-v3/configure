@@ -78190,7 +78190,7 @@ done
     $as_echo "#define HAVE_TANHF 1" >>confdefs.h
 
     ;;
-  *-asmjs)
+  *-asmjs | *-wasm | *-wasm64)
 
   # All these tests are for C++; save the language and the compiler flags.
   # The CXXFLAGS thing is suspicious, but based on similar bits previously

@@ -924,9 +924,11 @@ bool wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
 	asm_fprintf (stream, "f64.const 1.0\n\tf64.const 0.0\n\tf64.div");
       } else if (strcmp (buf, "-Inf") == 0) {
 	asm_fprintf (stream, "f64.const -1.0\n\tf64.const 0.0\n\tf64.div");
-      } else if (strcmp (buf, "+QNaN") == 0) {
+      } else if (strcmp (buf, "+QNaN") == 0 ||
+		 strcmp (buf, "-SNaN") == 0) {
 	asm_fprintf (stream, "f64.const 0.0\n\tf64.const 0.0\n\tf64.div");
-      } else if (strcmp (buf, "+SNaN") == 0) {
+      } else if (strcmp (buf, "+SNaN") == 0 ||
+		 strcmp (buf, "-QNaN") == 0) {
 	asm_fprintf (stream, "f64.const -0.0\n\tf64.const 0.0\n\tf64.div");
       } else if (buf[0] == '+')
 	asm_fprintf (stream, "f64.const %s", buf+1);
@@ -937,9 +939,11 @@ bool wasm64_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
 	asm_fprintf (stream, "f32.const 1.0\n\tf32.const 0.0\n\tf32.div");
       } else if (strcmp (buf, "-Inf") == 0) {
 	asm_fprintf (stream, "f32.const -1.0\n\tf32.const 0.0\n\tf32.div");
-      } else if (strcmp (buf, "+QNaN") == 0) {
+      } else if (strcmp (buf, "+QNaN") == 0 ||
+		 strcmp (buf, "-SNaN") == 0) {
 	asm_fprintf (stream, "f32.const 0.0\n\tf32.const 0.0\n\tf32.div");
-      } else if (strcmp (buf, "+SNaN") == 0) {
+      } else if (strcmp (buf, "+SNaN") == 0 ||
+		 strcmp (buf, "-QNaN") == 0) {
 	asm_fprintf (stream, "f32.const -0.0\n\tf32.const 0.0\n\tf32.div");
       } else if (buf[0] == '+')
 	asm_fprintf (stream, "f32.const %s", buf+1);
@@ -1644,13 +1648,14 @@ static unsigned wasm64_function_regstore(FILE *stream,
 
   asm_fprintf (stream, "\tnextcase\n");
   asm_fprintf (stream, "\ti64.const 3\n\tget_local $rp\n\ti64.and\n\ti64.const 1\n\ti64.ne\n\tif\n\tget_local $rp\n\treturn[1]\n\tend\n");
+  asm_fprintf (stream, "\tget_local $sp\n\ti64.const -16\n\ti64.add\n\ti32.wrap_i64\n\tget_local $fp\n\tcall[2] $i64_store\n");
   asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $fp\n\ti64.const %d\n\ti64.add\n\tcall[2] $i64_store\n", size, total_size);
   size += 8;
 
-  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $pc0\n\ti64.const 4\n\ti64.shl\n\tcall[2] $i64_store\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $pc0\n\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $pc0\n\tget_local $dpc\n\ti64.add\n\ti64.const 4\n\ti64.shl\n\tcall[2] $i64_store\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $dpc\n\tcall[2] $i64_store\n", size);
   size += 8;
 
   asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $rpc\n\tcall[2] $i64_store\n", size);
@@ -1659,7 +1664,7 @@ static unsigned wasm64_function_regstore(FILE *stream,
   asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $sp\n\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\ti64.const %d\n\tcall[2] $i64_store\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\ti64.const %d\n\tcall[2] $i64_store\n", mask);
   size += 8;
 
   int i;
@@ -1697,10 +1702,10 @@ static unsigned wasm64_function_regload(FILE *stream,
 
   size += 8;
 
-  asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\ti64.const 4\n\ti64.shr_u\n\tset_local $pc0\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\tset_local $pc0\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\ti64.const 4\n\ti64.shr_u\n\tget_local $pc0\n\ti64.sub\n\tset_local $dpc\n", size);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\tset_local $dpc\n", size);
   size += 8;
 
   asm_fprintf (stream, "\ti64.const %d\n\tget_local $rp\n\ti64.add\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\tset_local $rpc\n", size);
@@ -1729,6 +1734,8 @@ static unsigned wasm64_function_regload(FILE *stream,
 	    }
 	}
     }
+
+  asm_fprintf (stream, "\tjump\n");
 
   if (size != total_size)
     gcc_unreachable();
@@ -1905,6 +1912,13 @@ wasm64_asm_named_section (const char *name, unsigned int flags,
 			 tree decl)
 {
   char flagchars[10], *f = flagchars;
+
+  /* It might be best to define TARGET_HAVEN_NAMED_SECTIONS to 0 */
+  if (flags & SECTION_CODE)
+    {
+      fprintf (asm_out_file, "%s\n", TEXT_SECTION_ASM_OP);
+      return;
+    }
 
   /* If we have already declared this section, we can use an
      abbreviated form to switch back to it -- unless this section is
@@ -2435,25 +2449,25 @@ wasm64_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
 
   if (stackcall)
     {
-      asm_fprintf (f, "\t(set_local %s (i64.add (get_local $sp) (i64.const %d)))\n", r, structret ? 20 : 16);
-      asm_fprintf (f, "\t(set_local %s (call $i64_load (i32.wrap_i64 (get_local %s))))\n", r, r);
+      asm_fprintf (f, "\tget_local $sp\n\ti64.const %d\n\ti64.add\n\tset_local %s\n", structret ? 20 : 16, r);
+      asm_fprintf (f, "\tget_local %s\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\tset_local %s\n", r, r);
     }
 
-  asm_fprintf (f, "\t(set_local %s (i64.add (get_local %s) (i64.const %d)))\n",
-	       r, r, (int) delta);
+  asm_fprintf (f, "\tget_local %s\n\ti64.const %d\n\ti64.add\n\tset_local %s\n",
+	       r, (int) delta, r);
   if (vcall_offset)
     {
-      asm_fprintf (f, "\t(call $i64_store (i32.const 4096) (get_local %s))\n", r);
-      asm_fprintf (f, "\t(call $i64_store (i32.const 4096) (i64.add (call $i64_load (i32.const 4096)) (i64.const %d)))\n", (int)vcall_offset);
-      asm_fprintf (f, "\t(call $i64_store (i32.const 4096) (call $i64_load (call $i64_load (i32.const 4096))))\n");
-      asm_fprintf (f, "\t(set_local %s (i64.add (get_local %s) (call $i64_load (i32.const 4096))))\n",
+      asm_fprintf (f, "\ti32.const $rv\n\tget_local %s\n\tcall[2] $i64_store\n", r);
+      asm_fprintf (f, "\ti32.const $rv\n\ti32.const $rv\n\tcall[1] $i64_load\n\ti64.const %d\n\ti64.add\n\tcall[2] $i64_store\n", (int)vcall_offset);
+      asm_fprintf (f, "\ti32.const $rv\n\ti32.const $rv\n\tcall[1] $i64_load\n\tcall[1] $i64_load\n\tcall[2] $i64_store\n");
+      asm_fprintf (f, "\tget_local %s\n\ti32.const $rv\n\tcall[1] $i64_load\n\ti64.add\n\tset_local %s\n",
 		   r, r);
     }
 
   if (stackcall)
-    asm_fprintf (f, "\t(call $i64_store (i32.wrap_i64 (i64.add (get_local $sp) (i64.const %d))) (get_local %s))\n", structret ? 20 : 16, r);
+    asm_fprintf (f, "\tget_local $sp\n\ti64.const %d\n\ti64.add\n\ti32.wrap_i64\n\tget_local %s\n\tcall[2] $i64_store\n", structret ? 20 : 16, r);
 
-  asm_fprintf (f, "\t(return (call $f_$\n\t.codetextlabel %s\n\t(i64.const 0) (i64.add (get_local $sp) (i64.const 16)) (get_local $r0) (get_local $r1) (i64.add (get_local $dpc) (get_local $pc0))\n\t.ncodetextlabel %s\n\t))\n",
+  asm_fprintf (f, "\ti64.const 0\n\tget_local $sp\n\ti64.const 16\n\ti64.add\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti64.add\n\ti64.const %s\n\tcall[6] %s\n",
 	       tname, tname);
 }
 

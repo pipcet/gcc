@@ -7,7 +7,7 @@
         .local $rp, $fp, $sp
         .local $r2, $r3, $r4, $r5, $r6, $r7
         .local $i0, $i1, $i2, $i3, $i4, $i5, $i6, $i7
-        .local $f0, $f1, $f2, $f3, $f4, $f5, $f6, $f7
+        .local $f0, $f1, $f2, $f3, $f4, $f5, $f6
         .local $rv, $a0, $a1, $a2, $a3, $tp
         .set __wasm_counter, 0
         .set $dpc, 0
@@ -50,6 +50,14 @@
         .set $tp, 8192
 
         .macro .flush
+        i64.const .LFl\@
+        set_local $dpc
+        get_local $fp
+        i64.const 1
+        i64.or
+        set_local $rp
+        throw
+        .wasmtextlabeldef .LFl\@
         .endm
 
         .macro .wasmtextlabeldef label
@@ -232,7 +240,7 @@ __wasm_blocks_\name\()_end:
         .offset __wasm_blocks
 __wasm_blocks_\name\()_sym:
         .popsection
-        get_local 0
+        get_local $dpc
         i32.wrap_i64
         .byte 0x08              ; br_table[0] [0,1,2,...,n] n
         .byte 0x00

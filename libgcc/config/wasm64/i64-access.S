@@ -165,11 +165,13 @@
 
         .pushsection .wasm.chars.export
         .byte 0x00
+        .byte 0x00
         .popsection
         .pushsection .wasm.payload.export
         rleb128r32 _start
-        .byte 20
-        .ascii "f_0x4000000000025000"
+        lstring f_0x4000000000025000
+        rleb128r32 $indcall
+        lstring indcall
         .popsection
 
         createsig FllllE
