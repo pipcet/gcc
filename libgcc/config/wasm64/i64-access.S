@@ -163,45 +163,42 @@
         return[1]
         endefun __one_cmpldi2
 
+        .macro export symbol, name
         .pushsection .wasm.chars.export
-        .byte 0x00
         .byte 0x00
         .popsection
         .pushsection .wasm.payload.export
-        rleb128r32 _start
-        lstring f_0x4000000000025000
-        rleb128r32 $indcall
-        lstring indcall
+        rleb128r32 \symbol
+        lstring \name
         .popsection
+        .endm
 
-        createsig FllllE
-        createsig FlllllE
-        createsig FvlE
+        export _start, f_0x4000000000025000
+        export $indcall, indcall
+        export startindex, startindex
 
-        .globl __wasm_import_extcall
+        defun startindex FlE
+        i64.const _start
+        return[1]
+        endefun startindex
+
+        .macro import symbol, module, name, sig
+        createsig \sig
         .pushsection .wasm.chars.import
-        .local __wasm_import_extcall
-__wasm_import_extcall:
-$extcall:
-        .byte 0x00
-$eh_return:
-        .byte 0x00
-$foreign_indcall:
-        .byte 0x00
-$print:
+\symbol\():
         .byte 0x00
         .popsection
         .pushsection .wasm.payload.import
-        rleb128 __sigchar_FlllllE
-        lstring thinthin
-        lstring extcall
-        rleb128 __sigchar_FllllE
-        lstring thinthin
-        lstring eh_return
-        rleb128 __sigchar_FlllllllE
-        lstring thinthin
-        lstring indcall
-        rleb128 __sigchar_FvlE
-        lstring console
-        lstring print
+        rleb128 __sigchar_\sig
+        lstring \module
+        lstring \name
         .popsection
+        .endm
+
+        import __wasm_import_extcall, thinthin, extcall, FlllllE
+        import $eh_return, thinthin, eh_return, FllllE
+        import $foreign_indcall, thinthin, indcall, FllllllllE
+        import $print, console, print, FvlE
+
+        .globl __wasm_import_extcall
+        .set $extcall, __wasm_import_extcall
