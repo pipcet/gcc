@@ -264,7 +264,7 @@ static int wasm64_argument_count (const_tree fntype)
   ret = ((n != NULL_TREE && n != void_type_node) ? -1 : 1) * ret;
 
   if (VOID_TYPE_P (TREE_TYPE (fntype)))
-    ret ^= 0x40000000;
+    ret ^= 0x4000000000000000LL;
 
   return ret;
 }
@@ -1664,7 +1664,7 @@ static unsigned wasm64_function_regstore(FILE *stream,
   asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\tget_local $sp\n\tcall[2] $i64_store\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\ti64.const %d\n\tcall[2] $i64_store\n", mask);
+  asm_fprintf (stream, "\ti64.const %d\n\tget_local $fp\n\ti64.add\n\ti32.wrap_i64\n\ti64.const %d\n\tcall[2] $i64_store\n", size, mask);
   size += 8;
 
   int i;
@@ -1779,7 +1779,7 @@ void wasm64_start_function(FILE *f, const char *name, tree decl)
 
   asm_fprintf(f, "\tdefun %s, FlllllllE\n",
               cooked_name);
-  asm_fprintf (f, "\ti64.const -16\n\tget_local $sp1\n\ti64.add\n\tset_local $sp\n");
+  //asm_fprintf (f, "\ti64.const -16\n\tget_local $sp1\n\ti64.add\n\tset_local $sp\n"); moved to wasm64-macros.s
 }
 
 static void
@@ -1881,10 +1881,7 @@ void wasm64_output_debug_label (FILE *stream, const char *prefix, int num)
 void wasm64_output_internal_label (FILE *stream, const char *name)
 {
   if (in_section && in_section->common.flags & SECTION_CODE) {
-    if (strncmp(name, ".Letext", strlen(".Letext")) == 0)
-      fprintf(stream, "%s:\n", name + (name[0] == '*'));
-    else
-      fprintf(stream, "\t.labeldef_internal %s\n", name + (name[0] == '*'));
+    fprintf(stream, "\t.labeldef_internal %s\n", name + (name[0] == '*'));
   } else if (strncmp(name, ".LSFDE", 6) == 0)
     fprintf(stream, "%s:\n", name + (name[0] == '*'));
   else
@@ -2140,7 +2137,7 @@ rtx wasm64_incoming_return_addr_rtx(void)
 rtx wasm64_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
 {
   if (count == 0)
-    return gen_rtx_ASHIFT (DImode, gen_rtx_REG (DImode, RPC_REG), gen_rtx_CONST_INT (DImode, 4));
+    return gen_rtx_REG (DImode, RPC_REG);
   else
     {
       return gen_rtx_MEM (DImode, gen_rtx_PLUS (DImode, gen_rtx_MEM (DImode, wasm64_dynamic_chain_address(frameaddr)), gen_rtx_CONST_INT (DImode, 16)));
@@ -2229,7 +2226,7 @@ rtx wasm64_expand_prologue()
   add_reg_note (insn, REG_CFA_DEF_CFA,
 		plus_constant (Pmode, frame_pointer_rtx, 0));
   add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, gen_rtx_PLUS (Pmode, sp, gen_rtx_MINUS (Pmode, gen_rtx_MEM (Pmode, sp), sp))), frame_pointer_rtx));
-  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, 8)), pc_rtx));
+  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, 16)), pc_rtx));
 
   if (crtl->calls_eh_return)
     {
@@ -2449,7 +2446,7 @@ wasm64_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
 
   if (stackcall)
     {
-      asm_fprintf (f, "\tget_local $sp\n\ti64.const %d\n\ti64.add\n\tset_local %s\n", structret ? 20 : 16, r);
+      asm_fprintf (f, "\tget_local $sp\n\ti64.const %d\n\ti64.add\n\tset_local %s\n", structret ? 24 : 16, r);
       asm_fprintf (f, "\tget_local %s\n\ti32.wrap_i64\n\tcall[1] $i64_load\n\tset_local %s\n", r, r);
     }
 
@@ -2465,7 +2462,7 @@ wasm64_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
     }
 
   if (stackcall)
-    asm_fprintf (f, "\tget_local $sp\n\ti64.const %d\n\ti64.add\n\ti32.wrap_i64\n\tget_local %s\n\tcall[2] $i64_store\n", structret ? 20 : 16, r);
+    asm_fprintf (f, "\tget_local $sp\n\ti64.const %d\n\ti64.add\n\ti32.wrap_i64\n\tget_local %s\n\tcall[2] $i64_store\n", structret ? 24 : 16, r);
 
   asm_fprintf (f, "\ti64.const 0\n\tget_local $sp\n\ti64.const 16\n\ti64.add\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti64.add\n\ti64.const %s\n\tcall[6] %s\n",
 	       tname, tname);

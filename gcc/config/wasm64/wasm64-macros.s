@@ -228,6 +228,10 @@ __wasm_locals_\name\():
         .byte 8                 ; 8 variables of type
         .byte 4                 ; f64
 __wasm_locals_\name\()_end:
+        i64.const -16
+        get_local $sp1
+        i64.add
+        set_local $sp
         .ifne __wasm_blocks
 __wasm_ast_\name\():
         loop
@@ -269,11 +273,22 @@ __wasm_blocks_\name\()_sym:
         .set __wasm_blocks, __wasm_blocks + 1
         .endm
 
+        .ifne 1
         .macro .labeldef_debug label
-        .pushsection .wasm.dummy
-        .offset 0
-\label:
+        .ifndef __wasm_skip_function
+        .pushsection .wasm.skip.function,"",@nobits
+0:
         .popsection
+        .set __wasm_skip_function, 0b
+        .endif
+        .ifndef __wasm_blocks
+        .set __wasm_blocks, 0
+        .endif
+        .set \label, __wasm_skip_function + __wasm_blocks + 1
         .endm
-
+        .else
+        .macro .labeldef_debug label
+        .labeldef_internal \label
+        .endm
+        .endif
         .set __wasm_fallthrough, 1
