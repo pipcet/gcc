@@ -104,7 +104,6 @@ static void arm_print_operand_address (FILE *, machine_mode, rtx);
 static bool arm_print_operand_punct_valid_p (unsigned char code);
 static const char *fp_const_from_val (REAL_VALUE_TYPE *);
 static arm_cc get_arm_condition_code (rtx);
-static HOST_WIDE_INT int_log2 (HOST_WIDE_INT);
 static const char *output_multi_immediate (rtx *, const char *, const char *,
 					   int, HOST_WIDE_INT);
 static const char *shift_op (rtx, HOST_WIDE_INT *);
@@ -2123,6 +2122,29 @@ const struct tune_params arm_cortex_a12_tune =
   tune_params::PREF_NEON_STRINGOPS_TRUE,
   FUSE_OPS (tune_params::FUSE_MOVW_MOVT),
   tune_params::SCHED_AUTOPREF_OFF
+};
+
+const struct tune_params arm_cortex_a73_tune =
+{
+  arm_9e_rtx_costs,
+  &cortexa57_extra_costs,
+  NULL,						/* Sched adj cost.  */
+  arm_default_branch_cost,
+  &arm_default_vec_cost,			/* Vectorizer costs.  */
+  1,						/* Constant limit.  */
+  2,						/* Max cond insns.  */
+  8,						/* Memset max inline.  */
+  2,						/* Issue rate.  */
+  ARM_PREFETCH_NOT_BENEFICIAL,
+  tune_params::PREF_CONST_POOL_FALSE,
+  tune_params::PREF_LDRD_TRUE,
+  tune_params::LOG_OP_NON_SHORT_CIRCUIT_TRUE,		/* Thumb.  */
+  tune_params::LOG_OP_NON_SHORT_CIRCUIT_TRUE,		/* ARM.  */
+  tune_params::DISPARAGE_FLAGS_ALL,
+  tune_params::PREF_NEON_64_FALSE,
+  tune_params::PREF_NEON_STRINGOPS_TRUE,
+  FUSE_OPS (tune_params::FUSE_AES_AESMC | tune_params::FUSE_MOVW_MOVT),
+  tune_params::SCHED_AUTOPREF_FULL
 };
 
 /* armv7m tuning.  On Cortex-M4 cores for example, MOVW/MOVT take a single
@@ -19071,7 +19093,8 @@ shift_op (rtx op, HOST_WIDE_INT *amountp)
 	  return NULL;
 	}
 
-      *amountp = int_log2 (*amountp);
+      *amountp = exact_log2 (*amountp);
+      gcc_assert (IN_RANGE (*amountp, 0, 31));
       return ARM_LSL_NAME;
 
     default:
@@ -19101,22 +19124,6 @@ shift_op (rtx op, HOST_WIDE_INT *amountp)
     return NULL;
 
   return mnem;
-}
-
-/* Obtain the shift from the POWER of two.  */
-
-static HOST_WIDE_INT
-int_log2 (HOST_WIDE_INT power)
-{
-  HOST_WIDE_INT shift = 0;
-
-  while ((((HOST_WIDE_INT) 1 << shift) & power) == 0)
-    {
-      gcc_assert (shift <= 31);
-      shift++;
-    }
-
-  return shift;
 }
 
 /* Output a .ascii pseudo-op, keeping track of lengths.  This is
@@ -27793,7 +27800,7 @@ arm_preferred_rename_class (reg_class_t rclass)
     return NO_REGS;
 }
 
-/* Compute the atrribute "length" of insn "*push_multi".
+/* Compute the attribute "length" of insn "*push_multi".
    So this function MUST be kept in sync with that insn pattern.  */
 int
 arm_attr_length_push_multi(rtx parallel_op, rtx first_op)
@@ -27810,6 +27817,11 @@ arm_attr_length_push_multi(rtx parallel_op, rtx first_op)
 
   /* Thumb2 mode.  */
   regno = REGNO (first_op);
+  /* For PUSH/STM under Thumb2 mode, we can use 16-bit encodings if the register
+     list is 8-bit.  Normally this means all registers in the list must be
+     LO_REGS, that is (R0 -R7).  If any HI_REGS used, then we must use 32-bit
+     encodings.  There is one exception for PUSH that LR in HI_REGS can be used
+     with 16-bit encoding.  */
   hi_reg = (REGNO_REG_CLASS (regno) == HI_REGS) && (regno != LR_REGNUM);
   for (i = 1; i < num_saves && !hi_reg; i++)
     {
@@ -27820,6 +27832,56 @@ arm_attr_length_push_multi(rtx parallel_op, rtx first_op)
   if (!hi_reg)
     return 2;
   return 4;
+}
+
+/* Compute the attribute "length" of insn.  Currently, this function is used
+   for "*load_multiple_with_writeback", "*pop_multiple_with_return" and
+   "*pop_multiple_with_writeback_and_return".  OPERANDS is the toplevel PARALLEL
+   rtx, RETURN_PC is true if OPERANDS contains return insn.  WRITE_BACK_P is
+   true if OPERANDS contains insn which explicit updates base register.  */
+
+int
+arm_attr_length_pop_multi (rtx *operands, bool return_pc, bool write_back_p)
+{
+  /* ARM mode.  */
+  if (TARGET_ARM)
+    return 4;
+  /* Thumb1 mode.  */
+  if (TARGET_THUMB1)
+    return 2;
+
+  rtx parallel_op = operands[0];
+  /* Initialize to elements number of PARALLEL.  */
+  unsigned indx = XVECLEN (parallel_op, 0) - 1;
+  /* Initialize the value to base register.  */
+  unsigned regno = REGNO (operands[1]);
+  /* Skip return and write back pattern.
+     We only need register pop pattern for later analysis.  */
+  unsigned first_indx = 0;
+  first_indx += return_pc ? 1 : 0;
+  first_indx += write_back_p ? 1 : 0;
+
+  /* A pop operation can be done through LDM or POP.  If the base register is SP
+     and if it's with write back, then a LDM will be alias of POP.  */
+  bool pop_p = (regno == SP_REGNUM && write_back_p);
+  bool ldm_p = !pop_p;
+
+  /* Check base register for LDM.  */
+  if (ldm_p && REGNO_REG_CLASS (regno) == HI_REGS)
+    return 4;
+
+  /* Check each register in the list.  */
+  for (; indx >= first_indx; indx--)
+    {
+      regno = REGNO (XEXP (XVECEXP (parallel_op, 0, indx), 0));
+      /* For POP, PC in HI_REGS can be used with 16-bit encoding.  See similar
+	 comment in arm_attr_length_push_multi.  */
+      if (REGNO_REG_CLASS (regno) == HI_REGS
+	  && (regno != PC_REGNUM || ldm_p))
+	return 4;
+    }
+
+  return 2;
 }
 
 /* Compute the number of instructions emitted by output_move_double.  */
@@ -27853,7 +27915,11 @@ vfp3_const_double_for_fract_bits (rtx operand)
 	  HOST_WIDE_INT value = real_to_integer (&r0);
 	  value = value & 0xffffffff;
 	  if ((value != 0) && ( (value & (value - 1)) == 0))
-	    return int_log2 (value);
+	    {
+	      int ret = exact_log2 (value);
+	      gcc_assert (IN_RANGE (ret, 0, 31));
+	      return ret;
+	    }
 	}
     }
   return 0;

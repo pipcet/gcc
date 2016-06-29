@@ -2187,7 +2187,6 @@ scan_sharing_clauses (tree clauses, omp_context *ctx,
 	case OMP_CLAUSE_GANG:
 	case OMP_CLAUSE_WORKER:
 	case OMP_CLAUSE_VECTOR:
-	case OMP_CLAUSE_TILE:
 	case OMP_CLAUSE_INDEPENDENT:
 	case OMP_CLAUSE_AUTO:
 	case OMP_CLAUSE_SEQ:
@@ -2200,10 +2199,8 @@ scan_sharing_clauses (tree clauses, omp_context *ctx,
 	    install_var_local (decl, ctx);
 	  break;
 
+	case OMP_CLAUSE_TILE:
 	case OMP_CLAUSE__CACHE_:
-	  sorry ("Clause not supported yet");
-	  break;
-
 	default:
 	  gcc_unreachable ();
 	}
@@ -2360,17 +2357,14 @@ scan_sharing_clauses (tree clauses, omp_context *ctx,
 	case OMP_CLAUSE_GANG:
 	case OMP_CLAUSE_WORKER:
 	case OMP_CLAUSE_VECTOR:
-	case OMP_CLAUSE_TILE:
 	case OMP_CLAUSE_INDEPENDENT:
 	case OMP_CLAUSE_AUTO:
 	case OMP_CLAUSE_SEQ:
 	case OMP_CLAUSE__GRIDDIM_:
 	  break;
 
+	case OMP_CLAUSE_TILE:
 	case OMP_CLAUSE__CACHE_:
-	  sorry ("Clause not supported yet");
-	  break;
-
 	default:
 	  gcc_unreachable ();
 	}
@@ -4481,8 +4475,9 @@ lower_rec_input_clauses (tree clauses, gimple_seq *ilist, gimple_seq *dlist,
 		  if (new_var == NULL_TREE)
 		    new_var = maybe_lookup_decl_in_outer_ctx (var, ctx);
 		  x = builtin_decl_explicit (BUILT_IN_ASSUME_ALIGNED);
-		  x = build_call_expr_loc (clause_loc, x, 2, new_var,
-					   omp_clause_aligned_alignment (c));
+		  tree alarg = omp_clause_aligned_alignment (c);
+		  alarg = fold_convert_loc (clause_loc, size_type_node, alarg);
+		  x = build_call_expr_loc (clause_loc, x, 2, new_var, alarg);
 		  x = fold_convert_loc (clause_loc, TREE_TYPE (new_var), x);
 		  x = build2 (MODIFY_EXPR, TREE_TYPE (new_var), new_var, x);
 		  gimplify_and_add (x, ilist);
@@ -4495,8 +4490,9 @@ lower_rec_input_clauses (tree clauses, gimple_seq *ilist, gimple_seq *dlist,
 		  t = maybe_lookup_decl_in_outer_ctx (var, ctx);
 		  t = build_fold_addr_expr_loc (clause_loc, t);
 		  t2 = builtin_decl_explicit (BUILT_IN_ASSUME_ALIGNED);
-		  t = build_call_expr_loc (clause_loc, t2, 2, t,
-					   omp_clause_aligned_alignment (c));
+		  tree alarg = omp_clause_aligned_alignment (c);
+		  alarg = fold_convert_loc (clause_loc, size_type_node, alarg);
+		  t = build_call_expr_loc (clause_loc, t2, 2, t, alarg);
 		  t = fold_convert_loc (clause_loc, ptype, t);
 		  x = create_tmp_var (ptype);
 		  t = build2 (MODIFY_EXPR, ptype, x, t);

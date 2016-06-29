@@ -171,6 +171,10 @@ known_alignment (tree exp)
 
     case CALL_EXPR:
       {
+	tree fndecl = get_callee_fndecl (exp);
+	if (fndecl == malloc_decl || fndecl == realloc_decl)
+	  return get_target_system_allocator_alignment () * BITS_PER_UNIT;
+
 	tree t = maybe_inline_call_in_expr (exp);
 	if (t)
 	  return known_alignment (t);
@@ -184,7 +188,8 @@ known_alignment (tree exp)
 	 have a dummy type here (e.g. a Taft Amendment type), for which the
 	 alignment is meaningless and should be ignored.  */
       if (POINTER_TYPE_P (TREE_TYPE (exp))
-	  && !TYPE_IS_DUMMY_P (TREE_TYPE (TREE_TYPE (exp))))
+	  && !TYPE_IS_DUMMY_P (TREE_TYPE (TREE_TYPE (exp)))
+	  && !VOID_TYPE_P (TREE_TYPE (TREE_TYPE (exp))))
 	this_alignment = TYPE_ALIGN (TREE_TYPE (TREE_TYPE (exp)));
       else
 	this_alignment = 0;

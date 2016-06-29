@@ -1,3 +1,55 @@
+2016-06-28  Walter Lee  <walt@tilera.com>
+
+	* config/tilepro/atomic.h: Do not include arch/spr_def.h and
+	asm/unistd.h.
+	(SPR_CMPEXCH_VALUE): Define for tilegx.
+	(__NR_FAST_cmpxchg): Define for tilepro.
+	(__NR_FAST_atomic_update): Define for tilepro.
+	(__NR_FAST_cmpxchg64): Define for tilepro.
+
+2016-06-23  Jakub Sejdak  <jakub.sejdak@phoesys.com>
+
+   * config.host: Add suport for arm*-*-phoenix* targets.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config.host: Remove support for mep-*.
+	* config/mep/lib1funcs.S: Remove.
+	* config/mep/lib2funcs.c: Remove.
+	* config/mep/t-mep: Remove.
+	* config/mep/tramp.c: Remove.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config.host: Remove support for avr-rtems.
+	* config/avr/t-rtems: Remove.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config.host: Remove m32r-rtems support.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config.host: Remove h8300-rtems support.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config.host: Remove support for knetbsd.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config.host: Remove support for openbsd 2 and 3.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* config.host: Remove interix support.
+	* config/i386/t-interix: Remove.
+
+2016-06-18  John David Anglin  <danglin@gcc.gnu.org>
+
+	* config/pa/fptr.c (__canonicalize_funcptr_for_compare): Don't set
+	least-significant bit in function pointer for fixup.
+
 2016-06-05  Aaron Conole  <aconole@redhat.com>
 	    Nathan Sidwell  <nathan@acm.org>
 
@@ -30,7 +82,7 @@
 
 2016-05-19  Sandra Loosemore  <sandra@codesourcery.com>
 
-	* config.host [x86_64-*-cygwin*]: Handle tmake_eh_file for mixed 
+	* config.host [x86_64-*-cygwin*]: Handle tmake_eh_file for mixed
 	dw2/seh configuration.
 	[x86_64-*-mingw*]: Likewise.
 
@@ -104,7 +156,7 @@
 
 2016-03-28  James Bowman  <james.bowman@ftdichip.com>
 
-        * libgcc/config/ft32/lib1funcs.S (*divsi3, *modsi3): New.
+	* libgcc/config/ft32/lib1funcs.S (*divsi3, *modsi3): New.
 
 2016-03-22  Michael Meissner  <meissner@linux.vnet.ibm.com>
 
@@ -519,7 +571,7 @@
 
 2015-10-02  Kirill Yukhin  <kirill.yukhin@intel.com>
 
-        * config/i386/cpuinfo.c (processor_features): Add
+	* config/i386/cpuinfo.c (processor_features): Add
 	FEATURE_AVX512VBMI and FEATURE_AVX512VBMI.
 
 2015-09-28  Joseph Myers  <joseph@codesourcery.com>
@@ -884,10 +936,10 @@
 
 2015-05-15  Martin Galvan  <martin.galvan@tallertechnologies.com>
 
-        * config/arm/lib1funcs.S (CFI_START_FUNCTION, CFI_END_FUNCTION):
-        New macros.
-        * config/arm/ieee754-df.S: Add CFI directives.
-        * config/arm/ieee754-sf.S: Add CFI directives.
+	* config/arm/lib1funcs.S (CFI_START_FUNCTION, CFI_END_FUNCTION):
+	New macros.
+	* config/arm/ieee754-df.S: Add CFI directives.
+	* config/arm/ieee754-sf.S: Add CFI directives.
 
 2015-05-13  Eric Botcazou  <ebotcazou@adacore.com>
 

@@ -267,8 +267,7 @@ procedure Gnat1drv is
          --  Enable all other language checks
 
          Suppress_Options.Suppress :=
-           (Access_Check      => True,
-            Alignment_Check   => True,
+           (Alignment_Check   => True,
             Division_Check    => True,
             Elaboration_Check => True,
             others            => False);
@@ -296,8 +295,7 @@ procedure Gnat1drv is
          Debug_Generated_Code := False;
 
          --  Turn cross-referencing on in case it was disabled (e.g. by -gnatD)
-         --  Do we really need to spend time generating xref in CodePeer
-         --  mode??? Consider setting Xref_Active to False.
+         --  to support source navigation.
 
          Xref_Active := True;
 
@@ -318,24 +316,15 @@ procedure Gnat1drv is
 
          Assertions_Enabled := True;
 
-         --  Disable all simple value propagation. This is an optimization
-         --  which is valuable for code optimization, and also for generation
-         --  of compiler warnings, but these are being turned off by default,
-         --  and CodePeer generates better messages (referencing original
-         --  variables) this way.
-
-         Debug_Flag_MM := True;
-
-         --  Set normal RM validity checking, and checking of IN OUT parameters
-         --  (this might give CodePeer more useful checks to analyze, to be
-         --  confirmed???). All other validity checking is turned off, since
-         --  this can generate very complex trees that only confuse CodePeer
-         --  and do not bring enough useful info.
+         --  Set normal RM validity checking and checking of copies (to catch
+         --  e.g. wrong values used in unchecked conversions).
+         --  All other validity checking is turned off, since this can generate
+         --  very complex trees that only confuse CodePeer and do not bring
+         --  enough useful info.
 
          Reset_Validity_Check_Options;
          Validity_Check_Default       := True;
-         Validity_Check_In_Out_Params := True;
-         Validity_Check_In_Params     := True;
+         Validity_Check_Copies        := True;
 
          --  Turn off style check options and ignore any style check pragmas
          --  since we are not interested in any front-end warnings when we are
@@ -356,6 +345,18 @@ procedure Gnat1drv is
          --  This is useful when using CodePeer mode with other compilers.
 
          Relaxed_RM_Semantics := True;
+
+         --  Disable all simple value propagation. This is an optimization
+         --  which is valuable for code optimization, and also for generation
+         --  of compiler warnings, but these are being turned off by default,
+         --  and CodePeer generates better messages (referencing original
+         --  variables) this way.
+         --  Do this only is -gnatws is set (the default with -gnatcC), so that
+         --  if warnings are enabled, we'll get better messages from GNAT.
+
+         if Warning_Mode = Suppress then
+            Debug_Flag_MM := True;
+         end if;
       end if;
 
       --  Enable some individual switches that are implied by relaxed RM
@@ -632,11 +633,9 @@ procedure Gnat1drv is
       if Debug_Flag_Dot_LL then
          Back_End_Handles_Limited_Types := True;
 
-      --  If no debug flag, usage off for AAMP, SCIL cases
+      --  If no debug flag, usage off for SCIL cases
 
-      elsif AAMP_On_Target
-        or else Generate_SCIL
-      then
+      elsif Generate_SCIL then
          Back_End_Handles_Limited_Types := False;
 
       --  Otherwise normal gcc back end, for now still turn flag off by
@@ -665,20 +664,16 @@ procedure Gnat1drv is
          --  back end some day, it would not be true for this test, but it
          --  would be non-GCC, so this is a bit troublesome ???
 
-         Front_End_Inlining := AAMP_On_Target or Generate_C_Code;
+         Front_End_Inlining := Generate_C_Code;
       end if;
 
       --  Set back-end inlining indication
 
       Back_End_Inlining :=
 
-        --  No back-end inlining available on AAMP
-
-        not AAMP_On_Target
-
         --  No back-end inlining available on C generation
 
-        and then not Generate_C_Code
+        not Generate_C_Code
 
         --  No back-end inlining in GNATprove mode, since it just confuses
         --  the formal verification process.

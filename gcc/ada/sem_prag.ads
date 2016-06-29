@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -244,15 +244,30 @@ package Sem_Prag is
    procedure Analyze_Test_Case_In_Decl_Part (N : Node_Id);
    --  Perform preanalysis of pragma Test_Case
 
+   procedure Build_Classwide_Expression (Prag : Node_Id; Subp : Entity_Id);
+   --  Build the expression for an inherited classwide condition. Prag is
+   --  the pragma constructed from the corresponding aspect of the parent
+   --  subprogram, and Subp is the overridding operation.
+   --  The routine is also called to check whether an inherited operation
+   --  that is not overridden but has inherited conditions need a wrapper,
+   --  because the inherited condition includes calls to other primitives that
+   --  have been overridden. In that case the first argument is the expression
+   --  of the original classwide aspect. In SPARK_Mode, such operation which
+   --  are just inherited but have modified pre/postconditions are illegal.
+
    function Build_Pragma_Check_Equivalent
-     (Prag     : Node_Id;
-      Subp_Id  : Entity_Id := Empty;
-      Inher_Id : Entity_Id := Empty) return Node_Id;
-   --  Transform a [refined] pre- or postcondition denoted by Prag into an
+     (Prag           : Node_Id;
+      Subp_Id        : Entity_Id := Empty;
+      Inher_Id       : Entity_Id := Empty;
+      Keep_Pragma_Id : Boolean := False) return Node_Id;
+   --  Transform a pre- or [refined] postcondition denoted by Prag into an
    --  equivalent pragma Check. When the pre- or postcondition is inherited,
-   --  the routine replaces the references of all formals of Inher_Id and
-   --  primitive operations of its controlling type by references to the
-   --  corresponding entities of Subp_Id and the descendant type.
+   --  the routine replaces the references of all formals of Inher_Id
+   --  and primitive operations of its controlling type by references
+   --  to the corresponding entities of Subp_Id and the descendant type.
+   --  Keep_Pragma_Id is True when the newly created pragma should be
+   --  in fact of the same kind as the source pragma Prag. This is used
+   --  in GNATprove_Mode to generate the inherited pre- and postconditions.
 
    procedure Check_Applicable_Policy (N : Node_Id);
    --  N is either an N_Aspect or an N_Pragma node. There are two cases. If

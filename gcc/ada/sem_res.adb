@@ -1974,7 +1974,12 @@ package body Sem_Res is
       procedure Resolution_Failed is
       begin
          Patch_Up_Value (N, Typ);
+
+         --  Set the type to the desired one to minimize cascaded errors. Note
+         --  that this is an approximation and does not work in all cases.
+
          Set_Etype (N, Typ);
+
          Debug_A_Exit ("resolving  ", N, " (done, resolution failed)");
          Set_Is_Overloaded (N, False);
 
@@ -2684,9 +2689,17 @@ package body Sem_Res is
                Analyze_And_Resolve (N, Typ);
                Ghost_Mode := Save_Ghost_Mode;
                return;
+
+            --  Under relaxed RM semantics silently replace occurrences of null
+            --  by System.Address_Null.
+
+            elsif Null_To_Null_Address_Convert_OK (N, Typ) then
+               Replace_Null_By_Null_Address (N);
+               Analyze_And_Resolve (N, Typ);
+               return;
             end if;
 
-            --  That special Allow_Integer_Address check did not appply, so we
+            --  That special Allow_Integer_Address check did not apply, so we
             --  have a real type error. If an error message was issued already,
             --  Found got reset to True, so if it's still False, issue standard
             --  Wrong_Type message.
@@ -3704,7 +3717,7 @@ package body Sem_Res is
 
          if Present (A)
            and then Is_Entity_Name (A)
-           and then Comes_From_Source (N)
+           and then Comes_From_Source (A)
          then
             Orig_A := Entity (A);
 
@@ -4215,14 +4228,19 @@ package body Sem_Res is
                then
                   Error_Msg_NE ("actual for& must be a variable", A, F);
 
-                  if Is_Subprogram (Current_Scope)
-                    and then
-                      (Is_Invariant_Procedure (Current_Scope)
-                        or else Is_Predicate_Function (Current_Scope))
-                  then
-                     Error_Msg_N
-                       ("function used in predicate cannot "
-                        & "modify its argument", F);
+                  if Is_Subprogram (Current_Scope) then
+                     if Is_Invariant_Procedure (Current_Scope)
+                       or else Is_Partial_Invariant_Procedure (Current_Scope)
+                     then
+                        Error_Msg_N
+                          ("function used in invariant cannot modify its "
+                           & "argument", F);
+
+                     elsif Is_Predicate_Function (Current_Scope) then
+                        Error_Msg_N
+                          ("function used in predicate cannot modify its "
+                           & "argument", F);
+                     end if;
                   end if;
                end if;
 
@@ -4596,8 +4614,8 @@ package body Sem_Res is
                        Extensions_Visible_True
             then
                Error_Msg_N
-                 ("formal parameter with Extensions_Visible False cannot act "
-                  & "as actual parameter", A);
+                 ("formal parameter cannot act as actual parameter when "
+                  & "Extensions_Visible is False", A);
                Error_Msg_NE
                  ("\subprogram & has Extensions_Visible True", A, Nam);
             end if;

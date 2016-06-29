@@ -565,9 +565,8 @@
     }
 })
 
-;; Return 1 if the operand is a CONST_VECTOR or VEC_DUPLICATE of a constant
-;; that can loaded with a XXSPLTIB instruction and then a VUPKHSB, VECSB2W or
-;; VECSB2D instruction.
+;; Return 1 if the operand is a constant that can loaded with a XXSPLTIB
+;; instruction and then a VUPKHSB, VECSB2W or VECSB2D instruction.
 
 (define_predicate "xxspltib_constant_split"
   (match_code "const_vector,vec_duplicate,const_int")
@@ -582,8 +581,8 @@
 })
 
 
-;; Return 1 if the operand is a CONST_VECTOR that can loaded directly with a
-;; XXSPLTIB instruction.
+;; Return 1 if the operand is constant that can loaded directly with a XXSPLTIB
+;; instruction.
 
 (define_predicate "xxspltib_constant_nosplit"
   (match_code "const_vector,vec_duplicate,const_int")
@@ -741,7 +740,7 @@
   if (GET_MODE_SIZE (mode) != 16 || !MEM_P (op) || MEM_ALIGN (op) < 128)
     return false;
 
-  return quad_address_p (XEXP (op, 0), mode, true);
+  return quad_address_p (XEXP (op, 0), mode, false);
 })
 
 ;; Return 1 if the operand is suitable for load/store to vector registers with
@@ -1057,27 +1056,34 @@
 
 ;; Return 1 if this operand is a valid input for a vsx_splat insn.
 (define_predicate "splat_input_operand"
-  (match_code "symbol_ref,const,reg,subreg,mem,
-	       const_double,const_wide_int,const_vector,const_int")
+  (match_code "reg,subreg,mem")
 {
+  machine_mode vmode;
+
+  if (mode == DFmode)
+    vmode = V2DFmode;
+  else if (mode == DImode)
+    vmode = V2DImode;
+  else if (mode == SImode && TARGET_P9_VECTOR)
+    vmode = V4SImode;
+  else if (mode == SFmode && TARGET_P9_VECTOR)
+    vmode = V4SFmode;
+  else
+    return false;
+
   if (MEM_P (op))
     {
+      rtx addr = XEXP (op, 0);
+
       if (! volatile_ok && MEM_VOLATILE_P (op))
 	return 0;
-      if (mode == DFmode)
-	mode = V2DFmode;
-      else if (mode == DImode)
-	mode = V2DImode;
-      else if (mode == SImode && TARGET_P9_VECTOR)
-	mode = V4SImode;
-      else if (mode == SFmode && TARGET_P9_VECTOR)
-	mode = V4SFmode;
+
+      if (reload_in_progress || lra_in_progress || reload_completed)
+	return indexed_or_indirect_address (addr, vmode);
       else
-	gcc_unreachable ();
-      return memory_address_addr_space_p (mode, XEXP (op, 0),
-					  MEM_ADDR_SPACE (op));
+	return memory_address_addr_space_p (vmode, addr, MEM_ADDR_SPACE (op));
     }
-  return input_operand (op, mode);
+  return gpc_reg_operand (op, mode);
 })
 
 ;; Return true if OP is a non-immediate operand and not an invalid

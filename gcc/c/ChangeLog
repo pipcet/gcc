@@ -1,3 +1,96 @@
+2016-06-29  Thomas Schwinge  <thomas@codesourcery.com>
+
+	* c-parser.c (c_parser_pragma) <PRAGMA_OMP_CANCELLATION_POINT>:
+	Move pragma context checking into...
+	(c_parser_omp_cancellation_point): ... here, and improve
+	diagnostic messages.
+	* c-typeck.c (c_finish_omp_cancel)
+	(c_finish_omp_cancellation_point): Improve diagnostic messages.
+
+2016-06-29  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/71685
+	* c-typeck.c (c_build_qualified_type): Don't clear
+	C_TYPE_INCOMPLETE_VARS for the main variant.
+
+2016-06-28  Martin Sebor  <msebor@redhat.com>
+
+	PR c/71552
+	* c-typeck.c (output_init_element): Diagnose incompatible types
+	before non-constant initializers.
+
+2016-06-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* Make-lang.in: Don't cat ../stage_current if it does not exist.
+
+2016-06-23  Andi Kleen  <ak@linux.intel.com>
+
+	* Make-lang.in: Add support for autofdo.
+
+2016-06-22  David Malcolm  <dmalcolm@redhat.com>
+
+	PR c/70339
+	* c-decl.c: Include spellcheck-tree.h and gcc-rich-location.h.
+	(implicit_decl_warning): When issuing warnings for implicit
+	declarations, attempt to provide a suggestion via
+	lookup_name_fuzzy.
+	(undeclared_variable): Likewise when issuing errors.
+	(lookup_name_in_scope): Likewise.
+	(struct edit_distance_traits<cpp_hashnode *>): New struct.
+	(best_macro_match): New typedef.
+	(find_closest_macro_cpp_cb): New function.
+	(lookup_name_fuzzy): New function.
+	* c-parser.c: Include gcc-rich-location.h.
+	(c_token_starts_typename): Split out case CPP_KEYWORD into...
+	(c_keyword_starts_typename): ...this new function.
+	(c_parser_declaration_or_fndef): When issuing errors about
+	missing "struct" etc, add a fixit.  For other kinds of errors,
+	attempt to provide a suggestion via lookup_name_fuzzy.
+	(c_parser_parms_declarator): When looking ahead to detect typos in
+	type names, also reject CPP_KEYWORD.
+	(c_parser_parameter_declaration): When issuing errors about
+	unknown type names, attempt to provide a suggestion via
+	lookup_name_fuzzy.
+	* c-tree.h (c_keyword_starts_typename): New prototype.
+
+2016-06-20  Joseph Myers  <joseph@codesourcery.com>
+
+	PR c/71601
+	* c-typeck.c (build_conditional_expr): Return error_mark_node if
+	c_common_type returns error_mark_node.
+
+2016-06-19 Martin Sebor  <msebor@redhat.com>
+
+	PR c/69507
+	* c-parser.c (c_parser_alignof_expression): Avoid diagnosing
+	__alignof__ (expression).
+
+2016-06-14  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-typeck.c: Include spellcheck-tree.h rather than spellcheck.h.
+
+2016-06-14  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-typeck.c (build_component_ref): Simplify fixit code by
+	using gcc_rich_location::add_fixit_misspelled_id.
+	(set_init_label): Likewise.
+
+2016-06-13  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-parser.c (c_parser_initelt): Provide location of name for new
+	location_t param of set_init_label.
+	* c-tree.h (set_init_label): Add location_t param.
+	* c-typeck.c (set_init_index): Add "fieldname_loc" location_t
+	param and use it when issuing error messages about unrecognized
+	field names.  Attempt to provide a fixit hint if appropriate,
+	otherwise update the error message to provide the type name.
+
+2016-06-10  Thomas Schwinge  <thomas@codesourcery.com>
+
+	PR c/71381
+	* c-parser.c (c_parser_omp_variable_list) <OMP_CLAUSE__CACHE_>:
+	Loosen checking.
+
 2016-06-08  Martin Sebor  <msebor@redhat.com>
 	    Jakub Jelinek  <jakub@redhat.com>
 

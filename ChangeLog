@@ -1,3 +1,31 @@
+2016-06-23  Andi Kleen  <ak@linux.intel.com>
+
+	* Makefile.def: Add autoprofiledbootstrap.
+	* Makefile.tpl: Dito.
+	* Makefile.in: Regenerate.
+
+2016-06-23  Jakub Sejdak  <jakub.sejdak@phoesys.com>
+
+    * configure.ac: Disable libgcj and libgloss for Phoenix-RTOS targets.
+    * configure: Regenerate.
+
+2016-06-21  Trevor Saunders  <tbsaunde+gcc@tbsaunde.org>
+
+	* configure: Regenerate.
+	* configure.ac: Remove support for avr-rtems.
+
+2016-06-18  Senthil Kumar Selvaraj  <senthil_kumar.selvaraj@atmel.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2016-06-16  Michael Collison  <michael.collison@arm.com>
+
+	* MAINTAINERS (Write After Approval): Add myself.
+
+2016-06-14  Mikael Morin  <mikael@gcc.gnu.org>
+
+	* MAINTAINERS (Write After Approval): Update e-mail address.
+
 2016-06-03  Jose E. Marchesi  <jose.marchesi@oracle.com>
 
 	* MAINTAINERS (Write After Approval): Add myself. 

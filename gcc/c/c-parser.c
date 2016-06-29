@@ -58,6 +58,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/c-indentation.h"
 #include "gimple-expr.h"
 #include "context.h"
+#include "gcc-rich-location.h"
 
 /* We need to walk over decls with incomplete struct/union/enum types
    after parsing the whole translation unit.
@@ -518,6 +519,48 @@ c_parser_peek_nth_token (c_parser *parser, unsigned int n)
   return &parser->tokens[n - 1];
 }
 
+bool
+c_keyword_starts_typename (enum rid keyword)
+{
+  switch (keyword)
+    {
+    case RID_UNSIGNED:
+    case RID_LONG:
+    case RID_SHORT:
+    case RID_SIGNED:
+    case RID_COMPLEX:
+    case RID_INT:
+    case RID_CHAR:
+    case RID_FLOAT:
+    case RID_DOUBLE:
+    case RID_VOID:
+    case RID_DFLOAT32:
+    case RID_DFLOAT64:
+    case RID_DFLOAT128:
+    case RID_BOOL:
+    case RID_ENUM:
+    case RID_STRUCT:
+    case RID_UNION:
+    case RID_TYPEOF:
+    case RID_CONST:
+    case RID_ATOMIC:
+    case RID_VOLATILE:
+    case RID_RESTRICT:
+    case RID_ATTRIBUTE:
+    case RID_FRACT:
+    case RID_ACCUM:
+    case RID_SAT:
+    case RID_AUTO_TYPE:
+      return true;
+    default:
+      if (keyword >= RID_FIRST_INT_N
+	  && keyword < RID_FIRST_INT_N + NUM_INT_N_ENTS
+	  && int_n_enabled_p[keyword - RID_FIRST_INT_N])
+	return true;
+      return false;
+    }
+}
+
 /* Return true if TOKEN can start a type name,
    false otherwise.  */
 static bool
@@ -541,43 +584,7 @@ c_token_starts_typename (c_token *token)
 	  gcc_unreachable ();
 	}
     case CPP_KEYWORD:
-      switch (token->keyword)
-	{
-	case RID_UNSIGNED:
-	case RID_LONG:
-	case RID_SHORT:
-	case RID_SIGNED:
-	case RID_COMPLEX:
-	case RID_INT:
-	case RID_CHAR:
-	case RID_FLOAT:
-	case RID_DOUBLE:
-	case RID_VOID:
-	case RID_DFLOAT32:
-	case RID_DFLOAT64:
-	case RID_DFLOAT128:
-	case RID_BOOL:
-	case RID_ENUM:
-	case RID_STRUCT:
-	case RID_UNION:
-	case RID_TYPEOF:
-	case RID_CONST:
-	case RID_ATOMIC:
-	case RID_VOLATILE:
-	case RID_RESTRICT:
-	case RID_ATTRIBUTE:
-	case RID_FRACT:
-	case RID_ACCUM:
-	case RID_SAT:
-	case RID_AUTO_TYPE:
-	  return true;
-	default:
-	  if (token->keyword >= RID_FIRST_INT_N
-	      && token->keyword < RID_FIRST_INT_N + NUM_INT_N_ENTS
-	      && int_n_enabled_p[token->keyword - RID_FIRST_INT_N])
-	    return true;
-	  return false;
-	}
+      return c_keyword_starts_typename (token->keyword);
     case CPP_LESS:
       if (c_dialect_objc ())
 	return true;
@@ -1351,11 +1358,11 @@ static tree c_parser_omp_for_loop (location_t, c_parser *, enum tree_code,
 static void c_parser_omp_taskwait (c_parser *);
 static void c_parser_omp_taskyield (c_parser *);
 static void c_parser_omp_cancel (c_parser *);
-static void c_parser_omp_cancellation_point (c_parser *);
 
 enum pragma_context { pragma_external, pragma_struct, pragma_param,
 		      pragma_stmt, pragma_compound };
 static bool c_parser_pragma (c_parser *, enum pragma_context, bool *);
+static void c_parser_omp_cancellation_point (c_parser *, enum pragma_context);
 static bool c_parser_omp_target (c_parser *, enum pragma_context, bool *);
 static void c_parser_omp_end_declare_target (c_parser *);
 static void c_parser_omp_declare (c_parser *, enum pragma_context);
@@ -1655,15 +1662,50 @@ c_parser_declaration_or_fndef (c_parser *parser, bool fndef_ok,
       && (!nested || !lookup_name (c_parser_peek_token (parser)->value)))
     {
       tree name = c_parser_peek_token (parser)->value;
-      error_at (here, "unknown type name %qE", name);
-      /* Give a hint to the user.  This is not C++ with its implicit
-	 typedef.  */
+
+      /* Issue a warning about NAME being an unknown type name, perhaps
+	 with some kind of hint.
+	 If the user forgot a "struct" etc, suggest inserting
+	 it.  Otherwise, attempt to look for misspellings.  */
+      gcc_rich_location richloc (here);
       if (tag_exists_p (RECORD_TYPE, name))
-	inform (here, "use %<struct%> keyword to refer to the type");
+	{
+	  /* This is not C++ with its implicit typedef.  */
+	  richloc.add_fixit_insert (here, "struct");
+	  error_at_rich_loc (&richloc,
+			     "unknown type name %qE;"
+			     " use %<struct%> keyword to refer to the type",
+			     name);
+	}
       else if (tag_exists_p (UNION_TYPE, name))
-	inform (here, "use %<union%> keyword to refer to the type");
+	{
+	  richloc.add_fixit_insert (here, "union");
+	  error_at_rich_loc (&richloc,
+			     "unknown type name %qE;"
+			     " use %<union%> keyword to refer to the type",
+			     name);
+	}
       else if (tag_exists_p (ENUMERAL_TYPE, name))
-	inform (here, "use %<enum%> keyword to refer to the type");
+	{
+	  richloc.add_fixit_insert (here, "enum");
+	  error_at_rich_loc (&richloc,
+			     "unknown type name %qE;"
+			     " use %<enum%> keyword to refer to the type",
+			     name);
+	}
+      else
+	{
+	  tree hint = lookup_name_fuzzy (name, FUZZY_LOOKUP_TYPENAME);
+	  if (hint)
+	    {
+	      richloc.add_fixit_misspelled_id (here, hint);
+	      error_at_rich_loc (&richloc,
+				 "unknown type name %qE; did you mean %qE?",
+				 name, hint);
+	    }
+	  else
+	    error_at (here, "unknown type name %qE", name);
+	}
 
       /* Parse declspecs normally to get a correct pointer type, but avoid
          a further "fails to be a type name" error.  Refuse nested functions
@@ -3632,7 +3674,8 @@ c_parser_parms_declarator (c_parser *parser, bool id_list_ok, tree attrs)
       && c_parser_peek_2nd_token (parser)->type != CPP_NAME
       && c_parser_peek_2nd_token (parser)->type != CPP_MULT
       && c_parser_peek_2nd_token (parser)->type != CPP_OPEN_PAREN
-      && c_parser_peek_2nd_token (parser)->type != CPP_OPEN_SQUARE)
+      && c_parser_peek_2nd_token (parser)->type != CPP_OPEN_SQUARE
+      && c_parser_peek_2nd_token (parser)->type != CPP_KEYWORD)
     {
       tree list = NULL_TREE, *nextp = &list;
       while (c_parser_next_token_is (parser, CPP_NAME)
@@ -3807,7 +3850,18 @@ c_parser_parameter_declaration (c_parser *parser, tree attrs)
       c_parser_set_source_position_from_token (token);
       if (c_parser_next_tokens_start_typename (parser, cla_prefer_type))
 	{
-	  error_at (token->location, "unknown type name %qE", token->value);
+	  tree hint = lookup_name_fuzzy (token->value, FUZZY_LOOKUP_TYPENAME);
+	  if (hint)
+	    {
+	      gcc_assert (TREE_CODE (hint) == IDENTIFIER_NODE);
+	      gcc_rich_location richloc (token->location);
+	      richloc.add_fixit_misspelled_id (token->location, hint);
+	      error_at_rich_loc (&richloc,
+				 "unknown type name %qE; did you mean %qE?",
+				 token->value, hint);
+	    }
+	  else
+	    error_at (token->location, "unknown type name %qE", token->value);
 	  parser->error = true;
 	}
       /* ??? In some Objective-C cases '...' isn't applicable so there
@@ -4397,6 +4451,7 @@ c_parser_initelt (c_parser *parser, struct obstack * braced_init_obstack)
       /* Old-style structure member designator.  */
       set_init_label (c_parser_peek_token (parser)->location,
 		      c_parser_peek_token (parser)->value,
+		      c_parser_peek_token (parser)->location,
 		      braced_init_obstack);
       /* Use the colon as the error location.  */
       pedwarn (c_parser_peek_2nd_token (parser)->location, OPT_Wpedantic,
@@ -4426,6 +4481,7 @@ c_parser_initelt (c_parser *parser, struct obstack * braced_init_obstack)
 	      if (c_parser_next_token_is (parser, CPP_NAME))
 		{
 		  set_init_label (des_loc, c_parser_peek_token (parser)->value,
+				  c_parser_peek_token (parser)->location,
 				  braced_init_obstack);
 		  c_parser_consume_token (parser);
 		}
@@ -7089,9 +7145,10 @@ c_parser_alignof_expression (c_parser *parser)
       mark_exp_read (expr.value);
       c_inhibit_evaluation_warnings--;
       in_alignof--;
-      pedwarn (start_loc,
-	       OPT_Wpedantic, "ISO C does not allow %<%E (expression)%>",
-	       alignof_spelling);
+      if (is_c11_alignof)
+	pedwarn (start_loc,
+		 OPT_Wpedantic, "ISO C does not allow %<%E (expression)%>",
+		 alignof_spelling);
       ret.value = c_alignof_expr (start_loc, expr.value);
       ret.original_code = ERROR_MARK;
       ret.original_type = NULL;
@@ -10130,14 +10187,7 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
       return false;
 
     case PRAGMA_OMP_CANCELLATION_POINT:
-      if (context != pragma_compound)
-	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma omp cancellation point%> may "
-				    "only be used in compound statements");
-	  goto bad_stmt;
-	}
-      c_parser_omp_cancellation_point (parser);
+      c_parser_omp_cancellation_point (parser, context);
       return false;
 
     case PRAGMA_OMP_THREADPRIVATE:
@@ -10158,7 +10208,7 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
       c_parser_skip_until_found (parser, CPP_PRAGMA_EOL, NULL);
       return false;
 
-    case PRAGMA_OMP_DECLARE_REDUCTION:
+    case PRAGMA_OMP_DECLARE:
       c_parser_omp_declare (parser, context);
       return false;
 
@@ -10613,6 +10663,8 @@ c_parser_omp_variable_list (c_parser *parser,
 	  switch (kind)
 	    {
 	    case OMP_CLAUSE__CACHE_:
+	      /* The OpenACC cache directive explicitly only allows "array
+		 elements or subarrays".  */
 	      if (c_parser_peek_token (parser)->type != CPP_OPEN_SQUARE)
 		{
 		  c_parser_error (parser, "expected %<[%>");
@@ -10676,25 +10728,6 @@ c_parser_omp_variable_list (c_parser *parser,
 		    {
 		      t = error_mark_node;
 		      break;
-		    }
-
-		  if (kind == OMP_CLAUSE__CACHE_)
-		    {
-		      if (TREE_CODE (low_bound) != INTEGER_CST
-			  && !TREE_READONLY (low_bound))
-			{
-			  error_at (clause_loc,
-				    "%qD is not a constant", low_bound);
-			  t = error_mark_node;
-			}
-
-		      if (TREE_CODE (length) != INTEGER_CST
-			  && !TREE_READONLY (length))
-			{
-			  error_at (clause_loc,
-				    "%qD is not a constant", length);
-			  t = error_mark_node;
-			}
 		    }
 
 		  t = tree_cons (low_bound, length, t);
@@ -15628,7 +15661,7 @@ c_parser_omp_cancel (c_parser *parser)
 	| (OMP_CLAUSE_MASK_1 << PRAGMA_OMP_CLAUSE_TASKGROUP))
 
 static void
-c_parser_omp_cancellation_point (c_parser *parser)
+c_parser_omp_cancellation_point (c_parser *parser, enum pragma_context context)
 {
   location_t loc = c_parser_peek_token (parser)->location;
   tree clauses;
@@ -15648,6 +15681,17 @@ c_parser_omp_cancellation_point (c_parser *parser)
     {
       c_parser_error (parser, "expected %<point%>");
       c_parser_skip_to_pragma_eol (parser);
+      return;
+    }
+
+  if (context != pragma_compound)
+    {
+      if (context == pragma_stmt)
+	error_at (loc, "%<#pragma omp cancellation point%> may only be used in"
+		  " compound statements");
+      else
+	c_parser_error (parser, "expected declaration specifiers");
+      c_parser_skip_to_pragma_eol (parser, false);
       return;
     }
 
@@ -16341,7 +16385,7 @@ c_parser_omp_declare_simd (c_parser *parser, enum pragma_context context)
   while (c_parser_next_token_is (parser, CPP_PRAGMA))
     {
       if (c_parser_peek_token (parser)->pragma_kind
-	  != PRAGMA_OMP_DECLARE_REDUCTION
+	  != PRAGMA_OMP_DECLARE
 	  || c_parser_peek_2nd_token (parser)->type != CPP_NAME
 	  || strcmp (IDENTIFIER_POINTER
 				(c_parser_peek_2nd_token (parser)->value),

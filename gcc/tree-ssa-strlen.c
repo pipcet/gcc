@@ -159,10 +159,10 @@ get_strinfo (int idx)
 /* Helper function for get_stridx.  */
 
 static int
-get_addr_stridx (tree exp)
+get_addr_stridx (tree exp, tree ptr)
 {
   HOST_WIDE_INT off;
-  struct stridxlist *list;
+  struct stridxlist *list, *last = NULL;
   tree base;
 
   if (!decl_to_stridxlist_htab)
@@ -180,9 +180,22 @@ get_addr_stridx (tree exp)
     {
       if (list->offset == off)
 	return list->idx;
+      if (list->offset > off)
+	return 0;
+      last = list;
       list = list->next;
     }
   while (list);
+
+  if (ptr && last && last->idx > 0)
+    {
+      strinfo *si = get_strinfo (last->idx);
+      if (si
+	  && si->length
+	  && TREE_CODE (si->length) == INTEGER_CST
+	  && compare_tree_int (si->length, off - last->offset) != -1)
+	return get_stridx_plus_constant (si, off - last->offset, ptr);
+    }
   return 0;
 }
 
@@ -234,7 +247,7 @@ get_stridx (tree exp)
 
   if (TREE_CODE (exp) == ADDR_EXPR)
     {
-      int idx = get_addr_stridx (TREE_OPERAND (exp, 0));
+      int idx = get_addr_stridx (TREE_OPERAND (exp, 0), exp);
       if (idx != 0)
 	return idx;
     }
@@ -304,15 +317,29 @@ addr_stridxptr (tree exp)
   if (existed)
     {
       int i;
-      for (i = 0; i < 16; i++)
+      stridxlist *before = NULL;
+      for (i = 0; i < 32; i++)
 	{
 	  if (list->offset == off)
 	    return &list->idx;
+	  if (list->offset > off && before == NULL)
+	    before = list;
 	  if (list->next == NULL)
 	    break;
+	  list = list->next;
 	}
-      if (i == 16)
+      if (i == 32)
 	return NULL;
+      if (before)
+	{
+	  list = before;
+	  before = XOBNEW (&stridx_obstack, struct stridxlist);
+	  *before = *list;
+	  list->next = before;
+	  list->offset = off;
+	  list->idx = 0;
+	  return &list->idx;
+	}
       list->next = XOBNEW (&stridx_obstack, struct stridxlist);
       list = list->next;
     }
@@ -613,9 +640,7 @@ verify_related_strinfos (strinfo *origsi)
 static int
 get_stridx_plus_constant (strinfo *basesi, HOST_WIDE_INT off, tree ptr)
 {
-  gcc_checking_assert (TREE_CODE (ptr) == SSA_NAME);
-
-  if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (ptr))
+  if (TREE_CODE (ptr) == SSA_NAME && SSA_NAME_OCCURS_IN_ABNORMAL_PHI (ptr))
     return 0;
 
   if (basesi->length == NULL_TREE
@@ -633,7 +658,8 @@ get_stridx_plus_constant (strinfo *basesi, HOST_WIDE_INT off, tree ptr)
       || TREE_CODE (si->length) != INTEGER_CST)
     return 0;
 
-  if (ssa_ver_to_stridx.length () <= SSA_NAME_VERSION (ptr))
+  if (TREE_CODE (ptr) == SSA_NAME
+      && ssa_ver_to_stridx.length () <= SSA_NAME_VERSION (ptr))
     ssa_ver_to_stridx.safe_grow_cleared (num_ssa_names);
 
   gcc_checking_assert (compare_tree_int (si->length, off) != -1);
@@ -651,6 +677,7 @@ get_stridx_plus_constant (strinfo *basesi, HOST_WIDE_INT off, tree ptr)
 	{
 	  if (r == 0)
 	    {
+	      gcc_assert (TREE_CODE (ptr) == SSA_NAME);
 	      ssa_ver_to_stridx[SSA_NAME_VERSION (ptr)] = si->idx;
 	      return si->idx;
 	    }
@@ -860,6 +887,66 @@ find_equal_ptrs (tree ptr, int idx)
     }
 }
 
+/* Return true if STMT is a call to a builtin function with the right
+   arguments and attributes that should be considered for optimization
+   by this pass.  */
+
+static bool
+valid_builtin_call (gimple *stmt)
+{
+  if (!gimple_call_builtin_p (stmt, BUILT_IN_NORMAL))
+    return false;
+
+  tree callee = gimple_call_fndecl (stmt);
+  switch (DECL_FUNCTION_CODE (callee))
+    {
+    case BUILT_IN_MEMCMP:
+    case BUILT_IN_MEMCMP_EQ:
+    case BUILT_IN_STRCHR:
+    case BUILT_IN_STRCHR_CHKP:
+    case BUILT_IN_STRLEN:
+    case BUILT_IN_STRLEN_CHKP:
+      /* The above functions should be pure.  Punt if they aren't.  */
+      if (gimple_vdef (stmt) || gimple_vuse (stmt) == NULL_TREE)
+	return false;
+      break;
+
+    case BUILT_IN_CALLOC:
+    case BUILT_IN_MALLOC:
+    case BUILT_IN_MEMCPY:
+    case BUILT_IN_MEMCPY_CHK:
+    case BUILT_IN_MEMCPY_CHKP:
+    case BUILT_IN_MEMCPY_CHK_CHKP:
+    case BUILT_IN_MEMPCPY:
+    case BUILT_IN_MEMPCPY_CHK:
+    case BUILT_IN_MEMPCPY_CHKP:
+    case BUILT_IN_MEMPCPY_CHK_CHKP:
+    case BUILT_IN_MEMSET:
+    case BUILT_IN_STPCPY:
+    case BUILT_IN_STPCPY_CHK:
+    case BUILT_IN_STPCPY_CHKP:
+    case BUILT_IN_STPCPY_CHK_CHKP:
+    case BUILT_IN_STRCAT:
+    case BUILT_IN_STRCAT_CHK:
+    case BUILT_IN_STRCAT_CHKP:
+    case BUILT_IN_STRCAT_CHK_CHKP:
+    case BUILT_IN_STRCPY:
+    case BUILT_IN_STRCPY_CHK:
+    case BUILT_IN_STRCPY_CHKP:
+    case BUILT_IN_STRCPY_CHK_CHKP:
+      /* The above functions should be neither const nor pure.  Punt if they
+	 aren't.  */
+      if (gimple_vdef (stmt) == NULL_TREE || gimple_vuse (stmt) == NULL_TREE)
+	return false;
+      break;
+
+    default:
+      break;
+    }
+
+  return true;
+}
+
 /* If the last .MEM setter statement before STMT is
    memcpy (x, y, strlen (y) + 1), the only .MEM use of it is STMT
    and STMT is known to overwrite x[strlen (x)], adjust the last memcpy to
@@ -935,7 +1022,7 @@ adjust_last_stmt (strinfo *si, gimple *stmt, bool is_strcat)
       return;
     }
 
-  if (!gimple_call_builtin_p (last.stmt, BUILT_IN_NORMAL))
+  if (!valid_builtin_call (last.stmt))
     return;
 
   callee = gimple_call_fndecl (last.stmt);
@@ -1811,7 +1898,7 @@ handle_builtin_memset (gimple_stmt_iterator *gsi)
   if (!stmt1 || !is_gimple_call (stmt1))
     return true;
   tree callee1 = gimple_call_fndecl (stmt1);
-  if (!gimple_call_builtin_p (stmt1, BUILT_IN_NORMAL))
+  if (!valid_builtin_call (stmt1))
     return true;
   enum built_in_function code1 = DECL_FUNCTION_CODE (callee1);
   tree size = gimple_call_arg (stmt2, 2);
@@ -2003,7 +2090,7 @@ handle_char_store (gimple_stmt_iterator *gsi)
 	}
     }
   else
-    idx = get_addr_stridx (lhs);
+    idx = get_addr_stridx (lhs, NULL_TREE);
 
   if (idx > 0)
     {
@@ -2140,7 +2227,7 @@ strlen_optimize_stmt (gimple_stmt_iterator *gsi)
   if (is_gimple_call (stmt))
     {
       tree callee = gimple_call_fndecl (stmt);
-      if (gimple_call_builtin_p (stmt, BUILT_IN_NORMAL))
+      if (valid_builtin_call (stmt))
 	switch (DECL_FUNCTION_CODE (callee))
 	  {
 	  case BUILT_IN_STRLEN:

@@ -121,6 +121,24 @@ levenshtein_distance (const char *s, const char *t)
   return levenshtein_distance (s, strlen (s), t, strlen (t));
 }
 
+/* Specialization of edit_distance_traits for C-style strings.  */
+
+template <>
+struct edit_distance_traits<const char *>
+{
+  static size_t get_length (const char *str)
+  {
+    gcc_assert (str);
+    return strlen (str);
+  }
+
+  static const char *get_string (const char *str)
+  {
+    gcc_assert (str);
+    return str;
+  }
+};
+
 /* Given TARGET, a non-NULL string, and CANDIDATES, a non-NULL ptr to
    an autovec of non-NULL strings, determine which element within
    CANDIDATES has the lowest edit distance to TARGET.  If there are
@@ -139,32 +157,14 @@ find_closest_string (const char *target,
 
   int i;
   const char *candidate;
-  const char *best_candidate = NULL;
-  edit_distance_t best_distance = MAX_EDIT_DISTANCE;
-  size_t len_target = strlen (target);
+  best_match<const char *, const char *> bm (target);
   FOR_EACH_VEC_ELT (*candidates, i, candidate)
     {
       gcc_assert (candidate);
-      edit_distance_t dist
-	= levenshtein_distance (target, len_target,
-				candidate, strlen (candidate));
-      if (dist < best_distance)
-	{
-	  best_distance = dist;
-	  best_candidate = candidate;
-	}
+      bm.consider (candidate);
     }
 
-  /* If more than half of the letters were misspelled, the suggestion is
-     likely to be meaningless.  */
-  if (best_candidate)
-    {
-      unsigned int cutoff = MAX (len_target, strlen (best_candidate)) / 2;
-      if (best_distance > cutoff)
-	return NULL;
-    }
-
-  return best_candidate;
+  return bm.get_best_meaningful_candidate ();
 }
 
 #if CHECKING_P
@@ -217,6 +217,69 @@ test_find_closest_string ()
   ASSERT_STREQ ("banana", find_closest_string ("banyan", &candidates));
   ASSERT_STREQ ("cherry", find_closest_string ("berry", &candidates));
   ASSERT_EQ (NULL, find_closest_string ("not like the others", &candidates));
+
+  /* The order of the vec can matter, but it should not matter for these
+     inputs.  */
+  candidates.truncate (0);
+  candidates.safe_push ("cherry");
+  candidates.safe_push ("banana");
+  candidates.safe_push ("apple");
+  ASSERT_STREQ ("apple", find_closest_string ("app", &candidates));
+  ASSERT_STREQ ("banana", find_closest_string ("banyan", &candidates));
+  ASSERT_STREQ ("cherry", find_closest_string ("berry", &candidates));
+  ASSERT_EQ (NULL, find_closest_string ("not like the others", &candidates));
+}
+
+/* Test data for test_metric_conditions.  */
+
+static const char * const test_data[] = {
+  "",
+  "foo"
+  "food",
+  "boo",
+  "1234567890123456789012345678901234567890123456789012345678901234567890"
+};
+
+/* Verify that levenshtein_distance appears to be a sane distance function,
+   i.e. the conditions for being a metric.  This is done directly for a
+   small set of examples, using test_data above.  This is O(N^3) in the size
+   of the array, due to the test for the triangle inequality, so we keep the
+   array small.  */
+
+static void
+test_metric_conditions ()
+{
+  const int num_test_cases = sizeof (test_data) / sizeof (test_data[0]);
+
+  for (int i = 0; i < num_test_cases; i++)
+    {
+      for (int j = 0; j < num_test_cases; j++)
+	{
+	  edit_distance_t dist_ij
+	    = levenshtein_distance (test_data[i], test_data[j]);
+
+	  /* Identity of indiscernibles: d(i, j) > 0 iff i == j.  */
+	  if (i == j)
+	    ASSERT_EQ (dist_ij, 0);
+	  else
+	    ASSERT_TRUE (dist_ij > 0);
+
+	  /* Symmetry: d(i, j) == d(j, i).  */
+	  edit_distance_t dist_ji
+	    = levenshtein_distance (test_data[j], test_data[i]);
+	  ASSERT_EQ (dist_ij, dist_ji);
+
+	  /* Triangle inequality.  */
+	  for (int k = 0; k < num_test_cases; k++)
+	    {
+	      edit_distance_t dist_ik
+		= levenshtein_distance (test_data[i], test_data[k]);
+	      edit_distance_t dist_jk
+		= levenshtein_distance (test_data[j], test_data[k]);
+	      ASSERT_TRUE (dist_ik <= dist_ij + dist_jk);
+	    }
+	}
+    }
 }
 
 /* Verify levenshtein_distance for a variety of pairs of pre-canned
@@ -239,8 +302,10 @@ spellcheck_c_tests ()
     ("Lorem ipsum dolor sit amet, consectetur adipiscing elit,",
      "All your base are belong to us",
      44);
+  levenshtein_distance_unit_test ("foo", "FOO", 3);
 
   test_find_closest_string ();
+  test_metric_conditions ();
 }
 
 } // namespace selftest

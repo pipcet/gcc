@@ -136,6 +136,15 @@ flow_loop_dump (const struct loop *loop, FILE *file,
 	   loop_depth (loop), (long) (loop_outer (loop)
 				      ? loop_outer (loop)->num : -1));
 
+  if (loop->latch)
+    {
+      bool read_profile_p;
+      gcov_type nit = expected_loop_iterations_unbounded (loop, &read_profile_p);
+      if (read_profile_p && !loop->any_estimate)
+	fprintf (file, ";;  profile-based iteration count: %" PRIu64 "\n",
+		 (uint64_t) nit);
+    }
+
   fprintf (file, ";;  nodes:");
   bbs = get_loop_body (loop);
   for (i = 0; i < loop->num_nodes; i++)
@@ -331,6 +340,7 @@ alloc_loop (void)
   loop->exits->next = loop->exits->prev = loop->exits;
   loop->can_be_parallel = false;
   loop->nb_iterations_upper_bound = 0;
+  loop->nb_iterations_likely_upper_bound = 0;
   loop->nb_iterations_estimate = 0;
   return loop;
 }
@@ -1912,7 +1922,7 @@ get_estimated_loop_iterations (struct loop *loop, widest_int *nit)
    false, otherwise returns true.  */
 
 bool
-get_max_loop_iterations (struct loop *loop, widest_int *nit)
+get_max_loop_iterations (const struct loop *loop, widest_int *nit)
 {
   if (!loop->any_upper_bound)
     return false;
@@ -1926,7 +1936,7 @@ get_max_loop_iterations (struct loop *loop, widest_int *nit)
    on the number of iterations of LOOP could not be derived, returns -1.  */
 
 HOST_WIDE_INT
-get_max_loop_iterations_int (struct loop *loop)
+get_max_loop_iterations_int (const struct loop *loop)
 {
   widest_int nit;
   HOST_WIDE_INT hwi_nit;

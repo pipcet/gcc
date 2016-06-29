@@ -8783,7 +8783,6 @@ build_complex_type (tree component_type)
   t = make_node (COMPLEX_TYPE);
 
   TREE_TYPE (t) = TYPE_MAIN_VARIANT (component_type);
-  SET_TYPE_MODE (t, GET_MODE_COMPLEX_MODE (TYPE_MODE (component_type)));
 
   /* If we already have such a type, use the old one.  */
   hstate.add_object (TYPE_HASH (component_type));
@@ -13221,9 +13220,13 @@ verify_type_variant (const_tree t, tree tv)
 
   if (COMPLETE_TYPE_P (t))
     {
-      verify_variant_match (TYPE_SIZE);
       verify_variant_match (TYPE_MODE);
-      if (TYPE_SIZE_UNIT (t) != TYPE_SIZE_UNIT (tv)
+      if (TREE_CODE (TYPE_SIZE (t)) != PLACEHOLDER_EXPR
+	  && TREE_CODE (TYPE_SIZE (tv)) != PLACEHOLDER_EXPR)
+	verify_variant_match (TYPE_SIZE);
+      if (TREE_CODE (TYPE_SIZE_UNIT (t)) != PLACEHOLDER_EXPR
+	  && TREE_CODE (TYPE_SIZE_UNIT (tv)) != PLACEHOLDER_EXPR
+	  && TYPE_SIZE_UNIT (t) != TYPE_SIZE_UNIT (tv)
 	  /* FIXME: ideally we should compare pointer equality, but java FE
 	     produce variants where size is INTEGER_CST of different type (int
 	     wrt size_type) during libjava biuld.  */

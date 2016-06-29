@@ -4119,7 +4119,7 @@ package Sinfo is
       --  treated as though it were Empty) if No_Initialization is set True.
 
       --------------------------------------
-      -- 4.5  Short Circuit Control Forms --
+      -- 4.5  Short-Circuit Control Forms --
       --------------------------------------
 
       --  EXPRESSION ::=
@@ -7618,6 +7618,10 @@ package Sinfo is
       --  source, or because a Pre (resp. Post) aspect specification has been
       --  broken into AND THEN sections. See Split_PPC for details.
 
+      --  In GNATprove mode, the inherited classwide pre- and postconditions
+      --  (suitably specialized for the specific type of the overriding
+      --  operation) are also in this list.
+
       --  Contract_Test_Cases contains a collection of pragmas that correspond
       --  to aspects/pragmas Contract_Cases and Test_Case. The ordering in the
       --  list is in LIFO fashion.
@@ -7677,7 +7681,7 @@ package Sinfo is
       -----------------------------
 
       --  This node is created by the analyzer/expander to handle some
-      --  expansion cases, notably short circuit forms where there are
+      --  expansion cases, notably short-circuit forms where there are
       --  actions associated with the right-hand side operand.
 
       --  The N_Expression_With_Actions node represents an expression with
@@ -7884,17 +7888,15 @@ package Sinfo is
       --  same as the type of the subexpression which it replaces.
 
       --  If Condition is empty, then the raise is unconditional. If the
-      --  Condition field is non-empty, it is a boolean expression which
-      --  is first evaluated, and the exception is raised only if the
-      --  value of the expression is True. In the unconditional case, the
-      --  creation of this node is usually accompanied by a warning message
-      --  error. The creation of this node will usually be accompanied by a
-      --  message (unless it appears within the right operand of a short
-      --  circuit form whose left argument is static and decisively
-      --  eliminates elaboration of the raise operation. The condition field
-      --  can ONLY be present when the node is used as a statement form, it
-      --  may NOT be present in the case where the node appears within an
-      --  expression.
+      --  Condition field is non-empty, it is a boolean expression which is
+      --  first evaluated, and the exception is raised only if the value of the
+      --  expression is True. In the unconditional case, the creation of this
+      --  node is usually accompanied by a warning message (unless it appears
+      --  within the right operand of a short-circuit form whose left argument
+      --  is static and decisively eliminates elaboration of the raise
+      --  operation). The condition field can ONLY be present when the node is
+      --  used as a statement form; it must NOT be present in the case where
+      --  the node appears within an expression.
 
       --  The exception is generated with a message that contains the
       --  file name and line number, and then appended text. The Reason

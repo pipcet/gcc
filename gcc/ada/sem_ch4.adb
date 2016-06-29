@@ -812,6 +812,14 @@ package body Sem_Ch4 is
          Check_Restriction (No_Local_Protected_Objects, N);
       end if;
 
+      --  Likewise for No_Local_Timing_Events
+
+      if Has_Timing_Event (Designated_Type (Acc_Type))
+        and then not Is_Library_Level_Entity (Acc_Type)
+      then
+         Check_Restriction (No_Local_Timing_Events, N);
+      end if;
+
       --  If the No_Streams restriction is set, check that the type of the
       --  object is not, and does not contain, any subtype derived from
       --  Ada.Streams.Root_Stream_Type. Note that we guard the call to
@@ -3389,6 +3397,18 @@ package body Sem_Ch4 is
                   Next_Actual (Actual);
                   Next_Formal (Formal);
 
+               --  Under relaxed RM semantics silently replace occurrences of
+               --  null by System.Address_Null. We only do this if we know that
+               --  an error will otherwise be issued.
+
+               elsif Null_To_Null_Address_Convert_OK (Actual, Etype (Formal))
+                 and then (Report and not Is_Indexed and not Is_Indirect)
+               then
+                  Replace_Null_By_Null_Address (Actual);
+                  Analyze_And_Resolve (Actual, Etype (Formal));
+                  Next_Actual (Actual);
+                  Next_Formal (Formal);
+
                --  For an Ada 2012 predicate or invariant, a call may mention
                --  an incomplete type, while resolution of the corresponding
                --  predicate function may see the full view, as a consequence
@@ -3909,7 +3929,16 @@ package body Sem_Ch4 is
       if Warn_On_Suspicious_Contract
         and then not Referenced (Loop_Id, Cond)
       then
-         Error_Msg_N ("?T?unused variable &", Loop_Id);
+         --  Generating C, this check causes spurious warnings on inlined
+         --  postconditions; we can safely disable it because this check
+         --  was previously performed when analyzing the internally built
+         --  postconditions procedure.
+
+         if Modify_Tree_For_C and then In_Inlined_Body then
+            null;
+         else
+            Error_Msg_N ("?T?unused variable &", Loop_Id);
+         end if;
       end if;
 
       --  Diagnose a possible misuse of the SOME existential quantifier. When
@@ -5246,8 +5275,8 @@ package body Sem_Ch4 is
         and then Is_EVF_Expression (Expr)
       then
          Error_Msg_N
-           ("formal parameter with Extensions_Visible False cannot be "
-            & "converted to class-wide type", Expr);
+           ("formal parameter cannot be converted to class-wide type when "
+            & "Extensions_Visible is False", Expr);
       end if;
    end Analyze_Type_Conversion;
 
@@ -6789,6 +6818,20 @@ package body Sem_Ch4 is
 
                      return;
                   end;
+
+               --  Under relaxed RM semantics silently replace occurrences of
+               --  null by System.Address_Null.
+
+               elsif Null_To_Null_Address_Convert_OK (N) then
+                  Replace_Null_By_Null_Address (N);
+
+                  if Nkind_In (N, N_Op_Ge, N_Op_Gt, N_Op_Le, N_Op_Lt) then
+                     Analyze_Comparison_Op (N);
+                  else
+                     Analyze_Arithmetic_Op (N);
+                  end if;
+
+                  return;
                end if;
 
             --  Comparisons on A'Access are common enough to deserve a
@@ -6856,6 +6899,14 @@ package body Sem_Ch4 is
                if Address_Integer_Convert_OK (Etype (R), Etype (L)) then
                   Rewrite (R,
                     Unchecked_Convert_To (Etype (L), Relocate_Node (R)));
+                  Analyze_Equality_Op (N);
+                  return;
+
+               --  Under relaxed RM semantics silently replace occurrences of
+               --  null by System.Address_Null.
+
+               elsif Null_To_Null_Address_Convert_OK (N) then
+                  Replace_Null_By_Null_Address (N);
                   Analyze_Equality_Op (N);
                   return;
                end if;

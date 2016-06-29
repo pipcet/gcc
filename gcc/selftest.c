@@ -29,7 +29,7 @@ int selftest::num_passes;
 /* Record the successful outcome of some aspect of a test.  */
 
 void
-selftest::pass (const char */*file*/, int /*line*/, const char */*msg*/)
+selftest::pass (const location &/*loc*/, const char */*msg*/)
 {
   num_passes++;
 }
@@ -37,11 +37,43 @@ selftest::pass (const char */*file*/, int /*line*/, const char */*msg*/)
 /* Report the failed outcome of some aspect of a test and abort.  */
 
 void
-selftest::fail (const char *file, int line, const char *msg)
+selftest::fail (const location &loc, const char *msg)
 {
-  fprintf (stderr,"%s:%i: FAIL: %s\n", file, line, msg);
-  /* TODO: add calling function name as well?  */
+  fprintf (stderr,"%s:%i: %s: FAIL: %s\n", loc.m_file, loc.m_line,
+	   loc.m_function, msg);
   abort ();
 }
+
+/* As "fail", but using printf-style formatted output.  */
+
+void
+selftest::fail_formatted (const location &loc, const char *fmt, ...)
+{
+  va_list ap;
+
+  fprintf (stderr, "%s:%i: %s: FAIL: ", loc.m_file, loc.m_line,
+	   loc.m_function);
+  va_start (ap, fmt);
+  vfprintf (stderr, fmt, ap);
+  va_end (ap);
+  fprintf (stderr, "\n");
+  abort ();
+}
+
+/* Implementation detail of ASSERT_STREQ.  */
+
+void
+selftest::assert_streq (const location &loc,
+			const char *desc_expected, const char *desc_actual,
+			const char *val_expected, const char *val_actual)
+{
+  if (0 == strcmp (val_expected, val_actual))
+    ::selftest::pass (loc, "ASSERT_STREQ");
+  else
+    ::selftest::fail_formatted
+	(loc, "ASSERT_STREQ (%s, %s) expected=\"%s\" actual=\"%s\"",
+	 desc_expected, desc_actual, val_expected, val_actual);
+}
+
 
 #endif /* #if CHECKING_P */

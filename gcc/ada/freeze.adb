@@ -108,6 +108,14 @@ package body Freeze is
    --  Comp_ADC_Present is set True if the component has a Scalar_Storage_Order
    --  attribute definition clause.
 
+   procedure Check_Debug_Info_Needed (T : Entity_Id);
+   --  As each entity is frozen, this routine is called to deal with the
+   --  setting of Debug_Info_Needed for the entity. This flag is set if
+   --  the entity comes from source, or if we are in Debug_Generated_Code
+   --  mode or if the -gnatdV debug flag is set. However, it never sets
+   --  the flag if Debug_Info_Off is set. This procedure also ensures that
+   --  subsidiary entities have the flag set as required.
+
    procedure Check_Expression_Function (N : Node_Id; Nam : Entity_Id);
    --  When an expression function is frozen by a use of it, the expression
    --  itself is frozen. Check that the expression does not include references
@@ -118,6 +126,11 @@ package body Freeze is
    --  itself is frozen, because the formals will be frozen by then. However,
    --  Attribute references to outer types are freeze points for those types;
    --  this routine generates the required freeze nodes for them.
+
+   procedure Check_Inherited_Conditions (R : Entity_Id);
+   --  For a tagged derived type, create wrappers for inherited operations
+   --  that have a classwide condition, so it can be properly rewritten if
+   --  it involves calls to other overriding primitives.
 
    procedure Check_Strict_Alignment (E : Entity_Id);
    --  E is a base type. If E is tagged or has a component that is aliased
@@ -185,14 +198,6 @@ package body Freeze is
    --  Typ is a record or array type that is being frozen. This routine sets
    --  the default component alignment from the scope stack values if the
    --  alignment is otherwise not specified.
-
-   procedure Check_Debug_Info_Needed (T : Entity_Id);
-   --  As each entity is frozen, this routine is called to deal with the
-   --  setting of Debug_Info_Needed for the entity. This flag is set if
-   --  the entity comes from source, or if we are in Debug_Generated_Code
-   --  mode or if the -gnatdV debug flag is set. However, it never sets
-   --  the flag if Debug_Info_Off is set. This procedure also ensures that
-   --  subsidiary entities have the flag set as required.
 
    procedure Set_SSO_From_Default (T : Entity_Id);
    --  T is a record or array type that is being frozen. If it is a base type,
@@ -1161,10 +1166,12 @@ package body Freeze is
       ADC              : Node_Id;
       Comp_ADC_Present : out Boolean)
    is
-      Encl_Base : Entity_Id;
       Comp_Base : Entity_Id;
       Comp_ADC  : Node_Id;
+      Encl_Base : Entity_Id;
       Err_Node  : Node_Id;
+
+      Component_Aliased : Boolean;
 
       Comp_Byte_Aligned : Boolean;
       --  Set for the record case, True if Comp starts on a byte boundary
@@ -1173,8 +1180,6 @@ package body Freeze is
       Comp_SSO_Differs  : Boolean;
       --  Set True when the component is a nested composite, and it does not
       --  have the same scalar storage order as Encl_Type.
-
-      Component_Aliased : Boolean;
 
    begin
       --  Record case
@@ -1226,9 +1231,9 @@ package body Freeze is
          Comp_Base := Underlying_Type (Comp_Base);
       end if;
 
-      Comp_ADC := Get_Attribute_Definition_Clause
-                    (First_Subtype (Comp_Base),
-                     Attribute_Scalar_Storage_Order);
+      Comp_ADC :=
+        Get_Attribute_Definition_Clause
+          (First_Subtype (Comp_Base), Attribute_Scalar_Storage_Order);
       Comp_ADC_Present := Present (Comp_ADC);
 
       --  Case of record or array component: check storage order compatibility.
@@ -1240,9 +1245,8 @@ package body Freeze is
         or else Is_Array_Type (Comp_Base)
       then
          Comp_SSO_Differs :=
-           Reverse_Storage_Order (Encl_Base)
-             /=
-           Reverse_Storage_Order (Comp_Base);
+           Reverse_Storage_Order (Encl_Base) /=
+             Reverse_Storage_Order (Comp_Base);
 
          --  Parent and extension must have same storage order
 
@@ -1381,6 +1385,59 @@ package body Freeze is
          Check_Deferred (Expression (Decl));
       end if;
    end Check_Expression_Function;
+
+   --------------------------------
+   -- Check_Inherited_Conditions --
+   --------------------------------
+
+   procedure Check_Inherited_Conditions (R : Entity_Id) is
+      Prim_Ops : constant Elist_Id := Primitive_Operations (R);
+      A_Post   : Node_Id;
+      A_Pre    : Node_Id;
+      Op_Node  : Elmt_Id;
+      Par_Prim : Entity_Id;
+      Prim     : Entity_Id;
+
+   begin
+      Op_Node := First_Elmt (Prim_Ops);
+      while Present (Op_Node) loop
+         Prim := Node (Op_Node);
+
+         --  In SPARK mode this is where we can collect the inherited
+         --  conditions, because we do not create the Check pragmas that
+         --  normally convey the modified classwide conditions on overriding
+         --  operations.
+
+         if SPARK_Mode = On
+           and then Comes_From_Source (Prim)
+           and then Present (Overridden_Operation (Prim))
+         then
+            Collect_Inherited_Class_Wide_Conditions (Prim);
+         end if;
+
+         --  In normal mode, we examine inherited operations to check whether
+         --  they require a wrapper to handle inherited conditions that call
+         --  other primitives.
+         --  Wrapper construction TBD.
+
+         if not Comes_From_Source (Prim) and then Present (Alias (Prim)) then
+            Par_Prim := Alias (Prim);
+            A_Pre    := Find_Aspect (Par_Prim, Aspect_Pre);
+
+            if Present (A_Pre) and then Class_Present (A_Pre) then
+               Build_Classwide_Expression (Expression (A_Pre), Prim);
+            end if;
+
+            A_Post := Find_Aspect (Par_Prim, Aspect_Post);
+
+            if Present (A_Post) and then Class_Present (A_Post) then
+               Build_Classwide_Expression (Expression (A_Post), Prim);
+            end if;
+         end if;
+
+         Next_Elmt (Op_Node);
+      end loop;
+   end Check_Inherited_Conditions;
 
    ----------------------------
    -- Check_Strict_Alignment --
@@ -1653,9 +1710,9 @@ package body Freeze is
               and then not Is_Frozen (E)
             then
                Push_Scope (E);
+
                Install_Visible_Declarations (E);
                Install_Private_Declarations (E);
-
                Freeze_All (First_Entity (E), After);
 
                End_Package_Scope (E);
@@ -1668,8 +1725,8 @@ package body Freeze is
                end if;
 
             elsif Ekind (E) in Task_Kind
-              and then Nkind_In (Parent (E), N_Task_Type_Declaration,
-                                             N_Single_Task_Declaration)
+              and then Nkind_In (Parent (E), N_Single_Task_Declaration,
+                                             N_Task_Type_Declaration)
             then
                Push_Scope (E);
                Freeze_All (First_Entity (E), After);
@@ -2291,6 +2348,25 @@ package body Freeze is
                Set_Has_Unchecked_Union (Arr);
             end if;
 
+            --  The array type requires its own invariant procedure in order to
+            --  verify the component invariant over all elements.
+
+            if Has_Invariants (Component_Type (Arr))
+              or else
+                (Is_Access_Type (Component_Type (Arr))
+                  and then Has_Invariants
+                             (Designated_Type (Component_Type (Arr))))
+            then
+               Set_Has_Own_Invariants (Arr);
+
+               --  The array type is an implementation base type. Propagate the
+               --  same property to the first subtype.
+
+               if Is_Itype (Arr) then
+                  Set_Has_Own_Invariants (First_Subtype (Arr));
+               end if;
+            end if;
+
             --  Warn for pragma Pack overriding foreign convention
 
             if Has_Foreign_Convention (Ctyp)
@@ -2440,6 +2516,7 @@ package body Freeze is
                      --  Bit packing is never needed for 8, 16, 32, 64
 
                      if Addressable (Csiz) then
+
                         --  If the Esize of the component is known and equal to
                         --  the component size then even packing is not needed.
 
@@ -4166,7 +4243,8 @@ package body Freeze is
                Freeze_And_Append (Corresponding_Remote_Type (Rec), N, Result);
             end if;
 
-            --  Check for controlled components and unchecked unions.
+            --  Check for controlled components, unchecked unions, and type
+            --  invariants.
 
             Comp := First_Component (Rec);
             while Present (Comp) loop
@@ -4193,6 +4271,22 @@ package body Freeze is
 
                if Has_Unchecked_Union (Etype (Comp)) then
                   Set_Has_Unchecked_Union (Rec);
+               end if;
+
+               --  The record type requires its own invariant procedure in
+               --  order to verify the invariant of each individual component.
+               --  Do not consider internal components such as _parent because
+               --  parent class-wide invariants are always inherited.
+
+               if Comes_From_Source (Comp)
+                 and then
+                   (Has_Invariants (Etype (Comp))
+                     or else
+                       (Is_Access_Type (Etype (Comp))
+                         and then Has_Invariants
+                                    (Designated_Type (Etype (Comp)))))
+               then
+                  Set_Has_Own_Invariants (Rec);
                end if;
 
                --  Scan component declaration for likely misuses of current
@@ -4536,6 +4630,13 @@ package body Freeze is
                   Next_Elmt (Elmt);
                end loop;
             end;
+         end if;
+
+         --  For a derived tagged type, check whether inherited primitives
+         --  might require a wrapper to handle classwide conditions.
+
+         if Is_Tagged_Type (Rec) and then Is_Derived_Type (Rec) then
+            Check_Inherited_Conditions (Rec);
          end if;
       end Freeze_Record_Type;
 
@@ -5225,8 +5326,7 @@ package body Freeze is
               and then not Is_Tagged_Type (E)
             then
                Error_Msg_NE
-                 ("Type_Invariant''Class cannot be specified for &",
-                  Prag, E);
+                 ("Type_Invariant''Class cannot be specified for &", Prag, E);
                Error_Msg_N
                  ("\can only be specified for a tagged type", Prag);
             end if;
@@ -8073,7 +8173,7 @@ package body Freeze is
 
             --  Else construct and analyze the body of a wrapper procedure
             --  that contains an object declaration to hold the expression.
-            --  Given that this is done only to complete the analysis, it
+            --  Given that this is done only to complete the analysis, it is
             --  simpler to build a procedure than a function which might
             --  involve secondary stack expansion.
 

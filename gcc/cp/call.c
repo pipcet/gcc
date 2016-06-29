@@ -5372,6 +5372,40 @@ add_candidates (tree fns, tree first_arg, const vec<tree, va_gc> *args,
     }
 }
 
+/* Returns 1 if P0145R2 says that the LHS of operator CODE is evaluated first,
+   -1 if the RHS is evaluated first, or 0 if the order is unspecified.  */
+
+static int
+op_is_ordered (tree_code code)
+{
+  if (!flag_args_in_order)
+    return 0;
+
+  switch (code)
+    {
+      // 5. b @= a
+    case MODIFY_EXPR:
+      return -1;
+
+      // 1. a.b
+      // Not overloadable (yet).
+      // 2. a->b
+      // Only one argument.
+      // 3. a->*b
+    case MEMBER_REF:
+      // 6. a[b]
+    case ARRAY_REF:
+      // 7. a << b
+    case LSHIFT_EXPR:
+      // 8. a >> b
+    case RSHIFT_EXPR:
+      return 1;
+
+    default:
+      return 0;
+    }
+}
+
 static tree
 build_new_op_1 (location_t loc, enum tree_code code, int flags, tree arg1,
 		tree arg2, tree arg3, tree *overload, tsubst_flags_t complain)
@@ -5660,17 +5694,33 @@ build_new_op_1 (location_t loc, enum tree_code code, int flags, tree arg1,
 	  else
 	    result = build_over_call (cand, LOOKUP_NORMAL, complain);
 
-	  if (processing_template_decl
-	      && result != NULL_TREE
-	      && result != error_mark_node
-	      && DECL_HIDDEN_FRIEND_P (cand->fn))
+	  if (trivial_fn_p (cand->fn))
+	    /* There won't be a CALL_EXPR.  */;
+	  else if (result && result != error_mark_node)
 	    {
-	      tree call = result;
-	      if (REFERENCE_REF_P (call))
-		call = TREE_OPERAND (call, 0);
-	      /* This prevents build_new_function_call from discarding this
-		 function during instantiation of the enclosing template.  */
-	      KOENIG_LOOKUP_P (call) = 1;
+	      tree call = extract_call_expr (result);
+	      CALL_EXPR_OPERATOR_SYNTAX (call) = true;
+
+	      if (processing_template_decl && DECL_HIDDEN_FRIEND_P (cand->fn))
+		/* This prevents build_new_function_call from discarding this
+		   function during instantiation of the enclosing template.  */
+		KOENIG_LOOKUP_P (call) = 1;
+
+	      /* Specify evaluation order as per P0145R2.  */
+	      CALL_EXPR_ORDERED_ARGS (call) = false;
+	      switch (op_is_ordered (code))
+		{
+		case -1:
+		  CALL_EXPR_REVERSE_ARGS (call) = true;
+		  break;
+
+		case 1:
+		  CALL_EXPR_ORDERED_ARGS (call) = true;
+		  break;
+
+		default:
+		  break;
+		}
 	    }
 	}
       else
@@ -5844,6 +5894,25 @@ build_new_op (location_t loc, enum tree_code code, int flags,
 			overload, complain);
   timevar_cond_stop (TV_OVERLOAD, subtime);
   return ret;
+}
+
+/* CALL was returned by some call-building function; extract the actual
+   CALL_EXPR from any bits that have been tacked on, e.g. by
+   convert_from_reference.  */
+
+tree
+extract_call_expr (tree call)
+{
+  while (TREE_CODE (call) == COMPOUND_EXPR)
+    call = TREE_OPERAND (call, 1);
+  if (REFERENCE_REF_P (call))
+    call = TREE_OPERAND (call, 0);
+  if (TREE_CODE (call) == TARGET_EXPR)
+    call = TARGET_EXPR_INITIAL (call);
+  gcc_assert (TREE_CODE (call) == CALL_EXPR
+	      || TREE_CODE (call) == AGGR_INIT_EXPR
+	      || call == error_mark_node);
+  return call;
 }
 
 /* Returns true if FN has two parameters, of which the second has type
@@ -7063,7 +7132,8 @@ convert_for_arg_passing (tree type, tree val, tsubst_flags_t complain)
    which just decay_conversion or no conversions at all should be done.
    This is true for some builtins which don't act like normal functions.
    Return 2 if no conversions at all should be done, 1 if just
-   decay_conversion.  */
+   decay_conversion.  Return 3 for special treatment of the 3rd argument
+   for __builtin_*_overflow_p.  */
 
 int
 magic_varargs_p (tree fn)
@@ -7071,7 +7141,7 @@ magic_varargs_p (tree fn)
   if (flag_cilkplus && is_cilkplus_reduce_builtin (fn) != BUILT_IN_NONE)
     return 2;
 
-  if (DECL_BUILT_IN (fn))
+  if (DECL_BUILT_IN_CLASS (fn) == BUILT_IN_NORMAL)
     switch (DECL_FUNCTION_CODE (fn))
       {
       case BUILT_IN_CLASSIFY_TYPE:
@@ -7079,6 +7149,11 @@ magic_varargs_p (tree fn)
       case BUILT_IN_NEXT_ARG:
       case BUILT_IN_VA_START:
 	return 1;
+
+      case BUILT_IN_ADD_OVERFLOW_P:
+      case BUILT_IN_SUB_OVERFLOW_P:
+      case BUILT_IN_MUL_OVERFLOW_P:
+	return 3;
 
       default:;
 	return lookup_attribute ("type generic",
@@ -7533,18 +7608,18 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
     }
 
   /* Ellipsis */
+  int magic = magic_varargs_p (fn);
   for (; arg_index < vec_safe_length (args); ++arg_index)
     {
       tree a = (*args)[arg_index];
-      int magic = magic_varargs_p (fn);
-      if (magic == 2)
+      if ((magic == 3 && arg_index == 2) || magic == 2)
 	{
 	  /* Do no conversions for certain magic varargs.  */
 	  a = mark_type_use (a);
 	  if (TREE_CODE (a) == FUNCTION_DECL && reject_gcc_builtin (a))
 	    return error_mark_node;
 	}
-      else if (magic == 1)
+      else if (magic != 0)
 	/* For other magic varargs only do decay_conversion.  */
 	a = decay_conversion (a, complain);
       else if (DECL_CONSTRUCTOR_P (fn)
@@ -7666,9 +7741,7 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
       if (is_really_empty_class (type))
 	{
 	  /* Avoid copying empty classes.  */
-	  val = build2 (COMPOUND_EXPR, void_type_node, to, arg);
-	  TREE_NO_WARNING (val) = 1;
-	  val = build2 (COMPOUND_EXPR, type, val, to);
+	  val = build2 (COMPOUND_EXPR, type, arg, to);
 	  TREE_NO_WARNING (val) = 1;
 	}
       else if (tree_int_cst_equal (TYPE_SIZE (type), TYPE_SIZE (as_base)))
@@ -7756,9 +7829,15 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
     }
 
   tree call = build_cxx_call (fn, nargs, argarray, complain|decltype_flag);
-  if (TREE_CODE (call) == CALL_EXPR
-      && (cand->flags & LOOKUP_LIST_INIT_CTOR))
-    CALL_EXPR_LIST_INIT_P (call) = true;
+  if (call != error_mark_node
+      && !magic
+      && (flag_args_in_order > 1
+	  || (cand->flags & LOOKUP_LIST_INIT_CTOR)))
+    {
+      tree c = extract_call_expr (call);
+      /* build_new_op_1 will clear this when appropriate.  */
+      CALL_EXPR_ORDERED_ARGS (c) = true;
+    }
   return call;
 }
 
@@ -9422,10 +9501,10 @@ joust (struct z_candidate *cand1, struct z_candidate *cand2, bool warn,
 				     "default argument mismatch in "
 				     "overload resolution"))
 			{
-			  inform (input_location,
-				  " candidate 1: %q+#F", cand1->fn);
-			  inform (input_location,
-				  " candidate 2: %q+#F", cand2->fn);
+			  inform (DECL_SOURCE_LOCATION (cand1->fn),
+				  " candidate 1: %q#F", cand1->fn);
+			  inform (DECL_SOURCE_LOCATION (cand2->fn),
+				  " candidate 2: %q#F", cand2->fn);
 			}
 		    }
 		  else

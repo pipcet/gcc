@@ -302,6 +302,26 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define TARGET_P8_VECTOR 0
 #endif
 
+/* Define the ISA 3.0 flags as 0 if the target assembler does not support
+   Power9 instructions.  Allow -mpower9-fusion, since it does not add new
+   instructions.  Allow -misel, since it predates ISA 3.0 and does
+   not require any Power9 features.  */
+
+#ifndef HAVE_AS_POWER9
+#undef  TARGET_FLOAT128_HW
+#undef  TARGET_MODULO
+#undef  TARGET_P9_VECTOR
+#undef  TARGET_P9_MINMAX
+#undef  TARGET_P9_DFORM_SCALAR
+#undef  TARGET_P9_DFORM_VECTOR
+#define TARGET_FLOAT128_HW 0
+#define TARGET_MODULO 0
+#define TARGET_P9_VECTOR 0
+#define TARGET_P9_MINMAX 0
+#define TARGET_P9_DFORM_SCALAR 0
+#define TARGET_P9_DFORM_VECTOR 0
+#endif
+
 /* Define TARGET_LWSYNC_INSTRUCTION if the assembler knows about lwsync.  If
    not, generate the lwsync code as an integer constant.  */
 #ifdef HAVE_AS_LWSYNC
@@ -2689,11 +2709,13 @@ extern int frame_pointer_needed;
 #define RS6000_BTM_HARD_FLOAT	MASK_SOFT_FLOAT	/* Hardware floating point.  */
 #define RS6000_BTM_LDBL128	MASK_MULTIPLE	/* 128-bit long double.  */
 #define RS6000_BTM_64BIT	MASK_64BIT	/* 64-bit addressing.  */
+#define RS6000_BTM_FLOAT128	MASK_P9_VECTOR	/* IEEE 128-bit float.  */
 
 #define RS6000_BTM_COMMON	(RS6000_BTM_ALTIVEC			\
 				 | RS6000_BTM_VSX			\
 				 | RS6000_BTM_P8_VECTOR			\
 				 | RS6000_BTM_P9_VECTOR			\
+				 | RS6000_BTM_MODULO                    \
 				 | RS6000_BTM_CRYPTO			\
 				 | RS6000_BTM_FRE			\
 				 | RS6000_BTM_FRES			\
@@ -2704,7 +2726,8 @@ extern int frame_pointer_needed;
 				 | RS6000_BTM_CELL			\
 				 | RS6000_BTM_DFP			\
 				 | RS6000_BTM_HARD_FLOAT		\
-				 | RS6000_BTM_LDBL128)
+				 | RS6000_BTM_LDBL128			\
+				 | RS6000_BTM_FLOAT128)
 
 /* Define builtin enum index.  */
 
@@ -2808,6 +2831,7 @@ enum rs6000_builtin_type_index
   RS6000_BTI_void,	         /* void_type_node */
   RS6000_BTI_ieee128_float,	 /* ieee 128-bit floating point */
   RS6000_BTI_ibm128_float,	 /* IBM 128-bit floating point */
+  RS6000_BTI_const_str,		 /* pointer to const char * */
   RS6000_BTI_MAX
 };
 
@@ -2864,6 +2888,7 @@ enum rs6000_builtin_type_index
 #define void_type_internal_node		 (rs6000_builtin_types[RS6000_BTI_void])
 #define ieee128_float_type_node		 (rs6000_builtin_types[RS6000_BTI_ieee128_float])
 #define ibm128_float_type_node		 (rs6000_builtin_types[RS6000_BTI_ibm128_float])
+#define const_str_type_node		 (rs6000_builtin_types[RS6000_BTI_const_str])
 
 extern GTY(()) tree rs6000_builtin_types[RS6000_BTI_MAX];
 extern GTY(()) tree rs6000_builtin_decls[RS6000_BUILTIN_COUNT];

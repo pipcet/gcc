@@ -17,6 +17,7 @@
 //
 // { dg-options "-std=gnu++11" }
 
+#include <limits>
 #include <unordered_set>
 
 #include <testsuite_hooks.h>
@@ -35,8 +36,32 @@ void test01()
 	  == (std::size_t(1) << (sizeof(std::size_t) * 8 - 1)) );
 }
 
+void test02()
+{
+  bool test __attribute__((unused)) = true;
+
+  std::__detail::_Power2_rehash_policy policy;
+
+  for (std::size_t i = 1;;)
+    {
+      auto nxt = policy._M_next_bkt(i);
+
+      if (nxt == i)
+	{
+	  // Equals only when reaching max.
+	  constexpr auto mx = std::numeric_limits<std::size_t>::max();
+	  VERIFY( nxt == policy._M_next_bkt(mx) );
+	  break;
+	}
+
+      VERIFY( nxt > i );
+      i = nxt;
+    }
+}
+
 int main()
 {
   test01();
+  test02();
   return 0;
 }

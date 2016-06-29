@@ -3469,6 +3469,9 @@ case "${target}" in
   *-*-netware*)
     noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
+  *-*-phoenix*)
+    noconfigdirs="$noconfigdirs ${libgcj}"
+    ;;
   *-*-rtems*)
     noconfigdirs="$noconfigdirs ${libgcj}"
     ;;
@@ -3724,6 +3727,9 @@ case "${target}" in
   *-*-netbsd*)
     ;;
   *-*-netware*)
+    ;;
+  *-*-phoenix*)
+    noconfigdirs="$noconfigdirs target-libgloss"
     ;;
   *-*-rtems*)
     noconfigdirs="$noconfigdirs target-libgloss"
@@ -6131,7 +6137,7 @@ target_elf=no
 case $target in
   *-darwin* | *-aix* | *-cygwin* | *-mingw* | *-aout* | *-*coff* | \
   *-msdosdjgpp* | *-vms* | *-wince* | *-*-pe* | \
-  alpha*-dec-osf* | *-interix* | hppa[12]*-*-hpux* | \
+  alpha*-dec-osf* | hppa[12]*-*-hpux* | \
   nvptx-*-none)
     target_elf=no
     ;;

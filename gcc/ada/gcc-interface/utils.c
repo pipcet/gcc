@@ -789,24 +789,11 @@ gnat_pushdecl (tree decl, Node_Id gnat_node)
 		   || TREE_CODE (t) == POINTER_TYPE
 		   || TYPE_IS_FAT_POINTER_P (t)))
 	{
-	  tree tt;
-	  /* ??? Copy and original type are not supposed to be variant but we
-	     really need a variant for the placeholder machinery to work.  */
-	  if (TYPE_IS_FAT_POINTER_P (t))
-	    tt = build_variant_type_copy (t);
-	  else
-	    {
-	      /* TYPE_NEXT_PTR_TO is a chain of main variants.  */
-	      tt = build_distinct_type_copy (TYPE_MAIN_VARIANT (t));
-	      if (TREE_CODE (t) == POINTER_TYPE)
-		TYPE_NEXT_PTR_TO (TYPE_MAIN_VARIANT (t)) = tt;
-	      tt = build_qualified_type (tt, TYPE_QUALS (t));
-	    }
+	  tree tt = build_variant_type_copy (t);
 	  TYPE_NAME (tt) = decl;
 	  defer_or_set_type_context (tt,
 				     DECL_CONTEXT (decl),
 				     deferred_decl_context);
-	  TREE_USED (tt) = TREE_USED (t);
 	  TREE_TYPE (decl) = tt;
 	  if (TYPE_NAME (t)
 	      && TREE_CODE (TYPE_NAME (t)) == TYPE_DECL
@@ -5445,15 +5432,6 @@ static tree c_global_trees[CTI_MAX];
 #define intmax_type_node  void_type_node
 #define uintmax_type_node void_type_node
 
-/* Build the void_list_node (void_type_node having been created).  */
-
-static tree
-build_void_list_node (void)
-{
-  tree t = build_tree_list (NULL_TREE, void_type_node);
-  return t;
-}
-
 /* Used to help initialize the builtin-types.def table.  When a type of
    the correct size doesn't exist, use error_mark_node instead of NULL.
    The later results in segfaults even when a decl using the type doesn't
@@ -5474,7 +5452,6 @@ install_builtin_elementary_types (void)
 {
   signed_size_type_node = gnat_signed_type_for (size_type_node);
   pid_type_node = integer_type_node;
-  void_list_node = build_void_list_node ();
 
   string_type_node = build_pointer_type (char_type_node);
   const_string_type_node
@@ -5833,10 +5810,14 @@ handle_nonnull_attribute (tree *node, tree ARG_UNUSED (name),
 
   /* If no arguments are specified, all pointer arguments should be
      non-null.  Verify a full prototype is given so that the arguments
-     will have the correct types when we actually check them later.  */
+     will have the correct types when we actually check them later.
+     Avoid diagnosing type-generic built-ins since those have no
+     prototype.  */
   if (!args)
     {
-      if (!prototype_p (type))
+      if (!prototype_p (type)
+	  && (!TYPE_ATTRIBUTES (type)
+	      || !lookup_attribute ("type generic", TYPE_ATTRIBUTES (type))))
 	{
 	  error ("nonnull attribute without arguments on a non-prototype");
 	  *no_add_attrs = true;

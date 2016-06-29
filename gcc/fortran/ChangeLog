@@ -1,3 +1,93 @@
+2016-06-29  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/71002
+	* f95-lang.c (LANG_HOOKS_GET_ALIAS_SET): Remove (un-)define.
+	(gfc_get_alias_set): Remove.
+
+2016-06-25  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/71649
+	* module.c (create_intrinsic_function): Check for NULL values and
+	return after giving error.
+
+2016-06-21  Michael Meissner  <meissner@linux.vnet.ibm.com>
+
+	* trans-types.c (gfc_build_complex_type): Move setting complex
+	MODE to layout_type, instead of setting it ahead of time by the
+	caller.
+
+2016-06-21  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/71068
+	* resolve.c (resolve_function): Don't resolve caf_get/caf_send.
+	(check_data_variable): Strip-off caf_get before checking.
+
+2016-06-20  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/71194
+	* trans-expr.c (gfc_trans_pointer_assignment): Correctly handle
+	RHS pointer functions.
+
+2016-06-19  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* class.c (gfc_add_class_array_ref): Call gfc_add_data_component()
+	instead of gfc_add_component_ref().
+	(gfc_get_len_component): Call gfc_add_len_component() instead of
+	gfc_add_component_ref().
+	* trans-intrinsic.c (gfc_conv_intrinsic_loc): Call
+	gfc_add_data_component() instead of gfc_add_component_ref().
+	* trans.c (gfc_add_finalizer_call): Call
+	gfc_add_final_component() and gfc_add_size_component() instead
+	of gfc_add_component_ref.
+
+2016-06-18  Bernhard Reutner-Fischer  <aldot@gcc.gnu.org>
+
+	* trans-types.c (gfc_typenode_for_spec): Commentary typo fix.
+
+2016-06-17  Cesar Philippidis  <cesar@codesourcery.com>
+
+	* openmp.c (match_acc): New generic function to parse OpenACC
+	directives.
+	(gfc_match_oacc_parallel_loop): Use it.
+	(gfc_match_oacc_parallel): Likewise.
+	(gfc_match_oacc_kernels_loop): Likewise.
+	(gfc_match_oacc_kernels): Likewise.
+	(gfc_match_oacc_data): Likewise.
+	(gfc_match_oacc_host_data): Likewise.
+	(gfc_match_oacc_loop): Likewise.
+	(gfc_match_oacc_enter_data): Likewise.
+	(gfc_match_oacc_exit_data): Likewise.
+
+2016-06-16  Martin Liska  <mliska@suse.cz>
+
+	* trans-stmt.c (gfc_trans_simple_do): Predict the edge.
+
+2016-06-16  Martin Liska  <mliska@suse.cz>
+
+	* trans-array.c (gfc_array_allocate): Do not generate expect
+	stmt.
+	* trans.c (gfc_allocate_using_malloc): Properly set FAIL_ALLOC
+	predictor for malloc return value.
+	(gfc_allocate_allocatable): Use REALLOC predictor instead of
+	FAIL_ALLOC.
+	(gfc_deallocate_with_status): Likewise.
+
+2016-06-13  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/70673
+	* frontend-passes.c (realloc_string_callback): Add a call to
+	gfc_dep_compare_expr.
+
+2016-06-11  Dominique d'Humieres  <dominiq@lps.ens.fr>
+
+	PR fortran/60751
+	* io.c (gfc_resolve_dt): Replace GFC_STD_GNU with GFC_STD_LEGACY.
+
+2016-06-10  Thomas Schwinge  <thomas@codesourcery.com>
+
+	PR c/71381
+	* openmp.c (gfc_match_oacc_cache): Add comment.
+
 2016-06-05  Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 
 	PR fortran/71404

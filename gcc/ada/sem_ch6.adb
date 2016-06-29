@@ -4428,6 +4428,34 @@ package body Sem_Ch6 is
    --  both subprogram bodies and subprogram declarations (specs).
 
    function Analyze_Subprogram_Specification (N : Node_Id) return Entity_Id is
+      function Is_Invariant_Procedure_Or_Body (E : Entity_Id) return Boolean;
+      --  Determine whether entity E denotes the spec or body of an invariant
+      --  procedure.
+
+      ------------------------------------
+      -- Is_Invariant_Procedure_Or_Body --
+      ------------------------------------
+
+      function Is_Invariant_Procedure_Or_Body (E : Entity_Id) return Boolean is
+         Decl : constant Node_Id := Unit_Declaration_Node (E);
+         Spec : Entity_Id;
+
+      begin
+         if Nkind (Decl) = N_Subprogram_Body then
+            Spec := Corresponding_Spec (Decl);
+         else
+            Spec := E;
+         end if;
+
+         return
+           Present (Spec)
+             and then Ekind (Spec) = E_Procedure
+             and then (Is_Partial_Invariant_Procedure (Spec)
+                        or else Is_Invariant_Procedure (Spec));
+      end Is_Invariant_Procedure_Or_Body;
+
+      --  Local variables
+
       Designator : constant Entity_Id := Defining_Entity (N);
       Formals    : constant List_Id   := Parameter_Specifications (N);
 
@@ -4487,7 +4515,27 @@ package body Sem_Ch6 is
          --  Same processing for an access parameter whose designated type is
          --  derived from a synchronized interface.
 
-         if Ada_Version >= Ada_2005 then
+         --  This modification is not done for invariant procedures because
+         --  the corresponding record may not necessarely be visible when the
+         --  concurrent type acts as the full view of a private type.
+
+         --    package Pack is
+         --       type Prot is private with Type_Invariant => ...;
+         --       procedure ConcInvariant (Obj : Prot);
+         --    private
+         --       protected type Prot is ...;
+         --       type Concurrent_Record_Prot is record ...;
+         --       procedure ConcInvariant (Obj : Prot) is
+         --          ...
+         --       end ConcInvariant;
+         --    end Pack;
+
+         --  In the example above, both the spec and body of the invariant
+         --  procedure must utilize the private type as the controlling type.
+
+         if Ada_Version >= Ada_2005
+           and then not Is_Invariant_Procedure_Or_Body (Designator)
+         then
             declare
                Formal     : Entity_Id;
                Formal_Typ : Entity_Id;
@@ -10487,13 +10535,6 @@ package body Sem_Ch6 is
                         Set_Convention (S, Convention (E));
                         Check_Dispatching_Operation (S, E);
 
-                        --  In GNATprove_Mode, create the pragmas corresponding
-                        --  to inherited class-wide conditions.
-
-                        if GNATprove_Mode then
-                           Collect_Inherited_Class_Wide_Conditions (S);
-                        end if;
-
                      else
                         Check_Dispatching_Operation (S, Empty);
                      end if;
@@ -10760,8 +10801,8 @@ package body Sem_Ch6 is
                     and then not Is_Class_Wide_Type (Formal_Type)
                   then
                      if not Nkind_In
-                       (Parent (T), N_Access_Function_Definition,
-                                    N_Access_Procedure_Definition)
+                              (Parent (T), N_Access_Function_Definition,
+                                           N_Access_Procedure_Definition)
                      then
                         Append_Elmt (Current_Scope,
                           Private_Dependents (Base_Type (Formal_Type)));
@@ -11150,6 +11191,16 @@ package body Sem_Ch6 is
          return;
       end if;
 
+      --  The subtype declarations may freeze the formals. The body generated
+      --  for an expression function is not a freeze point, so do not emit
+      --  these declarations (small loss of efficiency in rare cases).
+
+      if Nkind (N) = N_Subprogram_Body
+        and then Was_Expression_Function (N)
+      then
+         return;
+      end if;
+
       Formal := First_Formal (Subp);
       while Present (Formal) loop
          T := Etype (Formal);
@@ -11168,9 +11219,12 @@ package body Sem_Ch6 is
 
          --  At this stage we have an unconstrained type that may need an
          --  actual subtype. For sure the actual subtype is needed if we have
-         --  an unconstrained array type.
+         --  an unconstrained array type. However, in an instance, the type
+         --  may appear as a subtype of the full view, while the actual is
+         --  in fact private (in which case no actual subtype is needed) so
+         --  check the kind of the base type.
 
-         elsif Is_Array_Type (T) then
+         elsif Is_Array_Type (Base_Type (T)) then
             AS_Needed := True;
 
          --  The only other case needing an actual subtype is an unconstrained
@@ -11241,6 +11295,7 @@ package body Sem_Ch6 is
             --  therefore needs no constraint checks.
 
             Analyze (Decl, Suppress => All_Checks);
+            Set_Is_Actual_Subtype (Defining_Identifier (Decl));
 
             --  We need to freeze manually the generated type when it is
             --  inserted anywhere else than in a declarative part.
@@ -11250,9 +11305,10 @@ package body Sem_Ch6 is
                  Freeze_Entity (Defining_Identifier (Decl), N));
 
             --  Ditto if the type has a dynamic predicate, because the
-            --  generated function will mention the actual subtype.
+            --  generated function will mention the actual subtype. The
+            --  predicate may come from an explicit aspect of be inherited.
 
-            elsif Has_Dynamic_Predicate_Aspect (T) then
+            elsif Has_Predicates (T) then
                Insert_List_Before_And_Analyze (Decl,
                  Freeze_Entity (Defining_Identifier (Decl), N));
             end if;

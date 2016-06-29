@@ -3139,6 +3139,7 @@ class timode_scalar_chain : public scalar_chain
 
  private:
   void mark_dual_mode_def (df_ref def);
+  void fix_debug_reg_uses (rtx reg);
   void convert_insn (rtx_insn *insn);
   /* We don't convert registers to difference size.  */
   void convert_registers () {}
@@ -3790,6 +3791,39 @@ dimode_scalar_chain::convert_insn (rtx_insn *insn)
   df_insn_rescan (insn);
 }
 
+/* Fix uses of converted REG in debug insns.  */
+
+void
+timode_scalar_chain::fix_debug_reg_uses (rtx reg)
+{
+  if (!flag_var_tracking)
+    return;
+
+  df_ref ref;
+  for (ref = DF_REG_USE_CHAIN (REGNO (reg));
+       ref;
+       ref = DF_REF_NEXT_REG (ref))
+    {
+      rtx_insn *insn = DF_REF_INSN (ref);
+      if (DEBUG_INSN_P (insn))
+	{
+	  /* It may be a debug insn with a TImode variable in
+	     register.  */
+	  rtx val = PATTERN (insn);
+	  if (GET_MODE (val) != TImode)
+	    continue;
+	  gcc_assert (GET_CODE (val) == VAR_LOCATION);
+	  rtx loc = PAT_VAR_LOCATION_LOC (val);
+	  gcc_assert (REG_P (loc)
+		      && GET_MODE (loc) == V1TImode);
+	  /* Convert V1TImode register, which has been updated by a SET
+	     insn before, to SUBREG TImode.  */
+	  PAT_VAR_LOCATION_LOC (val) = gen_rtx_SUBREG (TImode, loc, 0);
+	  df_insn_rescan (insn);
+	}
+    }
+}
+
 /* Convert INSN from TImode to V1T1mode.  */
 
 void
@@ -3806,8 +3840,10 @@ timode_scalar_chain::convert_insn (rtx_insn *insn)
 	rtx tmp = find_reg_equal_equiv_note (insn);
 	if (tmp)
 	  PUT_MODE (XEXP (tmp, 0), V1TImode);
+	PUT_MODE (dst, V1TImode);
+	fix_debug_reg_uses (dst);
       }
-      /* FALLTHRU */
+      break;
     case MEM:
       PUT_MODE (dst, V1TImode);
       break;
@@ -4783,8 +4819,15 @@ ix86_option_override_internal (bool main_args_p,
       {"winchip-c6", PROCESSOR_I486, CPU_NONE, PTA_MMX},
       {"winchip2", PROCESSOR_I486, CPU_NONE, PTA_MMX | PTA_3DNOW | PTA_PRFCHW},
       {"c3", PROCESSOR_I486, CPU_NONE, PTA_MMX | PTA_3DNOW | PTA_PRFCHW},
+      {"samuel-2", PROCESSOR_I486, CPU_NONE, PTA_MMX | PTA_3DNOW | PTA_PRFCHW},
       {"c3-2", PROCESSOR_PENTIUMPRO, CPU_PENTIUMPRO,
 	PTA_MMX | PTA_SSE | PTA_FXSR},
+      {"nehemiah", PROCESSOR_PENTIUMPRO, CPU_PENTIUMPRO,
+        PTA_MMX | PTA_SSE | PTA_FXSR},
+      {"c7", PROCESSOR_PENTIUMPRO, CPU_PENTIUMPRO,
+        PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3 | PTA_FXSR},
+      {"esther", PROCESSOR_PENTIUMPRO, CPU_PENTIUMPRO,
+        PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3 | PTA_FXSR},
       {"i686", PROCESSOR_PENTIUMPRO, CPU_PENTIUMPRO, 0},
       {"pentiumpro", PROCESSOR_PENTIUMPRO, CPU_PENTIUMPRO, 0},
       {"pentium2", PROCESSOR_PENTIUMPRO, CPU_PENTIUMPRO, PTA_MMX | PTA_FXSR},
@@ -4843,6 +4886,29 @@ ix86_option_override_internal (bool main_args_p,
 	PTA_MMX | PTA_3DNOW | PTA_3DNOW_A | PTA_SSE | PTA_PRFCHW | PTA_FXSR},
       {"x86-64", PROCESSOR_K8, CPU_K8,
 	PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_NO_SAHF | PTA_FXSR},
+      {"eden-x2", PROCESSOR_K8, CPU_K8,
+        PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3 | PTA_FXSR},
+      {"nano", PROCESSOR_K8, CPU_K8,
+        PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+        | PTA_SSSE3 | PTA_FXSR},
+      {"nano-1000", PROCESSOR_K8, CPU_K8,
+        PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+        | PTA_SSSE3 | PTA_FXSR},
+      {"nano-2000", PROCESSOR_K8, CPU_K8,
+        PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+        | PTA_SSSE3 | PTA_FXSR},
+      {"nano-3000", PROCESSOR_K8, CPU_K8,
+        PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+        | PTA_SSSE3 | PTA_SSE4_1 | PTA_FXSR},
+      {"nano-x2", PROCESSOR_K8, CPU_K8,
+        PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+        | PTA_SSSE3 | PTA_SSE4_1 | PTA_FXSR},
+      {"eden-x4", PROCESSOR_K8, CPU_K8,
+        PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+        | PTA_SSSE3 | PTA_SSE4_1 | PTA_FXSR},
+      {"nano-x4", PROCESSOR_K8, CPU_K8,
+        PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
+        | PTA_SSSE3 | PTA_SSE4_1 | PTA_FXSR},
       {"k8", PROCESSOR_K8, CPU_K8,
 	PTA_64BIT | PTA_MMX | PTA_3DNOW | PTA_3DNOW_A | PTA_SSE
 	| PTA_SSE2 | PTA_NO_SAHF | PTA_PRFCHW | PTA_FXSR},
@@ -4888,7 +4954,7 @@ ix86_option_override_internal (bool main_args_p,
 	| PTA_XOP | PTA_LWP | PTA_BMI | PTA_TBM | PTA_F16C
 	| PTA_FMA | PTA_PRFCHW | PTA_FXSR | PTA_XSAVE 
 	| PTA_XSAVEOPT | PTA_FSGSBASE},
-     {"bdver4", PROCESSOR_BDVER4, CPU_BDVER4,
+      {"bdver4", PROCESSOR_BDVER4, CPU_BDVER4,
 	PTA_64BIT | PTA_MMX | PTA_SSE | PTA_SSE2 | PTA_SSE3
 	| PTA_SSE4A | PTA_CX16 | PTA_ABM | PTA_SSSE3 | PTA_SSE4_1
 	| PTA_SSE4_2 | PTA_AES | PTA_PCLMUL | PTA_AVX | PTA_AVX2 
@@ -4905,7 +4971,7 @@ ix86_option_override_internal (bool main_args_p,
 	| PTA_RDRND | PTA_MOVBE | PTA_MWAITX | PTA_ADX | PTA_RDSEED
 	| PTA_CLZERO | PTA_CLFLUSHOPT | PTA_XSAVEC | PTA_XSAVES
 	| PTA_SHA | PTA_LZCNT | PTA_POPCNT},
-     {"btver1", PROCESSOR_BTVER1, CPU_GENERIC,
+      {"btver1", PROCESSOR_BTVER1, CPU_GENERIC,
 	PTA_64BIT | PTA_MMX |  PTA_SSE  | PTA_SSE2 | PTA_SSE3
 	| PTA_SSSE3 | PTA_SSE4A |PTA_ABM | PTA_CX16 | PTA_PRFCHW
 	| PTA_FXSR | PTA_XSAVE},
@@ -15054,6 +15120,20 @@ darwin_local_data_pic (rtx disp)
 	  && XINT (disp, 1) == UNSPEC_MACHOPIC_OFFSET);
 }
 
+/* True if operand X should be loaded from GOT.  */
+
+bool
+ix86_force_load_from_GOT_p (rtx x)
+{
+  return ((TARGET_64BIT || HAVE_AS_IX86_GOT32X)
+	  && !TARGET_PECOFF && !TARGET_MACHO
+	  && !flag_plt && !flag_pic
+	  && ix86_cmodel != CM_LARGE
+	  && GET_CODE (x) == SYMBOL_REF
+	  && SYMBOL_REF_FUNCTION_P (x)
+	  && !SYMBOL_REF_LOCAL_P (x));
+}
+
 /* Determine if a given RTX is a valid constant.  We already know this
    satisfies CONSTANT_P.  */
 
@@ -15122,6 +15202,12 @@ ix86_legitimate_constant_p (machine_mode mode, rtx x)
       if (MACHO_DYNAMIC_NO_PIC_P)
 	return machopic_symbol_defined_p (x);
 #endif
+
+      /* External function address should be loaded
+	 via the GOT slot to avoid PLT.  */
+      if (ix86_force_load_from_GOT_p (x))
+	return false;
+
       break;
 
     CASE_CONST_SCALAR_INT:
@@ -15517,10 +15603,16 @@ ix86_legitimate_address_p (machine_mode, rtx addr, bool strict)
 	  && XINT (XEXP (disp, 0), 1) != UNSPEC_MACHOPIC_OFFSET)
 	switch (XINT (XEXP (disp, 0), 1))
 	  {
-	  /* Refuse GOTOFF and GOT in 64bit mode since it is always 64bit when
-	     used.  While ABI specify also 32bit relocations, we don't produce
-	     them at all and use IP relative instead.  */
+	  /* Refuse GOTOFF and GOT in 64bit mode since it is always 64bit
+	     when used.  While ABI specify also 32bit relocations, we
+	     don't produce them at all and use IP relative instead.
+	     Allow GOT in 32bit mode for both PIC and non-PIC if symbol
+	     should be loaded via GOT.  */
 	  case UNSPEC_GOT:
+	    if (!TARGET_64BIT
+		&& ix86_force_load_from_GOT_p (XVECEXP (XEXP (disp, 0), 0, 0)))
+	      goto is_legitimate_pic;
+	    /* FALLTHRU */
 	  case UNSPEC_GOTOFF:
 	    gcc_assert (flag_pic);
 	    if (!TARGET_64BIT)
@@ -15530,6 +15622,9 @@ ix86_legitimate_address_p (machine_mode, rtx addr, bool strict)
 	    return false;
 
 	  case UNSPEC_GOTPCREL:
+	    if (ix86_force_load_from_GOT_p (XVECEXP (XEXP (disp, 0), 0, 0)))
+	      goto is_legitimate_pic;
+	    /* FALLTHRU */
 	  case UNSPEC_PCREL:
 	    gcc_assert (flag_pic);
 	    goto is_legitimate_pic;
@@ -17180,9 +17275,14 @@ print_reg (rtx x, int code, FILE *file)
 
   gcc_assert (regno != ARG_POINTER_REGNUM
 	      && regno != FRAME_POINTER_REGNUM
-	      && regno != FLAGS_REG
 	      && regno != FPSR_REG
 	      && regno != FPCR_REG);
+
+  if (regno == FLAGS_REG)
+    {
+      output_operand_lossage ("invalid use of asm flag output");
+      return;
+    }
 
   duplicated = code == 'd' && TARGET_AVX;
 
@@ -18098,6 +18198,13 @@ ix86_print_operand_address_as (FILE *file, rtx addr,
 	    fputs ("ds:", file);
 	  fprintf (file, HOST_WIDE_INT_PRINT_DEC, INTVAL (disp));
 	}
+      /* Load the external function address via the GOT slot to avoid PLT.  */
+      else if (GET_CODE (disp) == CONST
+	       && GET_CODE (XEXP (disp, 0)) == UNSPEC
+	       && (XINT (XEXP (disp, 0), 1) == UNSPEC_GOTPCREL
+		   || XINT (XEXP (disp, 0), 1) == UNSPEC_GOT)
+	       && ix86_force_load_from_GOT_p (XVECEXP (XEXP (disp, 0), 0, 0)))
+	output_pic_addr_const (file, disp, 0);
       else if (flag_pic)
 	output_pic_addr_const (file, disp, 0);
       else
@@ -19322,50 +19429,73 @@ void
 ix86_expand_move (machine_mode mode, rtx operands[])
 {
   rtx op0, op1;
+  rtx tmp, addend = NULL_RTX;
   enum tls_model model;
 
   op0 = operands[0];
   op1 = operands[1];
 
-  if (GET_CODE (op1) == SYMBOL_REF)
+  switch (GET_CODE (op1))
     {
-      rtx tmp;
+    case CONST:
+      tmp = XEXP (op1, 0);
 
+      if (GET_CODE (tmp) != PLUS
+	  || GET_CODE (XEXP (tmp, 0)) != SYMBOL_REF)
+	break;
+
+      op1 = XEXP (tmp, 0);
+      addend = XEXP (tmp, 1);
+      /* FALLTHRU */
+
+    case SYMBOL_REF:
       model = SYMBOL_REF_TLS_MODEL (op1);
-      if (model)
-	{
-	  op1 = legitimize_tls_address (op1, model, true);
-	  op1 = force_operand (op1, op0);
-	  if (op1 == op0)
-	    return;
-	  op1 = convert_to_mode (mode, op1, 1);
-	}
-      else if ((tmp = legitimize_pe_coff_symbol (op1, false)) != NULL_RTX)
-	op1 = tmp;
-    }
-  else if (GET_CODE (op1) == CONST
-	   && GET_CODE (XEXP (op1, 0)) == PLUS
-	   && GET_CODE (XEXP (XEXP (op1, 0), 0)) == SYMBOL_REF)
-    {
-      rtx addend = XEXP (XEXP (op1, 0), 1);
-      rtx symbol = XEXP (XEXP (op1, 0), 0);
-      rtx tmp;
 
-      model = SYMBOL_REF_TLS_MODEL (symbol);
       if (model)
-	tmp = legitimize_tls_address (symbol, model, true);
+	op1 = legitimize_tls_address (op1, model, true);
+      else if (ix86_force_load_from_GOT_p (op1))
+	{
+	  /* Load the external function address via GOT slot to avoid PLT.  */
+	  op1 = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, op1),
+				(TARGET_64BIT
+				 ? UNSPEC_GOTPCREL
+				 : UNSPEC_GOT));
+	  op1 = gen_rtx_CONST (Pmode, op1);
+	  op1 = gen_const_mem (Pmode, op1);
+	  set_mem_alias_set (op1, ix86_GOT_alias_set ());
+	}
       else
-        tmp = legitimize_pe_coff_symbol (symbol, true);
-
-      if (tmp)
 	{
-	  tmp = force_operand (tmp, NULL);
-	  tmp = expand_simple_binop (Pmode, PLUS, tmp, addend,
-				     op0, 1, OPTAB_DIRECT);
-	  if (tmp == op0)
-	    return;
-	  op1 = convert_to_mode (mode, tmp, 1);
+	  tmp = legitimize_pe_coff_symbol (op1, addend != NULL_RTX);
+	  if (tmp)
+	    {
+	      op1 = tmp;
+	      if (!addend)
+		break;
+	    }
+	  else
+	    {
+	      op1 = operands[1];
+	      break;
+	    }
 	}
+
+      if (addend)
+	{
+	  op1 = force_operand (op1, NULL_RTX);
+	  op1 = expand_simple_binop (Pmode, PLUS, op1, addend,
+				     op0, 1, OPTAB_DIRECT);
+	}
+      else
+	op1 = force_operand (op1, op0);
+
+      if (op1 == op0)
+	return;
+
+      op1 = convert_to_mode (mode, op1, 1);
+
+    default:
+      break;
     }
 
   if ((flag_pic || MACHOPIC_INDIRECT)
@@ -19480,12 +19610,29 @@ ix86_expand_vector_move (machine_mode mode, rtx operands[])
      of the register, once we have that information we may be able
      to handle some of them more efficiently.  */
   if (can_create_pseudo_p ()
-      && register_operand (op0, mode)
       && (CONSTANT_P (op1)
 	  || (SUBREG_P (op1)
 	      && CONSTANT_P (SUBREG_REG (op1))))
-      && !standard_sse_constant_p (op1, mode))
-    op1 = validize_mem (force_const_mem (mode, op1));
+      && ((register_operand (op0, mode)
+	   && !standard_sse_constant_p (op1, mode))
+	  /* ix86_expand_vector_move_misalign() does not like constants.  */
+	  || (SSE_REG_MODE_P (mode)
+	      && MEM_P (op0)
+	      && MEM_ALIGN (op0) < align)))
+    {
+      if (SUBREG_P (op1))
+	{
+	  machine_mode imode = GET_MODE (SUBREG_REG (op1));
+	  rtx r = force_const_mem (imode, SUBREG_REG (op1));
+	  if (r)
+	    r = validize_mem (r);
+	  else
+	    r = force_reg (imode, SUBREG_REG (op1));
+	  op1 = simplify_gen_subreg (mode, r, imode, SUBREG_BYTE (op1));
+	}
+      else
+	op1 = validize_mem (force_const_mem (mode, op1));
+    }
 
   /* We need to check memory alignment for SSE mode since attribute
      can make operands unaligned.  */
@@ -19496,13 +19643,8 @@ ix86_expand_vector_move (machine_mode mode, rtx operands[])
     {
       rtx tmp[2];
 
-      /* ix86_expand_vector_move_misalign() does not like constants ... */
-      if (CONSTANT_P (op1)
-	  || (SUBREG_P (op1)
-	      && CONSTANT_P (SUBREG_REG (op1))))
-	op1 = validize_mem (force_const_mem (mode, op1));
-
-      /* ... nor both arguments in memory.  */
+      /* ix86_expand_vector_move_misalign() does not like both
+	 arguments in memory.  */
       if (!register_operand (op0, mode)
 	  && !register_operand (op1, mode))
 	op1 = force_reg (mode, op1);
@@ -23592,17 +23734,33 @@ ix86_fp_cmp_code_to_pcmp_immediate (enum rtx_code code)
   switch (code)
     {
     case EQ:
-      return 0x08;
+      return 0x00;
     case NE:
       return 0x04;
     case GT:
-      return 0x16;
+      return 0x0e;
     case LE:
-      return 0x1a;
+      return 0x02;
     case GE:
-      return 0x15;
+      return 0x0d;
     case LT:
-      return 0x19;
+      return 0x01;
+    case UNLE:
+      return 0x0a;
+    case UNLT:
+      return 0x09;
+    case UNGE:
+      return 0x05;
+    case UNGT:
+      return 0x06;
+    case UNEQ:
+      return 0x18;
+    case LTGT:
+      return 0x0c;
+    case ORDERED:
+      return 0x07;
+    case UNORDERED:
+      return 0x03;
     default:
       gcc_unreachable ();
     }
@@ -27880,18 +28038,19 @@ ix86_expand_call (rtx retval, rtx fnaddr, rtx callarg1,
   return call;
 }
 
-/* Return true if the function being called was marked with attribute "noplt"
-   or using -fno-plt and we are compiling for non-PIC and x86_64.  We need to
-   handle the non-PIC case in the backend because there is no easy interface
-   for the front-end to force non-PLT calls to use the GOT.  This is currently
-   used only with 64-bit ELF targets to call the function marked "noplt"
-   indirectly.  */
+/* Return true if the function being called was marked with attribute
+   "noplt" or using -fno-plt and we are compiling for non-PIC.  We need
+   to handle the non-PIC case in the backend because there is no easy
+   interface for the front-end to force non-PLT calls to use the GOT.
+   This is currently used only with 64-bit or 32-bit GOT32X ELF targets
+   to call the function marked "noplt" indirectly.  */
 
 static bool
 ix86_nopic_noplt_attribute_p (rtx call_op)
 {
   if (flag_pic || ix86_cmodel == CM_LARGE
-      || !TARGET_64BIT || TARGET_MACHO || TARGET_SEH || TARGET_PECOFF
+      || !(TARGET_64BIT || HAVE_AS_IX86_GOT32X)
+      || TARGET_MACHO || TARGET_SEH || TARGET_PECOFF
       || SYMBOL_REF_LOCAL_P (call_op))
     return false;
 
@@ -27919,7 +28078,12 @@ ix86_output_call_insn (rtx_insn *insn, rtx call_op)
       if (direct_p)
 	{
 	  if (ix86_nopic_noplt_attribute_p (call_op))
-	    xasm = "%!jmp\t{*%p0@GOTPCREL(%%rip)|[QWORD PTR %p0@GOTPCREL[rip]]}";
+	    {
+	      if (TARGET_64BIT)
+		xasm = "%!jmp\t{*%p0@GOTPCREL(%%rip)|[QWORD PTR %p0@GOTPCREL[rip]]}";
+	      else
+		xasm = "%!jmp\t{*%p0@GOT|[DWORD PTR %p0@GOT]}";
+	    }
 	  else
 	    xasm = "%!jmp\t%P0";
 	}
@@ -27967,7 +28131,12 @@ ix86_output_call_insn (rtx_insn *insn, rtx call_op)
   if (direct_p)
     {
       if (ix86_nopic_noplt_attribute_p (call_op))
-	xasm = "%!call\t{*%p0@GOTPCREL(%%rip)|[QWORD PTR %p0@GOTPCREL[rip]]}";
+	{
+	  if (TARGET_64BIT)
+	    xasm = "%!call\t{*%p0@GOTPCREL(%%rip)|[QWORD PTR %p0@GOTPCREL[rip]]}";
+	  else
+	    xasm = "%!call\t{*%p0@GOT|[DWORD PTR %p0@GOT]}";
+	}
       else
 	xasm = "%!call\t%P0";
     }
@@ -32718,6 +32887,8 @@ enum ix86_builtins
   /* TFmode support builtins.  */
   IX86_BUILTIN_INFQ,
   IX86_BUILTIN_HUGE_VALQ,
+  IX86_BUILTIN_NANQ,
+  IX86_BUILTIN_NANSQ,
   IX86_BUILTIN_FABSQ,
   IX86_BUILTIN_COPYSIGNQ,
 
@@ -38105,11 +38276,28 @@ ix86_fold_builtin (tree fndecl, int n_args,
     {
       enum ix86_builtins fn_code = (enum ix86_builtins)
 				   DECL_FUNCTION_CODE (fndecl);
-      if (fn_code ==  IX86_BUILTIN_CPU_IS
-	  || fn_code == IX86_BUILTIN_CPU_SUPPORTS)
+      switch (fn_code)
 	{
+	case IX86_BUILTIN_CPU_IS:
+	case IX86_BUILTIN_CPU_SUPPORTS:
 	  gcc_assert (n_args == 1);
-          return fold_builtin_cpu (fndecl, args);
+	  return fold_builtin_cpu (fndecl, args);
+
+	case IX86_BUILTIN_NANQ:
+	case IX86_BUILTIN_NANSQ:
+	  {
+	    tree type = TREE_TYPE (TREE_TYPE (fndecl));
+	    const char *str = c_getstr (*args);
+	    int quiet = fn_code == IX86_BUILTIN_NANQ;
+	    REAL_VALUE_TYPE real;
+
+	    if (str && real_nan (&real, str, quiet, TYPE_MODE (type)))
+	      return build_real (type, real);
+	    return NULL_TREE;
+	  }
+
+	default:
+	  break;
 	}
     }
 
@@ -38210,7 +38398,7 @@ ix86_init_builtins_va_builtins_abi (void)
 static void
 ix86_init_builtin_types (void)
 {
-  tree float128_type_node, float80_type_node;
+  tree float128_type_node, float80_type_node, const_string_type_node;
 
   /* The __float80 type.  */
   float80_type_node = long_double_type_node;
@@ -38230,6 +38418,10 @@ ix86_init_builtin_types (void)
   layout_type (float128_type_node);
   lang_hooks.types.register_builtin_type (float128_type_node, "__float128");
 
+  const_string_type_node
+    = build_pointer_type (build_qualified_type
+			  (char_type_node, TYPE_QUAL_CONST));
+
   /* This macro is built by i386-builtin-types.awk.  */
   DEFINE_BUILTIN_PRIMITIVE_TYPES;
 }
@@ -38237,7 +38429,7 @@ ix86_init_builtin_types (void)
 static void
 ix86_init_builtins (void)
 {
-  tree t;
+  tree ftype, decl;
 
   ix86_init_builtin_types ();
 
@@ -38250,19 +38442,31 @@ ix86_init_builtins (void)
   def_builtin_const (0, "__builtin_huge_valq",
 		     FLOAT128_FTYPE_VOID, IX86_BUILTIN_HUGE_VALQ);
 
+  ftype = ix86_get_builtin_func_type (FLOAT128_FTYPE_CONST_STRING);
+  decl = add_builtin_function ("__builtin_nanq", ftype, IX86_BUILTIN_NANQ,
+			       BUILT_IN_MD, "nanq", NULL_TREE);
+  TREE_READONLY (decl) = 1;
+  ix86_builtins[(int) IX86_BUILTIN_NANQ] = decl;
+
+  decl = add_builtin_function ("__builtin_nansq", ftype, IX86_BUILTIN_NANSQ,
+			       BUILT_IN_MD, "nansq", NULL_TREE);
+  TREE_READONLY (decl) = 1;
+  ix86_builtins[(int) IX86_BUILTIN_NANSQ] = decl;
+
   /* We will expand them to normal call if SSE isn't available since
      they are used by libgcc. */
-  t = ix86_get_builtin_func_type (FLOAT128_FTYPE_FLOAT128);
-  t = add_builtin_function ("__builtin_fabsq", t, IX86_BUILTIN_FABSQ,
-			    BUILT_IN_MD, "__fabstf2", NULL_TREE);
-  TREE_READONLY (t) = 1;
-  ix86_builtins[(int) IX86_BUILTIN_FABSQ] = t;
+  ftype = ix86_get_builtin_func_type (FLOAT128_FTYPE_FLOAT128);
+  decl = add_builtin_function ("__builtin_fabsq", ftype, IX86_BUILTIN_FABSQ,
+			       BUILT_IN_MD, "__fabstf2", NULL_TREE);
+  TREE_READONLY (decl) = 1;
+  ix86_builtins[(int) IX86_BUILTIN_FABSQ] = decl;
 
-  t = ix86_get_builtin_func_type (FLOAT128_FTYPE_FLOAT128_FLOAT128);
-  t = add_builtin_function ("__builtin_copysignq", t, IX86_BUILTIN_COPYSIGNQ,
-			    BUILT_IN_MD, "__copysigntf3", NULL_TREE);
-  TREE_READONLY (t) = 1;
-  ix86_builtins[(int) IX86_BUILTIN_COPYSIGNQ] = t;
+  ftype = ix86_get_builtin_func_type (FLOAT128_FTYPE_FLOAT128_FLOAT128);
+  decl = add_builtin_function ("__builtin_copysignq", ftype,
+			       IX86_BUILTIN_COPYSIGNQ, BUILT_IN_MD,
+			       "__copysigntf3", NULL_TREE);
+  TREE_READONLY (decl) = 1;
+  ix86_builtins[(int) IX86_BUILTIN_COPYSIGNQ] = decl;
 
   ix86_init_tm_builtins ();
   ix86_init_mmx_sse_builtins ();
@@ -41462,6 +41666,10 @@ ix86_expand_builtin (tree exp, rtx target, rtx subtarget,
 	emit_move_insn (target, tmp);
 	return target;
       }
+
+    case IX86_BUILTIN_NANQ:
+    case IX86_BUILTIN_NANSQ:
+      return expand_call (exp, target, ignore);
 
     case IX86_BUILTIN_RDPMC:
     case IX86_BUILTIN_RDTSC:
@@ -48605,8 +48813,19 @@ void ix86_emit_swdivsf (rtx res, rtx a, rtx b, machine_mode mode)
 
   /* x0 = rcp(b) estimate */
   if (mode == V16SFmode || mode == V8DFmode)
-    emit_insn (gen_rtx_SET (x0, gen_rtx_UNSPEC (mode, gen_rtvec (1, b),
-						UNSPEC_RCP14)));
+    {
+      if (TARGET_AVX512ER)
+	{
+	  emit_insn (gen_rtx_SET (x0, gen_rtx_UNSPEC (mode, gen_rtvec (1, b),
+						      UNSPEC_RCP28)));
+	  /* res = a * x0 */
+	  emit_insn (gen_rtx_SET (res, gen_rtx_MULT (mode, a, x0)));
+	  return;
+	}
+      else
+	emit_insn (gen_rtx_SET (x0, gen_rtx_UNSPEC (mode, gen_rtvec (1, b),
+						    UNSPEC_RCP14)));
+    }
   else
     emit_insn (gen_rtx_SET (x0, gen_rtx_UNSPEC (mode, gen_rtvec (1, b),
 						UNSPEC_RCP)));
@@ -48641,6 +48860,24 @@ void ix86_emit_swsqrtsf (rtx res, rtx a, machine_mode mode, bool recip)
   e1 = gen_reg_rtx (mode);
   e2 = gen_reg_rtx (mode);
   e3 = gen_reg_rtx (mode);
+
+  if (TARGET_AVX512ER && mode == V16SFmode)
+    {
+      if (recip)
+	/* res = rsqrt28(a) estimate */
+	emit_insn (gen_rtx_SET (res, gen_rtx_UNSPEC (mode, gen_rtvec (1, a),
+						     UNSPEC_RSQRT28)));
+      else
+	{
+	  /* x0 = rsqrt28(a) estimate */
+	  emit_insn (gen_rtx_SET (x0, gen_rtx_UNSPEC (mode, gen_rtvec (1, a),
+						      UNSPEC_RSQRT28)));
+	  /* res = rcp28(x0) estimate */
+	  emit_insn (gen_rtx_SET (res, gen_rtx_UNSPEC (mode, gen_rtvec (1, x0),
+						       UNSPEC_RCP28)));
+	}
+      return;
+    }
 
   real_from_integer (&r, VOIDmode, -3, SIGNED);
   mthree = const_double_from_real_value (r, SFmode);
@@ -54358,10 +54595,13 @@ ix86_get_mask_mode (unsigned nunits, unsigned vector_size)
 /* Return class of registers which could be used for pseudo of MODE
    and of class RCLASS for spilling instead of memory.  Return NO_REGS
    if it is not possible or non-profitable.  */
+
+/* Disabled due to PRs 70902, 71453, 71555, 71596 and 71657.  */
+
 static reg_class_t
 ix86_spill_class (reg_class_t rclass, machine_mode mode)
 {
-  if (TARGET_GENERAL_REGS_SSE_SPILL
+  if (0 && TARGET_GENERAL_REGS_SSE_SPILL
       && TARGET_SSE2
       && TARGET_INTER_UNIT_MOVES_TO_VEC
       && TARGET_INTER_UNIT_MOVES_FROM_VEC
@@ -55475,6 +55715,7 @@ ix86_addr_space_zero_address_valid (addr_space_t as)
 #undef TARGET_LOOP_UNROLL_ADJUST
 #define TARGET_LOOP_UNROLL_ADJUST ix86_loop_unroll_adjust
 
+/* Disabled due to PRs 70902, 71453, 71555, 71596 and 71657.  */
 #undef TARGET_SPILL_CLASS
 #define TARGET_SPILL_CLASS ix86_spill_class
 

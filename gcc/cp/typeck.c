@@ -36,6 +36,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/c-objc.h"
 #include "c-family/c-ubsan.h"
 #include "params.h"
+#include "gcc-rich-location.h"
 
 static tree cp_build_addr_expr_strict (tree, tsubst_flags_t);
 static tree cp_build_function_call (tree, tree, tsubst_flags_t);
@@ -2796,6 +2797,8 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	    return error_mark_node;
 	  if (!access_path)
 	    {
+	      if (any_dependent_bases_p (object_type))
+		goto dependent;
 	      if (complain & tf_error)
 		error ("%qT is not a base of %qT", scope, object_type);
 	      return error_mark_node;
@@ -2831,12 +2834,9 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 		  if (guessed_id)
 		    {
 		      location_t bogus_component_loc = input_location;
-		      rich_location rich_loc (line_table, bogus_component_loc);
-		      source_range bogus_component_range =
-			get_range_from_loc (line_table, bogus_component_loc);
-		      rich_loc.add_fixit_replace
-			(bogus_component_range,
-			 IDENTIFIER_POINTER (guessed_id));
+		      gcc_rich_location rich_loc (bogus_component_loc);
+		      rich_loc.add_fixit_misspelled_id (bogus_component_loc,
+							guessed_id);
 		      error_at_rich_loc
 			(&rich_loc,
 			 "%q#T has no member named %qE; did you mean %qE?",
@@ -7515,7 +7515,8 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
   if (error_operand_p (lhs) || error_operand_p (rhs))
     return error_mark_node;
 
-  /* Handle control structure constructs used as "lvalues".  */
+  /* Handle control structure constructs used as "lvalues".  Note that we
+     leave COMPOUND_EXPR on the LHS because it is sequenced after the RHS.  */
   switch (TREE_CODE (lhs))
     {
       /* Handle --foo = 5; as these are valid constructs in C++.  */
@@ -7525,31 +7526,16 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 	lhs = build2 (TREE_CODE (lhs), TREE_TYPE (lhs),
 		      cp_stabilize_reference (TREE_OPERAND (lhs, 0)),
 		      TREE_OPERAND (lhs, 1));
-      newrhs = cp_build_modify_expr (loc, TREE_OPERAND (lhs, 0),
-				     modifycode, rhs, complain);
-      if (newrhs == error_mark_node)
-	return error_mark_node;
-      return build2 (COMPOUND_EXPR, lhstype, lhs, newrhs);
-
-      /* Handle (a, b) used as an "lvalue".  */
-    case COMPOUND_EXPR:
-      newrhs = cp_build_modify_expr (loc, TREE_OPERAND (lhs, 1),
-				     modifycode, rhs, complain);
-      if (newrhs == error_mark_node)
-	return error_mark_node;
-      return build2 (COMPOUND_EXPR, lhstype,
-		     TREE_OPERAND (lhs, 0), newrhs);
+      lhs = build2 (COMPOUND_EXPR, lhstype, lhs, TREE_OPERAND (lhs, 0));
+      break;
 
     case MODIFY_EXPR:
       if (TREE_SIDE_EFFECTS (TREE_OPERAND (lhs, 0)))
 	lhs = build2 (TREE_CODE (lhs), TREE_TYPE (lhs),
 		      cp_stabilize_reference (TREE_OPERAND (lhs, 0)),
 		      TREE_OPERAND (lhs, 1));
-      newrhs = cp_build_modify_expr (loc, TREE_OPERAND (lhs, 0), modifycode,
-				     rhs, complain);
-      if (newrhs == error_mark_node)
-	return error_mark_node;
-      return build2 (COMPOUND_EXPR, lhstype, lhs, newrhs);
+      lhs = build2 (COMPOUND_EXPR, lhstype, lhs, TREE_OPERAND (lhs, 0));
+      break;
 
     case MIN_EXPR:
     case MAX_EXPR:

@@ -1,3 +1,28 @@
+2016-06-17  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/libgomp.c++/target-21.C: New test.
+
+2016-06-16  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/libgomp.c++/target-20.C: New test.
+
+2016-06-10  Thomas Schwinge  <thomas@codesourcery.com>
+	    Cesar Philippidis  <cesar@codesourcery.com>
+
+	PR middle-end/71373
+	* libgomp.oacc-c/nested-function-1.c: New file.
+	* libgomp.oacc-c/nested-function-2.c: Likewise.
+	* libgomp.oacc-fortran/nested-function-1.f90: Likewise.
+	* libgomp.oacc-fortran/nested-function-2.f90: Likewise.
+	* libgomp.oacc-fortran/nested-function-3.f90: Likewise.
+
+2016-06-10  Thomas Schwinge  <thomas@codesourcery.com>
+
+	PR c/71381
+	* testsuite/libgomp.oacc-c-c++-common/cache-1.c: #include
+	"../../../gcc/testsuite/c-c++-common/goacc/cache-1.c".
+	* testsuite/libgomp.oacc-fortran/cache-1.f95: New file.
+
 2016-06-03  Chung-Lin Tang  <cltang@codesourcery.com>
 
 	* testsuite/libgomp.oacc-fortran/reduction-8.f90: New testcase.

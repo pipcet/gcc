@@ -482,6 +482,7 @@ enum c_inline_static_type {
 
 /* in c-parser.c */
 extern void c_parse_init (void);
+extern bool c_keyword_starts_typename (enum rid keyword);
 
 /* in c-aux-info.c */
 extern void gen_aux_info_record (tree, int, int, int);
@@ -639,7 +640,7 @@ extern void finish_implicit_inits (location_t, struct obstack *);
 extern void push_init_level (location_t, int, struct obstack *);
 extern struct c_expr pop_init_level (location_t, int, struct obstack *);
 extern void set_init_index (location_t, tree, tree, struct obstack *);
-extern void set_init_label (location_t, tree, struct obstack *);
+extern void set_init_label (location_t, tree, location_t, struct obstack *);
 extern void process_init_element (location_t, struct c_expr, bool,
 				  struct obstack *);
 extern tree build_compound_literal (location_t, tree, tree, bool);

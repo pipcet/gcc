@@ -22,40 +22,40 @@
 #include <testsuite_hooks.h>
 
 template<typename _USet>
-void test()
-{
-  bool test __attribute__((unused)) = true;
-  _USet us;
-  typedef typename _USet::size_type size_type;
-  bool rehashed = false;
-  for (int i = 0; i != 100000; ++i)
+  void test()
   {
-    size_type bkt_count = us.bucket_count();
-    us.insert(i);
-    if (bkt_count != us.bucket_count())
+    bool test __attribute__((unused)) = true;
+    _USet us;
+    typedef typename _USet::size_type size_type;
+    bool rehashed = false;
+    for (int i = 0; i != 100000; ++i)
       {
-	// Container has been rehashed, lets check that it won't be rehash again
-	// if we remove and restore the last 2 inserted elements:
-	rehashed = true;
-	bkt_count = us.bucket_count();
-	VERIFY( us.erase(i) == 1 );
-	VERIFY( bkt_count == us.bucket_count() );
-	if (i > 0)
+	size_type bkt_count = us.bucket_count();
+	us.insert(i);
+	if (bkt_count != us.bucket_count())
 	  {
-	    VERIFY( us.erase(i - 1) == 1 );
+	    // Container has been rehashed, lets check that it won't be rehash
+	    // again if we remove and restore the last 2 inserted elements:
+	    rehashed = true;
+	    bkt_count = us.bucket_count();
+	    VERIFY( us.erase(i) == 1 );
 	    VERIFY( bkt_count == us.bucket_count() );
+	    if (i > 0)
+	      {
+		VERIFY( us.erase(i - 1) == 1 );
+		VERIFY( bkt_count == us.bucket_count() );
 
-	    VERIFY( us.insert(i - 1).second );
+		VERIFY( us.insert(i - 1).second );
+		VERIFY( bkt_count == us.bucket_count() );
+	      }
+	    VERIFY( us.insert(i).second );
 	    VERIFY( bkt_count == us.bucket_count() );
 	  }
-	VERIFY( us.insert(i).second );
-	VERIFY( bkt_count == us.bucket_count() );
       }
-  }
 
-  // At lest we check a rehash once:
-  VERIFY( rehashed );
-}
+    // At lest we check a rehash once:
+    VERIFY( rehashed );
+  }
 
 template<typename _Value>
   using unordered_set_power2_rehash =

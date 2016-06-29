@@ -1270,6 +1270,7 @@ OBJS = \
 	gcse.o \
 	gcse-common.o \
 	ggc-common.o \
+	ggc-tests.o \
 	gimple.o \
 	gimple-builder.o \
 	gimple-expr.o \
@@ -1566,6 +1567,14 @@ ALL_HOST_BACKEND_OBJS = $(GCC_OBJS) $(OBJS) $(OBJS-libcommon) \
   $(GCOV_TOOL_OBJS) $(GENGTYPE_OBJS) gcc-ar.o gcc-nm.o gcc-ranlib.o \
   lto-wrapper.o collect-utils.o
 
+# for anything that is shared use the cc1plus profile data, as that
+# is likely the most exercised during the build
+ifeq ($(if $(wildcard ../stage_current),$(shell cat \
+  ../stage_current)),stageautofeedback)
+$(ALL_HOST_BACKEND_OBJS): ALL_COMPILERFLAGS += -fauto-profile=cc1plus.fda
+$(ALL_HOST_BACKEND_OBJS): cc1plus.fda
+endif
+
 # This lists all host object files, whether they are included in this
 # compilation or not.
 ALL_HOST_OBJS = $(ALL_HOST_FRONTEND_OBJS) $(ALL_HOST_BACKEND_OBJS)
@@ -1595,7 +1604,7 @@ MOSTLYCLEANFILES = insn-flags.h insn-config.h insn-codes.h \
  gcov-iov$(build_exeext) gcov$(exeext) gcov-dump$(exeext) \
  gcov-tool$(exeect) \
  gengtype$(exeext) *.[0-9][0-9].* *.[si] *-checksum.c libbackend.a \
- libcommon-target.a libcommon.a libgcc.mk
+ libcommon-target.a libcommon.a libgcc.mk perf.data
 
 # This symlink makes the full installation name of the driver be available
 # from within the *build* directory, for use when running the JIT library
@@ -2398,6 +2407,7 @@ GTFILES = $(CPP_ID_DATA_H) $(srcdir)/input.h $(srcdir)/coretypes.h \
   $(srcdir)/emit-rtl.c $(srcdir)/except.h $(srcdir)/explow.c $(srcdir)/expr.c \
   $(srcdir)/expr.h \
   $(srcdir)/function.c $(srcdir)/except.c \
+  $(srcdir)/ggc-tests.c \
   $(srcdir)/gcse.c $(srcdir)/godump.c \
   $(srcdir)/lists.c $(srcdir)/optabs-libfuncs.c \
   $(srcdir)/profile.c $(srcdir)/mcf.c \

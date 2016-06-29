@@ -189,7 +189,8 @@ in the following sections.
 
 @item C++ Language Options
 @xref{C++ Dialect Options,,Options Controlling C++ Dialect}.
-@gccoptlist{-fabi-version=@var{n}  -fno-access-control  -fcheck-new @gol
+@gccoptlist{-fabi-version=@var{n}  -fno-access-control @gol
+-fargs-in-order=@var{n} -fcheck-new @gol
 -fconstexpr-depth=@var{n}  -ffriend-injection @gol
 -fno-elide-constructors @gol
 -fno-enforce-eh-specs @gol
@@ -245,7 +246,8 @@ Objective-C and Objective-C++ Dialects}.
 @gccoptlist{-fmessage-length=@var{n}  @gol
 -fdiagnostics-show-location=@r{[}once@r{|}every-line@r{]}  @gol
 -fdiagnostics-color=@r{[}auto@r{|}never@r{|}always@r{]}  @gol
--fno-diagnostics-show-option -fno-diagnostics-show-caret}
+-fno-diagnostics-show-option -fno-diagnostics-show-caret @gol
+-fdiagnostics-parseable-fixits}
 
 @item Warning Options
 @xref{Warning Options,,Options to Request or Suppress Warnings}.
@@ -576,6 +578,8 @@ Objective-C and Objective-C++ Dialects}.
 -mfix-cortex-a53-835769  -mno-fix-cortex-a53-835769 @gol
 -mfix-cortex-a53-843419  -mno-fix-cortex-a53-843419 @gol
 -mlow-precision-recip-sqrt -mno-low-precision-recip-sqrt@gol
+-mlow-precision-sqrt -mno-low-precision-sqrt@gol
+-mlow-precision-div -mno-low-precision-div @gol
 -march=@var{name}  -mcpu=@var{name}  -mtune=@var{name}}
 
 @emph{Adapteva Epiphany Options}
@@ -640,7 +644,8 @@ Objective-C and Objective-C++ Dialects}.
 @emph{AVR Options}
 @gccoptlist{-mmcu=@var{mcu} -maccumulate-args -mbranch-cost=@var{cost} @gol
 -mcall-prologues -mint8 -mn_flash=@var{size} -mno-interrupts @gol
--mrelax -mrmw -mstrict-X -mtiny-stack -nodevicelib -Waddr-space-convert}
+-mrelax -mrmw -mstrict-X -mtiny-stack -mfract-convert-truncate -nodevicelib @gol
+-Waddr-space-convert -Wmisspelled-isr}
 
 @emph{Blackfin Options}
 @gccoptlist{-mcpu=@var{cpu}@r{[}-@var{sirevision}@r{]} @gol
@@ -1005,6 +1010,7 @@ See RS/6000 and PowerPC Options.
 -mquad-memory-atomic -mno-quad-memory-atomic @gol
 -mcompat-align-parm -mno-compat-align-parm @gol
 -mupper-regs-df -mno-upper-regs-df -mupper-regs-sf -mno-upper-regs-sf @gol
+-mupper-regs-di -mno-upper-regs-di @gol
 -mupper-regs -mno-upper-regs -mmodulo -mno-modulo @gol
 -mfloat128 -mno-float128 -mfloat128-hardware -mno-float128-hardware @gol
 -mpower9-fusion -mno-mpower9-fusion -mpower9-vector -mno-power9-vector @gol
@@ -1144,7 +1150,7 @@ See RS/6000 and PowerPC Options.
 -mtune-ctrl=@var{feature-list} -mdump-tune-features -mno-default @gol
 -mfpmath=@var{unit} @gol
 -masm=@var{dialect}  -mno-fancy-math-387 @gol
--mno-fp-ret-in-387  -msoft-float @gol
+-mno-fp-ret-in-387 -m80387 -mhard-float -msoft-float @gol
 -mno-wide-multiply  -mrtd  -malign-double @gol
 -mpreferred-stack-boundary=@var{num} @gol
 -mincoming-stack-boundary=@var{num} @gol
@@ -2230,6 +2236,14 @@ option is used for the warning.
 @opindex fno-access-control
 Turn off all access checking.  This switch is mainly useful for working
 around bugs in the access control code.
+
+@item -fargs-in-order
+@opindex fargs-in-order
+Evaluate function arguments and operands of some binary expressions in
+left-to-right order, and evaluate the right side of an assignment
+before the left side, as proposed in P0145R2.  Enabled by default with
+@option{-std=c++1z}.  @option{-fargs-in-order=1} implements all of the
+ordering requirements except function arguments.
 
 @item -fcheck-new
 @opindex fcheck-new
@@ -3375,6 +3389,37 @@ information.  The source line is truncated to @var{n} characters, if
 the @option{-fmessage-length=n} option is given.  When the output is done
 to the terminal, the width is limited to the width given by the
 @env{COLUMNS} environment variable or, if not set, to the terminal width.
+
+@item -fdiagnostics-parseable-fixits
+@opindex fdiagnostics-parseable-fixits
+Emit fix-it hints in a machine-parseable format, suitable for consumption
+by IDEs.  For each fix-it, a line will be printed after the relevant
+diagnostic, starting with the string ``fix-it:''.  For example:
+
+@smallexample
+fix-it:"test.c":@{45:3-45:21@}:"gtk_widget_show_all"
+@end smallexample
+
+The location is expressed as a half-open range, expressed as a count of
+bytes, starting at byte 1 for the initial column.  In the above example,
+bytes 3 through 20 of line 45 of ``test.c'' are to be replaced with the
+given string:
+
+@smallexample
+00000000011111111112222222222
+12345678901234567890123456789
+  gtk_widget_showall (dlg);
+  ^^^^^^^^^^^^^^^^^^
+  gtk_widget_show_all
+@end smallexample
+
+The filename and replacement string escape backslash as ``\\", tab as ``\t'',
+newline as ``\n'', double quotes as ``\"'', non-printable characters as octal
+(e.g. vertical tab as ``\013'').
+
+An empty replacement string indicates that the given range is to be removed.
+An empty range (e.g. ``45:3-45:3'') indicates that the string is to
+be inserted at the given position.
 
 @end table
 
@@ -13022,10 +13067,31 @@ corresponding flag to the linker.
 @item -mno-low-precision-recip-sqrt
 @opindex mlow-precision-recip-sqrt
 @opindex mno-low-precision-recip-sqrt
-Enable or disable reciprocal square root approximation.
+Enable or disable the reciprocal square root approximation.
 This option only has an effect if @option{-ffast-math} or
 @option{-funsafe-math-optimizations} is used as well.  Enabling this reduces
 precision of reciprocal square root results to about 16 bits for
+single precision and to 32 bits for double precision.
+
+@item -mlow-precision-sqrt
+@item -mno-low-precision-sqrt
+@opindex -mlow-precision-sqrt
+@opindex -mno-low-precision-sqrt
+Enable or disable the square root approximation.
+This option only has an effect if @option{-ffast-math} or
+@option{-funsafe-math-optimizations} is used as well.  Enabling this reduces
+precision of square root results to about 16 bits for
+single precision and to 32 bits for double precision.
+If enabled, it implies @option{-mlow-precision-recip-sqrt}.
+
+@item -mlow-precision-div
+@item -mno-low-precision-div
+@opindex -mlow-precision-div
+@opindex -mno-low-precision-div
+Enable or disable the division approximation.
+This option only has an effect if @option{-ffast-math} or
+@option{-funsafe-math-optimizations} is used as well.  Enabling this reduces
+precision of division results to about 16 bits for
 single precision and to 32 bits for double precision.
 
 @item -march=@var{name}
@@ -13062,11 +13128,13 @@ processors implementing the target architecture.
 Specify the name of the target processor for which GCC should tune the
 performance of the code.  Permissible values for this option are:
 @samp{generic}, @samp{cortex-a35}, @samp{cortex-a53}, @samp{cortex-a57},
-@samp{cortex-a72}, @samp{exynos-m1}, @samp{qdf24xx}, @samp{thunderx},
-@samp{xgene1}, @samp{cortex-a57.cortex-a53}, @samp{cortex-a72.cortex-a53},
-@samp{native}.
+@samp{cortex-a72}, @samp{cortex-a73}, @samp{exynos-m1}, @samp{qdf24xx},
+@samp{thunderx}, @samp{xgene1}, @samp{vulcan}, @samp{cortex-a57.cortex-a53},
+@samp{cortex-a72.cortex-a53}, @samp{cortex-a73.cortex-a35},
+@samp{cortex-a73.cortex-a53}, @samp{native}.
 
-The values @samp{cortex-a57.cortex-a53}, @samp{cortex-a72.cortex-a53}
+The values @samp{cortex-a57.cortex-a53}, @samp{cortex-a72.cortex-a53},
+@samp{cortex-a73.cortex-a35}, @samp{cortex-a73.cortex-a53}
 specify that GCC should tune for a big.LITTLE system.
 
 Additionally on native AArch64 GNU/Linux systems the value
@@ -14122,7 +14190,7 @@ Permissible names are: @samp{arm2}, @samp{arm250},
 @samp{generic-armv7-a}, @samp{cortex-a5}, @samp{cortex-a7}, @samp{cortex-a8},
 @samp{cortex-a9}, @samp{cortex-a12}, @samp{cortex-a15}, @samp{cortex-a17},
 @samp{cortex-a32}, @samp{cortex-a35}, @samp{cortex-a53}, @samp{cortex-a57},
-@samp{cortex-a72}, @samp{cortex-r4},
+@samp{cortex-a72}, @samp{cortex-a73}, @samp{cortex-r4},
 @samp{cortex-r4f}, @samp{cortex-r5}, @samp{cortex-r7}, @samp{cortex-r8},
 @samp{cortex-m7},
 @samp{cortex-m4},
@@ -14144,7 +14212,8 @@ Permissible names are: @samp{arm2}, @samp{arm250},
 Additionally, this option can specify that GCC should tune the performance
 of the code for a big.LITTLE system.  Permissible names are:
 @samp{cortex-a15.cortex-a7}, @samp{cortex-a17.cortex-a7},
-@samp{cortex-a57.cortex-a53}, @samp{cortex-a72.cortex-a53}.
+@samp{cortex-a57.cortex-a53}, @samp{cortex-a72.cortex-a53},
+@samp{cortex-a72.cortex-a35}, @samp{cortex-a73.cortex-a53}.
 
 @option{-mtune=generic-@var{arch}} specifies that GCC should tune the
 performance for a blend of processors within architecture @var{arch}.
@@ -14552,14 +14621,23 @@ sbiw r26, const   ; X -= const
 @opindex mtiny-stack
 Only change the lower 8@tie{}bits of the stack pointer.
 
+@item -mfract-convert-truncate
+@opindex mfract-convert-truncate
+Allow to use truncation instead of rounding towards zero for fractional fixed-point types.
+
 @item -nodevicelib
 @opindex nodevicelib
-Don't link against AVR-LibC's device specific library @code{libdev.a}.
+Don't link against AVR-LibC's device specific library @code{lib<mcu>.a}.
 
 @item -Waddr-space-convert
 @opindex Waddr-space-convert
 Warn about conversions between address spaces in the case where the
 resulting address space is not contained in the incoming address space.
+
+@item -Wmisspelled-isr
+@opindex Wmisspelled-isr
+Warn if the ISR is misspelled, i.e. without __vector prefix.
+Enabled by default.
 @end table
 
 @subsubsection @code{EIND} and Devices with More Than 128 Ki Bytes of Flash
@@ -20217,6 +20295,17 @@ Generate code that uses (does not use) the atomic quad word memory
 instructions.  The @option{-mquad-memory-atomic} option requires use of
 64-bit mode.
 
+@item -mupper-regs-di
+@itemx -mno-upper-regs-di
+@opindex mupper-regs-di
+@opindex mno-upper-regs-di
+Generate code that uses (does not use) the scalar instructions that
+target all 64 registers in the vector/scalar floating point register
+set that were added in version 2.06 of the PowerPC ISA when processing
+integers.  @option{-mupper-regs-di} is turned on by default if you use
+any of the @option{-mcpu=power7}, @option{-mcpu=power8},
+@option{-mcpu=power9}, or @option{-mvsx} options.
+
 @item -mupper-regs-df
 @itemx -mno-upper-regs-df
 @opindex mupper-regs-df
@@ -20225,8 +20314,8 @@ Generate code that uses (does not use) the scalar double precision
 instructions that target all 64 registers in the vector/scalar
 floating point register set that were added in version 2.06 of the
 PowerPC ISA.  @option{-mupper-regs-df} is turned on by default if you
-use any of the @option{-mcpu=power7}, @option{-mcpu=power8}, or
-@option{-mvsx} options.
+use any of the @option{-mcpu=power7}, @option{-mcpu=power8},
+@option{-mcpu=power9}, or @option{-mvsx} options.
 
 @item -mupper-regs-sf
 @itemx -mno-upper-regs-sf
@@ -20236,8 +20325,8 @@ Generate code that uses (does not use) the scalar single precision
 instructions that target all 64 registers in the vector/scalar
 floating point register set that were added in version 2.07 of the
 PowerPC ISA.  @option{-mupper-regs-sf} is turned on by default if you
-use either of the @option{-mcpu=power8} or @option{-mpower8-vector}
-options.
+use either of the @option{-mcpu=power8}, @option{-mpower8-vector}, or
+@option{-mpower9} options.
 
 @item -mupper-regs
 @itemx -mno-upper-regs
@@ -23307,13 +23396,67 @@ IDT WinChip 2 CPU, dealt in same way as i486 with additional MMX and 3DNow!@:
 instruction set support.
 
 @item c3
-VIA C3 CPU with MMX and 3DNow!@: instruction set support.  (No scheduling is
-implemented for this chip.)
+VIA C3 CPU with MMX and 3DNow!@: instruction set support.
+(No scheduling is implemented for this chip.)
 
 @item c3-2
 VIA C3-2 (Nehemiah/C5XL) CPU with MMX and SSE instruction set support.
-(No scheduling is
-implemented for this chip.)
+(No scheduling is implemented for this chip.)
+
+@item c7
+VIA C7 (Esther) CPU with MMX, SSE, SSE2 and SSE3 instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item samuel-2
+VIA Eden Samuel 2 CPU with MMX and 3DNow!@: instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item nehemiah
+VIA Eden Nehemiah CPU with MMX and SSE instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item esther
+VIA Eden Esther CPU with MMX, SSE, SSE2 and SSE3 instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item eden-x2
+VIA Eden X2 CPU with x86-64, MMX, SSE, SSE2 and SSE3 instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item eden-x4
+VIA Eden X4 CPU with x86-64, MMX, SSE, SSE2, SSE3, SSSE3, SSE4.1, SSE4.2,
+AVX and AVX2 instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item nano
+Generic VIA Nano CPU with x86-64, MMX, SSE, SSE2, SSE3 and SSSE3
+instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item nano-1000
+VIA Nano 1xxx CPU with x86-64, MMX, SSE, SSE2, SSE3 and SSSE3
+instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item nano-2000
+VIA Nano 2xxx CPU with x86-64, MMX, SSE, SSE2, SSE3 and SSSE3
+instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item nano-3000
+VIA Nano 3xxx CPU with x86-64, MMX, SSE, SSE2, SSE3, SSSE3 and SSE4.1
+instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item nano-x2
+VIA Nano Dual Core CPU with x86-64, MMX, SSE, SSE2, SSE3, SSSE3 and SSE4.1
+instruction set support.
+(No scheduling is implemented for this chip.)
+
+@item nano-x4
+VIA Nano Quad Core CPU with x86-64, MMX, SSE, SSE2, SSE3, SSSE3 and SSE4.1
+instruction set support.
+(No scheduling is implemented for this chip.)
 
 @item geode
 AMD Geode embedded processor with MMX and 3DNow!@: instruction set support.
@@ -23440,7 +23583,15 @@ Control whether or not the compiler uses IEEE floating-point
 comparisons.  These correctly handle the case where the result of a
 comparison is unordered.
 
+@item -m80387
+@item -mhard-float
+@opindex 80387
+@opindex mhard-float
+Generate output containing 80387 instructions for floating point.
+
+@item -mno-80387
 @item -msoft-float
+@opindex no-80387
 @opindex msoft-float
 Generate output containing library calls for floating point.
 

@@ -88,15 +88,13 @@ DEF_PREDICTOR (PRED_NORETURN, "noreturn call", PROB_VERY_LIKELY,
 DEF_PREDICTOR (PRED_COLD_FUNCTION, "cold function call", PROB_VERY_LIKELY,
 	       PRED_FLAG_FIRST_MATCH)
 
-/* Loopback edge is taken.
-   FIXME: This is currently disabled because loop_optimizer_init force
-   loops to have simple latches.  */
-DEF_PREDICTOR (PRED_LOOP_BRANCH, "loop branch", HITRATE (86),
+/* Edge causing loop to terminate is probably not taken.  */
+DEF_PREDICTOR (PRED_LOOP_EXIT, "loop exit", HITRATE (85),
 	       PRED_FLAG_FIRST_MATCH)
 
-/* Edge causing loop to terminate is probably not taken.  */
-DEF_PREDICTOR (PRED_LOOP_EXIT, "loop exit", HITRATE (92),
-	       PRED_FLAG_FIRST_MATCH)
+/* Same as LOOP_EXIT but for loops containing recursive call.  */
+DEF_PREDICTOR (PRED_LOOP_EXIT_WITH_RECURSION, "loop exit with recursion",
+	       HITRATE (72), PRED_FLAG_FIRST_MATCH)
 
 /* Edge causing loop to terminate by computing value used by later
    conditional.  */
@@ -111,12 +109,18 @@ DEF_PREDICTOR (PRED_TREE_POINTER, "pointer (on trees)", HITRATE (70), 0)
 DEF_PREDICTOR (PRED_OPCODE_POSITIVE, "opcode values positive", HITRATE (64), 0)
 DEF_PREDICTOR (PRED_OPCODE_NONEQUAL, "opcode values nonequal", HITRATE (66), 0)
 DEF_PREDICTOR (PRED_FPOPCODE, "fp_opcode", HITRATE (90), 0)
-DEF_PREDICTOR (PRED_TREE_OPCODE_POSITIVE, "opcode values positive (on trees)", HITRATE (64), 0)
-DEF_PREDICTOR (PRED_TREE_OPCODE_NONEQUAL, "opcode values nonequal (on trees)", HITRATE (66), 0)
+DEF_PREDICTOR (PRED_TREE_OPCODE_POSITIVE, "opcode values positive (on trees)",
+	       HITRATE (64), 0)
+DEF_PREDICTOR (PRED_TREE_OPCODE_NONEQUAL, "opcode values nonequal (on trees)",
+	       HITRATE (66), 0)
 DEF_PREDICTOR (PRED_TREE_FPOPCODE, "fp_opcode (on trees)", HITRATE (90), 0)
 
 /* Branch guarding call is probably taken.  */
 DEF_PREDICTOR (PRED_CALL, "call", HITRATE (67), 0)
+
+/* Recursive calls are usually not taken or the function will recurse
+   indefinitely.  */
+DEF_PREDICTOR (PRED_RECURSIVE_CALL, "recursive call", HITRATE (75), 0)
 
 /* Branch causing function to terminate is probably not taken. 
    FIXME: early return currently predicts code:
@@ -154,6 +158,18 @@ DEF_PREDICTOR (PRED_LOOP_IV_COMPARE_GUESS, "guess loop iv compare",
 DEF_PREDICTOR (PRED_LOOP_IV_COMPARE, "loop iv compare", PROB_VERY_LIKELY,
 	       PRED_FLAG_FIRST_MATCH)
 
+/* In the following code
+   for (loop1)
+     if (cond)
+       for (loop2)
+	 body;
+   guess that cond is unlikely.  */
+DEF_PREDICTOR (PRED_LOOP_GUARD, "loop guard", HITRATE (66), 0)
+
+/* Same but for loops containing recursion.  */
+DEF_PREDICTOR (PRED_LOOP_GUARD_WITH_RECURSION, "loop guard with recursion",
+	       HITRATE (85), 0)
+
 /* Branches to hot labels are likely.  */
 DEF_PREDICTOR (PRED_HOT_LABEL, "hot label", HITRATE (85), 0)
 
@@ -165,37 +181,49 @@ DEF_PREDICTOR (PRED_COLD_LABEL, "cold label", PROB_VERY_LIKELY,
 /* The following predictors are used in Fortran. */
 
 /* Branch leading to an integer overflow are extremely unlikely.  */
-DEF_PREDICTOR (PRED_FORTRAN_OVERFLOW, "overflow", PROB_ALWAYS,
+DEF_PREDICTOR (PRED_FORTRAN_OVERFLOW, "Fortran overflow", PROB_ALWAYS,
 	       PRED_FLAG_FIRST_MATCH)
 
 /* Branch leading to a failure status are unlikely.  This can occur for out
-   of memory or when trying to allocate an already allocated allocated or
-   deallocating an already deallocated allocatable.  This predictor only
-   occurs when the user explicitly asked for a return status.  By default,
-   the code aborts, which is handled via PRED_NORETURN.
-   FIXME: the hitrate really ought to be close to 100%.  */
-DEF_PREDICTOR (PRED_FORTRAN_FAIL_ALLOC, "fail alloc", HITRATE (62), 0)
+   of memory.  This predictor only occurs when the user explicitly asked
+   for a return status.  By default, the code aborts,
+   which is handled via PRED_NORETURN.  */
+DEF_PREDICTOR (PRED_FORTRAN_FAIL_ALLOC, "Fortran fail alloc", PROB_VERY_LIKELY, 0)
+
+/* Predictor is used for an allocation of an already allocated memory or
+   deallocating an already deallocated allocatable.  */
+DEF_PREDICTOR (PRED_FORTRAN_REALLOC, \
+	       "Fortran repeated allocation/deallocation", PROB_LIKELY, 0)
 
 /* Branch leading to an I/O failure status are unlikely.  This predictor is
    used for I/O failures such as for invalid unit numbers.  This predictor
    only occurs when the user explicitly asked for a return status.  By default,
    the code aborts, which is handled via PRED_NORETURN.  */
-DEF_PREDICTOR (PRED_FORTRAN_FAIL_IO, "fail IO", HITRATE (85), 0)
+DEF_PREDICTOR (PRED_FORTRAN_FAIL_IO, "Fortran fail IO", HITRATE (85), 0)
 
 /* Branch leading to a run-time warning message which is printed only once
    are unlikely.  The print-warning branch itself can be likely or unlikely.  */
-DEF_PREDICTOR (PRED_FORTRAN_WARN_ONCE, "warn once", HITRATE (75), 0)
+DEF_PREDICTOR (PRED_FORTRAN_WARN_ONCE, "Fortran warn once", HITRATE (75), 0)
 
 /* Branch belonging to a zero-sized array.  */
-DEF_PREDICTOR (PRED_FORTRAN_SIZE_ZERO, "zero-sized array", HITRATE(99), 0)
+DEF_PREDICTOR (PRED_FORTRAN_SIZE_ZERO, "Fortran zero-sized array", \
+	       HITRATE (99), 0)
 
 /* Branch belonging to an invalid bound index, in a context where it is
    standard conform and well defined but rather pointless and, hence, rather
    unlikely to occur.  */
-DEF_PREDICTOR (PRED_FORTRAN_INVALID_BOUND, "zero-sized array", HITRATE(90), 0)
+DEF_PREDICTOR (PRED_FORTRAN_INVALID_BOUND, "Fortran invalid bound", \
+	       HITRATE (90), 0)
 
 /* Branch belonging to the handling of absent optional arguments.  This
    predictor is used when an optional dummy argument, associated with an
    absent argument, is passed on as actual argument to another procedure,
    which in turn has an optional argument.  */
-DEF_PREDICTOR (PRED_FORTRAN_ABSENT_DUMMY, "absent dummy", HITRATE(60), 0)
+DEF_PREDICTOR (PRED_FORTRAN_ABSENT_DUMMY, "Fortran absent dummy", \
+	       HITRATE (60), 0)
+
+/* Fortran DO statement generates a pre-header guard:
+   empty = (step > 0 ? to < from : to > from), which can be predicted
+   to be very likely.  */
+DEF_PREDICTOR (PRED_FORTRAN_LOOP_PREHEADER, "Fortran loop preheader", \
+	       HITRATE (99), 0)

@@ -1559,6 +1559,17 @@
   DONE;
 })
 
+(define_expand "rsqrtv16sf2"
+  [(set (match_operand:V16SF 0 "register_operand")
+	(unspec:V16SF
+	  [(match_operand:V16SF 1 "vector_operand")]
+	  UNSPEC_RSQRT28))]
+  "TARGET_SSE_MATH && TARGET_AVX512ER"
+{
+  ix86_emit_swsqrtsf (operands[0], operands[1], V16SFmode, true);
+  DONE;
+})
+
 (define_insn "<sse>_rsqrt<mode>2"
   [(set (match_operand:VF1_128_256 0 "register_operand" "=x")
 	(unspec:VF1_128_256
@@ -15211,6 +15222,19 @@
      (const_string "vector")
      (const_string "*")))
    (set_attr "mode" "<sseinsnmode>")])
+
+(define_insn "ptesttf2"
+  [(set (reg:CC FLAGS_REG)
+	(unspec:CC [(match_operand:TF 0 "register_operand" "Yr, *x, x")
+		    (match_operand:TF 1 "vector_operand" "YrBm, *xBm, xm")]
+		   UNSPEC_PTEST))]
+  "TARGET_SSE4_1"
+  "%vptest\t{%1, %0|%0, %1}"
+  [(set_attr "isa" "noavx,noavx,avx")
+   (set_attr "type" "ssecomi")
+   (set_attr "prefix_extra" "1")
+   (set_attr "prefix" "orig,orig,vex")
+   (set_attr "mode" "TI")])
 
 (define_insn "<sse4_1>_round<ssemodesuffix><avxsizesuffix>"
   [(set (match_operand:VF_128_256 0 "register_operand" "=Yr,*x,x")

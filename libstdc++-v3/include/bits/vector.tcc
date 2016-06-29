@@ -256,7 +256,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	if (__first == __last)
 	  _M_erase_at_end(__cur);
 	else
-	  insert(end(), __first, __last);
+	  _M_range_insert(end(), __first, __last,
+			  std::__iterator_category(__first));
       }
 
   template<typename _Tp, typename _Alloc>
@@ -342,7 +343,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 #if __cplusplus < 201103L
 	  *__position = __x_copy;
 #else
-	  *__position = _Tp(std::forward<_Args>(__args)...);
+	  _S_insert_aux_assign(__position, std::forward<_Args>(__args)...);
 #endif
 	}
       else

@@ -109,6 +109,19 @@ profitable_jump_thread_path (vec<basic_block, va_gc> *&path,
   /* Note BBI is not in the path yet, hence the +1 in the test below
      to make sure BBI is accounted for in the path length test.  */
   int path_length = path->length ();
+
+  /* We can get a length of 0 here when the statement that
+     makes a conditional generate a compile-time constant
+     result is in the same block as the conditional.
+
+     That's not really a jump threading opportunity, but instead is
+     simple cprop & simplification.  We could handle it here if we
+     wanted by wiring up all the incoming edges.  If we run this
+     early in IPA, that might be worth doing.   For now we just
+     reject that case.  */
+  if (path_length == 0)
+      return NULL;
+
   if (path_length + 1 > PARAM_VALUE (PARAM_MAX_FSM_THREAD_LENGTH))
     {
       if (dump_file && (dump_flags & TDF_DETAILS))
@@ -365,7 +378,7 @@ profitable_jump_thread_path (vec<basic_block, va_gc> *&path,
    register the path.   */
 
 static void
-convert_and_register_jump_thread_path (vec<basic_block, va_gc> *&path,
+convert_and_register_jump_thread_path (vec<basic_block, va_gc> *path,
 				       edge taken_edge)
 {
   vec<jump_thread_edge *> *jump_thread_path = new vec<jump_thread_edge *> ();
@@ -376,32 +389,10 @@ convert_and_register_jump_thread_path (vec<basic_block, va_gc> *&path,
       basic_block bb1 = (*path)[path->length () - j - 1];
       basic_block bb2 = (*path)[path->length () - j - 2];
 
-      /* This can happen when we have an SSA_NAME as a PHI argument and
-	 its initialization block is the head of the PHI argument's
-	 edge.  */
-      if (bb1 == bb2)
-	continue;
-
       edge e = find_edge (bb1, bb2);
       gcc_assert (e);
       jump_thread_edge *x = new jump_thread_edge (e, EDGE_FSM_THREAD);
       jump_thread_path->safe_push (x);
-    }
-
-  /* As a consequence of the test for duplicate blocks in the path
-     above, we can get a path with no blocks.  This happens if a
-     conditional can be fully evaluated at compile time using just
-     defining statements in the same block as the test.
-
-     When we no longer push the block associated with a PHI argument
-     onto the stack, then this as well as the test in the loop above
-     can be removed.  */
-  if (jump_thread_path->length () == 0)
-    {
-      jump_thread_path->release ();
-      delete jump_thread_path;
-      path->pop ();
-      return;
     }
 
   /* Add the edge taken when the control variable has value ARG.  */
@@ -411,9 +402,6 @@ convert_and_register_jump_thread_path (vec<basic_block, va_gc> *&path,
 
   register_jump_thread (jump_thread_path);
   --max_threaded_paths;
-
-  /* Remove BBI from the path.  */
-  path->pop ();
 }
 
 /* We trace the value of the SSA_NAME NAME back through any phi nodes looking
@@ -468,6 +456,9 @@ fsm_find_control_statement_thread_paths (tree name,
       seen_loop_phi = true;
     }
 
+  if (bb_loop_depth (last_bb_in_path) > bb_loop_depth (var_bb))
+    return;
+
   /* Following the chain of SSA_NAME definitions, we jumped from a definition in
      LAST_BB_IN_PATH to a definition in VAR_BB.  When these basic blocks are
      different, append to PATH the blocks from LAST_BB_IN_PATH to VAR_BB.  */
@@ -514,7 +505,9 @@ fsm_find_control_statement_thread_paths (tree name,
 	 NEXT_PATH.  Don't add them here to avoid pollution.  */
       for (unsigned int i = 0; i < next_path->length () - 1; i++)
 	{
-	  if (visited_bbs->contains ((*next_path)[i]))
+	  if (visited_bbs->contains ((*next_path)[i])
+	      || (bb_loop_depth (last_bb_in_path)
+		  > bb_loop_depth ((*next_path)[i])))
 	    {
 	      vec_free (next_path);
 	      return;
@@ -566,7 +559,12 @@ fsm_find_control_statement_thread_paths (tree name,
 	     into the canonical form and register it.  */
 	  edge taken_edge = profitable_jump_thread_path (path, bbi, name, arg);
 	  if (taken_edge)
-	    convert_and_register_jump_thread_path (path, taken_edge);
+	    {
+	      if (bb_loop_depth (taken_edge->src)
+		  >= bb_loop_depth (taken_edge->dest))
+		convert_and_register_jump_thread_path (path, taken_edge);
+	      path->pop ();
+	    }
 	}
     }
   else if (gimple_code (def_stmt) == GIMPLE_ASSIGN)
@@ -579,10 +577,24 @@ fsm_find_control_statement_thread_paths (tree name,
 
       else
 	{
+	  /* profitable_jump_thread_path is going to push the current
+	     block onto the path.  But the path will always have the current
+	     block at this point.  So we can just pop it.  */
+	  path->pop ();
+
 	  edge taken_edge = profitable_jump_thread_path (path, var_bb,
 						     name, arg);
 	  if (taken_edge)
-	    convert_and_register_jump_thread_path (path, taken_edge);
+	    {
+	      if (bb_loop_depth (taken_edge->src)
+		  >= bb_loop_depth (taken_edge->dest))
+		convert_and_register_jump_thread_path (path, taken_edge);
+	      path->pop ();
+	    }
+
+	  /* And put the current block back onto the path so that the
+	     state of the stack is unchanged when we leave.  */
+	  vec_safe_push (path, var_bb);
 	}
     }
 

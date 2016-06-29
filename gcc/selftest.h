@@ -27,32 +27,65 @@ along with GCC; see the file COPYING3.  If not see
 
 namespace selftest {
 
+/* A struct describing the source-location of a selftest, to make it
+   easier to track down failing tests.  */
+
+struct location
+{
+  location (const char *file, int line, const char *function)
+    : m_file (file), m_line (line), m_function (function) {}
+
+  const char *m_file;
+  int m_line;
+  const char *m_function;
+};
+
+/* A macro for use in selftests and by the ASSERT_ macros below,
+   constructing a selftest::location for the current source location.  */
+
+#define SELFTEST_LOCATION \
+  (::selftest::location (__FILE__, __LINE__, __FUNCTION__))
+
 /* The entrypoint for running all tests.  */
 
 extern void run_tests ();
 
 /* Record the successful outcome of some aspect of the test.  */
 
-extern void pass (const char *file, int line, const char *msg);
+extern void pass (const location &loc, const char *msg);
 
 /* Report the failed outcome of some aspect of the test and abort.  */
 
-extern void fail (const char *file, int line, const char *msg);
+extern void fail (const location &loc, const char *msg);
+
+/* As "fail", but using printf-style formatted output.  */
+
+extern void fail_formatted (const location &loc, const char *fmt, ...)
+ ATTRIBUTE_PRINTF_2;
+
+/* Implementation detail of ASSERT_STREQ.  */
+
+extern void assert_streq (const location &loc,
+			  const char *desc_expected, const char *desc_actual,
+			  const char *val_expected, const char *val_actual);
 
 /* Declarations for specific families of tests (by source file), in
    alphabetical order.  */
 extern void bitmap_c_tests ();
+extern void diagnostic_c_tests ();
 extern void diagnostic_show_locus_c_tests ();
 extern void et_forest_c_tests ();
 extern void fold_const_c_tests ();
 extern void function_tests_c_tests ();
 extern void gimple_c_tests ();
+extern void ggc_tests_c_tests ();
 extern void hash_map_tests_c_tests ();
 extern void hash_set_tests_c_tests ();
 extern void input_c_tests ();
 extern void pretty_print_c_tests ();
 extern void rtl_tests_c_tests ();
 extern void spellcheck_c_tests ();
+extern void spellcheck_tree_c_tests ();
 extern void tree_c_tests ();
 extern void tree_cfg_c_tests ();
 extern void vec_c_tests ();
@@ -73,9 +106,9 @@ extern int num_passes;
   const char *desc = "ASSERT_TRUE (" #EXPR ")";		\
   bool actual = (EXPR);					\
   if (actual)						\
-    ::selftest::pass (__FILE__, __LINE__, desc);	\
+    ::selftest::pass (SELFTEST_LOCATION, desc);	\
   else							\
-    ::selftest::fail (__FILE__, __LINE__, desc);		\
+    ::selftest::fail (SELFTEST_LOCATION, desc);		\
   SELFTEST_END_STMT
 
 /* Evaluate EXPR and coerce to bool, calling
@@ -87,9 +120,9 @@ extern int num_passes;
   const char *desc = "ASSERT_FALSE (" #EXPR ")";		\
   bool actual = (EXPR);					\
   if (actual)							\
-    ::selftest::fail (__FILE__, __LINE__, desc);				\
+    ::selftest::fail (SELFTEST_LOCATION, desc);				\
   else								\
-    ::selftest::pass (__FILE__, __LINE__, desc);				\
+    ::selftest::pass (SELFTEST_LOCATION, desc);				\
   SELFTEST_END_STMT
 
 /* Evaluate EXPECTED and ACTUAL and compare them with ==, calling
@@ -100,9 +133,9 @@ extern int num_passes;
   SELFTEST_BEGIN_STMT					       \
   const char *desc = "ASSERT_EQ (" #EXPECTED ", " #ACTUAL ")"; \
   if ((EXPECTED) == (ACTUAL))				       \
-    ::selftest::pass (__FILE__, __LINE__, desc);			       \
+    ::selftest::pass (SELFTEST_LOCATION, desc);			       \
   else							       \
-    ::selftest::fail (__FILE__, __LINE__, desc);			       \
+    ::selftest::fail (SELFTEST_LOCATION, desc);			       \
   SELFTEST_END_STMT
 
 /* Evaluate EXPECTED and ACTUAL and compare them with !=, calling
@@ -113,24 +146,28 @@ extern int num_passes;
   SELFTEST_BEGIN_STMT					       \
   const char *desc = "ASSERT_NE (" #EXPECTED ", " #ACTUAL ")"; \
   if ((EXPECTED) != (ACTUAL))				       \
-    ::selftest::pass (__FILE__, __LINE__, desc);			       \
+    ::selftest::pass (SELFTEST_LOCATION, desc);			       \
   else							       \
-    ::selftest::fail (__FILE__, __LINE__, desc);			       \
+    ::selftest::fail (SELFTEST_LOCATION, desc);			       \
   SELFTEST_END_STMT
 
 /* Evaluate EXPECTED and ACTUAL and compare them with strcmp, calling
    ::selftest::pass if they are equal,
    ::selftest::fail if they are non-equal.  */
 
-#define ASSERT_STREQ(EXPECTED, ACTUAL)			       \
-  SELFTEST_BEGIN_STMT					       \
-  const char *desc = "ASSERT_STREQ (" #EXPECTED ", " #ACTUAL ")"; \
-  const char *expected_ = (EXPECTED);				  \
-  const char *actual_ = (ACTUAL);				  \
-  if (0 == strcmp (expected_, actual_))				  \
-    ::selftest::pass (__FILE__, __LINE__, desc);			       \
-  else							       \
-    ::selftest::fail (__FILE__, __LINE__, desc);			       \
+#define ASSERT_STREQ(EXPECTED, ACTUAL)				    \
+  SELFTEST_BEGIN_STMT						    \
+  ::selftest::assert_streq (SELFTEST_LOCATION, #EXPECTED, #ACTUAL, \
+			    (EXPECTED), (ACTUAL));		    \
+  SELFTEST_END_STMT
+
+/* Like ASSERT_STREQ_AT, but treat LOC as the effective location of the
+   selftest.  */
+
+#define ASSERT_STREQ_AT(LOC, EXPECTED, ACTUAL)			    \
+  SELFTEST_BEGIN_STMT						    \
+  ::selftest::assert_streq ((LOC), #EXPECTED, #ACTUAL,		    \
+			    (EXPECTED), (ACTUAL));		    \
   SELFTEST_END_STMT
 
 /* Evaluate PRED1 (VAL1), calling ::selftest::pass if it is true,
@@ -141,9 +178,9 @@ extern int num_passes;
   const char *desc = "ASSERT_PRED1 (" #PRED1 ", " #VAL1 ")";	\
   bool actual = (PRED1) (VAL1);				\
   if (actual)						\
-    ::selftest::pass (__FILE__, __LINE__, desc);			\
+    ::selftest::pass (SELFTEST_LOCATION, desc);			\
   else							\
-    ::selftest::fail (__FILE__, __LINE__, desc);			\
+    ::selftest::fail (SELFTEST_LOCATION, desc);			\
   SELFTEST_END_STMT
 
 #define SELFTEST_BEGIN_STMT do {
