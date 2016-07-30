@@ -26,9 +26,7 @@
         createsig FlllllllE
         defun $indcall FlllllllE
         get_local $pc0
-        call_import[1] $print
         get_local $rpc
-        call_import[1] $print
         get_local $pc0
         i64.const 32
         i64.shr_u
