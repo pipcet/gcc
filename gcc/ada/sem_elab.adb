@@ -1018,7 +1018,9 @@ package body Sem_Elab is
       --  expression, which in turn may have side effects.
 
       Issue_In_SPARK :=
-        SPARK_Mode = On and (Comes_From_Source (Ent) or Is_DIC_Proc);
+        SPARK_Mode = On
+          and then Dynamic_Elaboration_Checks
+          and then (Comes_From_Source (Ent) or Is_DIC_Proc);
 
       --  Now check if an Elaborate_All (or dynamic check) is needed
 
@@ -1097,7 +1099,8 @@ package body Sem_Elab is
          --  is an error, so give an error message.
 
          if Issue_In_SPARK then
-            Error_Msg_NE ("\Elaborate_All pragma required for&", N, W_Scope);
+            Error_Msg_NE -- CODEFIX
+              ("\Elaborate_All pragma required for&", N, W_Scope);
 
          --  Otherwise we generate an implicit pragma. For a subprogram
          --  instantiation, Elaborate is good enough, since no transitive
@@ -2123,6 +2126,14 @@ package body Sem_Elab is
             end if;
 
             Par := Parent (Par);
+
+            --  If assertions are not enabled, the check pragma is rewritten
+            --  as an if_statement in sem_prag, to generate various warnings
+            --  on boolean expressions. Retrieve the original pragma.
+
+            if Nkind (Original_Node (Par)) = N_Pragma then
+               Par := Original_Node (Par);
+            end if;
          end loop;
 
          return False;

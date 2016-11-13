@@ -1,5 +1,4 @@
-// { dg-options "-std=gnu++14" }
-// { dg-do compile }
+// { dg-do compile { target c++14 } }
 
 // Copyright (C) 2015-2016 Free Software Foundation, Inc.
 //
@@ -19,10 +18,11 @@
 // <http://www.gnu.org/licenses/>.
 
 #include <experimental/array>
+#include <functional>
 
 int main()
 {
   int dummy;
   auto bad = std::experimental::make_array(std::ref(dummy));
-  // { dg-error "make_array cannot be used without an explicit target type if any of the types given is a reference_wrapper" "" { target *-*-* } 77 }
+  // { dg-error "make_array cannot be used without an explicit target type if any of the types given is a reference_wrapper" "" { target *-*-* } 76 }
 }

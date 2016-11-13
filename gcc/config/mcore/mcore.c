@@ -25,6 +25,7 @@
 #include "rtl.h"
 #include "tree.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "stringpool.h"
 #include "emit-rtl.h"
@@ -231,6 +232,9 @@ static const struct attribute_spec mcore_attribute_table[] =
 #define TARGET_LEGITIMATE_CONSTANT_P mcore_legitimate_constant_p
 #undef TARGET_ADDR_SPACE_LEGITIMATE_ADDRESS_P
 #define TARGET_ADDR_SPACE_LEGITIMATE_ADDRESS_P mcore_legitimate_address_p
+
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
 
 #undef TARGET_WARN_FUNC_RETURN
 #define TARGET_WARN_FUNC_RETURN mcore_warn_func_return
@@ -607,7 +611,7 @@ mcore_gen_compare (enum rtx_code code, rtx op0, rtx op1)
     case EQ:	/* Use inverted condition, cmpne.  */
       code = NE;
       invert = true;
-      /* Drop through.  */
+      /* FALLTHRU */
       
     case NE:	/* Use normal condition, cmpne.  */
       if (GET_CODE (op1) == CONST_INT && ! CONST_OK_FOR_K (INTVAL (op1)))
@@ -617,7 +621,7 @@ mcore_gen_compare (enum rtx_code code, rtx op0, rtx op1)
     case LE:	/* Use inverted condition, reversed cmplt.  */
       code = GT;
       invert = true;
-      /* Drop through.  */
+      /* FALLTHRU */
       
     case GT:	/* Use normal condition, reversed cmplt.  */
       if (GET_CODE (op1) == CONST_INT)
@@ -627,7 +631,7 @@ mcore_gen_compare (enum rtx_code code, rtx op0, rtx op1)
     case GE:	/* Use inverted condition, cmplt.  */
       code = LT;
       invert = true;
-      /* Drop through.  */
+      /* FALLTHRU */
       
     case LT:	/* Use normal condition, cmplt.  */
       if (GET_CODE (op1) == CONST_INT && 
@@ -642,7 +646,7 @@ mcore_gen_compare (enum rtx_code code, rtx op0, rtx op1)
       gcc_assert (GET_CODE (op1) != CONST_INT || INTVAL (op1) != 0);
       code = LEU;
       invert = true;
-      /* Drop through.  */
+      /* FALLTHRU */
       
     case LEU:	/* Use normal condition, reversed cmphs.  */
       if (GET_CODE (op1) == CONST_INT && INTVAL (op1) != 0)
@@ -652,7 +656,7 @@ mcore_gen_compare (enum rtx_code code, rtx op0, rtx op1)
     case LTU:	/* Use inverted condition, cmphs.  */
       code = GEU;
       invert = true;
-      /* Drop through.  */
+      /* FALLTHRU */
       
     case GEU:	/* Use normal condition, cmphs.  */
       if (GET_CODE (op1) == CONST_INT && INTVAL (op1) != 0)

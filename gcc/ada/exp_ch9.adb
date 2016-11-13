@@ -1106,6 +1106,7 @@ package body Exp_Ch9 is
 
    procedure Build_Class_Wide_Master (Typ : Entity_Id) is
       Loc          : constant Source_Ptr := Sloc (Typ);
+      Master_Decl  : Node_Id;
       Master_Id    : Entity_Id;
       Master_Scope : Entity_Id;
       Name_Id      : Node_Id;
@@ -1146,13 +1147,12 @@ package body Exp_Ch9 is
       --  the second transient scope requires a _master, it cannot use the one
       --  already declared because the entity is not visible.
 
-      Name_Id := Make_Identifier (Loc, Name_uMaster);
+      Name_Id     := Make_Identifier (Loc, Name_uMaster);
+      Master_Decl := Empty;
 
       if not Has_Master_Entity (Master_Scope)
         or else No (Current_Entity_In_Scope (Name_Id))
       then
-         declare
-            Master_Decl : Node_Id;
          begin
             Set_Has_Master_Entity (Master_Scope);
 
@@ -1214,7 +1214,17 @@ package body Exp_Ch9 is
           Subtype_Mark        => New_Occurrence_Of (Standard_Integer, Loc),
           Name                => Name_Id);
 
-      Insert_Action (Related_Node, Ren_Decl);
+      --  If the master is declared locally, add the renaming declaration
+      --  immediately after it, to prevent access-before-elaboration in the
+      --  back-end.
+
+      if Present (Master_Decl) then
+         Insert_After (Master_Decl, Ren_Decl);
+         Analyze (Ren_Decl);
+
+      else
+         Insert_Action (Related_Node, Ren_Decl);
+      end if;
 
       Set_Master_Id (Typ, Master_Id);
    end Build_Class_Wide_Master;
@@ -6219,16 +6229,17 @@ package body Exp_Ch9 is
 
    procedure Expand_Access_Protected_Subprogram_Type (N : Node_Id) is
       Loc    : constant Source_Ptr := Sloc (N);
-      Comps  : List_Id;
       T      : constant Entity_Id  := Defining_Identifier (N);
       D_T    : constant Entity_Id  := Designated_Type (T);
       D_T2   : constant Entity_Id  := Make_Temporary (Loc, 'D');
       E_T    : constant Entity_Id  := Make_Temporary (Loc, 'E');
-      P_List : constant List_Id    := Build_Protected_Spec
-                                        (N, RTE (RE_Address), D_T, False);
-      Decl1  : Node_Id;
-      Decl2  : Node_Id;
-      Def1   : Node_Id;
+      P_List : constant List_Id    :=
+                 Build_Protected_Spec (N, RTE (RE_Address), D_T, False);
+
+      Comps : List_Id;
+      Decl1 : Node_Id;
+      Decl2 : Node_Id;
+      Def1  : Node_Id;
 
    begin
       --  Create access to subprogram with full signature
@@ -7165,6 +7176,13 @@ package body Exp_Ch9 is
    --  Start of processing for Expand_N_Asynchronous_Select
 
    begin
+      --  Asynchronous select is not supported on restricted runtimes. Don't
+      --  try to expand.
+
+      if Restricted_Profile then
+         return;
+      end if;
+
       Process_Statements_For_Controlled_Objects (Trig);
       Process_Statements_For_Controlled_Objects (Abrt);
 
@@ -8377,11 +8395,27 @@ package body Exp_Ch9 is
    --  simple delays imposed by the use of Protected Objects.
 
    procedure Expand_N_Delay_Relative_Statement (N : Node_Id) is
-      Loc : constant Source_Ptr := Sloc (N);
+      Loc  : constant Source_Ptr := Sloc (N);
+      Proc : Entity_Id;
+
    begin
+      --  Try to use System.Relative_Delays.Delay_For only if available. This
+      --  is the implementation used on restricted platforms when Ada.Calendar
+      --  is not available.
+
+      if RTE_Available (RO_RD_Delay_For) then
+         Proc := RTE (RO_RD_Delay_For);
+
+      --  Otherwise, use Ada.Calendar.Delays.Delay_For and emit an error
+      --  message if not available.
+
+      else
+         Proc := RTE (RO_CA_Delay_For);
+      end if;
+
       Rewrite (N,
         Make_Procedure_Call_Statement (Loc,
-          Name => New_Occurrence_Of (RTE (RO_CA_Delay_For), Loc),
+          Name                   => New_Occurrence_Of (Proc, Loc),
           Parameter_Associations => New_List (Expression (N))));
       Analyze (N);
    end Expand_N_Delay_Relative_Statement;
@@ -13217,16 +13251,29 @@ package body Exp_Ch9 is
       --  package or return statement.
 
       Context := Parent (N);
-      while not Nkind_In (Context, N_Block_Statement,
-                                   N_Entry_Body,
-                                   N_Extended_Return_Statement,
-                                   N_Package_Body,
-                                   N_Package_Declaration,
-                                   N_Subprogram_Body,
-                                   N_Task_Body)
-      loop
+      while Present (Context) loop
+         if Nkind_In (Context, N_Entry_Body,
+                               N_Extended_Return_Statement,
+                               N_Package_Body,
+                               N_Package_Declaration,
+                               N_Subprogram_Body,
+                               N_Task_Body)
+         then
+            exit;
+
+         --  Do not consider block created to protect a list of statements with
+         --  an Abort_Defer / Abort_Undefer_Direct pair.
+
+         elsif Nkind (Context) = N_Block_Statement
+           and then not Is_Abort_Block (Context)
+         then
+            exit;
+         end if;
+
          Context := Parent (Context);
       end loop;
+
+      pragma Assert (Present (Context));
 
       --  Extract the constituents of the context
 
@@ -13258,8 +13305,6 @@ package body Exp_Ch9 is
          end if;
 
       else
-         Context_Decls := Declarations (Context);
-
          if Nkind (Context) = N_Block_Statement then
             Context_Id := Entity (Identifier (Context));
 
@@ -13283,9 +13328,10 @@ package body Exp_Ch9 is
          else
             raise Program_Error;
          end if;
+
+         Context_Decls := Declarations (Context);
       end if;
 
-      pragma Assert (Present (Context));
       pragma Assert (Present (Context_Id));
       pragma Assert (Present (Context_Decls));
    end Find_Enclosing_Context;

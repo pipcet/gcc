@@ -26,6 +26,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "gimple.h"
 #include "predict.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "ssa.h"
 #include "expmed.h"
@@ -785,7 +786,7 @@ by_pieces_ninsns (unsigned HOST_WIDE_INT l, unsigned int align,
 	    case COMPARE_BY_PIECES:
 	      int batch = targetm.compare_by_pieces_branch_ratio (mode);
 	      int batch_ops = 4 * batch - 1;
-	      int full = n_pieces / batch;
+	      unsigned HOST_WIDE_INT full = n_pieces / batch;
 	      n_insns += full * batch_ops;
 	      if (n_pieces % batch != 0)
 		n_insns++;
@@ -2590,7 +2591,7 @@ maybe_emit_group_store (rtx x, tree type)
 
    This is used on targets that return BLKmode values in registers.  */
 
-void
+static void
 copy_blkmode_from_reg (rtx target, rtx srcreg, tree type)
 {
   unsigned HOST_WIDE_INT bytes = int_size_in_bytes (type);
@@ -4764,7 +4765,7 @@ optimize_bitfield_assignment_op (unsigned HOST_WIDE_INT bitsize,
       binop = code == BIT_IOR_EXPR ? ior_optab : xor_optab;
       if (bitpos + bitsize != str_bitsize)
 	{
-	  rtx mask = gen_int_mode (((unsigned HOST_WIDE_INT) 1 << bitsize) - 1,
+	  rtx mask = gen_int_mode ((HOST_WIDE_INT_1U << bitsize) - 1,
 				   str_mode);
 	  value = expand_and (str_mode, value, mask, NULL_RTX);
 	}
@@ -4828,7 +4829,7 @@ get_bit_range (unsigned HOST_WIDE_INT *bitstart,
       int unsignedp, reversep, volatilep = 0;
       get_inner_reference (TREE_OPERAND (exp, 0), &rbitsize, &rbitpos,
 			   &roffset, &rmode, &unsignedp, &reversep,
-			   &volatilep, false);
+			   &volatilep);
       if ((rbitpos % BITS_PER_UNIT) != 0)
 	{
 	  *bitstart = *bitend = 0;
@@ -4984,14 +4985,13 @@ expand_assignment (tree to, tree from, bool nontemporal)
 
       push_temp_slots ();
       tem = get_inner_reference (to, &bitsize, &bitpos, &offset, &mode1,
-				 &unsignedp, &reversep, &volatilep, true);
+				 &unsignedp, &reversep, &volatilep);
 
       /* Make sure bitpos is not negative, it can wreak havoc later.  */
       if (bitpos < 0)
 	{
 	  gcc_assert (offset == NULL_TREE);
-	  offset = size_int (bitpos >> (BITS_PER_UNIT == 8
-					? 3 : exact_log2 (BITS_PER_UNIT)));
+	  offset = size_int (bitpos >> LOG2_BITS_PER_UNIT);
 	  bitpos &= BITS_PER_UNIT - 1;
 	}
 
@@ -5187,7 +5187,7 @@ expand_assignment (tree to, tree from, bool nontemporal)
   if (TREE_CODE (from) == CALL_EXPR && ! aggregate_value_p (from, from)
       && COMPLETE_TYPE_P (TREE_TYPE (from))
       && TREE_CODE (TYPE_SIZE (TREE_TYPE (from))) == INTEGER_CST
-      && ! (((TREE_CODE (to) == VAR_DECL
+      && ! (((VAR_P (to)
 	      || TREE_CODE (to) == PARM_DECL
 	      || TREE_CODE (to) == RESULT_DECL)
 	     && REG_P (DECL_RTL (to)))
@@ -6188,8 +6188,7 @@ store_constructor (tree exp, rtx target, int cleared, HOST_WIDE_INT size,
 	   register whose mode size isn't equal to SIZE since
 	   clear_storage can't handle this case.  */
 	else if (size > 0
-		 && (((int)vec_safe_length (CONSTRUCTOR_ELTS (exp))
-		      != fields_length (type))
+		 && (((int) CONSTRUCTOR_NELTS (exp) != fields_length (type))
 		     || mostly_zeros_p (exp))
 		 && (!REG_P (target)
 		     || ((HOST_WIDE_INT) GET_MODE_SIZE (GET_MODE (target))
@@ -6281,6 +6280,13 @@ store_constructor (tree exp, rtx target, int cleared, HOST_WIDE_INT size,
 		    type = lang_hooks.types.type_for_mode
 		      (word_mode, TYPE_UNSIGNED (type));
 		    value = fold_convert (type, value);
+		    /* Make sure the bits beyond the original bitsize are zero
+		       so that we can correctly avoid extra zeroing stores in
+		       later constructor elements.  */
+		    tree bitsize_mask
+		      = wide_int_to_tree (type, wi::mask (bitsize, false,
+							   BITS_PER_WORD));
+		    value = fold_build2 (BIT_AND_EXPR, type, value, bitsize_mask);
 		  }
 
 		if (BYTES_BIG_ENDIAN)
@@ -6971,27 +6977,13 @@ store_field (rtx target, HOST_WIDE_INT bitsize, HOST_WIDE_INT bitpos,
 
    If the field describes a variable-sized object, *PMODE is set to
    BLKmode and *PBITSIZE is set to -1.  An access cannot be made in
-   this case, but the address of the object can be found.
-
-   If KEEP_ALIGNING is true and the target is STRICT_ALIGNMENT, we don't
-   look through nodes that serve as markers of a greater alignment than
-   the one that can be deduced from the expression.  These nodes make it
-   possible for front-ends to prevent temporaries from being created by
-   the middle-end on alignment considerations.  For that purpose, the
-   normal operating mode at high-level is to always pass FALSE so that
-   the ultimate containing object is really returned; moreover, the
-   associated predicate handled_component_p will always return TRUE
-   on these nodes, thus indicating that they are essentially handled
-   by get_inner_reference.  TRUE should only be passed when the caller
-   is scanning the expression in order to build another representation
-   and specifically knows how to handle these nodes; as such, this is
-   the normal operating mode in the RTL expanders.  */
+   this case, but the address of the object can be found.  */
 
 tree
 get_inner_reference (tree exp, HOST_WIDE_INT *pbitsize,
 		     HOST_WIDE_INT *pbitpos, tree *poffset,
 		     machine_mode *pmode, int *punsignedp,
-		     int *preversep, int *pvolatilep, bool keep_aligning)
+		     int *preversep, int *pvolatilep)
 {
   tree size_tree = 0;
   machine_mode mode = VOIDmode;
@@ -7113,14 +7105,6 @@ get_inner_reference (tree exp, HOST_WIDE_INT *pbitsize,
 	  break;
 
 	case VIEW_CONVERT_EXPR:
-	  if (keep_aligning && STRICT_ALIGNMENT
-	      && (TYPE_ALIGN (TREE_TYPE (exp))
-	       > TYPE_ALIGN (TREE_TYPE (TREE_OPERAND (exp, 0))))
-	      && (TYPE_ALIGN (TREE_TYPE (TREE_OPERAND (exp, 0)))
-		  < BIGGEST_ALIGNMENT)
-	      && (TYPE_ALIGN_OK (TREE_TYPE (exp))
-		  || TYPE_ALIGN_OK (TREE_TYPE (TREE_OPERAND (exp, 0)))))
-	    goto done;
 	  break;
 
 	case MEM_REF:
@@ -7601,7 +7585,7 @@ highest_pow2_factor (const_tree exp)
   int trailing_zeros = tree_ctz (exp);
   if (trailing_zeros >= HOST_BITS_PER_WIDE_INT)
     return BIGGEST_ALIGNMENT;
-  ret = (unsigned HOST_WIDE_INT) 1 << trailing_zeros;
+  ret = HOST_WIDE_INT_1U << trailing_zeros;
   if (ret > BIGGEST_ALIGNMENT)
     return BIGGEST_ALIGNMENT;
   return ret;
@@ -7697,10 +7681,6 @@ expand_operands (tree exp0, tree exp1, rtx target, rtx *op0, rtx *op1,
     }
   else
     {
-      /* If we need to preserve evaluation order, copy exp0 into its own
-	 temporary variable so that it can't be clobbered by exp1.  */
-      if (flag_evaluation_order && TREE_SIDE_EFFECTS (exp1))
-	exp0 = save_expr (exp0);
       *op0 = expand_expr (exp0, target, VOIDmode, modifier);
       *op1 = expand_expr (exp1, NULL_RTX, VOIDmode, modifier);
     }
@@ -7839,7 +7819,7 @@ expand_expr_addr_expr_1 (tree exp, rtx target, machine_mode tmode,
 	 they won't change the final object whose address will be returned
 	 (they actually exist only for that purpose).  */
       inner = get_inner_reference (exp, &bitsize, &bitpos, &offset, &mode1,
-				   &unsignedp, &reversep, &volatilep, false);
+				   &unsignedp, &reversep, &volatilep);
       break;
     }
 
@@ -8422,6 +8402,7 @@ expand_expr_real_2 (sepops ops, rtx target, machine_mode tmode,
 	 offset to have matching modes.  */
       else if (TYPE_PRECISION (sizetype) > TYPE_PRECISION (type))
 	treeop1 = fold_convert_loc (loc, type, treeop1);
+      /* FALLTHRU */
 
     case PLUS_EXPR:
       /* If we are adding a constant, a VAR_DECL that is sp, fp, or ap, and
@@ -8437,7 +8418,7 @@ expand_expr_real_2 (sepops ops, rtx target, machine_mode tmode,
 
       if (TREE_CODE (treeop0) == PLUS_EXPR
 	  && TREE_CODE (TREE_OPERAND (treeop0, 1)) == INTEGER_CST
-	  && TREE_CODE (treeop1) == VAR_DECL
+	  && VAR_P (treeop1)
 	  && (DECL_RTL (treeop1) == frame_pointer_rtx
 	      || DECL_RTL (treeop1) == stack_pointer_rtx
 	      || DECL_RTL (treeop1) == arg_pointer_rtx))
@@ -9590,9 +9571,9 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
     switch (TREE_CODE_LENGTH (code))
       {
 	default:
-	case 3: treeop2 = TREE_OPERAND (exp, 2);
-	case 2: treeop1 = TREE_OPERAND (exp, 1);
-	case 1: treeop0 = TREE_OPERAND (exp, 0);
+	case 3: treeop2 = TREE_OPERAND (exp, 2); /* FALLTHRU */
+	case 2: treeop1 = TREE_OPERAND (exp, 1); /* FALLTHRU */
+	case 1: treeop0 = TREE_OPERAND (exp, 0); /* FALLTHRU */
 	case 0: break;
       }
   ops.code = code;
@@ -9764,7 +9745,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 	  && (TREE_STATIC (exp) || DECL_EXTERNAL (exp)))
 	layout_decl (exp, 0);
 
-      /* ... fall through ...  */
+      /* fall through */
 
     case FUNCTION_DECL:
     case RESULT_DECL:
@@ -9930,6 +9911,19 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
       }
 
     case CONST_DECL:
+      if (modifier == EXPAND_WRITE)
+	{
+	  /* Writing into CONST_DECL is always invalid, but handle it
+	     gracefully.  */
+	  addr_space_t as = TYPE_ADDR_SPACE (TREE_TYPE (exp));
+	  machine_mode address_mode = targetm.addr_space.address_mode (as);
+	  op0 = expand_expr_addr_expr_1 (exp, NULL_RTX, address_mode,
+					 EXPAND_NORMAL, as);
+	  op0 = memory_address_addr_space (mode, op0, as);
+	  temp = gen_rtx_MEM (mode, op0);
+	  set_mem_addr_space (temp, as);
+	  return temp;
+	}
       return expand_expr (DECL_INITIAL (exp), target, VOIDmode, modifier);
 
     case REAL_CST:
@@ -9972,7 +9966,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 	  return original_target;
 	}
 
-      /* ... fall through ...  */
+      /* fall through */
 
     case STRING_CST:
       temp = expand_expr_constant (exp, 1, modifier);
@@ -10217,8 +10211,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 		 && modifier != EXPAND_MEMORY
 		 && TREE_READONLY (array) && ! TREE_SIDE_EFFECTS (array)
 		 && TREE_CODE (index) == INTEGER_CST
-		 && (TREE_CODE (array) == VAR_DECL
-		     || TREE_CODE (array) == CONST_DECL)
+		 && (VAR_P (array) || TREE_CODE (array) == CONST_DECL)
 		 && (init = ctor_for_folding (array)) != error_mark_node)
 	  {
 	    if (init == NULL_TREE)
@@ -10289,7 +10282,8 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 					    fold_convert_loc (loc, sizetype,
 							      low_bound));
 
-		if (compare_tree_int (index1, TREE_STRING_LENGTH (init)) < 0)
+		if (tree_fits_uhwi_p (index1)
+		    && compare_tree_int (index1, TREE_STRING_LENGTH (init)) < 0)
 		  {
 		    tree type = TREE_TYPE (TREE_TYPE (init));
 		    machine_mode mode = TYPE_MODE (type);
@@ -10339,7 +10333,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 
 		    if (TYPE_UNSIGNED (TREE_TYPE (field)))
 		      {
-			op1 = gen_int_mode (((HOST_WIDE_INT) 1 << bitsize) - 1,
+			op1 = gen_int_mode ((HOST_WIDE_INT_1 << bitsize) - 1,
 					    imode);
 			op0 = expand_and (imode, op0, op1, target);
 		      }
@@ -10369,7 +10363,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 	int reversep, volatilep = 0, must_force_mem;
 	tree tem
 	  = get_inner_reference (exp, &bitsize, &bitpos, &offset, &mode1,
-				 &unsignedp, &reversep, &volatilep, true);
+				 &unsignedp, &reversep, &volatilep);
 	rtx orig_op0, memloc;
 	bool clear_mem_expr = false;
 
@@ -10423,10 +10417,36 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 	if (GET_CODE (op0) == CONCAT && !must_force_mem)
 	  {
 	    if (bitpos == 0
-		&& bitsize == GET_MODE_BITSIZE (GET_MODE (op0)))
+		&& bitsize == GET_MODE_BITSIZE (GET_MODE (op0))
+		&& COMPLEX_MODE_P (mode1)
+		&& COMPLEX_MODE_P (GET_MODE (op0))
+		&& (GET_MODE_PRECISION (GET_MODE_INNER (mode1))
+		    == GET_MODE_PRECISION (GET_MODE_INNER (GET_MODE (op0)))))
 	      {
 		if (reversep)
 		  op0 = flip_storage_order (GET_MODE (op0), op0);
+		if (mode1 != GET_MODE (op0))
+		  {
+		    rtx parts[2];
+		    for (int i = 0; i < 2; i++)
+		      {
+			rtx op = read_complex_part (op0, i != 0);
+			if (GET_CODE (op) == SUBREG)
+			  op = force_reg (GET_MODE (op), op);
+			rtx temp = gen_lowpart_common (GET_MODE_INNER (mode1),
+						       op);
+			if (temp)
+			  op = temp;
+			else
+			  {
+			    if (!REG_P (op) && !MEM_P (op))
+			      op = force_reg (GET_MODE (op), op);
+			    op = gen_lowpart (GET_MODE_INNER (mode1), op);
+			  }
+			parts[i] = op;
+		      }
+		    op0 = gen_rtx_CONCAT (mode1, parts[0], parts[1]);
+		  }
 		return op0;
 	      }
 	    if (bitpos == 0
@@ -10767,7 +10787,7 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 	int unsignedp, reversep, volatilep = 0;
 	tree tem
 	  = get_inner_reference (treeop0, &bitsize, &bitpos, &offset, &mode1,
-				 &unsignedp, &reversep, &volatilep, true);
+				 &unsignedp, &reversep, &volatilep);
 	rtx orig_op0;
 
 	/* ??? We should work harder and deal with non-zero offsets.  */
@@ -10878,20 +10898,11 @@ expand_expr_real_1 (tree exp, rtx target, machine_mode tmode,
 	{
 	  enum insn_code icode;
 
-	  if (TYPE_ALIGN_OK (type))
-	    {
-	      /* ??? Copying the MEM without substantially changing it might
-		 run afoul of the code handling volatile memory references in
-		 store_expr, which assumes that TARGET is returned unmodified
-		 if it has been used.  */
-	      op0 = copy_rtx (op0);
-	      set_mem_align (op0, MAX (MEM_ALIGN (op0), TYPE_ALIGN (type)));
-	    }
-	  else if (modifier != EXPAND_WRITE
-		   && modifier != EXPAND_MEMORY
-		   && !inner_reference_p
-		   && mode != BLKmode
-		   && MEM_ALIGN (op0) < GET_MODE_ALIGNMENT (mode))
+	  if (modifier != EXPAND_WRITE
+	      && modifier != EXPAND_MEMORY
+	      && !inner_reference_p
+	      && mode != BLKmode
+	      && MEM_ALIGN (op0) < GET_MODE_ALIGNMENT (mode))
 	    {
 	      /* If the target does have special handling for unaligned
 		 loads of mode then use them.  */
@@ -11089,7 +11100,7 @@ is_aligning_offset (const_tree offset, const_tree exp)
       || !tree_fits_uhwi_p (TREE_OPERAND (offset, 1))
       || compare_tree_int (TREE_OPERAND (offset, 1),
 			   BIGGEST_ALIGNMENT / BITS_PER_UNIT) <= 0
-      || exact_log2 (tree_to_uhwi (TREE_OPERAND (offset, 1)) + 1) < 0)
+      || !pow2p_hwi (tree_to_uhwi (TREE_OPERAND (offset, 1)) + 1))
     return 0;
 
   /* Look at the first operand of BIT_AND_EXPR and strip any conversion.
@@ -11136,8 +11147,7 @@ string_constant (tree arg, tree *ptr_offset)
 	{
 	  array = TREE_OPERAND (TREE_OPERAND (arg, 0), 0);
 	  offset = TREE_OPERAND (TREE_OPERAND (arg, 0), 1);
-	  if (TREE_CODE (array) != STRING_CST
-	      && TREE_CODE (array) != VAR_DECL)
+	  if (TREE_CODE (array) != STRING_CST && !VAR_P (array))
 	    return 0;
 
 	  /* Check if the array has a nonzero lower bound.  */
@@ -11161,8 +11171,7 @@ string_constant (tree arg, tree *ptr_offset)
 	  if (TREE_CODE (array) != ADDR_EXPR)
 	    return 0;
 	  array = TREE_OPERAND (array, 0);
-	  if (TREE_CODE (array) != STRING_CST
-	      && TREE_CODE (array) != VAR_DECL)
+	  if (TREE_CODE (array) != STRING_CST && !VAR_P (array))
 	    return 0;
 	}
       else
@@ -11201,8 +11210,7 @@ string_constant (tree arg, tree *ptr_offset)
       *ptr_offset = fold_convert (sizetype, offset);
       return array;
     }
-  else if (TREE_CODE (array) == VAR_DECL
-	   || TREE_CODE (array) == CONST_DECL)
+  else if (VAR_P (array) || TREE_CODE (array) == CONST_DECL)
     {
       int length;
       tree init = ctor_for_folding (array);
@@ -11300,7 +11308,7 @@ do_store_flag (sepops ops, rtx target, machine_mode mode)
     {
       tree ifexp = build2 (ops->code, ops->type, arg0, arg1);
       if (VECTOR_BOOLEAN_TYPE_P (ops->type)
-	  && expand_vec_cmp_expr_p (TREE_TYPE (arg0), ops->type))
+	  && expand_vec_cmp_expr_p (TREE_TYPE (arg0), ops->type, ops->code))
 	return expand_vec_cmp_expr (ops->type, ifexp, target);
       else
 	{

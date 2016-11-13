@@ -28,6 +28,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "rtl.h"
 #include "tree.h"
+#include "memmodel.h"
 #include "gimple.h"
 #include "cfghooks.h"
 #include "df.h"
@@ -3395,10 +3396,11 @@ static GTY(()) rtx mips_tls_symbol;
    (either global dynamic or local dynamic).  V0 is an RTX for the
    return value location.  */
 
-static rtx
+static rtx_insn *
 mips_call_tls_get_addr (rtx sym, enum mips_symbol_type type, rtx v0)
 {
-  rtx insn, loc, a0;
+  rtx loc, a0;
+  rtx_insn *insn;
 
   a0 = gen_rtx_REG (Pmode, GP_ARG_FIRST);
 
@@ -3454,7 +3456,7 @@ mips_get_tp (void)
 static rtx
 mips_legitimize_tls_address (rtx loc)
 {
-  rtx dest, insn, v0, tp, tmp1, tmp2, eqv, offset;
+  rtx dest, v0, tp, tmp1, tmp2, eqv, offset;
   enum tls_model model;
 
   model = SYMBOL_REF_TLS_MODEL (loc);
@@ -3467,33 +3469,37 @@ mips_legitimize_tls_address (rtx loc)
   switch (model)
     {
     case TLS_MODEL_GLOBAL_DYNAMIC:
-      v0 = gen_rtx_REG (Pmode, GP_RETURN);
-      insn = mips_call_tls_get_addr (loc, SYMBOL_TLSGD, v0);
-      dest = gen_reg_rtx (Pmode);
-      emit_libcall_block (insn, dest, v0, loc);
-      break;
+      {
+	v0 = gen_rtx_REG (Pmode, GP_RETURN);
+	rtx_insn *insn = mips_call_tls_get_addr (loc, SYMBOL_TLSGD, v0);
+	dest = gen_reg_rtx (Pmode);
+	emit_libcall_block (insn, dest, v0, loc);
+	break;
+      }
 
     case TLS_MODEL_LOCAL_DYNAMIC:
-      v0 = gen_rtx_REG (Pmode, GP_RETURN);
-      insn = mips_call_tls_get_addr (loc, SYMBOL_TLSLDM, v0);
-      tmp1 = gen_reg_rtx (Pmode);
+      {
+	v0 = gen_rtx_REG (Pmode, GP_RETURN);
+	rtx_insn *insn = mips_call_tls_get_addr (loc, SYMBOL_TLSLDM, v0);
+	tmp1 = gen_reg_rtx (Pmode);
 
-      /* Attach a unique REG_EQUIV, to allow the RTL optimizers to
-	 share the LDM result with other LD model accesses.  */
-      eqv = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, const0_rtx),
-			    UNSPEC_TLS_LDM);
-      emit_libcall_block (insn, tmp1, v0, eqv);
+	/* Attach a unique REG_EQUIV, to allow the RTL optimizers to
+	   share the LDM result with other LD model accesses.  */
+	eqv = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, const0_rtx),
+			      UNSPEC_TLS_LDM);
+	emit_libcall_block (insn, tmp1, v0, eqv);
 
-      offset = mips_unspec_address (loc, SYMBOL_DTPREL);
-      if (mips_split_p[SYMBOL_DTPREL])
-	{
-	  tmp2 = mips_unspec_offset_high (NULL, tmp1, loc, SYMBOL_DTPREL);
-	  dest = gen_rtx_LO_SUM (Pmode, tmp2, offset);
-	}
-      else
-	dest = expand_binop (Pmode, add_optab, tmp1, offset,
-			     0, 0, OPTAB_DIRECT);
-      break;
+	offset = mips_unspec_address (loc, SYMBOL_DTPREL);
+	if (mips_split_p[SYMBOL_DTPREL])
+	  {
+	    tmp2 = mips_unspec_offset_high (NULL, tmp1, loc, SYMBOL_DTPREL);
+	    dest = gen_rtx_LO_SUM (Pmode, tmp2, offset);
+	  }
+	else
+	  dest = expand_binop (Pmode, add_optab, tmp1, offset,
+			       0, 0, OPTAB_DIRECT);
+	break;
+      }
 
     case TLS_MODEL_INITIAL_EXEC:
       tp = mips_get_tp ();
@@ -3827,9 +3833,11 @@ mips16_constant_cost (int code, HOST_WIDE_INT x)
       /* Like LE, but reject the always-true case.  */
       if (x == -1)
 	return -1;
+      /* FALLTHRU */
     case LE:
       /* We add 1 to the immediate and use SLT.  */
       x += 1;
+      /* FALLTHRU */
     case XOR:
       /* We can use CMPI for an xor with an unsigned 16-bit X.  */
     case LT:
@@ -7438,7 +7446,7 @@ mips16_build_call_stub (rtx retval, rtx *fn_ptr, rtx args_size, int fp_code)
   if (GET_CODE (fn) != SYMBOL_REF
       || !call_insn_operand (fn, VOIDmode))
     {
-      char buf[30];
+      char buf[32];
       rtx stub_fn, addr;
       rtx_insn *insn;
       bool lazy_p;
@@ -7634,7 +7642,7 @@ mips16_build_call_stub (rtx retval, rtx *fn_ptr, rtx args_size, int fp_code)
 	    case DCmode:
 	      mips_output_64bit_xfer ('f', GP_RETURN + (8 / UNITS_PER_WORD),
 				      FP_REG_FIRST + 2);
-	      /* Fall though.  */
+	      /* FALLTHRU */
  	    case DFmode:
 	    case V2SFmode:
 	      gcc_assert (TARGET_PAIRED_SINGLE_FLOAT
@@ -14451,13 +14459,9 @@ static struct
    is treated like input-dependence.  */
 
 static int
-mips_adjust_cost (rtx_insn *insn ATTRIBUTE_UNUSED, rtx link,
-		  rtx_insn *dep ATTRIBUTE_UNUSED, int cost)
+mips_adjust_cost (rtx_insn *, int dep_type, rtx_insn *, int cost, unsigned int)
 {
-  if (REG_NOTE_KIND (link) == REG_DEP_OUTPUT
-      && TUNE_20KC)
-    return cost;
-  if (REG_NOTE_KIND (link) != 0)
+  if (dep_type != 0 && (dep_type != REG_DEP_OUTPUT || !TUNE_20KC))
     return 0;
   return cost;
 }
@@ -17470,7 +17474,7 @@ r10k_safe_mem_expr_p (tree expr, unsigned HOST_WIDE_INT offset)
   int unsigned_p, reverse_p, volatile_p;
 
   inner = get_inner_reference (expr, &bitsize, &bitoffset, &var_offset, &mode,
-			       &unsigned_p, &reverse_p, &volatile_p, false);
+			       &unsigned_p, &reverse_p, &volatile_p);
   if (!DECL_P (inner) || !DECL_SIZE_UNIT (inner) || var_offset)
     return false;
 
@@ -19655,8 +19659,15 @@ mips_option_override (void)
   if ((target_flags_explicit & MASK_BRANCHLIKELY) == 0)
     {
       if (ISA_HAS_BRANCHLIKELY
-	  && (optimize_size
-	      || (mips_tune_info->tune_flags & PTF_AVOID_BRANCHLIKELY) == 0))
+	  && ((optimize_size
+	       && (mips_tune_info->tune_flags
+		   & PTF_AVOID_BRANCHLIKELY_SIZE) == 0)
+	      || (!optimize_size
+		  && optimize > 0
+		  && (mips_tune_info->tune_flags
+		      & PTF_AVOID_BRANCHLIKELY_SPEED) == 0)
+	      || (mips_tune_info->tune_flags
+		  & PTF_AVOID_BRANCHLIKELY_ALWAYS) == 0))
 	target_flags |= MASK_BRANCHLIKELY;
       else
 	target_flags &= ~MASK_BRANCHLIKELY;
@@ -20852,28 +20863,30 @@ mips_shift_truncation_mask (machine_mode mode)
 static void
 mips_prepare_pch_save (void)
 {
-  /* We are called in a context where the current MIPS16 vs. non-MIPS16
-     setting should be irrelevant.  The question then is: which setting
-     makes most sense at load time?
+  /* We are called in a context where the current compression vs.
+     non-compression setting should be irrelevant.  The question then is:
+     which setting makes most sense at load time?
 
-     The PCH is loaded before the first token is read.  We should never
-     have switched into MIPS16 mode by that point, and thus should not
-     have populated mips16_globals.  Nor can we load the entire contents
-     of mips16_globals from the PCH file, because mips16_globals contains
-     a combination of GGC and non-GGC data.
+     The PCH is loaded before the first token is read.  We should never have
+     switched into a compression mode by that point, and thus should not have
+     populated mips16_globals or micromips_globals.  Nor can we load the
+     entire contents of mips16_globals or micromips_globals from the PCH file,
+     because they contain a combination of GGC and non-GGC data.
 
      There is therefore no point in trying save the GGC part of
-     mips16_globals to the PCH file, or to preserve MIPS16ness across
-     the PCH save and load.  The loading compiler would not have access
-     to the non-GGC parts of mips16_globals (either from the PCH file,
-     or from a copy that the loading compiler generated itself) and would
-     have to call target_reinit anyway.
+     mips16_globals/micromips_globals to the PCH file, or to preserve a
+     compression setting across the PCH save and load.  The loading compiler
+     would not have access to the non-GGC parts of mips16_globals or
+     micromips_globals (either from the PCH file, or from a copy that the
+     loading compiler generated itself) and would have to call target_reinit
+     anyway.
 
-     It therefore seems best to switch back to non-MIPS16 mode at
-     save time, and to ensure that mips16_globals remains null after
-     a PCH load.  */
+     It therefore seems best to switch back to non-MIPS16 mode and
+     non-microMIPS mode to save time, and to ensure that mips16_globals and
+     micromips_globals remain null after a PCH load.  */
   mips_set_compression_mode (0);
   mips16_globals = 0;
+  micromips_globals = 0;
 }
 
 /* Generate or test for an insn that supports a constant permutation.  */
@@ -21995,9 +22008,9 @@ mips_atomic_assign_expand_fenv (tree *hold, tree *clear, tree *update)
 {
   if (!TARGET_HARD_FLOAT_ABI)
     return;
-  tree exceptions_var = create_tmp_var (MIPS_ATYPE_USI);
-  tree fcsr_orig_var = create_tmp_var (MIPS_ATYPE_USI);
-  tree fcsr_mod_var = create_tmp_var (MIPS_ATYPE_USI);
+  tree exceptions_var = create_tmp_var_raw (MIPS_ATYPE_USI);
+  tree fcsr_orig_var = create_tmp_var_raw (MIPS_ATYPE_USI);
+  tree fcsr_mod_var = create_tmp_var_raw (MIPS_ATYPE_USI);
   tree get_fcsr = mips_builtin_decls[MIPS_GET_FCSR];
   tree set_fcsr = mips_builtin_decls[MIPS_SET_FCSR];
   tree get_fcsr_hold_call = build_call_expr (get_fcsr, 0);

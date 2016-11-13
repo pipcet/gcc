@@ -223,6 +223,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "tree.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "optabs.h"
 #include "emit-rtl.h"
@@ -481,6 +482,14 @@ get_defs (rtx_insn *insn, rtx reg, vec<rtx_insn *> *dest)
         return NULL;
       if (DF_REF_INSN_INFO (ref_link->ref) == NULL)
         return NULL;
+      /* As global regs are assumed to be defined at each function call
+	 dataflow can report a call_insn as being a definition of REG.
+	 But we can't do anything with that in this pass so proceed only
+	 if the instruction really sets REG in a way that can be deduced
+	 from the RTL structure.  */
+      if (global_regs[REGNO (reg)]
+	  && !set_of (reg, DF_REF_INSN (ref_link->ref)))
+	return NULL;
     }
 
   if (dest)
@@ -544,10 +553,10 @@ struct ext_state
   /* In order to avoid constant alloc/free, we keep these
      4 vectors live through the entire find_and_remove_re and just
      truncate them each time.  */
-  vec<rtx_insn *> defs_list;
-  vec<rtx_insn *> copies_list;
-  vec<rtx_insn *> modified_list;
-  vec<rtx_insn *> work_list;
+  auto_vec<rtx_insn *> defs_list;
+  auto_vec<rtx_insn *> copies_list;
+  auto_vec<rtx_insn *> modified_list;
+  auto_vec<rtx_insn *> work_list;
 
   /* For instructions that have been successfully modified, this is
      the original mode from which the insn is extending and
@@ -579,7 +588,7 @@ make_defs_and_copies_lists (rtx_insn *extend_insn, const_rtx set_pat,
 
   /* Initialize the work list.  */
   if (!get_defs (extend_insn, src_reg, &state->work_list))
-    gcc_unreachable ();
+    return false;
 
   is_insn_visited = XCNEWVEC (bool, max_insn_uid);
 
@@ -778,6 +787,11 @@ combine_reaching_defs (ext_cand *cand, const_rtx set_pat, ext_state *state)
 
       machine_mode dst_mode = GET_MODE (SET_DEST (PATTERN (cand->insn)));
       rtx src_reg = get_extended_src_reg (SET_SRC (PATTERN (cand->insn)));
+
+      /* Ensure we can use the src_reg in dst_mode (needed for
+	 the (set (reg1) (reg2)) insn mentioned above).  */
+      if (!HARD_REGNO_MODE_OK (REGNO (src_reg), dst_mode))
+	return false;
 
       /* Ensure the number of hard registers of the copy match.  */
       if (HARD_REGNO_NREGS (REGNO (src_reg), dst_mode)
@@ -1147,7 +1161,6 @@ find_and_remove_re (void)
   vec<ext_cand> reinsn_list;
   auto_vec<rtx_insn *> reinsn_del_list;
   auto_vec<rtx_insn *> reinsn_copy_list;
-  ext_state state;
 
   /* Construct DU chain to get all reaching definitions of each
      extension instruction.  */
@@ -1159,10 +1172,8 @@ find_and_remove_re (void)
 
   max_insn_uid = get_max_uid ();
   reinsn_list = find_removable_extensions ();
-  state.defs_list.create (0);
-  state.copies_list.create (0);
-  state.modified_list.create (0);
-  state.work_list.create (0);
+
+  ext_state state;
   if (reinsn_list.is_empty ())
     state.modified = NULL;
   else
@@ -1238,10 +1249,6 @@ find_and_remove_re (void)
     delete_insn (curr_insn);
 
   reinsn_list.release ();
-  state.defs_list.release ();
-  state.copies_list.release ();
-  state.modified_list.release ();
-  state.work_list.release ();
   XDELETEVEC (state.modified);
 
   if (dump_file && num_re_opportunities > 0)
@@ -1254,9 +1261,7 @@ find_and_remove_re (void)
 static unsigned int
 rest_of_handle_ree (void)
 {
-  timevar_push (TV_REE);
   find_and_remove_re ();
-  timevar_pop (TV_REE);
   return 0;
 }
 

@@ -32,6 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "alloc-pool.h"
 #include "timevar.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "optabs-libfuncs.h"
 #include "insn-config.h"
@@ -71,11 +72,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "dwarf2out.h"
 #include "ipa-reference.h"
 #include "symbol-summary.h"
+#include "tree-vrp.h"
 #include "ipa-prop.h"
 #include "gcse.h"
 #include "tree-chkp.h"
 #include "omp-low.h"
 #include "hsa.h"
+#include "edit-context.h"
 
 #if defined(DBX_DEBUGGING_INFO) || defined(XCOFF_DEBUGGING_INFO)
 #include "dbxout.h"
@@ -348,7 +351,7 @@ wrapup_global_declaration_1 (tree decl)
       && DECL_DEFER_OUTPUT (decl) != 0)
     DECL_DEFER_OUTPUT (decl) = 0;
 
-  if (TREE_CODE (decl) == VAR_DECL && DECL_SIZE (decl) == 0)
+  if (VAR_P (decl) && DECL_SIZE (decl) == 0)
     lang_hooks.finish_incomplete_decl (decl);
 }
 
@@ -359,7 +362,7 @@ bool
 wrapup_global_declaration_2 (tree decl)
 {
   if (TREE_ASM_WRITTEN (decl) || DECL_EXTERNAL (decl)
-      || (TREE_CODE (decl) == VAR_DECL && DECL_HAS_VALUE_EXPR_P (decl)))
+      || (VAR_P (decl) && DECL_HAS_VALUE_EXPR_P (decl)))
     return false;
 
   /* Don't write out static consts, unless we still need them.
@@ -387,7 +390,7 @@ wrapup_global_declaration_2 (tree decl)
      to force a constant to be written if and only if it is
      defined in a main file, as opposed to an include file.  */
 
-  if (TREE_CODE (decl) == VAR_DECL && TREE_STATIC (decl))
+  if (VAR_P (decl) && TREE_STATIC (decl))
     {
       varpool_node *node;
       bool needed = true;
@@ -561,14 +564,14 @@ compile_file (void)
 #if defined ASM_OUTPUT_ALIGNED_DECL_COMMON
       ASM_OUTPUT_ALIGNED_DECL_COMMON (asm_out_file, NULL_TREE,
 				      "__gnu_lto_v1",
-				      (unsigned HOST_WIDE_INT) 1, 8);
+				      HOST_WIDE_INT_1U, 8);
 #elif defined ASM_OUTPUT_ALIGNED_COMMON
       ASM_OUTPUT_ALIGNED_COMMON (asm_out_file, "__gnu_lto_v1",
-				 (unsigned HOST_WIDE_INT) 1, 8);
+				 HOST_WIDE_INT_1U, 8);
 #else
       ASM_OUTPUT_COMMON (asm_out_file, "__gnu_lto_v1",
-			 (unsigned HOST_WIDE_INT) 1,
-			 (unsigned HOST_WIDE_INT) 1);
+			 HOST_WIDE_INT_1U,
+			 HOST_WIDE_INT_1U);
 #endif
     }
 
@@ -578,14 +581,14 @@ compile_file (void)
     {
 #if defined ASM_OUTPUT_ALIGNED_DECL_COMMON
       ASM_OUTPUT_ALIGNED_DECL_COMMON (asm_out_file, NULL_TREE, "__gnu_lto_slim",
-				      (unsigned HOST_WIDE_INT) 1, 8);
+				      HOST_WIDE_INT_1U, 8);
 #elif defined ASM_OUTPUT_ALIGNED_COMMON
       ASM_OUTPUT_ALIGNED_COMMON (asm_out_file, "__gnu_lto_slim",
-				 (unsigned HOST_WIDE_INT) 1, 8);
+				 HOST_WIDE_INT_1U, 8);
 #else
       ASM_OUTPUT_COMMON (asm_out_file, "__gnu_lto_slim",
-			 (unsigned HOST_WIDE_INT) 1,
-			 (unsigned HOST_WIDE_INT) 1);
+			 HOST_WIDE_INT_1U,
+			 HOST_WIDE_INT_1U);
 #endif
     }
 
@@ -731,7 +734,7 @@ print_to_asm_out_file (print_switch_type type, const char * text)
     case SWITCH_TYPE_DESCRIPTIVE:
       if (ASM_COMMENT_START[0] == 0)
 	prepend_sep = false;
-      /* Drop through.  */
+      /* FALLTHRU */
     case SWITCH_TYPE_PASSED:
     case SWITCH_TYPE_ENABLED:
       if (prepend_sep)
@@ -761,7 +764,7 @@ print_to_stderr (print_switch_type type, const char * text)
     case SWITCH_TYPE_PASSED:
     case SWITCH_TYPE_ENABLED:
       fputc (' ', stderr);
-      /* Drop through.  */
+      /* FALLTHRU */
 
     case SWITCH_TYPE_DESCRIPTIVE:
       fputs (text, stderr);
@@ -1219,7 +1222,13 @@ process_options (void)
   no_backend = lang_hooks.post_options (&main_input_filename);
 
   /* Some machines may reject certain combinations of options.  */
+  location_t saved_location = input_location;
+  input_location = UNKNOWN_LOCATION;
   targetm.target_option.override ();
+  input_location = saved_location;
+
+  if (flag_diagnostics_generate_patch)
+      global_dc->edit_context_ptr = new edit_context ();
 
   /* Avoid any informative notes in the second run of -fcompare-debug.  */
   if (flag_compare_debug) 
@@ -1894,6 +1903,7 @@ finalize (bool no_backend)
   if (flag_gen_aux_info)
     {
       fclose (aux_info_file);
+      aux_info_file = NULL;
       if (seen_error ())
 	unlink (aux_info_file_name);
     }
@@ -1908,10 +1918,14 @@ finalize (bool no_backend)
 	fatal_error (input_location, "error writing to %s: %m", asm_file_name);
       if (fclose (asm_out_file) != 0)
 	fatal_error (input_location, "error closing %s: %m", asm_file_name);
+      asm_out_file = NULL;
     }
 
   if (stack_usage_file)
-    fclose (stack_usage_file);
+    {
+      fclose (stack_usage_file);
+      stack_usage_file = NULL;
+    }
 
   if (!no_backend)
     {
@@ -2142,10 +2156,19 @@ toplev::main (int argc, char **argv)
      emit some diagnostics here.  */
   invoke_plugin_callbacks (PLUGIN_FINISH, NULL);
 
+  if (flag_diagnostics_generate_patch)
+    {
+      gcc_assert (global_dc->edit_context_ptr);
+
+      pretty_printer (pp);
+      pp_show_color (&pp) = pp_show_color (global_dc->printer);
+      global_dc->edit_context_ptr->print_diff (&pp, true);
+      pp_flush (&pp);
+    }
+
   diagnostic_finish (global_dc);
 
   finalize_plugins ();
-  location_adhoc_data_fini (line_table);
 
   after_memory_report = true;
 

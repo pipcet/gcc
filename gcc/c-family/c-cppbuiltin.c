@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "target.h"
 #include "c-common.h"
+#include "memmodel.h"
 #include "tm_p.h"		/* For TARGET_CPU_CPP_BUILTINS & friends.  */
 #include "stringpool.h"
 #include "stor-layout.h"
@@ -54,6 +55,7 @@ static void builtin_define_stdint_macros (void);
 static void builtin_define_constants (const char *, tree);
 static void builtin_define_type_max (const char *, tree);
 static void builtin_define_type_minmax (const char *, const char *, tree);
+static void builtin_define_type_width (const char *, tree, tree);
 static void builtin_define_float_constants (const char *,
 					    const char *,
 					    const char *,
@@ -125,7 +127,7 @@ builtin_define_float_constants (const char *name_prefix,
   const double log10_2 = .30102999566398119521;
   double log10_b;
   const struct real_format *fmt;
-  const struct real_format *ldfmt;
+  const struct real_format *widefmt;
 
   char name[64], buf[128];
   int dig, min_10_exp, max_10_exp;
@@ -134,8 +136,20 @@ builtin_define_float_constants (const char *name_prefix,
 
   fmt = REAL_MODE_FORMAT (TYPE_MODE (type));
   gcc_assert (fmt->b != 10);
-  ldfmt = REAL_MODE_FORMAT (TYPE_MODE (long_double_type_node));
-  gcc_assert (ldfmt->b != 10);
+  widefmt = REAL_MODE_FORMAT (TYPE_MODE (long_double_type_node));
+  gcc_assert (widefmt->b != 10);
+  for (int i = 0; i < NUM_FLOATN_NX_TYPES; i++)
+    {
+      tree wtype = FLOATN_NX_TYPE_NODE (i);
+      if (wtype != NULL_TREE)
+	{
+	  const struct real_format *wfmt
+	    = REAL_MODE_FORMAT (TYPE_MODE (wtype));
+	  gcc_assert (wfmt->b != 10);
+	  if (wfmt->p > widefmt->p)
+	    widefmt = wfmt;
+	}
+    }
 
   /* The radix of the exponent representation.  */
   if (type == float_type_node)
@@ -219,7 +233,7 @@ builtin_define_float_constants (const char *name_prefix,
      floating type, but we want this value for rendering constants below.  */
   {
     double d_decimal_dig
-      = 1 + (fmt->p < ldfmt->p ? ldfmt->p : fmt->p) * log10_b;
+      = 1 + (fmt->p < widefmt->p ? widefmt->p : fmt->p) * log10_b;
     decimal_dig = d_decimal_dig;
     if (decimal_dig < d_decimal_dig)
       decimal_dig++;
@@ -231,13 +245,13 @@ builtin_define_float_constants (const char *name_prefix,
     if (type_decimal_dig < type_d_decimal_dig)
       type_decimal_dig++;
   }
+  /* Arbitrarily, define __DECIMAL_DIG__ when defining macros for long
+     double, although it may be greater than the value for long
+     double.  */
   if (type == long_double_type_node)
     builtin_define_with_int_value ("__DECIMAL_DIG__", decimal_dig);
-  else
-    {
-      sprintf (name, "__%s_DECIMAL_DIG__", name_prefix);
-      builtin_define_with_int_value (name, type_decimal_dig);
-    }
+  sprintf (name, "__%s_DECIMAL_DIG__", name_prefix);
+  builtin_define_with_int_value (name, type_decimal_dig);
 
   /* Since, for the supported formats, B is always a power of 2, we
      construct the following numbers directly as a hexadecimal
@@ -289,7 +303,7 @@ builtin_define_float_constants (const char *name_prefix,
   builtin_define_with_int_value (name, MODE_HAS_NANS (TYPE_MODE (type)));
 
   /* Note whether we have fast FMA.  */
-  if (mode_has_fma (TYPE_MODE (type)))
+  if (mode_has_fma (TYPE_MODE (type)) && fma_suffix != NULL)
     {
       sprintf (name, "__FP_FAST_FMA%s", fma_suffix);
       builtin_define_with_int_value (name, 1);
@@ -423,9 +437,15 @@ builtin_define_stdint_macros (void)
   builtin_define_constants ("__INTMAX_C", intmax_type_node);
   builtin_define_type_max ("__UINTMAX_MAX__", uintmax_type_node);
   builtin_define_constants ("__UINTMAX_C", uintmax_type_node);
+  builtin_define_type_width ("__INTMAX_WIDTH__", intmax_type_node,
+			     uintmax_type_node);
   if (sig_atomic_type_node)
-    builtin_define_type_minmax ("__SIG_ATOMIC_MIN__", "__SIG_ATOMIC_MAX__",
-				sig_atomic_type_node);
+    {
+      builtin_define_type_minmax ("__SIG_ATOMIC_MIN__", "__SIG_ATOMIC_MAX__",
+				  sig_atomic_type_node);
+      builtin_define_type_width ("__SIG_ATOMIC_WIDTH__", sig_atomic_type_node,
+				 NULL_TREE);
+    }
   if (int8_type_node)
     builtin_define_type_max ("__INT8_MAX__", int8_type_node);
   if (int16_type_node)
@@ -446,21 +466,32 @@ builtin_define_stdint_macros (void)
     {
       builtin_define_type_max ("__INT_LEAST8_MAX__", int_least8_type_node);
       builtin_define_constants ("__INT8_C", int_least8_type_node);
+      builtin_define_type_width ("__INT_LEAST8_WIDTH__", int_least8_type_node,
+				 uint_least8_type_node);
     }
   if (int_least16_type_node)
     {
       builtin_define_type_max ("__INT_LEAST16_MAX__", int_least16_type_node);
       builtin_define_constants ("__INT16_C", int_least16_type_node);
+      builtin_define_type_width ("__INT_LEAST16_WIDTH__",
+				 int_least16_type_node,
+				 uint_least16_type_node);
     }
   if (int_least32_type_node)
     {
       builtin_define_type_max ("__INT_LEAST32_MAX__", int_least32_type_node);
       builtin_define_constants ("__INT32_C", int_least32_type_node);
+      builtin_define_type_width ("__INT_LEAST32_WIDTH__",
+				 int_least32_type_node,
+				 uint_least32_type_node);
     }
   if (int_least64_type_node)
     {
       builtin_define_type_max ("__INT_LEAST64_MAX__", int_least64_type_node);
       builtin_define_constants ("__INT64_C", int_least64_type_node);
+      builtin_define_type_width ("__INT_LEAST64_WIDTH__",
+				 int_least64_type_node,
+				 uint_least64_type_node);
     }
   if (uint_least8_type_node)
     {
@@ -483,13 +514,29 @@ builtin_define_stdint_macros (void)
       builtin_define_constants ("__UINT64_C", uint_least64_type_node);
     }
   if (int_fast8_type_node)
-    builtin_define_type_max ("__INT_FAST8_MAX__", int_fast8_type_node);
+    {
+      builtin_define_type_max ("__INT_FAST8_MAX__", int_fast8_type_node);
+      builtin_define_type_width ("__INT_FAST8_WIDTH__", int_fast8_type_node,
+				 uint_fast8_type_node);
+    }
   if (int_fast16_type_node)
-    builtin_define_type_max ("__INT_FAST16_MAX__", int_fast16_type_node);
+    {
+      builtin_define_type_max ("__INT_FAST16_MAX__", int_fast16_type_node);
+      builtin_define_type_width ("__INT_FAST16_WIDTH__", int_fast16_type_node,
+				 uint_fast16_type_node);
+    }
   if (int_fast32_type_node)
-    builtin_define_type_max ("__INT_FAST32_MAX__", int_fast32_type_node);
+    {
+      builtin_define_type_max ("__INT_FAST32_MAX__", int_fast32_type_node);
+      builtin_define_type_width ("__INT_FAST32_WIDTH__", int_fast32_type_node,
+				 uint_fast32_type_node);
+    }
   if (int_fast64_type_node)
-    builtin_define_type_max ("__INT_FAST64_MAX__", int_fast64_type_node);
+    {
+      builtin_define_type_max ("__INT_FAST64_MAX__", int_fast64_type_node);
+      builtin_define_type_width ("__INT_FAST64_WIDTH__", int_fast64_type_node,
+				 uint_fast64_type_node);
+    }
   if (uint_fast8_type_node)
     builtin_define_type_max ("__UINT_FAST8_MAX__", uint_fast8_type_node);
   if (uint_fast16_type_node)
@@ -499,7 +546,11 @@ builtin_define_stdint_macros (void)
   if (uint_fast64_type_node)
     builtin_define_type_max ("__UINT_FAST64_MAX__", uint_fast64_type_node);
   if (intptr_type_node)
-    builtin_define_type_max ("__INTPTR_MAX__", intptr_type_node);
+    {
+      builtin_define_type_max ("__INTPTR_MAX__", intptr_type_node);
+      builtin_define_type_width ("__INTPTR_WIDTH__", intptr_type_node,
+				 uintptr_type_node);
+    }
   if (uintptr_type_node)
     builtin_define_type_max ("__UINTPTR_MAX__", uintptr_type_node);
 }
@@ -848,11 +899,15 @@ c_cpp_builtins (cpp_reader *pfile)
 	  cpp_define (pfile, "__cpp_decltype=200707");
 	  cpp_define (pfile, "__cpp_attributes=200809");
 	  cpp_define (pfile, "__cpp_rvalue_reference=200610");
+	  cpp_define (pfile, "__cpp_rvalue_references=200610");
 	  cpp_define (pfile, "__cpp_variadic_templates=200704");
 	  cpp_define (pfile, "__cpp_initializer_lists=200806");
 	  cpp_define (pfile, "__cpp_delegating_constructors=200604");
 	  cpp_define (pfile, "__cpp_nsdmi=200809");
-	  cpp_define (pfile, "__cpp_inheriting_constructors=200802");
+	  if (!flag_new_inheriting_ctors)
+	    cpp_define (pfile, "__cpp_inheriting_constructors=200802");
+	  else
+	    cpp_define (pfile, "__cpp_inheriting_constructors=201511");
 	  cpp_define (pfile, "__cpp_ref_qualifiers=200710");
 	  cpp_define (pfile, "__cpp_alias_templates=200704");
 	}
@@ -862,7 +917,8 @@ c_cpp_builtins (cpp_reader *pfile)
 	  cpp_define (pfile, "__cpp_return_type_deduction=201304");
 	  cpp_define (pfile, "__cpp_init_captures=201304");
 	  cpp_define (pfile, "__cpp_generic_lambdas=201304");
-	  cpp_define (pfile, "__cpp_constexpr=201304");
+	  if (cxx_dialect <= cxx14)
+	    cpp_define (pfile, "__cpp_constexpr=201304");
 	  cpp_define (pfile, "__cpp_decltype_auto=201304");
 	  cpp_define (pfile, "__cpp_aggregate_nsdmi=201304");
 	  cpp_define (pfile, "__cpp_variable_templates=201304");
@@ -879,17 +935,29 @@ c_cpp_builtins (cpp_reader *pfile)
 	  cpp_define (pfile, "__cpp_fold_expressions=201603");
 	  cpp_define (pfile, "__cpp_nontype_template_args=201411");
 	  cpp_define (pfile, "__cpp_range_based_for=201603");
+	  cpp_define (pfile, "__cpp_constexpr=201603");
+	  cpp_define (pfile, "__cpp_if_constexpr=201606");
+	  cpp_define (pfile, "__cpp_capture_star_this=201603");
+	  cpp_define (pfile, "__cpp_inline_variables=201606");
+	  cpp_define (pfile, "__cpp_aggregate_bases=201603");
+	  cpp_define (pfile, "__cpp_deduction_guides=201606");
+	  cpp_define (pfile, "__cpp_noexcept_function_type=201510");
+	  cpp_define (pfile, "__cpp_template_auto=201606");
 	}
       if (flag_concepts)
-	/* Use a value smaller than the 201507 specified in
-	   the TS, since we don't yet support extended auto.  */
-	cpp_define (pfile, "__cpp_concepts=201500");
+	cpp_define (pfile, "__cpp_concepts=201507");
       if (flag_tm)
 	/* Use a value smaller than the 201505 specified in
 	   the TS, since we don't yet support atomic_cancel.  */
 	cpp_define (pfile, "__cpp_transactional_memory=210500");
       if (flag_sized_deallocation)
 	cpp_define (pfile, "__cpp_sized_deallocation=201309");
+      if (aligned_new_threshold)
+	{
+	  cpp_define (pfile, "__cpp_aligned_new=201606");
+	  cpp_define_formatted (pfile, "__STDCPP_DEFAULT_NEW_ALIGNMENT__=%d",
+				aligned_new_threshold);
+	}
     }
   /* Note that we define this for C as well, so that we know if
      __attribute__((cleanup)) will interface with EH.  */
@@ -929,6 +997,24 @@ c_cpp_builtins (cpp_reader *pfile)
   builtin_define_type_minmax ("__WINT_MIN__", "__WINT_MAX__", wint_type_node);
   builtin_define_type_max ("__PTRDIFF_MAX__", ptrdiff_type_node);
   builtin_define_type_max ("__SIZE_MAX__", size_type_node);
+
+  /* These are needed for TS 18661-1.  */
+  builtin_define_type_width ("__SCHAR_WIDTH__", signed_char_type_node,
+			     unsigned_char_type_node);
+  builtin_define_type_width ("__SHRT_WIDTH__", short_integer_type_node,
+			     short_unsigned_type_node);
+  builtin_define_type_width ("__INT_WIDTH__", integer_type_node,
+			     unsigned_type_node);
+  builtin_define_type_width ("__LONG_WIDTH__", long_integer_type_node,
+			     long_unsigned_type_node);
+  builtin_define_type_width ("__LONG_LONG_WIDTH__",
+			     long_long_integer_type_node,
+			     long_long_unsigned_type_node);
+  builtin_define_type_width ("__WCHAR_WIDTH__", underlying_wchar_type_node,
+			     NULL_TREE);
+  builtin_define_type_width ("__WINT_WIDTH__", wint_type_node, NULL_TREE);
+  builtin_define_type_width ("__PTRDIFF_WIDTH__", ptrdiff_type_node, NULL_TREE);
+  builtin_define_type_width ("__SIZE_WIDTH__", size_type_node, NULL_TREE);
 
   if (c_dialect_cxx ())
     for (i = 0; i < NUM_INT_N_ENTS; i ++)
@@ -979,6 +1065,19 @@ c_cpp_builtins (cpp_reader *pfile)
 				  "", double_type_node);
   builtin_define_float_constants ("LDBL", "L", "%s", "L",
 				  long_double_type_node);
+
+  for (int i = 0; i < NUM_FLOATN_NX_TYPES; i++)
+    {
+      if (FLOATN_NX_TYPE_NODE (i) == NULL_TREE)
+	continue;
+      char prefix[20], csuffix[20];
+      sprintf (prefix, "FLT%d%s", floatn_nx_types[i].n,
+	       floatn_nx_types[i].extended ? "X" : "");
+      sprintf (csuffix, "F%d%s", floatn_nx_types[i].n,
+	       floatn_nx_types[i].extended ? "x" : "");
+      builtin_define_float_constants (prefix, csuffix, "%s", NULL,
+				      FLOATN_NX_TYPE_NODE (i));
+    }
 
   /* For decfloat.h.  */
   builtin_define_decimal_float_constants ("DEC32", "DF", dfloat32_type_node);
@@ -1066,24 +1165,27 @@ c_cpp_builtins (cpp_reader *pfile)
 	  macro_name = (char *) alloca (strlen (name)
 					+ sizeof ("__LIBGCC__FUNC_EXT__"));
 	  sprintf (macro_name, "__LIBGCC_%s_FUNC_EXT__", name);
-	  const char *suffix;
+	  char suffix[20] = "";
 	  if (mode == TYPE_MODE (double_type_node))
-	    suffix = "";
+	    ; /* Empty suffix correct.  */
 	  else if (mode == TYPE_MODE (float_type_node))
-	    suffix = "f";
+	    suffix[0] = 'f';
 	  else if (mode == TYPE_MODE (long_double_type_node))
-	    suffix = "l";
-	  /* ??? The following assumes the built-in functions (defined
-	     in target-specific code) match the suffixes used for
-	     constants.  Because in fact such functions are not
-	     defined for the 'w' suffix, 'l' is used there
-	     instead.  */
-	  else if (mode == targetm.c.mode_for_suffix ('q'))
-	    suffix = "q";
-	  else if (mode == targetm.c.mode_for_suffix ('w'))
-	    suffix = "l";
+	    suffix[0] = 'l';
 	  else
-	    gcc_unreachable ();
+	    {
+	      bool found_suffix = false;
+	      for (int i = 0; i < NUM_FLOATN_NX_TYPES; i++)
+		if (FLOATN_NX_TYPE_NODE (i) != NULL_TREE
+		    && mode == TYPE_MODE (FLOATN_NX_TYPE_NODE (i)))
+		  {
+		    sprintf (suffix, "f%d%s", floatn_nx_types[i].n,
+			     floatn_nx_types[i].extended ? "x" : "");
+		    found_suffix = true;
+		    break;
+		  }
+	      gcc_assert (found_suffix);
+	    }
 	  builtin_define_with_value (macro_name, suffix, 0);
 	  bool excess_precision = false;
 	  if (TARGET_FLT_EVAL_METHOD != 0
@@ -1117,10 +1219,6 @@ c_cpp_builtins (cpp_reader *pfile)
 #ifdef EH_FRAME_SECTION_NAME
       builtin_define_with_value ("__LIBGCC_EH_FRAME_SECTION_NAME__",
 				 EH_FRAME_SECTION_NAME, 1);
-#endif
-#ifdef JCR_SECTION_NAME
-      builtin_define_with_value ("__LIBGCC_JCR_SECTION_NAME__",
-				 JCR_SECTION_NAME, 1);
 #endif
 #ifdef CTORS_SECTION_ASM_OP
       builtin_define_with_value ("__LIBGCC_CTORS_SECTION_ASM_OP__",
@@ -1659,6 +1757,17 @@ builtin_define_type_minmax (const char *min_macro, const char *max_macro,
 	}
       cpp_define (parse_in, buf);
     }
+}
+
+/* Define WIDTH_MACRO for the width of TYPE.  If TYPE2 is not NULL,
+   both types must have the same width.  */
+
+static void
+builtin_define_type_width (const char *width_macro, tree type, tree type2)
+{
+  if (type2 != NULL_TREE)
+    gcc_assert (TYPE_PRECISION (type) == TYPE_PRECISION (type2));
+  builtin_define_with_int_value (width_macro, TYPE_PRECISION (type));
 }
 
 #include "gt-c-family-c-cppbuiltin.h"

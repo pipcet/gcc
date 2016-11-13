@@ -537,6 +537,7 @@ cxx_incomplete_type_diagnostic (location_t loc, const_tree value,
       break;
 
     case TYPENAME_TYPE:
+    case DECLTYPE_TYPE:
       emit_diagnostic (diag_kind, loc, 0,
 		       "invalid use of dependent type %qT", type);
       break;
@@ -806,7 +807,7 @@ store_init_value (tree decl, tree init, vec<tree, va_gc>** cleanups, int flags)
       bool const_init;
       value = instantiate_non_dependent_expr (value);
       if (DECL_DECLARED_CONSTEXPR_P (decl)
-	  || DECL_IN_AGGR_P (decl))
+	  || (DECL_IN_AGGR_P (decl) && !DECL_VAR_DECLARED_INLINE_P (decl)))
 	{
 	  /* Diagnose a non-constant initializer for constexpr.  */
 	  if (processing_template_decl
@@ -1351,6 +1352,7 @@ process_init_constructor_record (tree type, tree init,
   gcc_assert (TREE_CODE (type) == RECORD_TYPE);
   gcc_assert (!CLASSTYPE_VBASECLASSES (type));
   gcc_assert (!TYPE_BINFO (type)
+	      || cxx_dialect >= cxx1z
 	      || !BINFO_N_BASE_BINFOS (TYPE_BINFO (type)));
   gcc_assert (!TYPE_POLYMORPHIC_P (type));
 
@@ -1368,7 +1370,9 @@ process_init_constructor_record (tree type, tree init,
       if (!DECL_NAME (field) && DECL_C_BIT_FIELD (field))
 	continue;
 
-      if (TREE_CODE (field) != FIELD_DECL || DECL_ARTIFICIAL (field))
+      if (TREE_CODE (field) != FIELD_DECL
+	  || (DECL_ARTIFICIAL (field)
+	      && !(cxx_dialect >= cxx1z && DECL_FIELD_IS_BASE (field))))
 	continue;
 
       /* If this is a bitfield, first convert to the declared type.  */
@@ -1378,7 +1382,7 @@ process_init_constructor_record (tree type, tree init,
       if (type == error_mark_node)
 	return PICFLAG_ERRONEOUS;
 
-      if (idx < vec_safe_length (CONSTRUCTOR_ELTS (init)))
+      if (idx < CONSTRUCTOR_NELTS (init))
 	{
 	  constructor_elt *ce = &(*CONSTRUCTOR_ELTS (init))[idx];
 	  if (ce->index)
@@ -1475,7 +1479,7 @@ process_init_constructor_record (tree type, tree init,
       CONSTRUCTOR_APPEND_ELT (v, field, next);
     }
 
-  if (idx < vec_safe_length (CONSTRUCTOR_ELTS (init)))
+  if (idx < CONSTRUCTOR_NELTS (init))
     {
       if (complain & tf_error)
 	error ("too many initializers for %qT", type);
@@ -1895,7 +1899,7 @@ build_m_component_ref (tree datum, tree component, tsubst_flags_t complain)
 	 operand is a pointer to member function with ref-qualifier &&.  */
       if (FUNCTION_REF_QUALIFIED (type))
 	{
-	  bool lval = real_lvalue_p (datum);
+	  bool lval = lvalue_p (datum);
 	  if (lval && FUNCTION_RVALUE_QUALIFIED (type))
 	    {
 	      if (complain & tf_error)
@@ -1951,11 +1955,23 @@ build_functional_cast (tree exp, tree parms, tsubst_flags_t complain)
       return error_mark_node;
     }
 
-  if (type_uses_auto (type))
+  if (tree anode = type_uses_auto (type))
     {
-      if (complain & tf_error)
-	error ("invalid use of %<auto%>");
-      return error_mark_node;
+      if (!CLASS_PLACEHOLDER_TEMPLATE (anode))
+	{
+	  if (complain & tf_error)
+	    error ("invalid use of %qT", anode);
+	  return error_mark_node;
+	}
+      else if (!parms)
+	{
+	  if (complain & tf_error)
+	    error ("cannot deduce template arguments for %qT from ()", anode);
+	  return error_mark_node;
+	}
+      else
+	type = do_auto_deduction (type, parms, anode, complain,
+				  adc_variable_type);
     }
 
   if (processing_template_decl)

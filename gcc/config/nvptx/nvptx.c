@@ -28,6 +28,7 @@
 #include "tree.h"
 #include "cfghooks.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "expmed.h"
 #include "optabs.h"
@@ -60,6 +61,7 @@
 #include "internal-fn.h"
 #include "gimple-iterator.h"
 #include "stringpool.h"
+#include "tree-vrp.h"
 #include "tree-ssa-operands.h"
 #include "tree-ssanames.h"
 #include "gimplify.h"
@@ -1037,11 +1039,14 @@ nvptx_declare_function_name (FILE *file, const char *name, const_tree decl)
     init_frame (file, STACK_POINTER_REGNUM,
 		UNITS_PER_WORD, crtl->outgoing_args_size);
 
-  /* Declare a local variable for the frame.  */
+  /* Declare a local variable for the frame.  Force its size to be
+     DImode-compatible.  */
   HOST_WIDE_INT sz = get_frame_size ();
   if (sz || cfun->machine->has_chain)
     init_frame (file, FRAME_POINTER_REGNUM,
-		crtl->stack_alignment_needed / BITS_PER_UNIT, sz);
+		crtl->stack_alignment_needed / BITS_PER_UNIT,
+		(sz + GET_MODE_SIZE (DImode) - 1)
+		& ~(HOST_WIDE_INT)(GET_MODE_SIZE (DImode) - 1));
 
   /* Declare the pseudos we have as ptx registers.  */
   int maxregs = max_reg_num ();
@@ -3086,17 +3091,11 @@ nvptx_find_sese (auto_vec<basic_block> &blocks, bb_pair_vec_t &regions)
   int ix;
 
   /* First clear each BB of the whole function.  */ 
-  FOR_EACH_BB_FN (block, cfun)
+  FOR_ALL_BB_FN (block, cfun)
     {
       block->flags &= ~BB_VISITED;
       BB_SET_SESE (block, 0);
     }
-  block = EXIT_BLOCK_PTR_FOR_FN (cfun);
-  block->flags &= ~BB_VISITED;
-  BB_SET_SESE (block, 0);
-  block = ENTRY_BLOCK_PTR_FOR_FN (cfun);
-  block->flags &= ~BB_VISITED;
-  BB_SET_SESE (block, 0);
 
   /* Mark blocks in the function that are in this graph.  */
   for (ix = 0; blocks.iterate (ix, &block); ix++)
@@ -3266,8 +3265,9 @@ nvptx_propagate (basic_block block, rtx_insn *insn, propagate_mask rw,
       rtx pred = NULL_RTX;
       rtx_code_label *label = NULL;
 
-      gcc_assert (!(fs & (GET_MODE_SIZE (DImode) - 1)));
-      fs /= GET_MODE_SIZE (DImode);
+      /* The frame size might not be DImode compatible, but the frame
+	 array's declaration will be.  So it's ok to round up here.  */
+      fs = (fs + GET_MODE_SIZE (DImode) - 1) / GET_MODE_SIZE (DImode);
       /* Detect single iteration loop. */
       if (fs == 1)
 	fs = 0;
@@ -4174,7 +4174,7 @@ nvptx_expand_builtin (tree exp, rtx target, rtx ARG_UNUSED (subtarget),
 /* Define dimension sizes for known hardware.  */
 #define PTX_VECTOR_LENGTH 32
 #define PTX_WORKER_LENGTH 32
-#define PTX_GANG_DEFAULT  32
+#define PTX_GANG_DEFAULT  0 /* Defer to runtime.  */
 
 /* Validate compute dimensions of an OpenACC offload or routine, fill
    in non-unity defaults.  FN_LEVEL indicates the level at which a
@@ -4850,6 +4850,9 @@ nvptx_goacc_reduction (gcall *call)
 
 #undef TARGET_ATTRIBUTE_TABLE
 #define TARGET_ATTRIBUTE_TABLE nvptx_attribute_table
+
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P nvptx_legitimate_address_p

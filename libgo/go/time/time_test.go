@@ -22,7 +22,7 @@ import (
 // the subsequent tests fail.
 func TestZoneData(t *testing.T) {
 	lt := Now()
-	// PST is 8 hours west, PDT is 7 hours west.  We could use the name but it's not unique.
+	// PST is 8 hours west, PDT is 7 hours west. We could use the name but it's not unique.
 	if name, off := lt.Zone(); off != -8*60*60 && off != -7*60*60 {
 		t.Errorf("Unable to find US Pacific time zone data for testing; time zone is %q offset %d", name, off)
 		t.Error("Likely problem: the time zone files have not been installed.")
@@ -533,7 +533,7 @@ var durationTests = []struct {
 	str string
 	d   Duration
 }{
-	{"0", 0},
+	{"0s", 0},
 	{"1ns", 1 * Nanosecond},
 	{"1.1µs", 1100 * Nanosecond},
 	{"2.2ms", 2200 * Microsecond},
@@ -939,8 +939,11 @@ func TestLoadFixed(t *testing.T) {
 	// but Go and most other systems use "east is positive".
 	// So GMT+1 corresponds to -3600 in the Go zone, not +3600.
 	name, offset := Now().In(loc).Zone()
-	if name != "GMT+1" || offset != -1*60*60 {
-		t.Errorf("Now().In(loc).Zone() = %q, %d, want %q, %d", name, offset, "GMT+1", -1*60*60)
+	// The zone abbreviation is "-01" since tzdata-2016g, and "GMT+1"
+	// on earlier versions; we accept both. (Issue #17276).
+	if !(name == "GMT+1" || name == "-01") || offset != -1*60*60 {
+		t.Errorf("Now().In(loc).Zone() = %q, %d, want %q or %q, %d",
+			name, offset, "GMT+1", "-01", -1*60*60)
 	}
 }
 

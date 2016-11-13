@@ -630,7 +630,7 @@ attr_string (const char *str, int len)
   memcpy (new_str, str, len);
   new_str[len] = '\0';
   attr_hash_add_string (hashcode, new_str);
-  copy_md_ptr_loc (new_str, str);
+  rtx_reader_ptr->copy_md_ptr_loc (new_str, str);
 
   return new_str;			/* Return the new string.  */
 }
@@ -888,6 +888,7 @@ check_attr_test (file_location loc, rtx exp, attr_desc *attr)
 	  ATTR_IND_SIMPLIFIED_P (exp) = 1;
 	  break;
 	}
+      /* FALLTHRU */
     default:
       fatal_at (loc, "invalid operator `%s' in definition of attribute"
 		" `%s'", GET_RTX_NAME (GET_CODE (exp)), attr->name);
@@ -1218,6 +1219,7 @@ make_canonical (file_location loc, struct attr_desc *attr, rtx exp)
 
       exp = newexp;
       /* Fall through to COND case since this is now a COND.  */
+      gcc_fallthrough ();
 
     case COND:
       {
@@ -3155,7 +3157,7 @@ gen_attr (md_rtx_info *info)
   if (GET_CODE (def) == DEFINE_ENUM_ATTR)
     {
       attr->enum_name = XSTR (def, 1);
-      et = lookup_enum_type (XSTR (def, 1));
+      et = rtx_reader_ptr->lookup_enum_type (XSTR (def, 1));
       if (!et || !et->md_p)
 	error_at (info->loc, "No define_enum called `%s' defined",
 		  attr->name);
@@ -3458,6 +3460,7 @@ write_test_expr (FILE *outf, rtx exp, unsigned int attrs_cached, int flags,
     case GE: case GT:
     case LE: case LT:
       comparison_operator = FLG_BITWISE;
+      /* FALLTHRU */
 
     case PLUS:   case MINUS:  case MULT:     case DIV:      case MOD:
     case AND:    case IOR:    case XOR:
@@ -3613,6 +3616,7 @@ write_test_expr (FILE *outf, rtx exp, unsigned int attrs_cached, int flags,
 	}
 
       /* Otherwise, fall through to normal unary operator.  */
+      gcc_fallthrough ();
 
     /* Unary operators.  */
     case ABS:  case NEG:
@@ -3764,14 +3768,14 @@ write_test_expr (FILE *outf, rtx exp, unsigned int attrs_cached, int flags,
       break;
 
     case MATCH_TEST:
-      fprint_c_condition (outf, XSTR (exp, 0));
+      rtx_reader_ptr->fprint_c_condition (outf, XSTR (exp, 0));
       if (flags & FLG_BITWISE)
 	fprintf (outf, " != 0");
       break;
 
     /* A random C expression.  */
     case SYMBOL_REF:
-      fprint_c_condition (outf, XSTR (exp, 0));
+      rtx_reader_ptr->fprint_c_condition (outf, XSTR (exp, 0));
       break;
 
     /* The address of the branch target.  */
@@ -4279,6 +4283,8 @@ write_attr_case (FILE *outf, struct attr_desc *attr, struct attr_value *av,
       fprintf (outf, "    && asm_noperands (PATTERN (insn)) < 0)\n");
       write_indent (outf, indent + 2);
       fprintf (outf, "  fatal_insn_not_found (insn);\n");
+      write_indent (outf, indent + 2);
+      fprintf (outf, "/* FALLTHRU */\n");
     }
 
   if (write_case_lines)
@@ -4359,7 +4365,7 @@ write_attr_value (FILE *outf, struct attr_desc *attr, rtx value)
       break;
 
     case SYMBOL_REF:
-      fprint_c_condition (outf, XSTR (value, 0));
+      rtx_reader_ptr->fprint_c_condition (outf, XSTR (value, 0));
       break;
 
     case ATTR:
@@ -4653,7 +4659,7 @@ make_internal_attr (const char *name, rtx value, int special)
   attr->is_numeric = 1;
   attr->is_const = 0;
   attr->is_special = (special & ATTR_SPECIAL) != 0;
-  attr->default_val = get_attr_value (file_location ("<internal>", 0),
+  attr->default_val = get_attr_value (file_location ("<internal>", 0, 0),
 				      value, attr, -2);
 }
 
@@ -5153,6 +5159,7 @@ write_header (FILE *outf)
   fprintf (outf, "#include \"stor-layout.h\"\n");
   fprintf (outf, "#include \"calls.h\"\n");
   fprintf (outf, "#include \"insn-attr.h\"\n");
+  fprintf (outf, "#include \"memmodel.h\"\n");
   fprintf (outf, "#include \"tm_p.h\"\n");
   fprintf (outf, "#include \"insn-config.h\"\n");
   fprintf (outf, "#include \"recog.h\"\n");
@@ -5275,7 +5282,7 @@ main (int argc, const char **argv)
       md_rtx_info info;
       info.def = rtx_alloc (DEFINE_ASM_ATTRIBUTES);
       XVEC (info.def, 0) = rtvec_alloc (0);
-      info.loc = file_location ("<internal>", 0);
+      info.loc = file_location ("<internal>", 0, 0);
       info.index = -1;
       gen_insn (&info);
     }

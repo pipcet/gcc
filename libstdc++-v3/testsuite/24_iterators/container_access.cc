@@ -24,8 +24,6 @@
 #include <vector>
 #include <testsuite_hooks.h>
 
-bool test __attribute__((unused)) = true;
-
 void
 test01()
 {
@@ -47,7 +45,7 @@ test02()
   static_assert(!e);
 }
 
-int
+void
 test03()
 {
   std::initializer_list<int> il{1,2,3};
@@ -67,7 +65,7 @@ test03()
 
 }
 
-int
+void
 test04()
 {
   std::vector<int> v{1,2,3};

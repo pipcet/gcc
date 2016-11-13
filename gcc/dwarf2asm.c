@@ -24,12 +24,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "rtl.h"
 #include "tree.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "stringpool.h"
 #include "varasm.h"
 #include "output.h"
 #include "dwarf2asm.h"
 #include "dwarf2.h"
+#include "function.h"
+#include "emit-rtl.h"
 
 #ifndef XCOFF_DEBUGGING_INFO
 #define XCOFF_DEBUGGING_INFO 0
@@ -97,7 +100,7 @@ dw2_asm_output_data (int size, unsigned HOST_WIDE_INT value,
   va_start (ap, comment);
 
   if (size * 8 < HOST_BITS_PER_WIDE_INT)
-    value &= ~(~(unsigned HOST_WIDE_INT) 0 << (size * 8));
+    value &= ~(HOST_WIDE_INT_M1U << (size * 8));
 
   if (op)
     {
@@ -191,9 +194,36 @@ dw2_asm_output_offset (int size, const char *label,
   va_start (ap, comment);
 
 #ifdef ASM_OUTPUT_DWARF_OFFSET
-  ASM_OUTPUT_DWARF_OFFSET (asm_out_file, size, label, base);
+  ASM_OUTPUT_DWARF_OFFSET (asm_out_file, size, label, 0, base);
 #else
   dw2_assemble_integer (size, gen_rtx_SYMBOL_REF (Pmode, label));
+#endif
+
+  if (flag_debug_asm && comment)
+    {
+      fprintf (asm_out_file, "\t%s ", ASM_COMMENT_START);
+      vfprintf (asm_out_file, comment, ap);
+    }
+  fputc ('\n', asm_out_file);
+
+  va_end (ap);
+}
+
+void
+dw2_asm_output_offset (int size, const char *label, HOST_WIDE_INT offset,
+		       section *base ATTRIBUTE_UNUSED,
+		       const char *comment, ...)
+{
+  va_list ap;
+
+  va_start (ap, comment);
+
+#ifdef ASM_OUTPUT_DWARF_OFFSET
+  ASM_OUTPUT_DWARF_OFFSET (asm_out_file, size, label, offset, base);
+#else
+  dw2_assemble_integer (size, gen_rtx_PLUS (Pmode,
+					    gen_rtx_SYMBOL_REF (Pmode, label),
+					    gen_int_mode (offset, Pmode)));
 #endif
 
   if (flag_debug_asm && comment)
@@ -795,7 +825,7 @@ static GTY(()) hash_map<const char *, tree> *indirect_pool;
 static GTY(()) int dw2_const_labelno;
 
 #if defined(HAVE_GAS_HIDDEN)
-# define USE_LINKONCE_INDIRECT (SUPPORTS_ONE_ONLY)
+# define USE_LINKONCE_INDIRECT (SUPPORTS_ONE_ONLY && !XCOFF_DEBUGGING_INFO)
 #else
 # define USE_LINKONCE_INDIRECT 0
 #endif

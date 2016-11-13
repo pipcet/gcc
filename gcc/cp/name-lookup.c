@@ -29,6 +29,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "debug.h"
 #include "c-family/c-pragma.h"
 #include "params.h"
+#include "gcc-rich-location.h"
+#include "spellcheck-tree.h"
+#include "parser.h"
 
 /* The bindings for a particular name in a particular scope.  */
 
@@ -1153,7 +1156,7 @@ pushdecl_maybe_friend_1 (tree x, bool is_friend)
 		   }
 		}
 	      /* Error if redeclaring a local declared in a
-		 for-init-statement or in the condition of an if or
+		 init-statement or in the condition of an if or
 		 switch statement when the new declaration is in the
 		 outermost block of the controlled statement.
 		 Redeclaring a variable from a for or while condition is
@@ -1192,19 +1195,41 @@ pushdecl_maybe_friend_1 (tree x, bool is_friend)
 		  nowarn = true;
 		}
 
-	      if (warn_shadow && !nowarn)
+	      if ((warn_shadow
+		   || warn_shadow_local
+		   || warn_shadow_compatible_local)
+		  && !nowarn)
 		{
 		  bool warned;
+		  enum opt_code warning_code;
+		  /* If '-Wshadow=compatible-local' is specified without other
+		     -Wshadow= flags, we will warn only when the type of the
+		     shadowing variable (i.e. x) can be converted to that of
+		     the shadowed parameter (oldlocal). The reason why we only
+		     check if x's type can be converted to oldlocal's type
+		     (but not the other way around) is because when users
+		     accidentally shadow a parameter, more than often they
+		     would use the variable thinking (mistakenly) it's still
+		     the parameter. It would be rare that users would use the
+		     variable in the place that expects the parameter but
+		     thinking it's a new decl.  */
+		  if (warn_shadow)
+		    warning_code = OPT_Wshadow;
+		  else if (can_convert (TREE_TYPE (oldlocal), TREE_TYPE (x),
+					tf_none))
+		    warning_code = OPT_Wshadow_compatible_local;
+		  else
+		    warning_code = OPT_Wshadow_local;
 
 		  if (TREE_CODE (oldlocal) == PARM_DECL)
-		    warned = warning_at (input_location, OPT_Wshadow,
+		    warned = warning_at (input_location, warning_code,
 				"declaration of %q#D shadows a parameter", x);
 		  else if (is_capture_proxy (oldlocal))
-		    warned = warning_at (input_location, OPT_Wshadow,
+		    warned = warning_at (input_location, warning_code,
 				"declaration of %qD shadows a lambda capture",
 				x);
 		  else
-		    warned = warning_at (input_location, OPT_Wshadow,
+		    warned = warning_at (input_location, warning_code,
 				"declaration of %qD shadows a previous local",
 				x);
 
@@ -2086,7 +2111,7 @@ constructor_name_p (tree name, tree type)
 static GTY(()) int anon_cnt;
 
 /* Return an IDENTIFIER which can be used as a name for
-   anonymous structs and unions.  */
+   unnamed structs and unions.  */
 
 tree
 make_anon_name (void)
@@ -2100,7 +2125,7 @@ make_anon_name (void)
 /* This code is practically identical to that for creating
    anonymous names, but is just used for lambdas instead.  This isn't really
    necessary, but it's convenient to avoid treating lambdas like other
-   anonymous types.  */
+   unnamed types.  */
 
 static GTY(()) int lambda_cnt = 0;
 
@@ -3396,6 +3421,12 @@ do_class_using_decl (tree scope, tree name)
 	      return NULL_TREE;
 	    }
 	}
+      else if (name == ctor_identifier
+	       && BINFO_INHERITANCE_CHAIN (BINFO_INHERITANCE_CHAIN (binfo)))
+	{
+	  error ("cannot inherit constructors from indirect base %qT", scope);
+	  return NULL_TREE;
+	}
       else if (!name_dependent_p)
 	{
 	  decl = lookup_member (binfo, name, 0, false, tf_warning_or_error);
@@ -4435,9 +4466,20 @@ suggest_alternatives_for (location_t location, tree name)
 
   namespaces_to_search.release ();
 
-  /* Nothing useful to report.  */
+  /* Nothing useful to report for NAME.  Report on likely misspellings,
+     or do nothing.  */
   if (candidates.is_empty ())
-    return;
+    {
+      const char *fuzzy_name = lookup_name_fuzzy (name, FUZZY_LOOKUP_NAME);
+      if (fuzzy_name)
+	{
+	  gcc_rich_location richloc (location);
+	  richloc.add_fixit_replace (fuzzy_name);
+	  inform_at_rich_loc (&richloc, "suggested alternative: %qs",
+			      fuzzy_name);
+	}
+      return;
+    }
 
   inform_n (location, candidates.length (),
 	    "suggested alternative:",
@@ -4670,6 +4712,114 @@ qualified_lookup_using_namespace (tree name, tree scope,
   vec_free (seen_inline);
   timevar_stop (TV_NAME_LOOKUP);
   return result->value != error_mark_node;
+}
+
+/* Helper function for lookup_name_fuzzy.
+   Traverse binding level LVL, looking for good name matches for NAME
+   (and BM).  */
+static void
+consider_binding_level (tree name, best_match <tree, tree> &bm,
+			cp_binding_level *lvl, bool look_within_fields,
+			enum lookup_name_fuzzy_kind kind)
+{
+  if (look_within_fields)
+    if (lvl->this_entity && TREE_CODE (lvl->this_entity) == RECORD_TYPE)
+      {
+	tree type = lvl->this_entity;
+	bool want_type_p = (kind == FUZZY_LOOKUP_TYPENAME);
+	tree best_matching_field
+	  = lookup_member_fuzzy (type, name, want_type_p);
+	if (best_matching_field)
+	  bm.consider (best_matching_field);
+      }
+
+  for (tree t = lvl->names; t; t = TREE_CHAIN (t))
+    {
+      tree d = t;
+
+      /* OVERLOADs or decls from using declaration are wrapped into
+	 TREE_LIST.  */
+      if (TREE_CODE (d) == TREE_LIST)
+	{
+	  d = TREE_VALUE (d);
+	  d = OVL_CURRENT (d);
+	}
+
+      /* Don't use bindings from implicitly declared functions,
+	 as they were likely misspellings themselves.  */
+      if (TREE_TYPE (d) == error_mark_node)
+	continue;
+
+      /* Skip anticipated decls of builtin functions.  */
+      if (TREE_CODE (d) == FUNCTION_DECL
+	  && DECL_BUILT_IN (d)
+	  && DECL_ANTICIPATED (d))
+	continue;
+
+      if (DECL_NAME (d))
+	bm.consider (DECL_NAME (d));
+    }
+}
+
+/* Search for near-matches for NAME within the current bindings, and within
+   macro names, returning the best match as a const char *, or NULL if
+   no reasonable match is found.  */
+
+const char *
+lookup_name_fuzzy (tree name, enum lookup_name_fuzzy_kind kind)
+{
+  gcc_assert (TREE_CODE (name) == IDENTIFIER_NODE);
+
+  best_match <tree, tree> bm (name);
+
+  cp_binding_level *lvl;
+  for (lvl = scope_chain->class_bindings; lvl; lvl = lvl->level_chain)
+    consider_binding_level (name, bm, lvl, true, kind);
+
+  for (lvl = current_binding_level; lvl; lvl = lvl->level_chain)
+    consider_binding_level (name, bm, lvl, false, kind);
+
+  /* Consider macros: if the user misspelled a macro name e.g. "SOME_MACRO"
+     as:
+       x = SOME_OTHER_MACRO (y);
+     then "SOME_OTHER_MACRO" will survive to the frontend and show up
+     as a misspelled identifier.
+
+     Use the best distance so far so that a candidate is only set if
+     a macro is better than anything so far.  This allows early rejection
+     (without calculating the edit distance) of macro names that must have
+     distance >= bm.get_best_distance (), and means that we only get a
+     non-NULL result for best_macro_match if it's better than any of
+     the identifiers already checked.  */
+  best_macro_match bmm (name, bm.get_best_distance (), parse_in);
+  cpp_hashnode *best_macro = bmm.get_best_meaningful_candidate ();
+  /* If a macro is the closest so far to NAME, suggest it.  */
+  if (best_macro)
+    return (const char *)best_macro->ident.str;
+
+  /* Try the "starts_decl_specifier_p" keywords to detect
+     "singed" vs "signed" typos.  */
+  for (unsigned i = 0; i < num_c_common_reswords; i++)
+    {
+      const c_common_resword *resword = &c_common_reswords[i];
+
+      if (!cp_keyword_starts_decl_specifier_p (resword->rid))
+	continue;
+
+      tree resword_identifier = ridpointers [resword->rid];
+      if (!resword_identifier)
+	continue;
+      gcc_assert (TREE_CODE (resword_identifier) == IDENTIFIER_NODE);
+      bm.consider (resword_identifier);
+    }
+
+  /* See if we have a good suggesion for the user.  */
+  tree best_id = bm.get_best_meaningful_candidate ();
+  if (best_id)
+    return IDENTIFIER_POINTER (best_id);
+
+  /* No meaningful suggestion available.  */
+  return NULL;
 }
 
 /* Subroutine of outer_binding.
@@ -5547,6 +5697,7 @@ arg_assoc_type (struct arg_lookup *k, tree type)
     case RECORD_TYPE:
       if (TYPE_PTRMEMFUNC_P (type))
 	return arg_assoc_type (k, TYPE_PTRMEMFUNC_FN_TYPE (type));
+      /* FALLTHRU */
     case UNION_TYPE:
       return arg_assoc_class (k, type);
     case POINTER_TYPE:
@@ -5931,9 +6082,6 @@ pushtag_1 (tree name, tree type, tag_scope scope)
 	      && b->level_chain->kind == sk_class))
 	in_class = 1;
 
-      if (current_lang_name == lang_name_java)
-	TYPE_FOR_JAVA (type) = 1;
-
       tdef = create_implicit_typedef (name, type);
       DECL_CONTEXT (tdef) = FROB_CONTEXT (context);
       if (scope == ts_within_enclosing_non_class)
@@ -6074,7 +6222,7 @@ store_binding (tree id, vec<cxx_saved_binding, va_gc> **old_bindings)
 static void
 store_bindings (tree names, vec<cxx_saved_binding, va_gc> **old_bindings)
 {
-  static vec<tree> bindings_need_stored = vNULL;
+  static vec<tree> bindings_need_stored;
   tree t, id;
   size_t i;
 
@@ -6110,7 +6258,7 @@ static void
 store_class_bindings (vec<cp_class_binding, va_gc> *names,
 		      vec<cxx_saved_binding, va_gc> **old_bindings)
 {
-  static vec<tree> bindings_need_stored = vNULL;
+  static vec<tree> bindings_need_stored;
   size_t i;
   cp_class_binding *cb;
 

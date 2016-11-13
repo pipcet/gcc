@@ -64,61 +64,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef CC1_SPEC
 
 /* Names to predefine in the preprocessor for this target machine.  */
-#define TARGET_CPU_CPP_BUILTINS()	\
- do {					\
-    builtin_define ("__arc__");		\
-    if (TARGET_ARC600)			\
-      {					\
-	builtin_define ("__A6__");	\
-	builtin_define ("__ARC600__");	\
-      }					\
-    else if (TARGET_ARC601)			\
-      {					\
-	builtin_define ("__ARC601__");	\
-      }					\
-    else if (TARGET_ARC700)			\
-      {					\
-	builtin_define ("__A7__");	\
-	builtin_define ("__ARC700__");	\
-      }					\
-    else if (TARGET_EM)			\
-      {					\
-	builtin_define ("__EM__");	\
-      }					\
-    else if (TARGET_HS)			\
-      {					\
-	builtin_define ("__HS__");	\
-      }					\
-    if (TARGET_ATOMIC)			\
-      {					\
-	builtin_define ("__ARC_ATOMIC__");	\
-      }					\
-    if (TARGET_NORM)			\
-      {					\
-	builtin_define ("__ARC_NORM__");\
-	builtin_define ("__Xnorm");	\
-      }					\
-    if (TARGET_LL64)			\
-      {					\
-	builtin_define ("__ARC_LL64__");\
-      }					\
-    if (TARGET_MUL64_SET)		\
-      builtin_define ("__ARC_MUL64__");\
-    if (TARGET_MULMAC_32BY16_SET)	\
-      builtin_define ("__ARC_MUL32BY16__");\
-    if (TARGET_SIMD_SET)        	\
-      builtin_define ("__ARC_SIMD__");	\
-    if (TARGET_BARREL_SHIFTER)		\
-      builtin_define ("__Xbarrel_shifter");\
-    builtin_define_with_int_value ("__ARC_TLS_REGNO__", \
-				   arc_tp_regno);	\
-    builtin_assert ("cpu=arc");		\
-    builtin_assert ("machine=arc");	\
-    builtin_define (TARGET_BIG_ENDIAN	\
-		    ? "__BIG_ENDIAN__" : "__LITTLE_ENDIAN__"); \
-    if (TARGET_BIG_ENDIAN)		\
-      builtin_define ("__big_endian__"); \
-} while(0)
+#define TARGET_CPU_CPP_BUILTINS() arc_cpu_cpp_builtins (pfile)
 
 #if DEFAULT_LIBC == LIBC_UCLIBC
 
@@ -182,24 +128,6 @@ along with GCC; see the file COPYING3.  If not see
 		   %{!marclinux*: %{pg|p|profile:-marclinux_prof;: -marclinux}} \
 		   %{!z:-z max-page-size=0x2000 -z common-page-size=0x2000} \
 		   %{shared:-shared}"
-/* Like the standard LINK_COMMAND_SPEC, but add %G when building
-   a shared library with -nostdlib, so that the hidden functions of libgcc
-   will be incorporated.
-   N.B., we don't want a plain -lgcc, as this would lead to re-exporting
-   non-hidden functions, so we have to consider libgcc_s.so.* first, which in
-   turn should be wrapped with --as-needed.  */
-#define LINK_COMMAND_SPEC "\
-%{!fsyntax-only:%{!c:%{!M:%{!MM:%{!E:%{!S:\
-    %(linker) %l " LINK_PIE_SPEC "%X %{o*} %{A} %{d} %{e*} %{m} %{N} %{n} %{r}\
-    %{s} %{t} %{u*} %{x} %{z} %{Z} %{!A:%{!nostdlib:%{!nostartfiles:%S}}}\
-    %{static:} %{L*} %(mfwrap) %(link_libgcc) %o\
-    %{fopenacc|fopenmp|%:gt(%{ftree-parallelize-loops=*:%*} 1):\
-	%:include(libgomp.spec)%(link_gomp)}\
-    %(mflib)\
-    %{fprofile-arcs|fprofile-generate|coverage:-lgcov}\
-    %{!nostdlib:%{!nodefaultlibs:%(link_ssp) %(link_gcc_c_sequence)}}\
-    %{!A:%{!nostdlib:%{!nostartfiles:%E}}} %{T*} }}}}}}"
-
 #else
 #define LINK_SPEC "%{mbig-endian:-EB} %{EB} %{EL}\
   %{pg|p:-marcelf_prof;mA7|mARC700|mcpu=arc700|mcpu=ARC700: -marcelf}"
@@ -463,8 +391,8 @@ if (GET_MODE_CLASS (MODE) == MODE_INT		\
 /* Define this as 1 if `char' should by default be signed; else as 0.  */
 #define DEFAULT_SIGNED_CHAR 0
 
-#define SIZE_TYPE "long unsigned int"
-#define PTRDIFF_TYPE "long int"
+#define SIZE_TYPE "unsigned int"
+#define PTRDIFF_TYPE "int"
 #define WCHAR_TYPE "int"
 #define WCHAR_TYPE_SIZE 32
 
@@ -1600,10 +1528,10 @@ extern int arc_return_address_regs[4];
 #define ASM_OUTPUT_BEFORE_CASE_LABEL(FILE, PREFIX, NUM, TABLE) \
   ASM_OUTPUT_ALIGN ((FILE), ADDR_VEC_ALIGN (TABLE));
 
-#define INSN_LENGTH_ALIGNMENT(INSN) \
-  ((JUMP_P (INSN) \
+#define INSN_LENGTH_ALIGNMENT(INSN)		  \
+  ((JUMP_TABLE_DATA_P (INSN)			  \
     && GET_CODE (PATTERN (INSN)) == ADDR_DIFF_VEC \
-    && GET_MODE (PATTERN (INSN)) == QImode) \
+    && GET_MODE (PATTERN (INSN)) == QImode)	  \
    ? 0 : length_unit_log)
 
 /* Define if operations between registers always perform the operation
@@ -1624,13 +1552,10 @@ extern int arc_return_address_regs[4];
 /* Undo the effects of the movmem pattern presence on STORE_BY_PIECES_P .  */
 #define MOVE_RATIO(SPEED) ((SPEED) ? 15 : 3)
 
-/* Define this to be nonzero if shift instructions ignore all but the low-order
-   few bits. Changed from 1 to 0 for rotate pattern testcases
-   (e.g. 20020226-1.c). This change truncates the upper 27 bits of a word
-   while rotating a word. Came to notice through a combine phase
-   optimization viz. a << (32-b) is equivalent to a << (-b).
+/* Define this to be nonzero if shift instructions ignore all but the
+   low-order few bits.
 */
-#define SHIFT_COUNT_TRUNCATED 0
+#define SHIFT_COUNT_TRUNCATED 1
 
 /* Value is 1 if truncating an integer of INPREC bits to OUTPREC bits
    is done just by pretending it is already truncated.  */

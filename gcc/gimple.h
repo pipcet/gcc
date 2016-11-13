@@ -146,6 +146,7 @@ enum gf_mask {
     GF_CALL_CTRL_ALTERING       = 1 << 7,
     GF_CALL_WITH_BOUNDS 	= 1 << 8,
     GF_CALL_MUST_TAIL_CALL	= 1 << 9,
+    GF_CALL_BY_DESCRIPTOR	= 1 << 10,
     GF_OMP_PARALLEL_COMBINED	= 1 << 0,
     GF_OMP_PARALLEL_GRID_PHONY = 1 << 1,
     GF_OMP_TASK_TASKLOOP	= 1 << 0,
@@ -1526,6 +1527,7 @@ extern void gimple_seq_set_location (gimple_seq, location_t);
 extern void gimple_seq_discard (gimple_seq);
 extern void maybe_remove_unused_call_args (struct function *, gimple *);
 extern bool gimple_inexpensive_call_p (gcall *);
+extern bool stmt_can_terminate_bb_p (gimple *);
 
 /* Formal (expression) temporary table handling: multiple occurrences of
    the same scalar expression are evaluated into the same temporary.  */
@@ -2920,6 +2922,16 @@ gimple_call_internal_unique_p (const gimple *gs)
   return gimple_call_internal_unique_p (gc);
 }
 
+/* Return true if GS is an internal function FN.  */
+
+static inline bool
+gimple_call_internal_p (const gimple *gs, internal_fn fn)
+{
+  return (is_gimple_call (gs)
+	  && gimple_call_internal_p (gs)
+	  && gimple_call_internal_fn (gs) == fn);
+}
+
 /* If CTRL_ALTERING_P is true, mark GIMPLE_CALL S to be a stmt
    that could alter control flow.  */
 
@@ -3355,6 +3367,26 @@ static inline bool
 gimple_call_alloca_for_var_p (gcall *s)
 {
   return (s->subcode & GF_CALL_ALLOCA_FOR_VAR) != 0;
+}
+
+/* If BY_DESCRIPTOR_P is true, GIMPLE_CALL S is an indirect call for which
+   pointers to nested function are descriptors instead of trampolines.  */
+
+static inline void
+gimple_call_set_by_descriptor (gcall  *s, bool by_descriptor_p)
+{
+  if (by_descriptor_p)
+    s->subcode |= GF_CALL_BY_DESCRIPTOR;
+  else
+    s->subcode &= ~GF_CALL_BY_DESCRIPTOR;
+}
+
+/* Return true if S is a by-descriptor call.  */
+
+static inline bool
+gimple_call_by_descriptor_p (gcall *s)
+{
+  return (s->subcode & GF_CALL_BY_DESCRIPTOR) != 0;
 }
 
 /* Copy all the GF_CALL_* flags from ORIG_CALL to DEST_CALL.  */

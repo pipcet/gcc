@@ -75,6 +75,10 @@
 #include <bits/move.h>
 #include <initializer_list>
 
+#if __cplusplus > 201402L
+#include <exception>
+#endif
+
 namespace std _GLIBCXX_VISIBILITY(default)
 {
 _GLIBCXX_BEGIN_NAMESPACE_VERSION
@@ -329,6 +333,50 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
   template<typename... _Types>
     using index_sequence_for = make_index_sequence<sizeof...(_Types)>;
 #endif
+
+#if __cplusplus > 201402L
+
+  struct in_place_tag {
+    in_place_tag() = delete;
+  };
+
+  struct __in_place;
+  template<typename _Tp> struct __in_place_type;
+  template<size_t _Idx> struct __in_place_index;
+
+  using in_place_t = in_place_tag(&)(__in_place*);
+  template <class _Tp>
+    using in_place_type_t = in_place_tag(&)(__in_place_type<_Tp>*);
+  template <int _Idx>
+    using in_place_index_t = in_place_tag(&)(__in_place_index<_Idx>*);
+
+  inline in_place_tag in_place(__in_place*) {terminate();}
+  template <class _Tp>
+    in_place_tag in_place(__in_place_type<_Tp>*) {terminate();}
+  template <size_t _Idx>
+    in_place_tag in_place(__in_place_index<_Idx>*) {terminate();}
+
+  template<typename>
+    struct __is_in_place_type_impl : false_type
+    { };
+
+  template<typename _Tp>
+    struct __is_in_place_type_impl<in_place_type_t<_Tp>> : true_type
+    { };
+
+  template<typename _Tp>
+    struct __is_in_place_type
+      : public __is_in_place_type_impl<_Tp>
+    { };
+
+#define  __cpp_lib_as_const 201510
+  template<typename _Tp>
+    constexpr add_const_t<_Tp>& as_const(_Tp& __t) noexcept { return __t; }
+
+  template<typename _Tp>
+    void as_const(const _Tp&&) = delete;
+
+#endif // C++17
 
 _GLIBCXX_END_NAMESPACE_VERSION
 } // namespace

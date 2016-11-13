@@ -1415,7 +1415,7 @@ package body Sem_Ch3 is
       elsif Is_Class_Wide_Type (Full_Desig) and then Etype (Full_Desig) = T
       then
          Error_Msg_N
-           ("access type cannot designate its own classwide type", S);
+           ("access type cannot designate its own class-wide type", S);
 
          --  Clean up indication of tagged status to prevent cascaded errors
 
@@ -2178,10 +2178,17 @@ package body Sem_Ch3 is
       --  case, add a proper spec if the body lacks one. The spec is inserted
       --  before Body_Decl and immediately analyzed.
 
+      procedure Remove_Partial_Visible_Refinements (Spec_Id : Entity_Id);
+      --  Spec_Id is the entity of a package that may define abstract states,
+      --  and in the case of a child unit, whose ancestors may define abstract
+      --  states. If the states have partial visible refinement, remove the
+      --  partial visibility of each constituent at the end of the package
+      --  spec and body declarations.
+
       procedure Remove_Visible_Refinements (Spec_Id : Entity_Id);
       --  Spec_Id is the entity of a package that may define abstract states.
       --  If the states have visible refinement, remove the visibility of each
-      --  constituent at the end of the package body declarations.
+      --  constituent at the end of the package body declaration.
 
       -----------------
       -- Adjust_Decl --
@@ -2334,6 +2341,29 @@ package body Sem_Ch3 is
 
          Insert_Before_And_Analyze (Body_Decl, Decl);
       end Handle_Late_Controlled_Primitive;
+
+      ----------------------------------------
+      -- Remove_Partial_Visible_Refinements --
+      ----------------------------------------
+
+      procedure Remove_Partial_Visible_Refinements (Spec_Id : Entity_Id) is
+         State_Elmt : Elmt_Id;
+      begin
+         if Present (Abstract_States (Spec_Id)) then
+            State_Elmt := First_Elmt (Abstract_States (Spec_Id));
+            while Present (State_Elmt) loop
+               Set_Has_Partial_Visible_Refinement (Node (State_Elmt), False);
+               Next_Elmt (State_Elmt);
+            end loop;
+         end if;
+
+         --  For a child unit, also hide the partial state refinement from
+         --  ancestor packages.
+
+         if Is_Child_Unit (Spec_Id) then
+            Remove_Partial_Visible_Refinements (Scope (Spec_Id));
+         end if;
+      end Remove_Partial_Visible_Refinements;
 
       --------------------------------
       -- Remove_Visible_Refinements --
@@ -2576,6 +2606,15 @@ package body Sem_Ch3 is
             --  restore the original state conditions.
 
             Remove_Visible_Refinements (Corresponding_Spec (Context));
+            Remove_Partial_Visible_Refinements (Corresponding_Spec (Context));
+
+         elsif Nkind (Context) = N_Package_Declaration then
+
+            --  Partial state refinements are visible up to the end of the
+            --  package spec declarations. Hide the partial state refinements
+            --  from visibility to restore the original state conditions.
+
+            Remove_Partial_Visible_Refinements (Corresponding_Spec (Context));
          end if;
 
          --  Verify that all abstract states found in any package declared in
@@ -2805,6 +2844,13 @@ package body Sem_Ch3 is
       if not Analyzed (T) then
          Set_Analyzed (T);
 
+         --  A type declared within a Ghost region is automatically Ghost
+         --  (SPARK RM 6.9(2)).
+
+         if Ghost_Mode > None then
+            Set_Is_Ghost_Entity (T);
+         end if;
+
          case Nkind (Def) is
             when N_Access_To_Subprogram_Definition =>
                Access_Subprogram_Declaration (T, Def);
@@ -2885,13 +2931,6 @@ package body Sem_Ch3 is
 
       if Is_Visibly_Controlled (T) then
          Check_SPARK_05_Restriction ("controlled type is not allowed", N);
-      end if;
-
-      --  A type declared within a Ghost region is automatically Ghost
-      --  (SPARK RM 6.9(2)).
-
-      if Ghost_Mode > None then
-         Set_Is_Ghost_Entity (T);
       end if;
 
       --  Some common processing for all types
@@ -3466,7 +3505,17 @@ package body Sem_Ch3 is
                                                N_Package_Renaming_Declaration
                    and then not Comes_From_Source (Prev_Entity)
                    and then
-                     Is_Generic_Instance (Renamed_Entity (Prev_Entity))))
+                     Is_Generic_Instance (Renamed_Entity (Prev_Entity)))
+
+               --  The entity may be a homonym of a private component of the
+               --  enclosing protected object, for which we create a local
+               --  renaming declaration. The declaration is legal, even if
+               --  useless when it just captures that component.
+
+               or else
+                 (Ekind (Scope (Current_Scope)) = E_Protected_Type
+                   and then Nkind (Parent (Prev_Entity)) =
+                              N_Object_Renaming_Declaration))
          then
             Prev_Entity := Empty;
          end if;
@@ -4384,7 +4433,7 @@ package body Sem_Ch3 is
       --  type, rewrite the declaration as a renaming of the result of the
       --  call. The exceptions below are cases where the copy is expected,
       --  either by the back end (Aliased case) or by the semantics, as for
-      --  initializing controlled types or copying tags for classwide types.
+      --  initializing controlled types or copying tags for class-wide types.
 
       if Present (E)
         and then Nkind (E) = N_Explicit_Dereference
@@ -4792,6 +4841,24 @@ package body Sem_Ch3 is
       then
          Set_Has_Predicates (Id);
          Set_Has_Delayed_Freeze (Id);
+
+         --  Generated subtypes inherit the predicate function from the parent
+         --  (no aspects to examine on the generated declaration).
+
+         if not Comes_From_Source (N) then
+            Set_Ekind (Id, Ekind (T));
+
+            if Present (Predicate_Function (T)) then
+               Set_Predicate_Function (Id, Predicate_Function (T));
+
+            elsif Present (Ancestor_Subtype (T))
+              and then Has_Predicates (Ancestor_Subtype (T))
+              and then Present (Predicate_Function (Ancestor_Subtype (T)))
+            then
+               Set_Predicate_Function (Id,
+                 Predicate_Function (Ancestor_Subtype (T)));
+            end if;
+         end if;
       end if;
 
       --  Subtype of Boolean cannot have a constraint in SPARK
@@ -14491,7 +14558,7 @@ package body Sem_Ch3 is
    -----------------------
 
    procedure Derive_Subprogram
-     (New_Subp     : in out Entity_Id;
+     (New_Subp     : out Entity_Id;
       Parent_Subp  : Entity_Id;
       Derived_Type : Entity_Id;
       Parent_Type  : Entity_Id;
@@ -14730,9 +14797,10 @@ package body Sem_Ch3 is
         or else Is_Internal (Parent_Subp)
         or else Is_Private_Overriding
         or else Is_Internal_Name (Chars (Parent_Subp))
-        or else Nam_In (Chars (Parent_Subp), Name_Initialize,
-                                             Name_Adjust,
-                                             Name_Finalize)
+        or else (Is_Controlled (Parent_Type)
+                  and then Nam_In (Chars (Parent_Subp), Name_Adjust,
+                                                        Name_Finalize,
+                                                        Name_Initialize))
       then
          Set_Derived_Name;
 
@@ -15072,7 +15140,7 @@ package body Sem_Ch3 is
       --  the list of primitives of Derived_Type exactly in the same order.
 
       procedure Derive_Interface_Subprogram
-        (New_Subp    : in out Entity_Id;
+        (New_Subp    : out Entity_Id;
          Subp        : Entity_Id;
          Actual_Subp : Entity_Id);
       --  Derive New_Subp from the ultimate alias of the parent subprogram Subp
@@ -15158,7 +15226,7 @@ package body Sem_Ch3 is
       ---------------------------------
 
       procedure Derive_Interface_Subprogram
-        (New_Subp    : in out Entity_Id;
+        (New_Subp    : out Entity_Id;
          Subp        : Entity_Id;
          Actual_Subp : Entity_Id)
       is
@@ -16651,9 +16719,9 @@ package body Sem_Ch3 is
                Set_Ekind (Id, Ekind (Prev));         --  will be reset later
                Set_Class_Wide_Type (Id, Class_Wide_Type (Prev));
 
-               --  The type of the classwide type is the current Id. Previously
+               --  Type of the class-wide type is the current Id. Previously
                --  this was not done for private declarations because of order-
-               --  of elaboration issues in the back-end, but gigi now handles
+               --  of-elaboration issues in the back end, but gigi now handles
                --  this properly.
 
                Set_Etype (Class_Wide_Type (Id), Id);
@@ -18065,11 +18133,38 @@ package body Sem_Ch3 is
       then
          return True;
 
-      --  In the body of an instantiation, no need to check for the visibility
-      --  of a component.
+      --  In the body of an instantiation, check the visibility of a component
+      --  in case it has a homograph that is a primitive operation of a private
+      --  type which was not visible in the generic unit.
+
+      --  Should Is_Prefixed_Call be propagated from template to instance???
 
       elsif In_Instance_Body then
-         return True;
+         if not Is_Tagged_Type (Original_Type)
+           or else not Is_Private_Type (Original_Type)
+         then
+            return True;
+
+         else
+            declare
+               Subp_Elmt : Elmt_Id;
+
+            begin
+               Subp_Elmt := First_Elmt (Primitive_Operations (Original_Type));
+               while Present (Subp_Elmt) loop
+
+                  --  The component is hidden by a primitive operation
+
+                  if Chars (Node (Subp_Elmt)) = Chars (C) then
+                     return False;
+                  end if;
+
+                  Next_Elmt (Subp_Elmt);
+               end loop;
+
+               return True;
+            end;
+         end if;
 
       --  If the component has been declared in an ancestor which is currently
       --  a private type, then it is not visible. The same applies if the

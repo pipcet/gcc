@@ -639,7 +639,8 @@
   [(set (pc) (if_then_else
 	      (EQL (zero_extract:DI (match_operand:GPI 0 "register_operand" "r")
 				    (const_int 1)
-				    (match_operand 1 "const_int_operand" "n"))
+				    (match_operand 1
+				      "aarch64_simd_shift_imm_<mode>" "n"))
 		   (const_int 0))
 	     (label_ref (match_operand 2 "" ""))
 	     (pc)))
@@ -859,13 +860,6 @@
 	   || aarch64_is_noplt_call_p (callee)))
       XEXP (operands[0], 0) = force_reg (Pmode, callee);
 
-    /* FIXME: This is a band-aid.  Need to analyze why expand_expr_addr_expr
-       is generating an SImode symbol reference.  See PR 64971.  */
-    if (TARGET_ILP32
-	&& GET_CODE (XEXP (operands[0], 0)) == SYMBOL_REF
-	&& GET_MODE (XEXP (operands[0], 0)) == SImode)
-      XEXP (operands[0], 0) = convert_memory_address (Pmode,
-						      XEXP (operands[0], 0));
     if (operands[2] == NULL_RTX)
       operands[2] = const0_rtx;
 
@@ -896,14 +890,6 @@
        && ((GET_CODE (callee) != SYMBOL_REF)
 	   || aarch64_is_noplt_call_p (callee)))
       XEXP (operands[1], 0) = force_reg (Pmode, callee);
-
-    /* FIXME: This is a band-aid.  Need to analyze why expand_expr_addr_expr
-       is generating an SImode symbol reference.  See PR 64971.  */
-    if (TARGET_ILP32
-	&& GET_CODE (XEXP (operands[1], 0)) == SYMBOL_REF
-	&& GET_MODE (XEXP (operands[1], 0)) == SImode)
-      XEXP (operands[1], 0) = convert_memory_address (Pmode,
-						      XEXP (operands[1], 0));
 
     if (operands[3] == NULL_RTX)
       operands[3] = const0_rtx;
@@ -1577,10 +1563,10 @@
         (zero_extend:GPI (match_operand:SHORT 1 "nonimmediate_operand" "r,m,m")))]
   ""
   "@
-   uxt<SHORT:size>\t%<GPI:w>0, %w1
+   and\t%<GPI:w>0, %<GPI:w>1, <SHORT:short_mask>
    ldr<SHORT:size>\t%w0, %1
    ldr\t%<SHORT:size>0, %1"
-  [(set_attr "type" "extend,load1,load1")]
+  [(set_attr "type" "logic_imm,load1,load1")]
 )
 
 (define_expand "<optab>qihi2"
@@ -1589,14 +1575,24 @@
   ""
 )
 
-(define_insn "*<optab>qihi2_aarch64"
+(define_insn "*extendqihi2_aarch64"
   [(set (match_operand:HI 0 "register_operand" "=r,r")
-        (ANY_EXTEND:HI (match_operand:QI 1 "nonimmediate_operand" "r,m")))]
+	(sign_extend:HI (match_operand:QI 1 "nonimmediate_operand" "r,m")))]
   ""
   "@
-   <su>xtb\t%w0, %w1
-   <ldrxt>b\t%w0, %1"
+   sxtb\t%w0, %w1
+   ldrsb\t%w0, %1"
   [(set_attr "type" "extend,load1")]
+)
+
+(define_insn "*zero_extendqihi2_aarch64"
+  [(set (match_operand:HI 0 "register_operand" "=r,r")
+	(zero_extend:HI (match_operand:QI 1 "nonimmediate_operand" "r,m")))]
+  ""
+  "@
+   and\t%w0, %w1, 255
+   ldrb\t%w0, %1"
+  [(set_attr "type" "logic_imm,load1")]
 )
 
 ;; -------------------------------------------------------------------
@@ -1610,25 +1606,12 @@
 	      (match_operand:GPI 2 "aarch64_pluslong_operand" "")))]
   ""
 {
-  if (aarch64_pluslong_strict_immedate (operands[2], <MODE>mode))
-    {
-      /* Give CSE the opportunity to share this constant across additions.  */
-      if (!cse_not_expected && can_create_pseudo_p ())
-        operands[2] = force_reg (<MODE>mode, operands[2]);
-
-      /* Split will refuse to operate on a modification to the stack pointer.
-	 Aid the prologue and epilogue expanders by splitting this now.  */
-      else if (reload_completed && operands[0] == stack_pointer_rtx)
-	{
-	  HOST_WIDE_INT i = INTVAL (operands[2]);
-	  HOST_WIDE_INT s = (i >= 0 ? i & 0xfff : -(-i & 0xfff));
-	  emit_insn (gen_rtx_SET (operands[0],
-				  gen_rtx_PLUS (<MODE>mode, operands[1],
-						GEN_INT (i - s))));
-	  operands[1] = operands[0];
-	  operands[2] = GEN_INT (s);
-	}
-    }
+  /* If the constant is too large for a single instruction and isn't frame
+     based, split off the immediate so it is available for CSE.  */
+  if (!aarch64_plus_immediate (operands[2], <MODE>mode)
+      && can_create_pseudo_p ()
+      && !REGNO_PTR_FRAME_P (REGNO (operands[1])))
+    operands[2] = force_reg (<MODE>mode, operands[2]);
 })
 
 (define_insn "*add<mode>3_aarch64"
@@ -3816,6 +3799,18 @@
   [(set_attr "type" "alus_imm")]
 )
 
+(define_insn "*ands<mode>_compare0"
+  [(set (reg:CC_NZ CC_REGNUM)
+	(compare:CC_NZ
+	 (zero_extend:GPI (match_operand:SHORT 1 "register_operand" "r"))
+	 (const_int 0)))
+   (set (match_operand:GPI 0 "register_operand" "=r")
+	(zero_extend:GPI (match_dup 1)))]
+  ""
+  "ands\\t%<GPI:w>0, %<GPI:w>1, <short_mask>"
+  [(set_attr "type" "alus_imm")]
+)
+
 (define_insn "*and<mode>3nr_compare0"
   [(set (reg:CC_NZ CC_REGNUM)
 	(compare:CC_NZ
@@ -4274,19 +4269,28 @@
 
 (define_expand "<optab>"
   [(set (match_operand:DI 0 "register_operand" "=r")
-	(ANY_EXTRACT:DI (match_operand:DI 1 "register_operand" "r")
-			(match_operand 2 "const_int_operand" "n")
-			(match_operand 3 "const_int_operand" "n")))]
+	(ANY_EXTRACT:DI (match_operand:DI 1 "register_operand")
+			(match_operand 2
+			  "aarch64_simd_shift_imm_offset_di")
+			(match_operand 3 "aarch64_simd_shift_imm_di")))]
   ""
-  ""
+  {
+    if (!IN_RANGE (INTVAL (operands[2]) + INTVAL (operands[3]),
+		   1, GET_MODE_BITSIZE (DImode) - 1))
+     FAIL;
+  }
 )
+
 
 (define_insn "*<optab><mode>"
   [(set (match_operand:GPI 0 "register_operand" "=r")
 	(ANY_EXTRACT:GPI (match_operand:GPI 1 "register_operand" "r")
-			 (match_operand 2 "const_int_operand" "n")
-			 (match_operand 3 "const_int_operand" "n")))]
-  ""
+			 (match_operand 2
+			   "aarch64_simd_shift_imm_offset_<mode>" "n")
+			 (match_operand 3
+			   "aarch64_simd_shift_imm_<mode>" "n")))]
+  "IN_RANGE (INTVAL (operands[2]) + INTVAL (operands[3]),
+	     1, GET_MODE_BITSIZE (<MODE>mode) - 1)"
   "<su>bfx\\t%<w>0, %<w>1, %3, %2"
   [(set_attr "type" "bfm")]
 )
@@ -4450,22 +4454,23 @@
 ;; Expands to btrunc, ceil, floor, nearbyint, rint, round, frintn.
 
 (define_insn "<frint_pattern><mode>2"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-	(unspec:GPF [(match_operand:GPF 1 "register_operand" "w")]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(unspec:GPF_F16 [(match_operand:GPF_F16 1 "register_operand" "w")]
 	 FRINT))]
   "TARGET_FLOAT"
   "frint<frint_suffix>\\t%<s>0, %<s>1"
-  [(set_attr "type" "f_rint<s>")]
+  [(set_attr "type" "f_rint<stype>")]
 )
 
 ;; frcvt floating-point round to integer and convert standard patterns.
 ;; Expands to lbtrunc, lceil, lfloor, lround.
-(define_insn "l<fcvt_pattern><su_optab><GPF:mode><GPI:mode>2"
+(define_insn "l<fcvt_pattern><su_optab><GPF_F16:mode><GPI:mode>2"
   [(set (match_operand:GPI 0 "register_operand" "=r")
-	(FIXUORS:GPI (unspec:GPF [(match_operand:GPF 1 "register_operand" "w")]
-		      FCVT)))]
+	(FIXUORS:GPI
+	  (unspec:GPF_F16 [(match_operand:GPF_F16 1 "register_operand" "w")]
+	   FCVT)))]
   "TARGET_FLOAT"
-  "fcvt<frint_suffix><su>\\t%<GPI:w>0, %<GPF:s>1"
+  "fcvt<frint_suffix><su>\\t%<GPI:w>0, %<GPF_F16:s>1"
   [(set_attr "type" "f_cvtf2i")]
 )
 
@@ -4491,23 +4496,24 @@
 ;; fma - no throw
 
 (define_insn "fma<mode>4"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (fma:GPF (match_operand:GPF 1 "register_operand" "w")
-		 (match_operand:GPF 2 "register_operand" "w")
-		 (match_operand:GPF 3 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+        (fma:GPF_F16 (match_operand:GPF_F16 1 "register_operand" "w")
+		     (match_operand:GPF_F16 2 "register_operand" "w")
+		     (match_operand:GPF_F16 3 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fmadd\\t%<s>0, %<s>1, %<s>2, %<s>3"
-  [(set_attr "type" "fmac<s>")]
+  [(set_attr "type" "fmac<stype>")]
 )
 
 (define_insn "fnma<mode>4"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-	(fma:GPF (neg:GPF (match_operand:GPF 1 "register_operand" "w"))
-		 (match_operand:GPF 2 "register_operand" "w")
-		 (match_operand:GPF 3 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(fma:GPF_F16
+	  (neg:GPF_F16 (match_operand:GPF_F16 1 "register_operand" "w"))
+	  (match_operand:GPF_F16 2 "register_operand" "w")
+	  (match_operand:GPF_F16 3 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fmsub\\t%<s>0, %<s>1, %<s>2, %<s>3"
-  [(set_attr "type" "fmac<s>")]
+  [(set_attr "type" "fmac<stype>")]
 )
 
 (define_insn "fms<mode>4"
@@ -4593,19 +4599,11 @@
   [(set_attr "type" "f_cvt")]
 )
 
-(define_insn "fix_trunc<GPF:mode><GPI:mode>2"
+(define_insn "<optab>_trunc<GPF_F16:mode><GPI:mode>2"
   [(set (match_operand:GPI 0 "register_operand" "=r")
-        (fix:GPI (match_operand:GPF 1 "register_operand" "w")))]
+	(FIXUORS:GPI (match_operand:GPF_F16 1 "register_operand" "w")))]
   "TARGET_FLOAT"
-  "fcvtzs\\t%<GPI:w>0, %<GPF:s>1"
-  [(set_attr "type" "f_cvtf2i")]
-)
-
-(define_insn "fixuns_trunc<GPF:mode><GPI:mode>2"
-  [(set (match_operand:GPI 0 "register_operand" "=r")
-        (unsigned_fix:GPI (match_operand:GPF 1 "register_operand" "w")))]
-  "TARGET_FLOAT"
-  "fcvtzu\\t%<GPI:w>0, %<GPF:s>1"
+  "fcvtz<su>\t%<GPI:w>0, %<GPF_F16:s>1"
   [(set_attr "type" "f_cvtf2i")]
 )
 
@@ -4626,6 +4624,14 @@
         (FLOATUORS:GPF (match_operand:<FCVT_IESIZE> 1 "register_operand" "r")))]
   "TARGET_FLOAT"
   "<su_optab>cvtf\t%<GPF:s>0, %<w2>1"
+  [(set_attr "type" "f_cvti2f")]
+)
+
+(define_insn "<optab><mode>hf2"
+  [(set (match_operand:HF 0 "register_operand" "=w")
+	(FLOATUORS:HF (match_operand:GPI 1 "register_operand" "r")))]
+  "TARGET_FP_F16INST"
+  "<su_optab>cvtf\t%h0, %<w>1"
   [(set_attr "type" "f_cvti2f")]
 )
 
@@ -4659,38 +4665,78 @@
    (set_attr "simd" "*, yes")]
 )
 
+(define_insn "<FCVT_F2FIXED:fcvt_fixed_insn>hf<mode>3"
+  [(set (match_operand:GPI 0 "register_operand" "=r")
+	(unspec:GPI [(match_operand:HF 1 "register_operand" "w")
+		     (match_operand:SI 2 "immediate_operand" "i")]
+	 FCVT_F2FIXED))]
+  "TARGET_FP_F16INST"
+   "<FCVT_F2FIXED:fcvt_fixed_insn>\t%<GPI:w>0, %h1, #%2"
+  [(set_attr "type" "f_cvtf2i")]
+)
+
+(define_insn "<FCVT_FIXED2F:fcvt_fixed_insn><mode>hf3"
+  [(set (match_operand:HF 0 "register_operand" "=w")
+	(unspec:HF [(match_operand:GPI 1 "register_operand" "r")
+		    (match_operand:SI 2 "immediate_operand" "i")]
+	 FCVT_FIXED2F))]
+  "TARGET_FP_F16INST"
+  "<FCVT_FIXED2F:fcvt_fixed_insn>\t%h0, %<GPI:w>1, #%2"
+  [(set_attr "type" "f_cvti2f")]
+)
+
+(define_insn "<FCVT_F2FIXED:fcvt_fixed_insn>hf3"
+  [(set (match_operand:HI 0 "register_operand" "=w")
+	(unspec:HI [(match_operand:HF 1 "register_operand" "w")
+		    (match_operand:SI 2 "immediate_operand" "i")]
+	 FCVT_F2FIXED))]
+  "TARGET_SIMD"
+  "<FCVT_F2FIXED:fcvt_fixed_insn>\t%h0, %h1, #%2"
+  [(set_attr "type" "neon_fp_to_int_s")]
+)
+
+(define_insn "<FCVT_FIXED2F:fcvt_fixed_insn>hi3"
+  [(set (match_operand:HF 0 "register_operand" "=w")
+	(unspec:HF [(match_operand:HI 1 "register_operand" "w")
+		    (match_operand:SI 2 "immediate_operand" "i")]
+	 FCVT_FIXED2F))]
+  "TARGET_SIMD"
+  "<FCVT_FIXED2F:fcvt_fixed_insn>\t%h0, %h1, #%2"
+  [(set_attr "type" "neon_int_to_fp_s")]
+)
+
 ;; -------------------------------------------------------------------
 ;; Floating-point arithmetic
 ;; -------------------------------------------------------------------
 
 (define_insn "add<mode>3"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (plus:GPF
-         (match_operand:GPF 1 "register_operand" "w")
-         (match_operand:GPF 2 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(plus:GPF_F16
+	 (match_operand:GPF_F16 1 "register_operand" "w")
+	 (match_operand:GPF_F16 2 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fadd\\t%<s>0, %<s>1, %<s>2"
-  [(set_attr "type" "fadd<s>")]
+  [(set_attr "type" "fadd<stype>")]
 )
 
 (define_insn "sub<mode>3"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (minus:GPF
-         (match_operand:GPF 1 "register_operand" "w")
-         (match_operand:GPF 2 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(minus:GPF_F16
+	 (match_operand:GPF_F16 1 "register_operand" "w")
+	 (match_operand:GPF_F16 2 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fsub\\t%<s>0, %<s>1, %<s>2"
-  [(set_attr "type" "fadd<s>")]
+  [(set_attr "type" "fadd<stype>")]
 )
 
 (define_insn "mul<mode>3"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (mult:GPF
-         (match_operand:GPF 1 "register_operand" "w")
-         (match_operand:GPF 2 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(mult:GPF_F16
+	 (match_operand:GPF_F16 1 "register_operand" "w")
+	 (match_operand:GPF_F16 2 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fmul\\t%<s>0, %<s>1, %<s>2"
-  [(set_attr "type" "fmul<s>")]
+  [(set_attr "type" "fmul<stype>")]
 )
 
 (define_insn "*fnmul<mode>3"
@@ -4714,9 +4760,9 @@
 )
 
 (define_expand "div<mode>3"
- [(set (match_operand:GPF 0 "register_operand")
-       (div:GPF (match_operand:GPF 1 "general_operand")
-		(match_operand:GPF 2 "register_operand")))]
+ [(set (match_operand:GPF_F16 0 "register_operand")
+       (div:GPF_F16 (match_operand:GPF_F16 1 "general_operand")
+		    (match_operand:GPF_F16 2 "register_operand")))]
  "TARGET_SIMD"
 {
   if (aarch64_emit_approx_div (operands[0], operands[1], operands[2]))
@@ -4726,25 +4772,25 @@
 })
 
 (define_insn "*div<mode>3"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (div:GPF (match_operand:GPF 1 "register_operand" "w")
-	         (match_operand:GPF 2 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(div:GPF_F16 (match_operand:GPF_F16 1 "register_operand" "w")
+		     (match_operand:GPF_F16 2 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fdiv\\t%<s>0, %<s>1, %<s>2"
-  [(set_attr "type" "fdiv<s>")]
+  [(set_attr "type" "fdiv<stype>")]
 )
 
 (define_insn "neg<mode>2"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (neg:GPF (match_operand:GPF 1 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(neg:GPF_F16 (match_operand:GPF_F16 1 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fneg\\t%<s>0, %<s>1"
-  [(set_attr "type" "ffarith<s>")]
+  [(set_attr "type" "ffarith<stype>")]
 )
 
 (define_expand "sqrt<mode>2"
-  [(set (match_operand:GPF 0 "register_operand")
-        (sqrt:GPF (match_operand:GPF 1 "register_operand")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(sqrt:GPF_F16 (match_operand:GPF_F16 1 "register_operand" "w")))]
   "TARGET_FLOAT"
 {
   if (aarch64_emit_approx_sqrt (operands[0], operands[1], false))
@@ -4752,19 +4798,19 @@
 })
 
 (define_insn "*sqrt<mode>2"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (sqrt:GPF (match_operand:GPF 1 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(sqrt:GPF_F16 (match_operand:GPF_F16 1 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fsqrt\\t%<s>0, %<s>1"
-  [(set_attr "type" "fsqrt<s>")]
+  [(set_attr "type" "fsqrt<stype>")]
 )
 
 (define_insn "abs<mode>2"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-        (abs:GPF (match_operand:GPF 1 "register_operand" "w")))]
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(abs:GPF_F16 (match_operand:GPF_F16 1 "register_operand" "w")))]
   "TARGET_FLOAT"
   "fabs\\t%<s>0, %<s>1"
-  [(set_attr "type" "ffarith<s>")]
+  [(set_attr "type" "ffarith<stype>")]
 )
 
 ;; Given that smax/smin do not specify the result when either input is NaN,
@@ -4789,15 +4835,17 @@
   [(set_attr "type" "f_minmax<s>")]
 )
 
-;; Scalar forms for the IEEE-754 fmax()/fmin() functions
-(define_insn "<fmaxmin><mode>3"
-  [(set (match_operand:GPF 0 "register_operand" "=w")
-	(unspec:GPF [(match_operand:GPF 1 "register_operand" "w")
-		     (match_operand:GPF 2 "register_operand" "w")]
-		     FMAXMIN))]
+;; Scalar forms for fmax, fmin, fmaxnm, fminnm.
+;; fmaxnm and fminnm are used for the fmax<mode>3 standard pattern names,
+;; which implement the IEEE fmax ()/fmin () functions.
+(define_insn "<maxmin_uns><mode>3"
+  [(set (match_operand:GPF_F16 0 "register_operand" "=w")
+	(unspec:GPF_F16 [(match_operand:GPF_F16 1 "register_operand" "w")
+		     (match_operand:GPF_F16 2 "register_operand" "w")]
+		     FMAXMIN_UNS))]
   "TARGET_FLOAT"
-  "<fmaxmin_op>\\t%<s>0, %<s>1, %<s>2"
-  [(set_attr "type" "f_minmax<s>")]
+  "<maxmin_uns_op>\\t%<s>0, %<s>1, %<s>2"
+  [(set_attr "type" "f_minmax<stype>")]
 )
 
 ;; For copysign (x, y), we want to generate:

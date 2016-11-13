@@ -10,22 +10,30 @@ type multiReader struct {
 
 func (mr *multiReader) Read(p []byte) (n int, err error) {
 	for len(mr.readers) > 0 {
+		// Optimization to flatten nested multiReaders (Issue 13558)
+		if len(mr.readers) == 1 {
+			if r, ok := mr.readers[0].(*multiReader); ok {
+				mr.readers = r.readers
+				continue
+			}
+		}
 		n, err = mr.readers[0].Read(p)
+		if err == EOF {
+			mr.readers = mr.readers[1:]
+		}
 		if n > 0 || err != EOF {
-			if err == EOF {
-				// Don't return EOF yet. There may be more bytes
-				// in the remaining readers.
+			if err == EOF && len(mr.readers) > 0 {
+				// Don't return EOF yet. More readers remain.
 				err = nil
 			}
 			return
 		}
-		mr.readers = mr.readers[1:]
 	}
 	return 0, EOF
 }
 
 // MultiReader returns a Reader that's the logical concatenation of
-// the provided input readers.  They're read sequentially.  Once all
+// the provided input readers. They're read sequentially. Once all
 // inputs have returned EOF, Read will return EOF.  If any of the readers
 // return a non-nil, non-EOF error, Read will return that error.
 func MultiReader(readers ...Reader) Reader {

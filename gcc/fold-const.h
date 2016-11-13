@@ -27,6 +27,7 @@ extern int folding_initializer;
 /* Convert between trees and native memory representation.  */
 extern int native_encode_expr (const_tree, unsigned char *, int, int off = -1);
 extern tree native_interpret_expr (tree, const unsigned char *, int);
+extern bool can_native_encode_type_p (tree);
 
 /* Fold constants as much as possible in an expression.
    Returns the simplified expression.
@@ -123,7 +124,7 @@ extern tree build_invariant_address (tree, tree, HOST_WIDE_INT);
 extern tree constant_boolean_node (bool, tree);
 extern tree div_if_zero_remainder (const_tree, const_tree);
 
-extern bool tree_swap_operands_p (const_tree, const_tree, bool);
+extern bool tree_swap_operands_p (const_tree, const_tree);
 extern enum tree_code swap_tree_comparison (enum tree_code);
 
 extern bool ptr_difference_const (tree, tree, HOST_WIDE_INT *);
@@ -182,7 +183,7 @@ extern bool expr_not_equal_to (tree t, const wide_int &);
 extern tree const_unop (enum tree_code, tree, tree);
 extern tree const_binop (enum tree_code, tree, tree, tree);
 extern bool negate_mathfn_p (combined_fn);
-extern const char *c_getstr (tree);
+extern const char *c_getstr (tree, unsigned HOST_WIDE_INT *strlen = NULL);
 
 /* Return OFF converted to a pointer offset type suitable as offset for
    POINTER_PLUS_EXPR.  Use location LOC for this conversion.  */

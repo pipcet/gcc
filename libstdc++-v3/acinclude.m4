@@ -632,10 +632,10 @@ dnl  baseline_dir
 dnl  baseline_subdir_switch
 dnl
 AC_DEFUN([GLIBCXX_CONFIGURE_TESTSUITE], [
-  if $GLIBCXX_IS_NATIVE ; then
-    # Do checks for resource limit functions.
-    GLIBCXX_CHECK_SETRLIMIT
+  # Do checks for resource limit functions.
+  GLIBCXX_CHECK_SETRLIMIT
 
+  if $GLIBCXX_IS_NATIVE ; then
     # Look for setenv, so that extended locale tests can be performed.
     GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_3(setenv)
   fi
@@ -2153,6 +2153,10 @@ AC_DEFUN([GLIBCXX_CHECK_STDIO_PROTO], [
 
   AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
+  # Use C++11 because a conforming <stdio.h> won't define gets for C++14,
+  # and we don't need a declaration for C++14 anyway.
+  ac_save_CXXFLAGS="$CXXFLAGS"
+  CXXFLAGS="$CXXFLAGS -std=gnu++11"
 
   AC_MSG_CHECKING([for gets declaration])
   AC_CACHE_VAL(glibcxx_cv_gets, [
@@ -2168,10 +2172,11 @@ AC_DEFUN([GLIBCXX_CHECK_STDIO_PROTO], [
       )])
 
   if test $glibcxx_cv_gets = yes; then
-    AC_DEFINE(HAVE_GETS, 1, [Define if gets is available in <stdio.h>.])
+    AC_DEFINE(HAVE_GETS, 1, [Define if gets is available in <stdio.h> before C++14.])
   fi
   AC_MSG_RESULT($glibcxx_cv_gets)
 
+  CXXFLAGS="$ac_save_CXXFLAGS"
   AC_LANG_RESTORE
 ])
 
@@ -3489,10 +3494,12 @@ EOF
   CXXFLAGS="$old_CXXFLAGS"
   AC_LANG_RESTORE
 
-  # Set atomicity_dir to builtins if all but the long long test above passes.
-  if test "$glibcxx_cv_atomic_bool" = yes \
+  # Set atomicity_dir to builtins if all but the long long test above passes,
+  # or if the builtins were already chosen (e.g. by configure.host).
+  if { test "$glibcxx_cv_atomic_bool" = yes \
      && test "$glibcxx_cv_atomic_short" = yes \
-     && test "$glibcxx_cv_atomic_int" = yes; then
+     && test "$glibcxx_cv_atomic_int" = yes; } \
+     || test "$atomicity_dir" = "cpu/generic/atomicity_builtins"; then
     AC_DEFINE(_GLIBCXX_ATOMIC_BUILTINS, 1,
     [Define if the compiler supports C++11 atomics.])
     atomicity_dir=cpu/generic/atomicity_builtins
@@ -3696,7 +3703,7 @@ changequote([,])dnl
 fi
 
 # For libtool versioning info, format is CURRENT:REVISION:AGE
-libtool_VERSION=6:22:0
+libtool_VERSION=6:23:0
 
 # Everything parsed; figure out what files and settings to use.
 case $enable_symvers in
@@ -4283,6 +4290,7 @@ dnl
   AC_CACHE_VAL(glibcxx_cv_realpath, [dnl
     GCC_TRY_COMPILE_OR_LINK(
       [
+       #include <limits.h>
        #include <stdlib.h>
        #include <unistd.h>
       ],

@@ -35,6 +35,15 @@ enum alg_code {
   alg_impossible
 };
 
+/* Indicates the type of fixup needed after a constant multiplication.
+   BASIC_VARIANT means no fixup is needed, NEGATE_VARIANT means that
+   the result should be negated, and ADD_VARIANT means that the
+   multiplicand should be added to the result.  */
+enum mult_variant {basic_variant, negate_variant, add_variant};
+
+bool choose_mult_variant (machine_mode, HOST_WIDE_INT,
+			  struct algorithm *, enum mult_variant *, int);
+
 /* This structure holds the "cost" of a multiply sequence.  The
    "cost" field holds the total rtx_cost of every operator in the
    synthetic multiplication sequence, hence cost(a op b) is defined
@@ -609,8 +618,10 @@ static inline int *
 mul_highpart_cost_ptr (bool speed, machine_mode mode)
 {
   gcc_assert (GET_MODE_CLASS (mode) == MODE_INT);
+  int m = mode - MIN_MODE_INT;
+  gcc_assert (m < NUM_MODE_INT);
 
-  return &this_target_expmed->x_mul_highpart_cost[speed][mode - MIN_MODE_INT];
+  return &this_target_expmed->x_mul_highpart_cost[speed][m];
 }
 
 /* Set the COST for computing the high part of a multiplication in MODE

@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "predict.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "emit-rtl.h"  /* FIXME: Can go away once crtl is moved to rtl.h.  */
 #include "cfgrtl.h"
@@ -586,6 +587,15 @@ delete_unmarked_insns (void)
 	     miscompile.  */
 	  if (!dbg_cnt (dce))
 	    continue;
+
+	  if (crtl->shrink_wrapped_separate
+	      && find_reg_note (insn, REG_CFA_RESTORE, NULL))
+	    {
+	      if (dump_file)
+		fprintf (dump_file, "DCE: NOT deleting insn %d, it's a "
+				    "callee-save restore\n", INSN_UID (insn));
+	      continue;
+	    }
 
 	  if (dump_file)
 	    fprintf (dump_file, "DCE: Deleting insn %d\n", INSN_UID (insn));

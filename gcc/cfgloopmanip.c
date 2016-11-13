@@ -181,7 +181,6 @@ fix_bb_placements (basic_block from,
 		   bool *irred_invalidated,
 		   bitmap loop_closed_ssa_invalidated)
 {
-  sbitmap in_queue;
   basic_block *queue, *qtop, *qbeg, *qend;
   struct loop *base_loop, *target_loop;
   edge e;
@@ -201,7 +200,7 @@ fix_bb_placements (basic_block from,
       || from == base_loop->header)
     return;
 
-  in_queue = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  auto_sbitmap in_queue (last_basic_block_for_fn (cfun));
   bitmap_clear (in_queue);
   bitmap_set_bit (in_queue, from->index);
   /* Prevent us from going out of the base_loop.  */
@@ -292,7 +291,6 @@ fix_bb_placements (basic_block from,
 	  bitmap_set_bit (in_queue, pred->index);
 	}
     }
-  free (in_queue);
   free (queue);
 }
 
@@ -306,7 +304,6 @@ remove_path (edge e)
   basic_block *rem_bbs, *bord_bbs, from, bb;
   vec<basic_block> dom_bbs;
   int i, nrem, n_bord_bbs;
-  sbitmap seen;
   bool irred_invalidated = false;
   edge_iterator ei;
   struct loop *l, *f;
@@ -345,7 +342,7 @@ remove_path (edge e)
 
   n_bord_bbs = 0;
   bord_bbs = XNEWVEC (basic_block, n_basic_blocks_for_fn (cfun));
-  seen = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  auto_sbitmap seen (last_basic_block_for_fn (cfun));
   bitmap_clear (seen);
 
   /* Find "border" hexes -- i.e. those with predecessor in removed path.  */
@@ -406,8 +403,6 @@ remove_path (edge e)
 	if (!dominated_by_p (CDI_DOMINATORS, from, ldom))
 	  dom_bbs.safe_push (ldom);
     }
-
-  free (seen);
 
   /* Recount dominators.  */
   iterate_fix_dominators (CDI_DOMINATORS, dom_bbs, true);
@@ -616,11 +611,10 @@ static void
 update_dominators_in_loop (struct loop *loop)
 {
   vec<basic_block> dom_bbs = vNULL;
-  sbitmap seen;
   basic_block *body;
   unsigned i;
 
-  seen = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  auto_sbitmap seen (last_basic_block_for_fn (cfun));
   bitmap_clear (seen);
   body = get_loop_body (loop);
 
@@ -643,7 +637,6 @@ update_dominators_in_loop (struct loop *loop)
 
   iterate_fix_dominators (CDI_DOMINATORS, dom_bbs, false);
   free (body);
-  free (seen);
   dom_bbs.release ();
 }
 
@@ -1022,6 +1015,7 @@ copy_loop_info (struct loop *loop, struct loop *target)
   target->any_estimate = loop->any_estimate;
   target->nb_iterations_estimate = loop->nb_iterations_estimate;
   target->estimate_state = loop->estimate_state;
+  target->constraints = loop->constraints;
   target->warned_aggressive_loop_optimizations
     |= loop->warned_aggressive_loop_optimizations;
   target->in_oacc_kernels_region = loop->in_oacc_kernels_region;
@@ -1282,10 +1276,13 @@ duplicate_loop_to_header_edge (struct loop *loop, edge e,
 	}
       else
 	{
+	  int preheader_freq = EDGE_FREQUENCY (e);
 	  scale_main = REG_BR_PROB_BASE;
 	  for (i = 0; i < ndupl; i++)
 	    scale_main = combine_probabilities (scale_main, scale_step[i]);
-	  scale_act = REG_BR_PROB_BASE - prob_pass_thru;
+	  if (preheader_freq > freq_in)
+	    preheader_freq = freq_in;
+	  scale_act = GCOV_COMPUTE_SCALE (preheader_freq, freq_in);
 	}
       for (i = 0; i < ndupl; i++)
 	gcc_assert (scale_step[i] >= 0 && scale_step[i] <= REG_BR_PROB_BASE);
@@ -1503,7 +1500,7 @@ has_preds_from_loop (basic_block block, struct loop *loop)
 basic_block
 create_preheader (struct loop *loop, int flags)
 {
-  edge e, fallthru;
+  edge e;
   basic_block dummy;
   int nentry = 0;
   bool irred = false;
@@ -1550,9 +1547,14 @@ create_preheader (struct loop *loop, int flags)
 
   mfb_kj_edge = loop_latch_edge (loop);
   latch_edge_was_fallthru = (mfb_kj_edge->flags & EDGE_FALLTHRU) != 0;
-  fallthru = make_forwarder_block (loop->header, mfb_keep_just, NULL);
-  dummy = fallthru->src;
-  loop->header = fallthru->dest;
+  if (nentry == 1)
+    dummy = split_edge (single_entry);
+  else
+    {
+      edge fallthru = make_forwarder_block (loop->header, mfb_keep_just, NULL);
+      dummy = fallthru->src;
+      loop->header = fallthru->dest;
+    }
 
   /* Try to be clever in placing the newly created preheader.  The idea is to
      avoid breaking any "fallthruness" relationship between blocks.

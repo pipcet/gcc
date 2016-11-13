@@ -677,8 +677,14 @@ get_stridx_plus_constant (strinfo *basesi, HOST_WIDE_INT off, tree ptr)
 	{
 	  if (r == 0)
 	    {
-	      gcc_assert (TREE_CODE (ptr) == SSA_NAME);
-	      ssa_ver_to_stridx[SSA_NAME_VERSION (ptr)] = si->idx;
+	      if (TREE_CODE (ptr) == SSA_NAME)
+		ssa_ver_to_stridx[SSA_NAME_VERSION (ptr)] = si->idx;
+	      else
+		{
+		  int *pidx = addr_stridxptr (TREE_OPERAND (ptr, 0));
+		  if (pidx != NULL && *pidx == 0)
+		    *pidx = si->idx;
+		}
 	      return si->idx;
 	    }
 	  break;
@@ -1977,7 +1983,7 @@ handle_builtin_memcmp (gimple_stmt_iterator *gsi)
 
   if (tree_fits_uhwi_p (len)
       && (leni = tree_to_uhwi (len)) <= GET_MODE_SIZE (word_mode)
-      && exact_log2 (leni) != -1)
+      && pow2p_hwi (leni))
     {
       leni *= CHAR_TYPE_SIZE;
       unsigned align1 = get_pointer_alignment (arg1);
@@ -2377,7 +2383,7 @@ public:
 };
 
 /* Callback for walk_dominator_tree.  Attempt to optimize various
-   string ops by remembering string lenths pointed by pointer SSA_NAMEs.  */
+   string ops by remembering string lengths pointed by pointer SSA_NAMEs.  */
 
 edge
 strlen_dom_walker::before_dom_children (basic_block bb)

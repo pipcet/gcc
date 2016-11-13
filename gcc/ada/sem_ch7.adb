@@ -39,6 +39,7 @@ with Exp_Ch7;   use Exp_Ch7;
 with Exp_Disp;  use Exp_Disp;
 with Exp_Dist;  use Exp_Dist;
 with Exp_Dbug;  use Exp_Dbug;
+with Freeze;    use Freeze;
 with Ghost;     use Ghost;
 with Lib;       use Lib;
 with Lib.Xref;  use Lib.Xref;
@@ -1392,7 +1393,7 @@ package body Sem_Ch7 is
                --  If one of the non-generic parents is itself on the scope
                --  stack, do not install its private declarations: they are
                --  installed in due time when the private part of that parent
-               --  is analyzed. This is delicate ???
+               --  is analyzed.
 
                else
                   while Present (Inst_Par)
@@ -1400,11 +1401,20 @@ package body Sem_Ch7 is
                     and then (not In_Open_Scopes (Inst_Par)
                                or else not In_Private_Part (Inst_Par))
                   loop
-                     Install_Private_Declarations (Inst_Par);
-                     Set_Use (Private_Declarations
-                                (Specification
-                                   (Unit_Declaration_Node (Inst_Par))));
-                     Inst_Par := Scope (Inst_Par);
+                     if Nkind (Inst_Node) = N_Formal_Package_Declaration
+                       or else
+                         not Is_Ancestor_Package
+                               (Inst_Par, Cunit_Entity (Current_Sem_Unit))
+                     then
+                        Install_Private_Declarations (Inst_Par);
+                        Set_Use
+                          (Private_Declarations
+                            (Specification
+                              (Unit_Declaration_Node (Inst_Par))));
+                        Inst_Par := Scope (Inst_Par);
+                     else
+                        exit;
+                     end if;
                   end loop;
 
                   exit;
@@ -1493,7 +1503,20 @@ package body Sem_Ch7 is
          declare
             Orig_Spec : constant Node_Id := Specification (Orig_Decl);
             Save_Priv : constant List_Id := Private_Declarations (Orig_Spec);
+
          begin
+            --  Insert the freezing nodes after the visible declarations to
+            --  ensure that we analyze its aspects; needed to ensure that
+            --  global entities referenced in the aspects are properly handled.
+
+            if Ada_Version >= Ada_2012
+              and then Is_Non_Empty_List (Vis_Decls)
+              and then Is_Empty_List (Priv_Decls)
+            then
+               Insert_List_After_And_Analyze
+                 (Last (Vis_Decls), Freeze_Entity (Id, Last (Vis_Decls)));
+            end if;
+
             Set_Private_Declarations (Orig_Spec, Empty_List);
             Save_Global_References   (Orig_Decl);
             Set_Private_Declarations (Orig_Spec, Save_Priv);
@@ -1681,6 +1704,17 @@ package body Sem_Ch7 is
                           Generic_Formal_Declarations (Orig_Decl);
 
          begin
+            --  Insert the freezing nodes after the private declarations to
+            --  ensure that we analyze its aspects; needed to ensure that
+            --  global entities referenced in the aspects are properly handled.
+
+            if Ada_Version >= Ada_2012
+              and then Is_Non_Empty_List (Priv_Decls)
+            then
+               Insert_List_After_And_Analyze
+                 (Last (Priv_Decls), Freeze_Entity (Id, Last (Priv_Decls)));
+            end if;
+
             Set_Visible_Declarations        (Orig_Spec, Empty_List);
             Set_Generic_Formal_Declarations (Orig_Decl, Empty_List);
             Save_Global_References          (Orig_Decl);
@@ -2240,6 +2274,34 @@ package body Sem_Ch7 is
          Set_Is_Hidden (Id, False);
          Next_Entity (Id);
       end loop;
+
+      --  An abstract state is partially refined when it has at least one
+      --  Part_Of constituent. Since these constituents are being installed
+      --  into visibility, update the partial refinement status of any state
+      --  defined in the associated package, subject to at least one Part_Of
+      --  constituent.
+
+      if Ekind_In (P, E_Generic_Package, E_Package) then
+         declare
+            States     : constant Elist_Id := Abstract_States (P);
+            State_Elmt : Elmt_Id;
+            State_Id   : Entity_Id;
+
+         begin
+            if Present (States) then
+               State_Elmt := First_Elmt (States);
+               while Present (State_Elmt) loop
+                  State_Id := Node (State_Elmt);
+
+                  if Present (Part_Of_Constituents (State_Id)) then
+                     Set_Has_Partial_Visible_Refinement (State_Id);
+                  end if;
+
+                  Next_Elmt (State_Elmt);
+               end loop;
+            end if;
+         end;
+      end if;
 
       --  Indicate that the private part is currently visible, so it can be
       --  properly reset on exit.

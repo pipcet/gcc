@@ -40,7 +40,7 @@ func parForIters(desc *ParFor, tid uintptr) (start uintptr, end uintptr) {
 }
 
 func typestring(e Eface) (s String) {
-	s = *e.__type_descriptor->__reflection;
+	s = *((Type*)e._type)->__reflection;
 }
 
 func golockedOSThread() (ret bool) {
@@ -55,17 +55,13 @@ func getgoroot() (out String) {
 	out = runtime_getenv("GOROOT");
 }
 
-func runtime_pprof.runtime_cyclesPerSecond() (res int64) {
-	res = runtime_tickspersecond();
-}
-
 func sync.runtime_procPin() (p int) {
 	M *mp;
 
 	mp = runtime_m();
 	// Disable preemption.
 	mp->locks++;
-	p = mp->p->id;
+	p = ((P*)mp->p)->id;
 }
 
 func sync.runtime_procUnpin() {
@@ -78,19 +74,9 @@ func sync_atomic.runtime_procPin() (p int) {
 	mp = runtime_m();
 	// Disable preemption.
 	mp->locks++;
-	p = mp->p->id;
+	p = ((P*)mp->p)->id;
 }
 
 func sync_atomic.runtime_procUnpin() {
 	runtime_m()->locks--;
-}
-
-extern Slice envs;
-
-func envs() (s Slice) {
-	s = envs;
-}
-
-func setenvs(e Slice) {
-	envs = e;
 }

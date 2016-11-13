@@ -32,12 +32,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pretty-print.h"
 #include "alias.h"
 #include "fold-const.h"
-
 #include "langhooks.h"
 #include "dumpfile.h"
 #include "tree-eh.h"
 #include "tree-dfa.h"
 #include "ipa-reference.h"
+#include "varasm.h"
 
 /* Broad overview of how alias analysis on gimple works:
 
@@ -167,7 +167,7 @@ ptr_deref_may_alias_decl_p (tree ptr, tree decl)
        && TREE_CODE (ptr) != ADDR_EXPR
        && TREE_CODE (ptr) != POINTER_PLUS_EXPR)
       || !POINTER_TYPE_P (TREE_TYPE (ptr))
-      || (TREE_CODE (decl) != VAR_DECL
+      || (!VAR_P (decl)
 	  && TREE_CODE (decl) != PARM_DECL
 	  && TREE_CODE (decl) != RESULT_DECL))
     return true;
@@ -338,7 +338,7 @@ ptrs_compare_unequal (tree ptr1, tree ptr2)
       tree tem = get_base_address (TREE_OPERAND (ptr1, 0));
       if (! tem)
 	return false;
-      if (TREE_CODE (tem) == VAR_DECL
+      if (VAR_P (tem)
 	  || TREE_CODE (tem) == PARM_DECL
 	  || TREE_CODE (tem) == RESULT_DECL)
 	obj1 = tem;
@@ -350,12 +350,19 @@ ptrs_compare_unequal (tree ptr1, tree ptr2)
       tree tem = get_base_address (TREE_OPERAND (ptr2, 0));
       if (! tem)
 	return false;
-      if (TREE_CODE (tem) == VAR_DECL
+      if (VAR_P (tem)
 	  || TREE_CODE (tem) == PARM_DECL
 	  || TREE_CODE (tem) == RESULT_DECL)
 	obj2 = tem;
       else if (TREE_CODE (tem) == MEM_REF)
 	ptr2 = TREE_OPERAND (tem, 0);
+    }
+
+  /* Canonicalize ptr vs. object.  */
+  if (TREE_CODE (ptr1) == SSA_NAME && obj2)
+    {
+      std::swap (ptr1, ptr2);
+      std::swap (obj1, obj2);
     }
 
   if (obj1 && obj2)
@@ -366,16 +373,21 @@ ptrs_compare_unequal (tree ptr1, tree ptr2)
       /* We may not use restrict to optimize pointer comparisons.
          See PR71062.  So we have to assume that restrict-pointed-to
 	 may be in fact obj1.  */
-      if (!pi || pi->pt.vars_contains_restrict)
+      if (!pi
+	  || pi->pt.vars_contains_restrict
+	  || pi->pt.vars_contains_interposable)
 	return false;
+      if (VAR_P (obj1)
+	  && (TREE_STATIC (obj1) || DECL_EXTERNAL (obj1)))
+	{
+	  varpool_node *node = varpool_node::get (obj1);
+	  /* If obj1 may bind to NULL give up (see below).  */
+	  if (! node
+	      || ! node->nonzero_address ()
+	      || ! decl_binds_to_current_def_p (obj1))
+	    return false;
+	}
       return !pt_solution_includes (&pi->pt, obj1);
-    }
-  else if (TREE_CODE (ptr1) == SSA_NAME && obj2)
-    {
-      struct ptr_info_def *pi = SSA_NAME_PTR_INFO (ptr1);
-      if (!pi || pi->pt.vars_contains_restrict)
-	return false;
-      return !pt_solution_includes (&pi->pt, obj2);
     }
 
   /* ???  We'd like to handle ptr1 != NULL and ptr1 != ptr2
@@ -450,6 +462,7 @@ void
 dump_alias_info (FILE *file)
 {
   unsigned i;
+  tree ptr;
   const char *funcname
     = lang_hooks.decl_printable_name (current_function_decl, 2);
   tree var;
@@ -471,13 +484,11 @@ dump_alias_info (FILE *file)
 
   fprintf (file, "\n\nFlow-insensitive points-to information\n\n");
 
-  for (i = 1; i < num_ssa_names; i++)
+  FOR_EACH_SSA_NAME (i, ptr, cfun)
     {
-      tree ptr = ssa_name (i);
       struct ptr_info_def *pi;
 
-      if (ptr == NULL_TREE
-	  || !POINTER_TYPE_P (TREE_TYPE (ptr))
+      if (!POINTER_TYPE_P (TREE_TYPE (ptr))
 	  || SSA_NAME_IN_FREE_LIST (ptr))
 	continue;
 
@@ -546,7 +557,12 @@ dump_points_to_solution (FILE *file, struct pt_solution *pt)
 	      comma = ", ";
 	    }
 	  if (pt->vars_contains_restrict)
-	    fprintf (file, "%srestrict", comma);
+	    {
+	      fprintf (file, "%srestrict", comma);
+	      comma = ", ";
+	    }
+	  if (pt->vars_contains_interposable)
+	    fprintf (file, "%sinterposable", comma);
 	  fprintf (file, ")");
 	}
     }
@@ -865,7 +881,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
   if (TREE_CODE (ref1) == MEM_REF)
     {
       if (!integer_zerop (TREE_OPERAND (ref1, 1)))
-	goto may_overlap;
+	return false;
       ref1 = TREE_OPERAND (TREE_OPERAND (ref1, 0), 0);
     }
 
@@ -878,7 +894,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
   if (TREE_CODE (ref2) == MEM_REF)
     {
       if (!integer_zerop (TREE_OPERAND (ref2, 1)))
-	goto may_overlap;
+	return false;
       ref2 = TREE_OPERAND (TREE_OPERAND (ref2, 0), 0);
     }
 
@@ -898,7 +914,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
       do
 	{
 	  if (component_refs1.is_empty ())
-	    goto may_overlap;
+	    return false;
 	  ref1 = component_refs1.pop ();
 	}
       while (!RECORD_OR_UNION_TYPE_P (TREE_TYPE (TREE_OPERAND (ref1, 0))));
@@ -906,7 +922,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
       do
 	{
 	  if (component_refs2.is_empty ())
-	     goto may_overlap;
+	     return false;
 	  ref2 = component_refs2.pop ();
 	}
       while (!RECORD_OR_UNION_TYPE_P (TREE_TYPE (TREE_OPERAND (ref2, 0))));
@@ -914,7 +930,7 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
       /* Beware of BIT_FIELD_REF.  */
       if (TREE_CODE (ref1) != COMPONENT_REF
 	  || TREE_CODE (ref2) != COMPONENT_REF)
-	goto may_overlap;
+	return false;
 
       tree field1 = TREE_OPERAND (ref1, 1);
       tree field2 = TREE_OPERAND (ref2, 1);
@@ -927,12 +943,10 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
 
       /* We cannot disambiguate fields in a union or qualified union.  */
       if (type1 != type2 || TREE_CODE (type1) != RECORD_TYPE)
-	 goto may_overlap;
+	 return false;
 
       if (field1 != field2)
 	{
-	  component_refs1.release ();
-	  component_refs2.release ();
 	  /* A field and its representative need to be considered the
 	     same.  */
 	  if (DECL_BIT_FIELD_REPRESENTATIVE (field1) == field2
@@ -946,9 +960,6 @@ nonoverlapping_component_refs_of_decl_p (tree ref1, tree ref2)
 	}
     }
 
-may_overlap:
-  component_refs1.release ();
-  component_refs2.release ();
   return false;
 }
 
@@ -1825,9 +1836,7 @@ ref_maybe_used_by_call_p_1 (gcall *call, ao_ref *ref)
 
   /* Check if base is a global static variable that is not read
      by the function.  */
-  if (callee != NULL_TREE
-      && TREE_CODE (base) == VAR_DECL
-      && TREE_STATIC (base))
+  if (callee != NULL_TREE && VAR_P (base) && TREE_STATIC (base))
     {
       struct cgraph_node *node = cgraph_node::get (callee);
       bitmap not_read;
@@ -2214,9 +2223,7 @@ call_may_clobber_ref_p_1 (gcall *call, ao_ref *ref)
 
   /* Check if base is a global static variable that is not written
      by the function.  */
-  if (callee != NULL_TREE
-      && TREE_CODE (base) == VAR_DECL
-      && TREE_STATIC (base))
+  if (callee != NULL_TREE && VAR_P (base) && TREE_STATIC (base))
     {
       struct cgraph_node *node = cgraph_node::get (callee);
       bitmap not_written;

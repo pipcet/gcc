@@ -69,6 +69,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-iterator.h"
 #include "gimple-walk.h"
 #include "tree-ssa-loop-manip.h"
+#include "tree-ssa-loop-niter.h"
 #include "tree-cfg.h"
 #include "cfgloop.h"
 #include "tree-vectorizer.h"
@@ -204,6 +205,10 @@ adjust_simduid_builtins (hash_table<simduid_to_vf> *htab)
 	  gcc_assert (TREE_CODE (arg) == SSA_NAME);
 	  simduid_to_vf *p = NULL, data;
 	  data.simduid = DECL_UID (SSA_NAME_VAR (arg));
+	  /* Need to nullify loop safelen field since it's value is not
+	     valid after transformation.  */
+	  if (bb->loop_father && bb->loop_father->safelen > 0)
+	    bb->loop_father->safelen = 0;
 	  if (htab)
 	    {
 	      p = htab->find (&data);
@@ -364,6 +369,20 @@ vect_destroy_datarefs (vec_info *vinfo)
   free_data_refs (vinfo->datarefs);
 }
 
+/* A helper function to free scev and LOOP niter information, as well as
+   clear loop constraint LOOP_C_FINITE.  */
+
+void
+vect_free_loop_info_assumptions (struct loop *loop)
+{
+  scev_reset_htab ();
+  /* We need to explicitly reset upper bound information since they are
+     used even after free_numbers_of_iterations_estimates_loop.  */
+  loop->any_upper_bound = false;
+  loop->any_likely_upper_bound = false;
+  free_numbers_of_iterations_estimates_loop (loop);
+  loop_constraint_clear (loop, LOOP_C_FINITE);
+}
 
 /* Return whether STMT is inside the region we try to vectorize.  */
 
@@ -417,9 +436,7 @@ vect_loop_vectorized_call (struct loop *loop)
       if (!gsi_end_p (gsi))
 	{
 	  g = gsi_stmt (gsi);
-	  if (is_gimple_call (g)
-	      && gimple_call_internal_p (g)
-	      && gimple_call_internal_fn (g) == IFN_LOOP_VECTORIZED
+	  if (gimple_call_internal_p (g, IFN_LOOP_VECTORIZED)
 	      && (tree_to_shwi (gimple_call_arg (g, 0)) == loop->num
 		  || tree_to_shwi (gimple_call_arg (g, 1)) == loop->num))
 	    return g;
@@ -533,7 +550,14 @@ vectorize_loops (void)
 	loop->aux = loop_vinfo;
 
 	if (!loop_vinfo || !LOOP_VINFO_VECTORIZABLE_P (loop_vinfo))
-	  continue;
+	  {
+	    /* Free existing information if loop is analyzed with some
+	       assumptions.  */
+	    if (loop_constraint_set_p (loop, LOOP_C_FINITE))
+	      vect_free_loop_info_assumptions (loop);
+
+	    continue;
+	  }
 
         if (!dbg_cnt (vect_loop))
 	  {
@@ -541,6 +565,11 @@ vectorize_loops (void)
 	       debug counter.  Set any_ifcvt_loops to visit
 	       them at finalization.  */
 	    any_ifcvt_loops = true;
+	    /* Free existing information if loop is analyzed with some
+	       assumptions.  */
+	    if (loop_constraint_set_p (loop, LOOP_C_FINITE))
+	      vect_free_loop_info_assumptions (loop);
+
 	    break;
 	  }
 

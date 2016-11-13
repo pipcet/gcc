@@ -23,51 +23,52 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Aspects;  use Aspects;
-with Atree;    use Atree;
-with Checks;   use Checks;
-with Debug;    use Debug;
-with Einfo;    use Einfo;
-with Elists;   use Elists;
-with Errout;   use Errout;
-with Exp_Ch3;  use Exp_Ch3;
-with Exp_Ch7;  use Exp_Ch7;
-with Exp_Disp; use Exp_Disp;
-with Exp_Pakd; use Exp_Pakd;
-with Exp_Util; use Exp_Util;
-with Exp_Tss;  use Exp_Tss;
-with Fname;    use Fname;
-with Ghost;    use Ghost;
-with Layout;   use Layout;
-with Lib;      use Lib;
-with Namet;    use Namet;
-with Nlists;   use Nlists;
-with Nmake;    use Nmake;
-with Opt;      use Opt;
-with Restrict; use Restrict;
-with Rident;   use Rident;
-with Rtsfind;  use Rtsfind;
-with Sem;      use Sem;
-with Sem_Aux;  use Sem_Aux;
-with Sem_Cat;  use Sem_Cat;
-with Sem_Ch6;  use Sem_Ch6;
-with Sem_Ch7;  use Sem_Ch7;
-with Sem_Ch8;  use Sem_Ch8;
-with Sem_Ch13; use Sem_Ch13;
-with Sem_Eval; use Sem_Eval;
-with Sem_Mech; use Sem_Mech;
-with Sem_Prag; use Sem_Prag;
-with Sem_Res;  use Sem_Res;
-with Sem_Util; use Sem_Util;
-with Sinfo;    use Sinfo;
-with Snames;   use Snames;
-with Stand;    use Stand;
-with Targparm; use Targparm;
-with Tbuild;   use Tbuild;
-with Ttypes;   use Ttypes;
-with Uintp;    use Uintp;
-with Urealp;   use Urealp;
-with Warnsw;   use Warnsw;
+with Aspects;   use Aspects;
+with Atree;     use Atree;
+with Checks;    use Checks;
+with Contracts; use Contracts;
+with Debug;     use Debug;
+with Einfo;     use Einfo;
+with Elists;    use Elists;
+with Errout;    use Errout;
+with Exp_Ch3;   use Exp_Ch3;
+with Exp_Ch7;   use Exp_Ch7;
+with Exp_Disp;  use Exp_Disp;
+with Exp_Pakd;  use Exp_Pakd;
+with Exp_Util;  use Exp_Util;
+with Exp_Tss;   use Exp_Tss;
+with Fname;     use Fname;
+with Ghost;     use Ghost;
+with Layout;    use Layout;
+with Lib;       use Lib;
+with Namet;     use Namet;
+with Nlists;    use Nlists;
+with Nmake;     use Nmake;
+with Opt;       use Opt;
+with Restrict;  use Restrict;
+with Rident;    use Rident;
+with Rtsfind;   use Rtsfind;
+with Sem;       use Sem;
+with Sem_Aux;   use Sem_Aux;
+with Sem_Cat;   use Sem_Cat;
+with Sem_Ch6;   use Sem_Ch6;
+with Sem_Ch7;   use Sem_Ch7;
+with Sem_Ch8;   use Sem_Ch8;
+with Sem_Ch13;  use Sem_Ch13;
+with Sem_Eval;  use Sem_Eval;
+with Sem_Mech;  use Sem_Mech;
+with Sem_Prag;  use Sem_Prag;
+with Sem_Res;   use Sem_Res;
+with Sem_Util;  use Sem_Util;
+with Sinfo;     use Sinfo;
+with Snames;    use Snames;
+with Stand;     use Stand;
+with Targparm;  use Targparm;
+with Tbuild;    use Tbuild;
+with Ttypes;    use Ttypes;
+with Uintp;     use Uintp;
+with Urealp;    use Urealp;
+with Warnsw;    use Warnsw;
 
 package body Freeze is
 
@@ -129,7 +130,7 @@ package body Freeze is
 
    procedure Check_Inherited_Conditions (R : Entity_Id);
    --  For a tagged derived type, create wrappers for inherited operations
-   --  that have a classwide condition, so it can be properly rewritten if
+   --  that have a class-wide condition, so it can be properly rewritten if
    --  it involves calls to other overriding primitives.
 
    procedure Check_Strict_Alignment (E : Entity_Id);
@@ -1403,35 +1404,60 @@ package body Freeze is
       while Present (Op_Node) loop
          Prim := Node (Op_Node);
 
-         --  In SPARK mode this is where we can collect the inherited
-         --  conditions, because we do not create the Check pragmas that
-         --  normally convey the modified classwide conditions on overriding
-         --  operations.
+         --  Map the overridden primitive to the overriding one. This takes
+         --  care of all overridings and is done only once.
 
-         if SPARK_Mode = On
+         if Present (Overridden_Operation (Prim))
            and then Comes_From_Source (Prim)
-           and then Present (Overridden_Operation (Prim))
          then
-            Collect_Inherited_Class_Wide_Conditions (Prim);
+            Update_Primitives_Mapping (Overridden_Operation (Prim), Prim);
+
+            --  In SPARK mode this is where we can collect the inherited
+            --  conditions, because we do not create the Check pragmas that
+            --  normally convey the the modified class-wide conditions on
+            --  overriding operations.
+
+            if SPARK_Mode = On then
+
+               --  Analyze the contract items of the parent operation, before
+               --  they are rewritten when inherited.
+
+               Analyze_Entry_Or_Subprogram_Contract
+                 (Overridden_Operation (Prim));
+
+               --  Now verify the legality of inherited contracts for LSP
+               --  conformance.
+
+               Collect_Inherited_Class_Wide_Conditions (Prim);
+            end if;
          end if;
 
-         --  In normal mode, we examine inherited operations to check whether
-         --  they require a wrapper to handle inherited conditions that call
-         --  other primitives.
-         --  Wrapper construction TBD.
+         Next_Elmt (Op_Node);
+      end loop;
 
+      --  In all cases, we examine inherited operations to check whether they
+      --  require a wrapper to handle inherited conditions that call other
+      --  primitives, so that LSP can be verified/enforced.
+
+      --  Wrapper construction TBD.
+
+      Op_Node := First_Elmt (Prim_Ops);
+      while Present (Op_Node) loop
+         Prim := Node (Op_Node);
          if not Comes_From_Source (Prim) and then Present (Alias (Prim)) then
             Par_Prim := Alias (Prim);
             A_Pre    := Find_Aspect (Par_Prim, Aspect_Pre);
 
             if Present (A_Pre) and then Class_Present (A_Pre) then
-               Build_Classwide_Expression (Expression (A_Pre), Prim);
+               Build_Class_Wide_Expression
+                 (Expression (A_Pre), Prim, Par_Prim, Adjust_Sloc => False);
             end if;
 
             A_Post := Find_Aspect (Par_Prim, Aspect_Post);
 
             if Present (A_Post) and then Class_Present (A_Post) then
-               Build_Classwide_Expression (Expression (A_Post), Prim);
+               Build_Class_Wide_Expression
+                 (Expression (A_Post), Prim, Par_Prim, Adjust_Sloc => False);
             end if;
          end if;
 
@@ -2762,7 +2788,7 @@ package body Freeze is
 
          if Is_Bit_Packed_Array (Arr) then
 
-            --  Check number of elements for bit packed arrays that come from
+            --  Check number of elements for bit-packed arrays that come from
             --  source and have compile time known ranges. The bit-packed
             --  arrays circuitry does not support arrays with more than
             --  Integer'Last + 1 elements, and when this restriction is
@@ -2844,7 +2870,7 @@ package body Freeze is
 
          --  If any of the index types was an enumeration type with a non-
          --  standard rep clause, then we indicate that the array type is
-         --  always packed (even if it is not bit packed).
+         --  always packed (even if it is not bit-packed).
 
          if Non_Standard_Enum then
             Set_Has_Non_Standard_Rep (Base_Type (Arr));
@@ -2853,7 +2879,7 @@ package body Freeze is
 
          Set_Component_Alignment_If_Not_Set (Arr);
 
-         --  If the array is packed and bit packed or packed to eliminate holes
+         --  If the array is packed and bit-packed or packed to eliminate holes
          --  in the non-contiguous enumeration index types, we must create the
          --  packed array type to be used to actually implement the type. This
          --  is only needed for real array types (not for string literal types,
@@ -3544,31 +3570,10 @@ package body Freeze is
          Junk : Boolean;
          pragma Warnings (Off, Junk);
 
-         Rec_Pushed : Boolean := False;
-         --  Set True if the record type scope Rec has been pushed on the scope
-         --  stack. Needed for the analysis of delayed aspects specified to the
-         --  components of Rec.
-
-         SSO_ADC : Node_Id;
-         --  Scalar_Storage_Order attribute definition clause for the record
-
-         Unplaced_Component : Boolean := False;
-         --  Set True if we find at least one component with no component
-         --  clause (used to warn about useless Pack pragmas).
-
-         Placed_Component : Boolean := False;
-         --  Set True if we find at least one component with a component
-         --  clause (used to warn about useless Bit_Order pragmas, and also
-         --  to detect cases where Implicit_Packing may have an effect).
-
          Aliased_Component : Boolean := False;
          --  Set True if we find at least one component which is aliased. This
          --  is used to prevent Implicit_Packing of the record, since packing
          --  cannot modify the size of alignment of an aliased component.
-
-         SSO_ADC_Component : Boolean := False;
-         --  Set True if we find at least one component whose type has a
-         --  Scalar_Storage_Order attribute definition clause.
 
          All_Elem_Components : Boolean := True;
          --  Set False if we encounter a component of a composite type
@@ -3584,9 +3589,30 @@ package body Freeze is
          --  Accumulates total Esize values of all elementary components. Used
          --  for processing of Implicit_Packing.
 
+         Placed_Component : Boolean := False;
+         --  Set True if we find at least one component with a component
+         --  clause (used to warn about useless Bit_Order pragmas, and also
+         --  to detect cases where Implicit_Packing may have an effect).
+
+         Rec_Pushed : Boolean := False;
+         --  Set True if the record type scope Rec has been pushed on the scope
+         --  stack. Needed for the analysis of delayed aspects specified to the
+         --  components of Rec.
+
          Sized_Component_Total_RM_Size : Uint := Uint_0;
          --  Accumulates total RM_Size values of all sized components. Used
          --  for processing of Implicit_Packing.
+
+         SSO_ADC : Node_Id;
+         --  Scalar_Storage_Order attribute definition clause for the record
+
+         SSO_ADC_Component : Boolean := False;
+         --  Set True if we find at least one component whose type has a
+         --  Scalar_Storage_Order attribute definition clause.
+
+         Unplaced_Component : Boolean := False;
+         --  Set True if we find at least one component with no component
+         --  clause (used to warn about useless Pack pragmas).
 
          function Check_Allocator (N : Node_Id) return Node_Id;
          --  If N is an allocator, possibly wrapped in one or more level of
@@ -4312,7 +4338,7 @@ package body Freeze is
          --  component clauses, where we must check the size. This is not done
          --  till the freeze point since for fixed-point types, we do not know
          --  the size until the type is frozen. Similar processing applies to
-         --  bit packed arrays.
+         --  bit-packed arrays.
 
          if Is_First_Subtype (Rec) then
             Comp := First_Component (Rec);
@@ -4396,16 +4422,18 @@ package body Freeze is
 
            --  We want to implicitly pack if the specified size of the record
            --  is less than the sum of the object sizes (no point in packing
-           --  if this is not the case) if we can compute it, i.e. if we have
+           --  if this is not the case), if we can compute it, i.e. if we have
            --  only elementary components. Otherwise, we have at least one
-           --  composite component and we want to implicit pack only if bit
+           --  composite component and we want to implicitly pack only if bit
            --  packing is required for it, as we are sure in this case that
            --  the back end cannot do the expected layout without packing.
 
-           and then ((All_Elem_Components
-                       and then RM_Size (Rec) < Elem_Component_Total_Esize)
-                     or else (not All_Elem_Components
-                               and then not All_Storage_Unit_Components))
+           and then
+              ((All_Elem_Components
+                 and then RM_Size (Rec) < Elem_Component_Total_Esize)
+             or else
+               (not All_Elem_Components
+                 and then not All_Storage_Unit_Components))
 
            --  And the total RM size cannot be greater than the specified size
            --  since otherwise packing will not get us where we have to be.
@@ -4633,7 +4661,7 @@ package body Freeze is
          end if;
 
          --  For a derived tagged type, check whether inherited primitives
-         --  might require a wrapper to handle classwide conditions.
+         --  might require a wrapper to handle class-wide conditions.
 
          if Is_Tagged_Type (Rec) and then Is_Derived_Type (Rec) then
             Check_Inherited_Conditions (Rec);
@@ -4926,6 +4954,12 @@ package body Freeze is
          Ghost_Mode := Save_Ghost_Mode;
          return No_List;
 
+      elsif Ekind (E) = E_Generic_Package then
+         Result := Freeze_Generic_Entities (E);
+
+         Ghost_Mode := Save_Ghost_Mode;
+         return Result;
+
       --  It is improper to freeze an external entity within a generic because
       --  its freeze node will appear in a non-valid context. The entity will
       --  be frozen in the proper scope after the current generic is analyzed.
@@ -5035,12 +5069,6 @@ package body Freeze is
                return No_List;
             end if;
          end;
-
-      elsif Ekind (E) = E_Generic_Package then
-         Result := Freeze_Generic_Entities (E);
-
-         Ghost_Mode := Save_Ghost_Mode;
-         return Result;
       end if;
 
       --  Add checks to detect proper initialization of scalars that may appear
@@ -5121,13 +5149,7 @@ package body Freeze is
 
             --  This processing doesn't apply to internal entities (see below)
 
-            --  Disable this mechanism for now, to fix regressions in ASIS and
-            --  various ACATS tests. Implementation of AI05-019 remains
-            --  unsolved ???
-
-            if not Is_Internal (E)
-              and then (Do_Freeze_Profile or else True)
-            then
+            if not Is_Internal (E) and then Do_Freeze_Profile then
                if not Freeze_Profile (E) then
                   Ghost_Mode := Save_Ghost_Mode;
                   return Result;
@@ -5444,20 +5466,21 @@ package body Freeze is
                      --  the RM_Size of the component type.
 
                      if RM_Size (E) = Num_Elmts * Rsiz then
+
                         --  For implicit packing mode, just set the component
                         --  size and Freeze_Array_Type will do the rest.
 
                         if Implicit_Packing then
                            Set_Component_Size (Btyp, Rsiz);
 
-                           --  Otherwise give an error message
+                        --  Otherwise give an error message
 
                         else
                            Error_Msg_NE
                              ("size given for& too small", SZ, E);
                            Error_Msg_N -- CODEFIX
-                             ("\use explicit pragma Pack "
-                              & "or use pragma Implicit_Packing", SZ);
+                             ("\use explicit pragma Pack or use pragma "
+                              & "Implicit_Packing", SZ);
                         end if;
                      end if;
                   end if;
@@ -7638,18 +7661,37 @@ package body Freeze is
       --  Check for shaving
 
       if Comes_From_Source (Typ) then
-         if Orig_Lo < Expr_Value_R (Lo) then
-            Error_Msg_N
-              ("declared low bound of type & is outside type range??", Typ);
-            Error_Msg_N
-              ("\low bound adjusted up by delta (RM 3.5.9(13))??", Typ);
-         end if;
 
-         if Orig_Hi > Expr_Value_R (Hi) then
-            Error_Msg_N
-              ("declared high bound of type & is outside type range??", Typ);
-            Error_Msg_N
-              ("\high bound adjusted down by delta (RM 3.5.9(13))??", Typ);
+         --  In SPARK mode the given bounds must be strictly representable
+
+         if SPARK_Mode = On then
+            if Orig_Lo < Expr_Value_R (Lo) then
+               Error_Msg_NE
+                 ("declared low bound of type & is outside type range",
+                  Lo, Typ);
+            end if;
+
+            if Orig_Hi > Expr_Value_R (Hi) then
+               Error_Msg_NE
+                 ("declared high bound of type & is outside type range",
+                  Hi, Typ);
+            end if;
+
+         else
+            if Orig_Lo < Expr_Value_R (Lo) then
+               Error_Msg_N
+                 ("declared low bound of type & is outside type range??", Typ);
+               Error_Msg_N
+                 ("\low bound adjusted up by delta (RM 3.5.9(13))??", Typ);
+            end if;
+
+            if Orig_Hi > Expr_Value_R (Hi) then
+               Error_Msg_N
+                 ("declared high bound of type & is outside type range??",
+                  Typ);
+               Error_Msg_N
+                 ("\high bound adjusted down by delta (RM 3.5.9(13))??", Typ);
+            end if;
          end if;
       end if;
    end Freeze_Fixed_Point_Type;

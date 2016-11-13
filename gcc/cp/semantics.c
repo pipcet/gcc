@@ -588,7 +588,7 @@ simplify_loop_decl_cond (tree *cond_p, tree body)
   *cond_p = boolean_true_node;
 
   if_stmt = begin_if_stmt ();
-  cond = cp_build_unary_op (TRUTH_NOT_EXPR, cond, 0, tf_warning_or_error);
+  cond = cp_build_unary_op (TRUTH_NOT_EXPR, cond, false, tf_warning_or_error);
   finish_if_stmt_cond (cond, if_stmt);
   finish_break_stmt ();
   finish_then_clause (if_stmt);
@@ -656,8 +656,8 @@ maybe_convert_cond (tree cond)
       && !TREE_NO_WARNING (cond)
       && warn_parentheses)
     {
-      warning (OPT_Wparentheses,
-	       "suggest parentheses around assignment used as truth value");
+      warning_at (EXPR_LOC_OR_LOC (cond, input_location), OPT_Wparentheses,
+		  "suggest parentheses around assignment used as truth value");
       TREE_NO_WARNING (cond) = 1;
     }
 
@@ -715,6 +715,7 @@ begin_if_stmt (void)
   scope = do_pushlevel (sk_cond);
   r = build_stmt (input_location, IF_STMT, NULL_TREE,
 		  NULL_TREE, NULL_TREE, scope);
+  current_binding_level->this_entity = r;
   begin_cond (&IF_COND (r));
   return r;
 }
@@ -722,12 +723,18 @@ begin_if_stmt (void)
 /* Process the COND of an if-statement, which may be given by
    IF_STMT.  */
 
-void
+tree
 finish_if_stmt_cond (tree cond, tree if_stmt)
 {
-  finish_cond (&IF_COND (if_stmt), maybe_convert_cond (cond));
+  cond = maybe_convert_cond (cond);
+  if (IF_STMT_CONSTEXPR_P (if_stmt)
+      && require_potential_rvalue_constant_expression (cond)
+      && !value_dependent_expression_p (cond))
+    cond = cxx_constant_value (cond, NULL_TREE);
+  finish_cond (&IF_COND (if_stmt), cond);
   add_stmt (if_stmt);
   THEN_CLAUSE (if_stmt) = push_stmt_list ();
+  return cond;
 }
 
 /* Finish the then-clause of an if-statement, which may be given by
@@ -946,11 +953,11 @@ begin_for_stmt (tree scope, tree init)
   return r;
 }
 
-/* Finish the for-init-statement of a for-statement, which may be
+/* Finish the init-statement of a for-statement, which may be
    given by FOR_STMT.  */
 
 void
-finish_for_init_stmt (tree for_stmt)
+finish_init_stmt (tree for_stmt)
 {
   if (processing_template_decl)
     FOR_INIT_STMT (for_stmt) = pop_stmt_list (FOR_INIT_STMT (for_stmt));
@@ -2245,7 +2252,7 @@ perform_koenig_lookup (cp_expr fn, vec<tree, va_gc> *args,
       if (!fn)
 	{
 	  /* The unqualified name could not be resolved.  */
-	  if (complain)
+	  if (complain & tf_error)
 	    fn = unqualified_fn_lookup_error (cp_expr (identifier, loc));
 	  else
 	    fn = identifier;
@@ -2664,6 +2671,11 @@ finish_compound_literal (tree type, tree compound_literal,
       return error_mark_node;
     }
 
+  if (tree anode = type_uses_auto (type))
+    if (CLASS_PLACEHOLDER_TEMPLATE (anode))
+      type = do_auto_deduction (type, compound_literal, anode, complain,
+				adc_variable_type);
+
   if (processing_template_decl)
     {
       TREE_TYPE (compound_literal) = type;
@@ -2916,7 +2928,7 @@ begin_class_definition (tree t)
   /* Reset the interface data, at the earliest possible
      moment, as it might have been set via a class foo;
      before.  */
-  if (! TYPE_ANONYMOUS_P (t))
+  if (! TYPE_UNNAMED_P (t))
     {
       struct c_fileinfo *finfo = \
 	get_fileinfo (LOCATION_FILE (input_location));
@@ -3548,6 +3560,12 @@ finish_id_expression (tree id_expression,
 	 resolve the name at instantiation time.  */
       if (dependent_p)
 	{
+	  if (DECL_P (decl)
+	      && any_dependent_type_attributes_p (DECL_ATTRIBUTES (decl)))
+	    /* Dependent type attributes on the decl mean that the TREE_TYPE is
+	       wrong, so just return the identifier.  */
+	    return id_expression;
+
 	  /* If we found a variable, then name lookup during the
 	     instantiation will always resolve to the same VAR_DECL
 	     (or an instantiation thereof).  */
@@ -5002,6 +5020,10 @@ handle_omp_array_sections (tree c, enum c_omp_region_type ort)
 	      case GOMP_MAP_ALWAYS_TOFROM:
 	      case GOMP_MAP_RELEASE:
 	      case GOMP_MAP_DELETE:
+	      case GOMP_MAP_FORCE_TO:
+	      case GOMP_MAP_FORCE_FROM:
+	      case GOMP_MAP_FORCE_TOFROM:
+	      case GOMP_MAP_FORCE_PRESENT:
 		OMP_CLAUSE_MAP_MAYBE_ZERO_LENGTH_ARRAY_SECTION (c) = 1;
 		break;
 	      default:
@@ -6208,11 +6230,13 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	      OMP_CLAUSE_OPERAND (c, 1) = t;
 	    }
 	  /* Check operand 0, the num argument.  */
+	  /* FALLTHRU */
 
 	case OMP_CLAUSE_WORKER:
 	case OMP_CLAUSE_VECTOR:
 	  if (OMP_CLAUSE_OPERAND (c, 0) == NULL_TREE)
 	    break;
+	  /* FALLTHRU */
 
 	case OMP_CLAUSE_NUM_TASKS:
 	case OMP_CLAUSE_NUM_TEAMS:
@@ -8875,6 +8899,7 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
               break;
             }
           /* Fall through for fields that aren't bitfields.  */
+	  gcc_fallthrough ();
 
         case FUNCTION_DECL:
         case VAR_DECL:
@@ -9067,6 +9092,9 @@ trait_expr_value (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_HAS_VIRTUAL_DESTRUCTOR:
       return type_has_virtual_destructor (type1);
 
+    case CPTK_HAS_UNIQUE_OBJ_REPRESENTATIONS:
+      return type_has_unique_obj_representations (type1);
+
     case CPTK_IS_ABSTRACT:
       return (ABSTRACT_CLASS_TYPE_P (type1));
 
@@ -9174,6 +9202,7 @@ finish_trait_expr (cp_trait_kind kind, tree type1, tree type2)
     case CPTK_HAS_NOTHROW_COPY:
     case CPTK_HAS_TRIVIAL_COPY:
     case CPTK_HAS_TRIVIAL_DESTRUCTOR:
+    case CPTK_HAS_UNIQUE_OBJ_REPRESENTATIONS:
     case CPTK_HAS_VIRTUAL_DESTRUCTOR:
     case CPTK_IS_ABSTRACT:
     case CPTK_IS_EMPTY:
@@ -9275,6 +9304,10 @@ apply_deduced_return_type (tree fco, tree return_type)
   if (TREE_TYPE (result) == return_type)
     return;
 
+  if (!processing_template_decl && !VOID_TYPE_P (return_type)
+      && !complete_type_or_else (return_type, NULL_TREE))
+    return;
+
   /* We already have a DECL_RESULT from start_preparsed_function.
      Now we need to redo the work it and allocate_struct_function
      did to reflect the new type.  */
@@ -9290,8 +9323,6 @@ apply_deduced_return_type (tree fco, tree return_type)
 
   if (!processing_template_decl)
     {
-      if (!VOID_TYPE_P (TREE_TYPE (result)))
-	complete_type_or_else (TREE_TYPE (result), NULL_TREE);
       bool aggr = aggregate_value_p (result, fco);
 #ifdef PCC_STATIC_STRUCT_RETURN
       cfun->returns_pcc_struct = aggr;
@@ -9416,6 +9447,28 @@ finish_binary_fold_expr (tree expr1, tree expr2, int op)
         error ("no unexpanded parameter packs in binary fold");
     }
   return error_mark_node;
+}
+
+/* Finish __builtin_launder (arg).  */
+
+tree
+finish_builtin_launder (location_t loc, tree arg, tsubst_flags_t complain)
+{
+  tree orig_arg = arg;
+  if (!type_dependent_expression_p (arg))
+    arg = decay_conversion (arg, complain);
+  if (error_operand_p (arg))
+    return error_mark_node;
+  if (!type_dependent_expression_p (arg)
+      && TREE_CODE (TREE_TYPE (arg)) != POINTER_TYPE)
+    {
+      error_at (loc, "non-pointer argument to %<__builtin_launder%>");
+      return error_mark_node;
+    }
+  if (processing_template_decl)
+    arg = orig_arg;
+  return build_call_expr_internal_loc (loc, IFN_LAUNDER,
+				       TREE_TYPE (arg), 1, arg);
 }
 
 #include "gt-cp-semantics.h"

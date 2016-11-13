@@ -618,7 +618,7 @@ split_constant_offset_1 (tree type, tree op0, enum tree_code code, tree op1,
 	op0 = TREE_OPERAND (op0, 0);
 	base
 	  = get_inner_reference (op0, &pbitsize, &pbitpos, &poffset, &pmode,
-				 &punsignedp, &preversep, &pvolatilep, false);
+				 &punsignedp, &preversep, &pvolatilep);
 
 	if (pbitpos % BITS_PER_UNIT != 0)
 	  return false;
@@ -771,7 +771,7 @@ dr_analyze_innermost (struct data_reference *dr, struct loop *nest)
     fprintf (dump_file, "analyze_innermost: ");
 
   base = get_inner_reference (ref, &pbitsize, &pbitpos, &poffset, &pmode,
-			      &punsignedp, &preversep, &pvolatilep, false);
+			      &punsignedp, &preversep, &pvolatilep);
   gcc_assert (base != NULL_TREE);
 
   if (pbitpos % BITS_PER_UNIT != 0)
@@ -1685,6 +1685,7 @@ siv_subscript_p (const_tree chrec_a, const_tree chrec_b)
 	    case POLYNOMIAL_CHREC:
 	      if (CHREC_VARIABLE (chrec_a) != CHREC_VARIABLE (chrec_b))
 		return false;
+	      /* FALLTHRU */
 
 	    default:
 	      return true;
@@ -2685,13 +2686,13 @@ analyze_subscript_affine_affine (tree chrec_a,
 
 	      if (niter > 0)
 		{
-		  HOST_WIDE_INT tau2 = MIN (FLOOR_DIV (niter - i0, i1),
-					    FLOOR_DIV (niter - j0, j1));
+		  HOST_WIDE_INT tau2 = MIN (FLOOR_DIV (niter_a - i0, i1),
+					    FLOOR_DIV (niter_b - j0, j1));
 		  HOST_WIDE_INT last_conflict = tau2 - (x1 - i0)/i1;
 
 		  /* If the overlap occurs outside of the bounds of the
 		     loop, there is no dependence.  */
-		  if (x1 >= niter || y1 >= niter)
+		  if (x1 >= niter_a || y1 >= niter_b)
 		    {
 		      *overlaps_a = conflict_fn_no_dependence ();
 		      *overlaps_b = conflict_fn_no_dependence ();
@@ -3868,7 +3869,8 @@ get_references_in_stmt (gimple *stmt, vec<data_ref_loc, va_heap> *references)
       if (DECL_P (op1)
 	  || (REFERENCE_CLASS_P (op1)
 	      && (base = get_base_address (op1))
-	      && TREE_CODE (base) != SSA_NAME))
+	      && TREE_CODE (base) != SSA_NAME
+	      && !is_gimple_min_invariant (base)))
 	{
 	  ref.ref = op1;
 	  ref.is_read = true;
@@ -3889,6 +3891,7 @@ get_references_in_stmt (gimple *stmt, vec<data_ref_loc, va_heap> *references)
 	    if (gimple_call_lhs (stmt) == NULL_TREE)
 	      break;
 	    ref.is_read = true;
+	    /* FALLTHRU */
 	  case IFN_MASK_STORE:
 	    ptr = build_int_cst (TREE_TYPE (gimple_call_arg (stmt, 1)), 0);
 	    align = tree_to_shwi (gimple_call_arg (stmt, 1));
@@ -3942,8 +3945,7 @@ bool
 loop_nest_has_data_refs (loop_p loop)
 {
   basic_block *bbs = get_loop_body (loop);
-  vec<data_ref_loc> references;
-  references.create (3);
+  auto_vec<data_ref_loc, 3> references;
 
   for (unsigned i = 0; i < loop->num_nodes; i++)
     {
@@ -3957,13 +3959,11 @@ loop_nest_has_data_refs (loop_p loop)
 	  if (references.length ())
 	    {
 	      free (bbs);
-	      references.release ();
 	      return true;
 	    }
 	}
     }
   free (bbs);
-  references.release ();
 
   if (loop->inner)
     {
@@ -4002,7 +4002,7 @@ find_data_references_in_stmt (struct loop *nest, gimple *stmt,
       gcc_assert (dr != NULL);
       datarefs->safe_push (dr);
     }
-  references.release ();
+
   return ret;
 }
 
@@ -4032,7 +4032,6 @@ graphite_find_data_references_in_stmt (loop_p nest, loop_p loop, gimple *stmt,
       datarefs->safe_push (dr);
     }
 
-  references.release ();
   return ret;
 }
 

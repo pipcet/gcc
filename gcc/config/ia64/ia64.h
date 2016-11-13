@@ -961,10 +961,8 @@ enum reg_class
   {FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM},			\
 }
 
-/* This macro is similar to `INITIAL_FRAME_POINTER_OFFSET'.  It
-   specifies the initial difference between the specified pair of
-   registers.  This macro must be defined if `ELIMINABLE_REGS' is
-   defined.  */
+/* This macro returns the initial difference between the specified pair
+   of registers.  */
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET) \
   ((OFFSET) = ia64_initial_elimination_offset ((FROM), (TO)))
 
@@ -1583,11 +1581,14 @@ do {									\
 /* Use section-relative relocations for debugging offsets.  Unlike other
    targets that fake this by putting the section VMA at 0, IA-64 has
    proper relocations for them.  */
-#define ASM_OUTPUT_DWARF_OFFSET(FILE, SIZE, LABEL, SECTION)	\
+#define ASM_OUTPUT_DWARF_OFFSET(FILE, SIZE, LABEL, OFFSET, SECTION) \
   do {								\
     fputs (integer_asm_op (SIZE, FALSE), FILE);			\
     fputs ("@secrel(", FILE);					\
     assemble_name (FILE, LABEL);				\
+    if ((OFFSET) != 0)						\
+      fprintf (FILE, "+" HOST_WIDE_INT_PRINT_DEC,		\
+	       (HOST_WIDE_INT) (OFFSET));			\
     fputc (')', FILE);						\
   } while (0)
 

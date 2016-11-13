@@ -4,6 +4,8 @@
 
 package runtime
 
+import "unsafe"
+
 // The Error interface identifies a run time error.
 type Error interface {
 	error
@@ -101,26 +103,30 @@ func (e errorString) Error() string {
 	return "runtime error: " + string(e)
 }
 
-// For calling from C.
-func NewErrorString(s string, ret *interface{}) {
-	*ret = errorString(s)
-}
-
 // An errorCString represents a runtime error described by a single C string.
 // Not "type errorCString uintptr" because of http://golang.org/issue/7084.
 type errorCString struct{ cstr uintptr }
 
 func (e errorCString) RuntimeError() {}
 
-func cstringToGo(uintptr) string
-
 func (e errorCString) Error() string {
-	return "runtime error: " + cstringToGo(e.cstr)
+	return "runtime error: " + gostringnocopy((*byte)(unsafe.Pointer(e.cstr)))
 }
 
 // For calling from C.
 func NewErrorCString(s uintptr, ret *interface{}) {
 	*ret = errorCString{s}
+}
+
+// plainError represents a runtime error described a string without
+// the prefix "runtime error: " after invoking errorString.Error().
+// See Issue #14965.
+type plainError string
+
+func (e plainError) RuntimeError() {}
+
+func (e plainError) Error() string {
+	return string(e)
 }
 
 type stringer interface {
@@ -152,5 +158,5 @@ func Printany(i interface{}) {
 
 // called from generated code
 func panicwrap(pkg, typ, meth string) {
-	panic("value method " + pkg + "." + typ + "." + meth + " called using nil *" + typ + " pointer")
+	panic(plainError("value method " + pkg + "." + typ + "." + meth + " called using nil *" + typ + " pointer"))
 }

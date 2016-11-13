@@ -28,6 +28,7 @@
 #include "cfghooks.h"
 #include "cfgloop.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "optabs.h"
 #include "regs.h"
@@ -2693,7 +2694,6 @@ cc_flags_for_code (enum rtx_code code)
     case LT:	/* N */
     case GE:	/* ~N */
       return CC_FLAG_N;
-      break;
 
     case GT:    /* ~(Z|(N^V)) */
     case LE:    /* Z|(N^V) */
@@ -2758,7 +2758,8 @@ set_is_store_p (rtx set)
    COST is the current cycle cost for DEP.  */
 
 static int
-mn10300_adjust_sched_cost (rtx_insn *insn, rtx link, rtx_insn *dep, int cost)
+mn10300_adjust_sched_cost (rtx_insn *insn, int dep_type, rtx_insn *dep,
+			   int cost, unsigned int)
 {
   rtx insn_set;
   rtx dep_set;
@@ -2807,7 +2808,7 @@ mn10300_adjust_sched_cost (rtx_insn *insn, rtx link, rtx_insn *dep, int cost)
     return cost;
 
   /* If a data dependence already exists then the cost is correct.  */
-  if (REG_NOTE_KIND (link) == 0)
+  if (dep_type == 0)
     return cost;
 
   /* Check that the instruction about to scheduled is an FPU instruction.  */
@@ -3162,7 +3163,7 @@ mn10300_bundle_liw (void)
    Insert a SETLB insn just before LABEL.  */
 
 static void
-mn10300_insert_setlb_lcc (rtx label, rtx branch)
+mn10300_insert_setlb_lcc (rtx_insn *label, rtx branch)
 {
   rtx lcc, comparison, cmp_reg;
 
@@ -3377,6 +3378,9 @@ mn10300_reorg (void)
 
 #undef  TARGET_CASE_VALUES_THRESHOLD
 #define TARGET_CASE_VALUES_THRESHOLD mn10300_case_values_threshold
+
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
 
 #undef  TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P	mn10300_legitimate_address_p

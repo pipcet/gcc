@@ -1,4 +1,4 @@
-// Copyright 2013 The Go Authors.  All rights reserved.
+// Copyright 2013 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -70,6 +70,19 @@ func TestReadGCStats(t *testing.T) {
 		if q[i] > q[i+1] {
 			t.Errorf("stats.PauseQuantiles[%d]=%d > stats.PauseQuantiles[%d]=%d", i, q[i], i+1, q[i+1])
 		}
+	}
+
+	// compare memory stats with gc stats:
+	if len(stats.PauseEnd) != n {
+		t.Fatalf("len(stats.PauseEnd) = %d, want %d", len(stats.PauseEnd), n)
+	}
+	off := (int(mstats.NumGC) + len(mstats.PauseEnd) - 1) % len(mstats.PauseEnd)
+	for i := 0; i < n; i++ {
+		dt := stats.PauseEnd[i]
+		if dt.UnixNano() != int64(mstats.PauseEnd[off]) {
+			t.Errorf("stats.PauseEnd[%d] = %d, want %d", i, dt, mstats.PauseEnd[off])
+		}
+		off = (off + len(mstats.PauseEnd) - 1) % len(mstats.PauseEnd)
 	}
 }
 

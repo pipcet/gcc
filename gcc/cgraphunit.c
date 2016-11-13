@@ -190,6 +190,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "toplev.h"
 #include "debug.h"
 #include "symbol-summary.h"
+#include "tree-vrp.h"
 #include "ipa-prop.h"
 #include "gimple-pretty-print.h"
 #include "plugin.h"
@@ -661,7 +662,7 @@ symbol_table::process_same_body_aliases (void)
   FOR_EACH_SYMBOL (node)
     if (node->cpp_implicit_alias && !node->analyzed)
       node->resolve_alias
-	(TREE_CODE (node->alias_target) == VAR_DECL
+	(VAR_P (node->alias_target)
 	 ? (symtab_node *)varpool_node::get_create (node->alias_target)
 	 : (symtab_node *)cgraph_node::get_create (node->alias_target));
   cpp_implicit_aliases_done = true;
@@ -949,7 +950,7 @@ check_global_declaration (symtab_node *snode)
 			&& (decl_file = DECL_SOURCE_FILE (decl)) != NULL
 			&& filename_cmp (main_input_filename,
 					 decl_file) == 0))))
-	   && TREE_CODE (decl) == VAR_DECL))
+	   && VAR_P (decl)))
       && ! DECL_IN_SYSTEM_HEADER (decl)
       && ! snode->referred_to_p (/*include_self=*/false)
       /* This TREE_USED check is needed in addition to referred_to_p
@@ -966,7 +967,7 @@ check_global_declaration (symtab_node *snode)
       /* A volatile variable might be used in some non-obvious way.  */
       && (! VAR_P (decl) || ! TREE_THIS_VOLATILE (decl))
       /* Global register variables must be declared to reserve them.  */
-      && ! (TREE_CODE (decl) == VAR_DECL && DECL_REGISTER (decl))
+      && ! (VAR_P (decl) && DECL_REGISTER (decl))
       /* Global ctors and dtors are called by the runtime.  */
       && (TREE_CODE (decl) != FUNCTION_DECL
 	  || (!DECL_STATIC_CONSTRUCTOR (decl)
@@ -1116,14 +1117,21 @@ analyze_functions (bool first_time)
 		}
 
 	      /* If decl is a clone of an abstract function,
-	      mark that abstract function so that we don't release its body.
-	      The DECL_INITIAL() of that abstract function declaration
-	      will be later needed to output debug info.  */
+		 mark that abstract function so that we don't release its body.
+		 The DECL_INITIAL() of that abstract function declaration
+		 will be later needed to output debug info.  */
 	      if (DECL_ABSTRACT_ORIGIN (decl))
 		{
 		  cgraph_node *origin_node
 		    = cgraph_node::get_create (DECL_ABSTRACT_ORIGIN (decl));
 		  origin_node->used_as_abstract_origin = true;
+		}
+	      /* Preserve a functions function context node.  It will
+		 later be needed to output debug info.  */
+	      if (tree fn = decl_function_context (decl))
+		{
+		  cgraph_node *origin_node = cgraph_node::get_create (fn);
+		  enqueue_node (origin_node);
 		}
 	    }
 	  else
@@ -1193,8 +1201,16 @@ analyze_functions (bool first_time)
 	     at looking at optimized away DECLs, since
 	     late_global_decl will subsequently be called from the
 	     contents of the now pruned symbol table.  */
-	  if (!decl_function_context (node->decl))
-	    (*debug_hooks->late_global_decl) (node->decl);
+	  if (VAR_P (node->decl)
+	      && !decl_function_context (node->decl))
+	    {
+	      /* We are reclaiming totally unreachable code and variables
+	         so they effectively appear as readonly.  Show that to
+		 the debug machinery.  */
+	      TREE_READONLY (node->decl) = 1;
+	      node->definition = false;
+	      (*debug_hooks->late_global_decl) (node->decl);
+	    }
 
 	  node->remove ();
 	  continue;
@@ -1297,7 +1313,7 @@ handle_alias_pairs (void)
 	  cgraph_node::create_alias (p->decl, target_node->decl);
 	  alias_pairs->unordered_remove (i);
 	}
-      else if (TREE_CODE (p->decl) == VAR_DECL
+      else if (VAR_P (p->decl)
 	       && target_node && is_a <varpool_node *> (target_node))
 	{
 	  varpool_node::create_alias (p->decl, target_node->decl);
@@ -1438,6 +1454,7 @@ init_lowered_empty_function (tree decl, bool in_ssa, gcov_type count)
     }
 
   DECL_INITIAL (decl) = make_node (BLOCK);
+  BLOCK_SUPERCONTEXT (DECL_INITIAL (decl)) = decl;
 
   DECL_SAVED_TREE (decl) = error_mark_node;
   cfun->curr_properties |= (PROP_gimple_lcf | PROP_gimple_leh | PROP_gimple_any
@@ -1550,7 +1567,7 @@ thunk_adjust (gimple_stmt_iterator * bsi,
     {
       tree ptrtmp;
 
-      if (TREE_CODE (ptr) == VAR_DECL)
+      if (VAR_P (ptr))
         ptrtmp = ptr;
       else
         {
@@ -1627,6 +1644,7 @@ cgraph_node::expand_thunk (bool output_asm_thunks, bool force_gimple_thunk)
       fn_block = make_node (BLOCK);
       BLOCK_VARS (fn_block) = a;
       DECL_INITIAL (thunk_fndecl) = fn_block;
+      BLOCK_SUPERCONTEXT (fn_block) = thunk_fndecl;
       allocate_struct_function (thunk_fndecl, false);
       init_function_start (thunk_fndecl);
       cfun->is_thunk = 1;
@@ -1728,7 +1746,7 @@ cgraph_node::expand_thunk (bool output_asm_thunks, bool force_gimple_thunk)
 		{
 		  restmp = resdecl;
 
-		  if (TREE_CODE (restmp) == VAR_DECL)
+		  if (VAR_P (restmp))
 		    add_local_decl (cfun, restmp);
 		  BLOCK_VARS (DECL_INITIAL (current_function_decl)) = restmp;
 		}
@@ -2141,6 +2159,7 @@ enum cgraph_order_sort_kind
   ORDER_UNDEFINED = 0,
   ORDER_FUNCTION,
   ORDER_VAR,
+  ORDER_VAR_UNDEF,
   ORDER_ASM
 };
 
@@ -2187,16 +2206,20 @@ output_in_order (bool no_reorder)
 	}
     }
 
-  FOR_EACH_DEFINED_VARIABLE (pv)
-    if (!DECL_EXTERNAL (pv->decl))
-      {
-	if (no_reorder && !pv->no_reorder)
-	    continue;
-	i = pv->order;
-	gcc_assert (nodes[i].kind == ORDER_UNDEFINED);
-	nodes[i].kind = ORDER_VAR;
-	nodes[i].u.v = pv;
-      }
+  /* There is a similar loop in symbol_table::output_variables.
+     Please keep them in sync.  */
+  FOR_EACH_VARIABLE (pv)
+    {
+      if (no_reorder && !pv->no_reorder)
+	continue;
+      if (DECL_HARD_REGISTER (pv->decl)
+	  || DECL_HAS_VALUE_EXPR_P (pv->decl))
+	continue;
+      i = pv->order;
+      gcc_assert (nodes[i].kind == ORDER_UNDEFINED);
+      nodes[i].kind = pv->definition ? ORDER_VAR : ORDER_VAR_UNDEF;
+      nodes[i].u.v = pv;
+    }
 
   for (pa = symtab->first_asm_symbol (); pa; pa = pa->next)
     {
@@ -2222,14 +2245,11 @@ output_in_order (bool no_reorder)
 	  break;
 
 	case ORDER_VAR:
-#ifdef ACCEL_COMPILER
-	  /* Do not assemble "omp declare target link" vars.  */
-	  if (DECL_HAS_VALUE_EXPR_P (nodes[i].u.v->decl)
-	      && lookup_attribute ("omp declare target link",
-				   DECL_ATTRIBUTES (nodes[i].u.v->decl)))
-	    break;
-#endif
 	  nodes[i].u.v->assemble_decl ();
+	  break;
+
+	case ORDER_VAR_UNDEF:
+	  assemble_undefined_decl (nodes[i].u.v->decl);
 	  break;
 
 	case ORDER_ASM:
@@ -2431,7 +2451,6 @@ symbol_table::compile (void)
     fprintf (stderr, "Assembling functions:\n");
   symtab_node::checking_verify_symtab_nodes ();
 
-  materialize_all_clones ();
   bitmap_obstack_initialize (NULL);
   execute_ipa_pass_list (g->get_passes ()->all_late_ipa_passes);
   bitmap_obstack_release (NULL);
@@ -2558,7 +2577,7 @@ symbol_table::finalize_compilation_unit (void)
 
       /* Clean up anything that needs cleaning up after initial debug
 	 generation.  */
-      (*debug_hooks->early_finish) ();
+      (*debug_hooks->early_finish) (main_input_filename);
     }
 
   /* Finally drive the pass manager.  */

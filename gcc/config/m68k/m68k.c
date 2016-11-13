@@ -41,6 +41,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "expmed.h"
 #include "dojump.h"
 #include "explow.h"
+#include "memmodel.h"
 #include "emit-rtl.h"
 #include "stmt.h"
 #include "expr.h"
@@ -138,7 +139,8 @@ struct m68k_address {
   int scale;
 };
 
-static int m68k_sched_adjust_cost (rtx_insn *, rtx, rtx_insn *, int);
+static int m68k_sched_adjust_cost (rtx_insn *, int, rtx_insn *, int,
+				   unsigned int);
 static int m68k_sched_issue_rate (void);
 static int m68k_sched_variable_issue (FILE *, int, rtx_insn *, int);
 static void m68k_sched_md_init_global (FILE *, int, int);
@@ -287,6 +289,9 @@ static void m68k_init_sync_libfuncs (void) ATTRIBUTE_UNUSED;
 #undef TARGET_ASM_OUTPUT_DWARF_DTPREL
 #define TARGET_ASM_OUTPUT_DWARF_DTPREL m68k_output_dwarf_dtprel
 #endif
+
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P	m68k_legitimate_address_p
@@ -633,10 +638,12 @@ m68k_option_override (void)
     }
 #endif
 
-  if (stack_limit_rtx != NULL_RTX && !TARGET_68020)
+  if ((opt_fstack_limit_symbol_arg != NULL || opt_fstack_limit_register_no >= 0)
+      && !TARGET_68020)
     {
       warning (0, "-fstack-limit- options are not supported on this cpu");
-      stack_limit_rtx = NULL_RTX;
+      opt_fstack_limit_symbol_arg = NULL;
+      opt_fstack_limit_register_no = -1;
     }
 
   SUBTARGET_OVERRIDE_OPTIONS;
@@ -4543,6 +4550,7 @@ m68k_get_reloc_decoration (enum m68k_reloc reloc)
 		}
 	    }
 	}
+      gcc_unreachable ();
 
     case RELOC_TLSGD:
       return "@TLSGD";
@@ -5917,8 +5925,8 @@ static state_t sched_adjust_cost_state;
 /* Implement adjust_cost scheduler hook.
    Return adjusted COST of dependency LINK between DEF_INSN and INSN.  */
 static int
-m68k_sched_adjust_cost (rtx_insn *insn, rtx link ATTRIBUTE_UNUSED,
-			rtx_insn *def_insn, int cost)
+m68k_sched_adjust_cost (rtx_insn *insn, int, rtx_insn *def_insn, int cost,
+			unsigned int)
 {
   int delay;
 

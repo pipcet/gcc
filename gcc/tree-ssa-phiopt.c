@@ -812,7 +812,7 @@ neutral_element_p (tree_code code, tree arg, bool right)
 /* Returns true if ARG is an absorbing element for operation CODE.  */
 
 static bool
-absorbing_element_p (tree_code code, tree arg)
+absorbing_element_p (tree_code code, tree arg, bool right, tree rval)
 {
   switch (code)
     {
@@ -822,6 +822,25 @@ absorbing_element_p (tree_code code, tree arg)
     case MULT_EXPR:
     case BIT_AND_EXPR:
       return integer_zerop (arg);
+
+    case LSHIFT_EXPR:
+    case RSHIFT_EXPR:
+    case LROTATE_EXPR:
+    case RROTATE_EXPR:
+      return !right && integer_zerop (arg);
+
+    case TRUNC_DIV_EXPR:
+    case CEIL_DIV_EXPR:
+    case FLOOR_DIV_EXPR:
+    case ROUND_DIV_EXPR:
+    case EXACT_DIV_EXPR:
+    case TRUNC_MOD_EXPR:
+    case CEIL_MOD_EXPR:
+    case FLOOR_MOD_EXPR:
+    case ROUND_MOD_EXPR:
+      return (!right
+	      && integer_zerop (arg)
+	      && tree_single_nonzero_warnv_p (rval, NULL));
 
     default:
       return false;
@@ -994,9 +1013,11 @@ value_replacement (basic_block cond_bb, basic_block middle_bb,
 	      && operand_equal_for_phi_arg_p (rhs1, cond_lhs)
 	      && neutral_element_p (code_def, cond_rhs, false))
 	  || (operand_equal_for_phi_arg_p (arg1, cond_rhs)
-	      && (operand_equal_for_phi_arg_p (rhs2, cond_lhs)
-		  || operand_equal_for_phi_arg_p (rhs1, cond_lhs))
-	      && absorbing_element_p (code_def, cond_rhs))))
+	      && ((operand_equal_for_phi_arg_p (rhs2, cond_lhs)
+		   && absorbing_element_p (code_def, cond_rhs, true, rhs2))
+		  || (operand_equal_for_phi_arg_p (rhs1, cond_lhs)
+		      && absorbing_element_p (code_def,
+					      cond_rhs, false, rhs2))))))
     {
       gsi = gsi_for_stmt (cond);
       if (INTEGRAL_TYPE_P (TREE_TYPE (lhs)))
@@ -1054,7 +1075,7 @@ minmax_replacement (basic_block cond_bb, basic_block middle_bb,
   type = TREE_TYPE (PHI_RESULT (phi));
 
   /* The optimization may be unsafe due to NaNs.  */
-  if (HONOR_NANS (type))
+  if (HONOR_NANS (type) || HONOR_SIGNED_ZEROS (type))
     return false;
 
   cond = as_a <gcond *> (last_stmt (cond_bb));
@@ -1452,6 +1473,14 @@ abs_replacement (basic_block cond_bb, basic_block middle_bb,
     negate = true;
   else
     negate = false;
+
+  /* If the code negates only iff positive then make sure to not
+     introduce undefined behavior when negating or computing the absolute.
+     ???  We could use range info if present to check for arg1 == INT_MIN.  */
+  if (negate
+      && (ANY_INTEGRAL_TYPE_P (TREE_TYPE (arg1))
+	  && ! TYPE_OVERFLOW_WRAPS (TREE_TYPE (arg1))))
+    return false;
 
   result = duplicate_ssa_name (result, NULL);
 

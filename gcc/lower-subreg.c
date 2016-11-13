@@ -27,6 +27,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "cfghooks.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "expmed.h"
 #include "insn-config.h"
@@ -1507,7 +1508,6 @@ decompose_multiword_subregs (bool decompose_copies)
   bitmap_and_compl_into (decomposable_context, non_decomposable_context);
   if (!bitmap_empty_p (decomposable_context))
     {
-      sbitmap sub_blocks;
       unsigned int i;
       sbitmap_iterator sbi;
       bitmap_iterator iter;
@@ -1515,7 +1515,7 @@ decompose_multiword_subregs (bool decompose_copies)
 
       propagate_pseudo_copies ();
 
-      sub_blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
+      auto_sbitmap sub_blocks (last_basic_block_for_fn (cfun));
       bitmap_clear (sub_blocks);
 
       EXECUTE_IF_SET_IN_BITMAP (decomposable_context, 0, regno, iter)
@@ -1643,8 +1643,6 @@ decompose_multiword_subregs (bool decompose_copies)
 	        insn = NEXT_INSN (insn);
 	    }
 	}
-
-      sbitmap_free (sub_blocks);
     }
 
   {

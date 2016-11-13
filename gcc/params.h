@@ -89,6 +89,7 @@ enum compiler_param
 };
 
 extern bool find_param (const char *, enum compiler_param *);
+extern const char *find_param_fuzzy (const char *name);
 extern bool param_string_value_p (enum compiler_param, const char *, int *);
 
 /* The value of the parameter given by ENUM.  Not an lvalue.  */
@@ -243,5 +244,7 @@ extern void init_param_values (int *params);
   PARAM_VALUE (PARAM_ASAN_USE_AFTER_RETURN)
 #define ASAN_INSTRUMENTATION_WITH_CALL_THRESHOLD \
   PARAM_VALUE (PARAM_ASAN_INSTRUMENTATION_WITH_CALL_THRESHOLD)
+#define ASAN_PARAM_USE_AFTER_SCOPE_DIRECT_EMISSION_THRESHOLD \
+  ((unsigned) PARAM_VALUE (PARAM_USE_AFTER_SCOPE_DIRECT_EMISSION_THRESHOLD))
 
 #endif /* ! GCC_PARAMS_H */

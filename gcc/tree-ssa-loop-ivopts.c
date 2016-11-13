@@ -75,6 +75,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "cfghooks.h"
 #include "tree-pass.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "ssa.h"
 #include "expmed.h"
@@ -115,8 +116,6 @@ along with GCC; see the file COPYING3.  If not see
 /* The infinite cost.  */
 #define INFTY 10000000
 
-#define AVG_LOOP_NITER(LOOP) 5
-
 /* Returns the expected number of loop iterations for LOOP.
    The average trip count is computed from profile data if it
    exists. */
@@ -128,8 +127,9 @@ avg_loop_niter (struct loop *loop)
   if (niter == -1)
     {
       niter = likely_max_stmt_executions_int (loop);
-      if (niter == -1 || niter > AVG_LOOP_NITER (loop))
-	return AVG_LOOP_NITER (loop);
+
+      if (niter == -1 || niter > PARAM_VALUE (PARAM_AVG_LOOP_NITER))
+	return PARAM_VALUE (PARAM_AVG_LOOP_NITER);
     }
 
   return niter;
@@ -1181,6 +1181,10 @@ alloc_iv (struct ivopts_data *data, tree base, tree step,
   iv->biv_p = false;
   iv->nonlin_use = NULL;
   iv->ssa_name = NULL_TREE;
+  if (!no_overflow
+       && !iv_can_overflow_p (data->current_loop, TREE_TYPE (base),
+			      base, step))
+    no_overflow = true;
   iv->no_overflow = no_overflow;
   iv->have_address_use = false;
 
@@ -1882,8 +1886,8 @@ find_deriving_biv_for_expr (struct ivopts_data *data, tree expr)
       iv = find_deriving_biv_for_expr (data, e2);
       if (iv)
 	return iv;
+      gcc_fallthrough ();
 
-      /* Fallthru.  */
     CASE_CONVERT:
       /* Casts are simple.  */
       return find_deriving_biv_for_expr (data, e1);
@@ -2485,14 +2489,14 @@ compute_max_addr_offset (struct iv_use *use)
 
   for (i = width; i > 0; i--)
     {
-      off = ((unsigned HOST_WIDE_INT) 1 << i) - 1;
+      off = (HOST_WIDE_INT_1U << i) - 1;
       XEXP (addr, 1) = gen_int_mode (off, addr_mode);
       if (memory_address_addr_space_p (mem_mode, addr, as))
 	break;
 
       /* For some strict-alignment targets, the offset must be naturally
 	 aligned.  Try an aligned offset if mem_mode is not QImode.  */
-      off = ((unsigned HOST_WIDE_INT) 1 << i);
+      off = (HOST_WIDE_INT_1U << i);
       if (off > GET_MODE_SIZE (mem_mode) && mem_mode != QImode)
 	{
 	  off -= GET_MODE_SIZE (mem_mode);
@@ -3999,7 +4003,7 @@ get_address_cost (bool symbol_present, bool var_present,
 
       for (i = width; i >= 0; i--)
 	{
-	  off = -((unsigned HOST_WIDE_INT) 1 << i);
+	  off = -(HOST_WIDE_INT_1U << i);
 	  XEXP (addr, 1) = gen_int_mode (off, address_mode);
 	  if (memory_address_addr_space_p (mem_mode, addr, as))
 	    break;
@@ -4008,14 +4012,14 @@ get_address_cost (bool symbol_present, bool var_present,
 
       for (i = width; i >= 0; i--)
 	{
-	  off = ((unsigned HOST_WIDE_INT) 1 << i) - 1;
+	  off = (HOST_WIDE_INT_1U << i) - 1;
 	  XEXP (addr, 1) = gen_int_mode (off, address_mode);
 	  if (memory_address_addr_space_p (mem_mode, addr, as))
 	    break;
 	  /* For some strict-alignment targets, the offset must be naturally
 	     aligned.  Try an aligned offset if mem_mode is not QImode.  */
 	  off = mem_mode != QImode
-		? ((unsigned HOST_WIDE_INT) 1 << i)
+		? (HOST_WIDE_INT_1U << i)
 		    - GET_MODE_SIZE (mem_mode)
 		: 0;
 	  if (off > 0)
@@ -4214,7 +4218,7 @@ get_address_cost (bool symbol_present, bool var_present,
     }
 
   bits = GET_MODE_BITSIZE (address_mode);
-  mask = ~(~(unsigned HOST_WIDE_INT) 0 << (bits - 1) << 1);
+  mask = ~(HOST_WIDE_INT_M1U << (bits - 1) << 1);
   offset &= mask;
   if ((offset >> (bits - 1) & 1))
     offset |= ~mask;
@@ -4380,7 +4384,7 @@ force_expr_to_var_cost (tree expr, bool speed)
 	{
 	  tree obj = TREE_OPERAND (expr, 0);
 
-	  if (TREE_CODE (obj) == VAR_DECL
+	  if (VAR_P (obj)
 	      || TREE_CODE (obj) == PARM_DECL
 	      || TREE_CODE (obj) == RESULT_DECL)
 	    return comp_cost (symbol_cost [speed], 0);
@@ -4522,12 +4526,12 @@ split_address_cost (struct ivopts_data *data,
   int unsignedp, reversep, volatilep;
 
   core = get_inner_reference (addr, &bitsize, &bitpos, &toffset, &mode,
-			      &unsignedp, &reversep, &volatilep, false);
+			      &unsignedp, &reversep, &volatilep);
 
   if (toffset != 0
       || bitpos % BITS_PER_UNIT != 0
       || reversep
-      || TREE_CODE (core) != VAR_DECL)
+      || !VAR_P (core))
     {
       *symbol_present = false;
       *var_present = true;
@@ -5165,10 +5169,11 @@ cand_value_at (struct loop *loop, struct iv_cand *cand, gimple *at, tree niter,
   aff_tree step, delta, nit;
   struct iv *iv = cand->iv;
   tree type = TREE_TYPE (iv->base);
-  tree steptype = type;
+  tree steptype;
   if (POINTER_TYPE_P (type))
     steptype = sizetype;
-  steptype = unsigned_type_for (type);
+  else
+    steptype = unsigned_type_for (type);
 
   tree_to_aff_combination (iv->step, TREE_TYPE (iv->step), &step);
   aff_combination_convert (&step, steptype);

@@ -1141,7 +1141,14 @@ static const char *cc1_options =
  %{-help=*:--help=%*}\
  %{!fsyntax-only:%{S:%W{o*}%{!o*:-o %b.s}}}\
  %{fsyntax-only:-o %j} %{-param*}\
- %{coverage:-fprofile-arcs -ftest-coverage}";
+ %{coverage:-fprofile-arcs -ftest-coverage}\
+ %{fprofile-arcs|fprofile-generate*|coverage:\
+   %{!fprofile-update=single:\
+     %{pthread:-fprofile-update=atomic}}}\
+ %{fprofile-update=single:\
+   %{fprofile-arcs|fprofile-generate*|coverage:\
+     %{pthread:%n-fprofile-update=atomic should be used\
+ for a multithreaded application}}}";
 
 static const char *asm_options =
 "%{-target-help:%:print-asm-header()} "
@@ -1330,7 +1337,7 @@ static const struct compiler default_compilers[] =
 					       %W{o*:--output-pch=%*}}%V}}\
 	  %{!save-temps*:%{!traditional-cpp:%{!no-integrated-cpp:\
 		cc1 %(cpp_unique_options) %(cc1_options)\
-		    %{!fsyntax-only:-o %g.s \
+		    %{!fsyntax-only:%{!S:-o %g.s} \
 		        %{!fdump-ada-spec*:%{!o*:--output-pch=%i.gch}\
 					   %W{o*:--output-pch=%*}}%V}}}}}}}", 0, 0, 0},
   {".i", "@cpp-output", 0, 0, 0},
@@ -4417,7 +4424,12 @@ process_command (unsigned int decoded_options_count,
 	    fname = xstrdup (arg);
 
           if (strcmp (fname, "-") != 0 && access (fname, F_OK) < 0)
-	    perror_with_name (fname);
+	    {
+	      if (fname[0] == '@' && access (fname + 1, F_OK) < 0)
+		perror_with_name (fname + 1);
+	      else
+		perror_with_name (fname);
+	    }
           else
 	    add_infile (arg, spec_lang);
 
@@ -5420,8 +5432,9 @@ do_spec_1 (const char *spec, int inswitch, const char *soft_matched_part)
 			if (files_differ)
 #endif
 			  {
-			    temp_filename = save_string (temp_filename,
-							 temp_filename_length + 1);
+			    temp_filename
+			      = save_string (temp_filename,
+					     temp_filename_length - 1);
 			    obstack_grow (&obstack, temp_filename,
 						    temp_filename_length);
 			    arg_going = 1;
@@ -7700,12 +7713,14 @@ driver::build_option_suggestions (void)
 	      for (unsigned j = 0; e->values[j].arg != NULL; j++)
 		{
 		  char *with_arg = concat (opt_text, e->values[j].arg, NULL);
-		  add_misspelling_candidates (m_option_suggestions, with_arg);
+		  add_misspelling_candidates (m_option_suggestions, option,
+					      with_arg);
 		  free (with_arg);
 		}
 	    }
 	  else
-	    add_misspelling_candidates (m_option_suggestions, opt_text);
+	    add_misspelling_candidates (m_option_suggestions, option,
+					opt_text);
 	  break;
 
 	case OPT_fsanitize_:
@@ -7729,7 +7744,8 @@ driver::build_option_suggestions (void)
 		/* Add with_arg and all of its variant spellings e.g.
 		   "-fno-sanitize=address" to candidates (albeit without
 		   leading dashes).  */
-		add_misspelling_candidates (m_option_suggestions, with_arg);
+		add_misspelling_candidates (m_option_suggestions, option,
+					    with_arg);
 		free (with_arg);
 	      }
 	  }
@@ -8359,6 +8375,7 @@ save_string (const char *s, int len)
 {
   char *result = XNEWVEC (char, len + 1);
 
+  gcc_checking_assert (strlen (s) >= (unsigned int) len);
   memcpy (result, s, len);
   result[len] = 0;
   return result;

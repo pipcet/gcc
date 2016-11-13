@@ -132,9 +132,12 @@ extern unsigned aarch64_architecture_version;
 #define AARCH64_FL_FP         (1 << 1)	/* Has FP.  */
 #define AARCH64_FL_CRYPTO     (1 << 2)	/* Has crypto.  */
 #define AARCH64_FL_CRC        (1 << 3)	/* Has CRC.  */
-/* ARMv8.1 architecture extensions.  */
+/* ARMv8.1-A architecture extensions.  */
 #define AARCH64_FL_LSE	      (1 << 4)  /* Has Large System Extensions.  */
-#define AARCH64_FL_V8_1	      (1 << 5)  /* Has ARMv8.1 extensions.  */
+#define AARCH64_FL_V8_1	      (1 << 5)  /* Has ARMv8.1-A extensions.  */
+/* ARMv8.2-A architecture extensions.  */
+#define AARCH64_FL_V8_2	      (1 << 8)  /* Has ARMv8.2-A features.  */
+#define AARCH64_FL_F16	      (1 << 9)  /* Has ARMv8.2-A FP16 extensions.  */
 
 /* Has FP and SIMD.  */
 #define AARCH64_FL_FPSIMD     (AARCH64_FL_FP | AARCH64_FL_SIMD)
@@ -146,6 +149,8 @@ extern unsigned aarch64_architecture_version;
 #define AARCH64_FL_FOR_ARCH8       (AARCH64_FL_FPSIMD)
 #define AARCH64_FL_FOR_ARCH8_1			       \
   (AARCH64_FL_FOR_ARCH8 | AARCH64_FL_LSE | AARCH64_FL_CRC | AARCH64_FL_V8_1)
+#define AARCH64_FL_FOR_ARCH8_2			\
+  (AARCH64_FL_FOR_ARCH8_1 | AARCH64_FL_V8_2)
 
 /* Macros to test ISA flags.  */
 
@@ -155,6 +160,8 @@ extern unsigned aarch64_architecture_version;
 #define AARCH64_ISA_SIMD           (aarch64_isa_flags & AARCH64_FL_SIMD)
 #define AARCH64_ISA_LSE		   (aarch64_isa_flags & AARCH64_FL_LSE)
 #define AARCH64_ISA_RDMA	   (aarch64_isa_flags & AARCH64_FL_V8_1)
+#define AARCH64_ISA_V8_2	   (aarch64_isa_flags & AARCH64_FL_V8_2)
+#define AARCH64_ISA_F16		   (aarch64_isa_flags & AARCH64_FL_F16)
 
 /* Crypto is an optional extension to AdvSIMD.  */
 #define TARGET_CRYPTO (TARGET_SIMD && AARCH64_ISA_CRYPTO)
@@ -164,6 +171,10 @@ extern unsigned aarch64_architecture_version;
 
 /* Atomic instructions that can be enabled through the +lse extension.  */
 #define TARGET_LSE (AARCH64_ISA_LSE)
+
+/* ARMv8.2-A FP16 support that can be enabled through the +fp16 extension.  */
+#define TARGET_FP_F16INST (TARGET_FLOAT && AARCH64_ISA_F16)
+#define TARGET_SIMD_F16INST (TARGET_SIMD && AARCH64_ISA_F16)
 
 /* Make sure this is always defined so we don't have to check for ifdefs
    but rather use normal ifs.  */
@@ -193,7 +204,7 @@ extern unsigned aarch64_architecture_version;
   ((aarch64_fix_a53_err843419 == 2)	\
   ? TARGET_FIX_ERR_A53_843419_DEFAULT : aarch64_fix_a53_err843419)
 
-/* ARMv8.1 Adv.SIMD support.  */
+/* ARMv8.1-A Adv.SIMD support.  */
 #define TARGET_SIMD_RDMA (TARGET_SIMD && AARCH64_ISA_RDMA)
 
 /* Standard register usage.  */
@@ -482,7 +493,6 @@ enum target_cpus
 #define AARCH64_CORE(NAME, INTERNAL_IDENT, SCHED, ARCH, FLAGS, COSTS, IMP, PART) \
   TARGET_CPU_##INTERNAL_IDENT,
 #include "aarch64-cores.def"
-#undef AARCH64_CORE
   TARGET_CPU_generic
 };
 
@@ -539,11 +549,14 @@ struct GTY (()) aarch64_frame
      STACK_BOUNDARY.  */
   HOST_WIDE_INT saved_varargs_size;
 
+  /* The size of the saved callee-save int/FP registers.  */
+
   HOST_WIDE_INT saved_regs_size;
-  /* Padding if needed after the all the callee save registers have
-     been saved.  */
-  HOST_WIDE_INT padding0;
-  HOST_WIDE_INT hardfp_offset;	/* HARD_FRAME_POINTER_REGNUM */
+
+  /* Offset from the base of the frame (incomming SP) to the
+     top of the locals area.  This value is always a multiple of
+     STACK_BOUNDARY.  */
+  HOST_WIDE_INT locals_offset;
 
   /* Offset from the base of the frame (incomming SP) to the
      hard_frame_pointer.  This value is always a multiple of
@@ -553,11 +566,24 @@ struct GTY (()) aarch64_frame
   /* The size of the frame.  This value is the offset from base of the
    * frame (incomming SP) to the stack_pointer.  This value is always
    * a multiple of STACK_BOUNDARY.  */
+  HOST_WIDE_INT frame_size;
+
+  /* The size of the initial stack adjustment before saving callee-saves.  */
+  HOST_WIDE_INT initial_adjust;
+
+  /* The writeback value when pushing callee-save registers.
+     It is zero when no push is used.  */
+  HOST_WIDE_INT callee_adjust;
+
+  /* The offset from SP to the callee-save registers after initial_adjust.
+     It may be non-zero if no push is used (ie. callee_adjust == 0).  */
+  HOST_WIDE_INT callee_offset;
+
+  /* The size of the stack adjustment after saving callee-saves.  */
+  HOST_WIDE_INT final_adjust;
 
   unsigned wb_candidate1;
   unsigned wb_candidate2;
-
-  HOST_WIDE_INT frame_size;
 
   bool laid_out;
 };
@@ -916,5 +942,10 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
   { "asm_cpu_spec",		ASM_CPU_SPEC }
 
 #define ASM_OUTPUT_POOL_EPILOGUE  aarch64_asm_output_pool_epilogue
+
+/* This type is the user-visible __fp16, and a pointer to that type.  We
+   need it in many places in the backend.  Defined in aarch64-builtins.c.  */
+extern tree aarch64_fp16_type_node;
+extern tree aarch64_fp16_ptr_type_node;
 
 #endif /* GCC_AARCH64_H */

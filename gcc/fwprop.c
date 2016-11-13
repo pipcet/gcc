@@ -26,6 +26,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "predict.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "insn-config.h"
 #include "emit-rtl.h"
@@ -354,7 +355,7 @@ canonicalize_address (rtx x)
 	  {
 	    HOST_WIDE_INT shift = INTVAL (XEXP (x, 1));
 	    PUT_CODE (x, MULT);
-	    XEXP (x, 1) = gen_int_mode ((HOST_WIDE_INT) 1 << shift,
+	    XEXP (x, 1) = gen_int_mode (HOST_WIDE_INT_1 << shift,
 					GET_MODE (x));
 	  }
 
@@ -618,6 +619,15 @@ propagate_rtx_1 (rtx *px, rtx old_rtx, rtx new_rtx, int flags)
     return true;
 
   *px = tem;
+
+  /* Allow replacements that simplify operations on a vector or complex
+     value to a component.  The most prominent case is
+     (subreg ([vec_]concat ...)).   */
+  if (REG_P (tem) && !HARD_REGISTER_P (tem)
+      && (VECTOR_MODE_P (GET_MODE (new_rtx))
+	  || COMPLEX_MODE_P (GET_MODE (new_rtx)))
+      && GET_MODE (tem) == GET_MODE_INNER (GET_MODE (new_rtx)))
+    return true;
 
   /* The replacement we made so far is valid, if all of the recursive
      replacements were valid, or we could simplify everything to
@@ -1041,9 +1051,7 @@ free_load_extend (rtx src, rtx_insn *insn)
   df_ref def, use;
 
   reg = XEXP (src, 0);
-#ifdef LOAD_EXTEND_OP
   if (LOAD_EXTEND_OP (GET_MODE (reg)) != GET_CODE (src))
-#endif
     return false;
 
   FOR_EACH_INSN_USE (use, insn)

@@ -8,7 +8,6 @@
 
 #include "runtime.h"
 #include "go-panic.h"
-#include "go-defer.h"
 
 /* This is called when a call to recover is deferred.  That is,
    something like
@@ -76,18 +75,18 @@
    because you are not permitted to take the address of a predeclared
    function like recover.  */
 
-struct __go_empty_interface
+Eface
 __go_deferred_recover ()
 {
   G *g;
 
   g = runtime_g ();
-  if (g->defer == NULL || g->defer->__panic != g->panic)
+  if (g->_defer == NULL || g->_defer->_panic != g->_panic)
     {
-      struct __go_empty_interface ret;
+      Eface ret;
 
-      ret.__type_descriptor = NULL;
-      ret.__object = NULL;
+      ret._type = NULL;
+      ret.data = NULL;
       return ret;
     }
   return __go_recover ();

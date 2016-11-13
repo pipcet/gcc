@@ -26,6 +26,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "rtl.h"
 #include "tree.h"
 #include "cfghooks.h"
+#include "memmodel.h"
 #include "emit-rtl.h"
 #include "dojump.h"
 #include "expr.h"
@@ -70,7 +71,7 @@ along with GCC; see the file COPYING3.  If not see
    if it is not a decrement and branch jump insn.  */
 
 rtx
-doloop_condition_get (rtx doloop_pat)
+doloop_condition_get (rtx_insn *doloop_pat)
 {
   rtx cmp;
   rtx inc;
@@ -688,7 +689,7 @@ doloop_optimize (struct loop *loop)
 
   word_mode_size = GET_MODE_PRECISION (word_mode);
   word_mode_max
-	  = ((unsigned HOST_WIDE_INT) 1 << (word_mode_size - 1) << 1) - 1;
+	  = (HOST_WIDE_INT_1U << (word_mode_size - 1) << 1) - 1;
   if (! doloop_seq
       && mode != word_mode
       /* Before trying mode different from the one in that # of iterations is

@@ -28,6 +28,7 @@
 #include "rtl.h"
 #include "tree.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "optabs.h"
 #include "regs.h"
@@ -1492,6 +1493,7 @@ nios2_rtx_costs (rtx x, machine_mode mode ATTRIBUTE_UNUSED,
           *total = COSTS_N_INSNS (1);
           return true;
 	}
+      return false;
 
       default:
         return false;
@@ -5037,6 +5039,9 @@ nios2_adjust_reg_alloc_order (void)
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P nios2_legitimate_address_p
+
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
 
 #undef TARGET_PREFERRED_RELOAD_CLASS
 #define TARGET_PREFERRED_RELOAD_CLASS nios2_preferred_reload_class

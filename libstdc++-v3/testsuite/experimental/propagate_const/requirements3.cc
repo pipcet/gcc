@@ -1,5 +1,4 @@
-// { dg-options "-std=gnu++14" }
-// { dg-do compile }
+// { dg-do compile { target c++14 } }
 
 // Copyright (C) 2015-2016 Free Software Foundation, Inc.
 //
@@ -22,6 +21,6 @@
 
 using std::experimental::propagate_const;
 
-// { dg-error "requires a class or a pointer to an object type" "" { target *-*-* } 104 }
+// { dg-error "requires a class or a pointer to an object type" "" { target *-*-* } 107 }
 
 propagate_const<void (*)()> test1;

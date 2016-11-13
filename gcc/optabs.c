@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "rtl.h"
 #include "tree.h"
+#include "memmodel.h"
 #include "predict.h"
 #include "tm_p.h"
 #include "expmed.h"
@@ -1711,8 +1712,9 @@ expand_binop (machine_mode mode, optab binoptab, rtx op0, rtx op1,
 	{
 	  if (optab_handler (mov_optab, mode) != CODE_FOR_nothing)
 	    {
-	      temp = emit_move_insn (target ? target : product, product);
-	      set_dst_reg_note (temp,
+	      rtx_insn *move = emit_move_insn (target ? target : product,
+					       product);
+	      set_dst_reg_note (move,
 				REG_EQUAL,
 				gen_rtx_fmt_ee (MULT, mode,
 						copy_rtx (op0),
@@ -2381,18 +2383,26 @@ expand_parity (machine_mode mode, rtx op0, rtx target)
 
 	      last = get_last_insn ();
 
-	      if (target == 0)
-		target = gen_reg_rtx (mode);
+	      if (target == 0 || GET_MODE (target) != wider_mode)
+		target = gen_reg_rtx (wider_mode);
+
 	      xop0 = widen_operand (op0, wider_mode, mode, true, false);
 	      temp = expand_unop (wider_mode, popcount_optab, xop0, NULL_RTX,
 				  true);
 	      if (temp != 0)
 		temp = expand_binop (wider_mode, and_optab, temp, const1_rtx,
 				     target, true, OPTAB_DIRECT);
-	      if (temp == 0)
-		delete_insns_since (last);
 
-	      return temp;
+	      if (temp)
+		{
+		  if (mclass != MODE_INT
+		      || !TRULY_NOOP_TRUNCATION_MODES_P (mode, wider_mode))
+		    return convert_to_mode (mode, temp, 0);
+		  else
+		    return gen_lowpart (mode, temp);
+		}
+	      else
+		delete_insns_since (last);
 	    }
 	}
     }
@@ -3716,13 +3726,17 @@ can_compare_p (enum rtx_code code, machine_mode mode,
 }
 
 /* This function is called when we are going to emit a compare instruction that
-   compares the values found in *PX and *PY, using the rtl operator COMPARISON.
-
-   *PMODE is the mode of the inputs (in case they are const_int).
-   *PUNSIGNEDP nonzero says that the operands are unsigned;
-   this matters if they need to be widened (as given by METHODS).
+   compares the values found in X and Y, using the rtl operator COMPARISON.
 
    If they have mode BLKmode, then SIZE specifies the size of both operands.
+
+   UNSIGNEDP nonzero says that the operands are unsigned;
+   this matters if they need to be widened (as given by METHODS).
+
+   *PTEST is where the resulting comparison RTX is returned or NULL_RTX
+   if we failed to produce one.
+
+   *PMODE is the mode of the inputs (in case they are const_int).
 
    This function performs all the setup necessary so that the caller only has
    to emit a single comparison insn.  This setup can involve doing a BLKmode
@@ -4213,6 +4227,17 @@ emit_conditional_move (rtx target, enum rtx_code code, rtx op0, rtx op1,
   rtx_insn *last;
   enum insn_code icode;
   enum rtx_code reversed;
+
+  /* If the two source operands are identical, that's just a move.  */
+
+  if (rtx_equal_p (op2, op3))
+    {
+      if (!target)
+	target = gen_reg_rtx (mode);
+
+      emit_move_insn (target, op3);
+      return target;
+    }
 
   /* If one operand is constant, make it the second one.  Only do this
      if the other operand is not constant as well.  */
@@ -4903,7 +4928,7 @@ expand_fix (rtx to, rtx from, int unsignedp)
 	  expand_fix (to, target, 0);
 	  target = expand_binop (GET_MODE (to), xor_optab, to,
 				 gen_int_mode
-				 ((HOST_WIDE_INT) 1 << (bitsize - 1),
+				 (HOST_WIDE_INT_1 << (bitsize - 1),
 				  GET_MODE (to)),
 				 to, 1, OPTAB_LIB_WIDEN);
 
@@ -5612,7 +5637,12 @@ expand_vec_cond_expr (tree vec_cond_type, tree op0, tree op1, tree op2,
 
   icode = get_vcond_icode (mode, cmp_op_mode, unsignedp);
   if (icode == CODE_FOR_nothing)
-    return 0;
+    {
+      if (tcode == EQ_EXPR || tcode == NE_EXPR)
+	icode = get_vcond_eq_icode (mode, cmp_op_mode);
+      if (icode == CODE_FOR_nothing)
+	return 0;
+    }
 
   comparison = vector_compare_rtx (tcode, op0a, op0b, unsignedp, icode, 4);
   rtx_op1 = expand_normal (op1);
@@ -5651,7 +5681,12 @@ expand_vec_cmp_expr (tree type, tree exp, rtx target)
 
   icode = get_vec_cmp_icode (vmode, mask_mode, unsignedp);
   if (icode == CODE_FOR_nothing)
-    return 0;
+    {
+      if (tcode == EQ_EXPR || tcode == NE_EXPR)
+	icode = get_vec_cmp_eq_icode (vmode, mask_mode);
+      if (icode == CODE_FOR_nothing)
+	return 0;
+    }
 
   comparison = vector_compare_rtx (tcode, op0a, op0b, unsignedp, icode, 2);
   create_output_operand (&ops[0], target, mask_mode);

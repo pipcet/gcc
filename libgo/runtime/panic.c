@@ -4,7 +4,6 @@
 
 #include "runtime.h"
 #include "malloc.h"
-#include "go-defer.h"
 #include "go-panic.h"
 
 // Code related to defer, panic and recover.
@@ -21,10 +20,10 @@ runtime_newdefer()
 	P *p;
 
 	d = nil;
-	p = runtime_m()->p;
+	p = (P*)runtime_m()->p;
 	d = p->deferpool;
 	if(d)
-		p->deferpool = d->__next;
+		p->deferpool = d->next;
 	if(d == nil) {
 		// deferpool is empty
 		d = runtime_malloc(sizeof(Defer));
@@ -39,10 +38,10 @@ runtime_freedefer(Defer *d)
 {
 	P *p;
 
-	if(d->__special)
+	if(d->special)
 		return;
-	p = runtime_m()->p;
-	d->__next = p->deferpool;
+	p = (P*)runtime_m()->p;
+	d->next = p->deferpool;
 	p->deferpool = d;
 	// No need to wipe out pointers in argp/pc/fn/args,
 	// because we empty the pool before GC.
@@ -58,14 +57,14 @@ __go_rundefer(void)
 	Defer *d;
 
 	g = runtime_g();
-	while((d = g->defer) != nil) {
+	while((d = g->_defer) != nil) {
 		void (*pfn)(void*);
 
-		g->defer = d->__next;
-		pfn = d->__pfn;
-		d->__pfn = nil;
+		g->_defer = d->next;
+		pfn = (void (*) (void *))d->pfn;
+		d->pfn = 0;
 		if (pfn != nil)
-			(*pfn)(d->__arg);
+			(*pfn)(d->arg);
 		runtime_freedefer(d);
 	}
 }
@@ -73,9 +72,11 @@ __go_rundefer(void)
 void
 runtime_startpanic(void)
 {
+	G *g;
 	M *m;
 
-	m = runtime_m();
+	g = runtime_g();
+	m = g->m;
 	if(runtime_mheap.cachealloc.size == 0) { // very early
 		runtime_printf("runtime: panic before malloc heap initialized\n");
 		m->mallocing = 1; // tell rest of panic not to try to malloc
@@ -84,8 +85,9 @@ runtime_startpanic(void)
 	switch(m->dying) {
 	case 0:
 		m->dying = 1;
-		if(runtime_g() != nil)
-			runtime_g()->writebuf = nil;
+		g->writebuf.__values = nil;
+		g->writebuf.__count = 0;
+		g->writebuf.__capacity = 0;
 		runtime_xadd(&runtime_panicking, 1);
 		runtime_lock(&paniclk);
 		if(runtime_debug.schedtrace > 0 || runtime_debug.scheddetail > 0)
@@ -120,19 +122,23 @@ runtime_dopanic(int32 unused __attribute__ ((unused)))
 	int32 t;
 
 	g = runtime_g();
-	if(g->sig != 0)
-		runtime_printf("[signal %x code=%p addr=%p]\n",
+	if(g->sig != 0) {
+		runtime_printf("[signal %x code=%p addr=%p",
 			       g->sig, (void*)g->sigcode0, (void*)g->sigcode1);
+		if (g->sigpc != 0)
+			runtime_printf(" pc=%p", g->sigpc);
+		runtime_printf("]\n");
+	}
 
 	if((t = runtime_gotraceback(&crash)) > 0){
 		if(g != runtime_m()->g0) {
 			runtime_printf("\n");
 			runtime_goroutineheader(g);
-			runtime_traceback();
+			runtime_traceback(0);
 			runtime_printcreatedby(g);
 		} else if(t >= 2 || runtime_m()->throwing > 0) {
 			runtime_printf("\nruntime stack:\n");
-			runtime_traceback();
+			runtime_traceback(0);
 		}
 		if(!didothers) {
 			didothers = true;
@@ -171,7 +177,7 @@ runtime_canpanic(G *gp)
 		return false;
 	if(m->locks-m->softfloat != 0 || m->mallocing != 0 || m->throwing != 0 || m->gcing != 0 || m->dying != 0)
 		return false;
-	if(gp->status != Grunning)
+	if(gp->atomicstatus != _Grunning)
 		return false;
 #ifdef GOOS_windows
 	if(m->libcallsp != 0)
@@ -190,6 +196,22 @@ runtime_throw(const char *s)
 		mp->throwing = 1;
 	runtime_startpanic();
 	runtime_printf("fatal error: %s\n", s);
+	runtime_dopanic(0);
+	*(int32*)0 = 0;	// not reached
+	runtime_exit(1);	// even more not reached
+}
+
+void throw(String) __asm__ (GOSYM_PREFIX "runtime.throw");
+void
+throw(String s)
+{
+	M *mp;
+
+	mp = runtime_m();
+	if(mp->throwing == 0)
+		mp->throwing = 1;
+	runtime_startpanic();
+	runtime_printf("fatal error: %S\n", s);
 	runtime_dopanic(0);
 	*(int32*)0 = 0;	// not reached
 	runtime_exit(1);	// even more not reached

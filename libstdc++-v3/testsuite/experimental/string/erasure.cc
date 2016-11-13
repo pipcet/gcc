@@ -1,5 +1,4 @@
-// { dg-options "-std=gnu++14" }
-// { dg-do run }
+// { dg-do run { target c++14 } }
 
 // Copyright (C) 2015-2016 Free Software Foundation, Inc.
 //
@@ -24,8 +23,6 @@
 void
 test01()
 {
-  bool test [[gnu::unused]] = true;
-
   auto is_vowel = [](const char c)
   {
     return c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u';
@@ -39,8 +36,6 @@ test01()
 void
 test02()
 {
-  bool test [[gnu::unused]] = true;
-
   std::string str = "cute fluffy kittens";
   std::experimental::erase(str, 'f');
   VERIFY( str == "cute luy kittens" );

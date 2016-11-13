@@ -31,6 +31,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "memmodel.h"
 #include "backend.h"
 #include "target.h"
 #include "rtl.h"
@@ -857,6 +858,17 @@ arc_override_options (void)
 
   if (arc_size_opt_level == 3)
     optimize_size = 1;
+
+  /* Compact casesi is not a valid option for ARCv2 family.  */
+  if (TARGET_V2
+      && TARGET_COMPACT_CASESI)
+    {
+      warning (0, "compact-casesi is not applicable to ARCv2");
+      TARGET_COMPACT_CASESI = 0;
+    }
+  else if (optimize_size == 1
+	   && !global_options_set.x_TARGET_COMPACT_CASESI)
+    TARGET_COMPACT_CASESI = 1;
 
   if (flag_pic)
     target_flags |= MASK_NO_SDATA_SET;
@@ -3447,7 +3459,8 @@ arc_print_operand (FILE *file, rtx x, int code)
 	  fprintf (file, "0x%08lx", l);
 	  break;
 	}
-      /* Fall through.  Let output_addr_const deal with it.  */
+      /* FALLTHRU */
+      /* Let output_addr_const deal with it.  */
     default :
       if (flag_pic
 	  || (GET_CODE (x) == CONST
@@ -4817,7 +4830,6 @@ static rtx
 arc_emit_call_tls_get_addr (rtx sym, int reloc, rtx eqv)
 {
   rtx r0 = gen_rtx_REG (Pmode, R0_REG);
-  rtx insns;
   rtx call_fusage = NULL_RTX;
 
   start_sequence ();
@@ -4834,7 +4846,7 @@ arc_emit_call_tls_get_addr (rtx sym, int reloc, rtx eqv)
   RTL_PURE_CALL_P (call_insn) = 1;
   add_function_usage_to (call_insn, call_fusage);
 
-  insns = get_insns ();
+  rtx_insn *insns = get_insns ();
   end_sequence ();
 
   rtx dest = gen_reg_rtx (Pmode);
@@ -6185,6 +6197,7 @@ check_if_valid_sleep_operand (rtx *operands, int opno)
     case CONST_INT :
 	if( UNSIGNED_INT6 (INTVAL (operands[opno])))
 	    return true;
+    /* FALLTHRU */
     default:
 	fatal_error (input_location,
 		     "operand for sleep instruction must be an unsigned 6 bit compile-time constant");
@@ -7272,7 +7285,7 @@ arc_register_move_cost (machine_mode,
 int
 arc_output_addsi (rtx *operands, bool cond_p, bool output_p)
 {
-  char format[32];
+  char format[35];
 
   int match = operands_match_p (operands[0], operands[1]);
   int match2 = operands_match_p (operands[0], operands[2]);
@@ -9007,10 +9020,7 @@ arc_process_double_reg_moves (rtx *operands)
       rtx srcLow  = simplify_gen_subreg (SImode, src, DFmode,
 					TARGET_BIG_ENDIAN ? 4 : 0);
 
-      emit_insn (gen_rtx_UNSPEC_VOLATILE (Pmode,
-					  gen_rtvec (3, dest, srcHigh, srcLow),
-					  VUNSPEC_ARC_DEXCL_NORES));
-
+      emit_insn (gen_dexcl_2op (dest, srcHigh, srcLow));
     }
   else
     gcc_unreachable ();
@@ -9243,7 +9253,7 @@ arc_scheduling_not_expected (void)
    long.)  */
 
 int
-arc_label_align (rtx label)
+arc_label_align (rtx_insn *label)
 {
   int loop_align = LOOP_ALIGN (LABEL);
 

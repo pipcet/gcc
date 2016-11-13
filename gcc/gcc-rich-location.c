@@ -70,7 +70,5 @@ gcc_rich_location::add_fixit_misspelled_id (location_t misspelled_token_loc,
 {
   gcc_assert (TREE_CODE (hint_id) == IDENTIFIER_NODE);
 
-  source_range misspelled_token_range
-    = get_range_from_loc (line_table, misspelled_token_loc);
-  add_fixit_replace (misspelled_token_range, IDENTIFIER_POINTER (hint_id));
+  add_fixit_replace (misspelled_token_loc, IDENTIFIER_POINTER (hint_id));
 }

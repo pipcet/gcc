@@ -1,5 +1,4 @@
-// { dg-options "-std=gnu++14" }
-// { dg-do compile }
+// { dg-do compile { target c++14 } }
 
 // Copyright (C) 2014-2016 Free Software Foundation, Inc.
 //
@@ -20,8 +19,9 @@
 
 #include <experimental/tuple>
 
-using namespace std;
-using namespace std::experimental;
+using std::tuple;
+using std::tuple_size;
+using std::experimental::tuple_size_v;
 
 // These tests are rather simple, the front-end tests already test
 // variable templates, and the library tests for the underlying

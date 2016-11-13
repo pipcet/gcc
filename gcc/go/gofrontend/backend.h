@@ -55,7 +55,7 @@ class Backend
     Location location;
 
     Btyped_identifier()
-      : name(), btype(NULL), location(UNKNOWN_LOCATION)
+        : name(), btype(NULL), location(Linemap::unknown_location())
     { }
 
     Btyped_identifier(const std::string& a_name, Btype* a_btype,
@@ -739,9 +739,5 @@ class Backend
                            const std::vector<Bfunction*>& function_decls,
                            const std::vector<Bvariable*>& variable_decls) = 0;
 };
-
-// The backend interface has to define this function.
-
-extern Backend* go_get_backend();
 
 #endif // !defined(GO_BACKEND_H)

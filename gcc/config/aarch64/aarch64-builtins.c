@@ -27,6 +27,7 @@
 #include "rtl.h"
 #include "tree.h"
 #include "gimple.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "expmed.h"
 #include "optabs.h"
@@ -62,6 +63,7 @@
 #define si_UP    SImode
 #define sf_UP    SFmode
 #define hi_UP    HImode
+#define hf_UP    HFmode
 #define qi_UP    QImode
 #define UP(X) X##_UP
 
@@ -138,6 +140,10 @@ static enum aarch64_type_qualifiers
 aarch64_types_binop_ssu_qualifiers[SIMD_MAX_BUILTIN_ARGS]
   = { qualifier_none, qualifier_none, qualifier_unsigned };
 #define TYPES_BINOP_SSU (aarch64_types_binop_ssu_qualifiers)
+static enum aarch64_type_qualifiers
+aarch64_types_binop_uss_qualifiers[SIMD_MAX_BUILTIN_ARGS]
+  = { qualifier_unsigned, qualifier_none, qualifier_none };
+#define TYPES_BINOP_USS (aarch64_types_binop_uss_qualifiers)
 static enum aarch64_type_qualifiers
 aarch64_types_binopp_qualifiers[SIMD_MAX_BUILTIN_ARGS]
   = { qualifier_poly, qualifier_poly, qualifier_poly };
@@ -438,12 +444,14 @@ static struct aarch64_simd_type_info aarch64_simd_types [] = {
 };
 #undef ENTRY
 
-/* This type is not SIMD-specific; it is the user-visible __fp16.  */
-static tree aarch64_fp16_type_node = NULL_TREE;
-
 static tree aarch64_simd_intOI_type_node = NULL_TREE;
 static tree aarch64_simd_intCI_type_node = NULL_TREE;
 static tree aarch64_simd_intXI_type_node = NULL_TREE;
+
+/* The user-visible __fp16 type, and a pointer to that type.  Used
+   across the back-end.  */
+tree aarch64_fp16_type_node = NULL_TREE;
+tree aarch64_fp16_ptr_type_node = NULL_TREE;
 
 static const char *
 aarch64_mangle_builtin_scalar_type (const_tree type)
@@ -755,16 +763,16 @@ aarch64_init_simd_builtins (void)
 
 	  if (qualifiers & qualifier_unsigned)
 	    {
-	      type_signature[arg_num] = 'u';
+	      type_signature[op_num] = 'u';
 	      print_type_signature_p = true;
 	    }
 	  else if (qualifiers & qualifier_poly)
 	    {
-	      type_signature[arg_num] = 'p';
+	      type_signature[op_num] = 'p';
 	      print_type_signature_p = true;
 	    }
 	  else
-	    type_signature[arg_num] = 's';
+	    type_signature[op_num] = 's';
 
 	  /* Skip an internal operand for vget_{low, high}.  */
 	  if (qualifiers & qualifier_internal)
@@ -878,6 +886,21 @@ aarch64_init_builtin_rsqrt (void)
   }
 }
 
+/* Initialize the backend types that support the user-visible __fp16
+   type, also initialize a pointer to that type, to be used when
+   forming HFAs.  */
+
+static void
+aarch64_init_fp16_types (void)
+{
+  aarch64_fp16_type_node = make_node (REAL_TYPE);
+  TYPE_PRECISION (aarch64_fp16_type_node) = 16;
+  layout_type (aarch64_fp16_type_node);
+
+  (*lang_hooks.types.register_builtin_type) (aarch64_fp16_type_node, "__fp16");
+  aarch64_fp16_ptr_type_node = build_pointer_type (aarch64_fp16_type_node);
+}
+
 void
 aarch64_init_builtins (void)
 {
@@ -899,11 +922,7 @@ aarch64_init_builtins (void)
     = add_builtin_function ("__builtin_aarch64_set_fpsr", ftype_set_fpr,
 			    AARCH64_BUILTIN_SET_FPSR, BUILT_IN_MD, NULL, NULL_TREE);
 
-  aarch64_fp16_type_node = make_node (REAL_TYPE);
-  TYPE_PRECISION (aarch64_fp16_type_node) = 16;
-  layout_type (aarch64_fp16_type_node);
-
-  (*lang_hooks.types.register_builtin_type) (aarch64_fp16_type_node, "__fp16");
+  aarch64_init_fp16_types ();
 
   if (TARGET_SIMD)
     aarch64_init_simd_builtins ();
@@ -999,6 +1018,7 @@ aarch64_simd_expand_args (rtx target, int icode, int have_retval,
 		}
 	      /* Fall through - if the lane index isn't a constant then
 		 the next case will error.  */
+	      /* FALLTHRU */
 	    case SIMD_ARG_CONSTANT:
 constant_arg:
 	      if (!(*insn_data[icode].operand[opc].predicate)
@@ -1441,7 +1461,6 @@ aarch64_fold_builtin (tree fndecl, int n_args ATTRIBUTE_UNUSED, tree *args,
     {
       BUILTIN_VDQF (UNOP, abs, 2)
 	return fold_build1 (ABS_EXPR, type, args[0]);
-	break;
       VAR1 (UNOP, floatv2si, 2, v2sf)
       VAR1 (UNOP, floatv4si, 2, v4sf)
       VAR1 (UNOP, floatv2di, 2, v2df)

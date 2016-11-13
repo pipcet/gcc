@@ -30,6 +30,7 @@ with Debug;    use Debug;
 with Einfo;    use Einfo;
 with Elists;   use Elists;
 with Errout;   use Errout;
+with Expander; use Expander;
 with Exp_Disp; use Exp_Disp;
 with Exp_Tss;  use Exp_Tss;
 with Exp_Util; use Exp_Util;
@@ -234,6 +235,41 @@ package body Sem_Ch13 is
    --  outputs a warning message at node N if Warn_On_Biased_Representation is
    --  is True. This warning inserts the string Msg to describe the construct
    --  causing biasing.
+
+   ---------------------------------------------------
+   -- Table for Validate_Compile_Time_Warning_Error --
+   ---------------------------------------------------
+
+   --  The following table collects pragmas Compile_Time_Error and Compile_
+   --  Time_Warning for validation. Entries are made by calls to subprogram
+   --  Validate_Compile_Time_Warning_Error, and the call to the procedure
+   --  Validate_Compile_Time_Warning_Errors does the actual error checking
+   --  and posting of warning and error messages. The reason for this delayed
+   --  processing is to take advantage of back-annotations of attributes size
+   --  and alignment values performed by the back end.
+
+   --  Note: the reason we store a Source_Ptr value instead of a Node_Id is
+   --  that by the time Validate_Unchecked_Conversions is called, Sprint will
+   --  already have modified all Sloc values if the -gnatD option is set.
+
+   type CTWE_Entry is record
+      Eloc  : Source_Ptr;
+      --  Source location used in warnings and error messages
+
+      Prag  : Node_Id;
+      --  Pragma Compile_Time_Error or Compile_Time_Warning
+
+      Scope : Node_Id;
+      --  The scope which encloses the pragma
+   end record;
+
+   package Compile_Time_Warnings_Errors is new Table.Table (
+     Table_Component_Type => CTWE_Entry,
+     Table_Index_Type     => Int,
+     Table_Low_Bound      => 1,
+     Table_Initial        => 50,
+     Table_Increment      => 200,
+     Table_Name           => "Compile_Time_Warnings_Errors");
 
    ----------------------------------------------
    -- Table for Validate_Unchecked_Conversions --
@@ -1852,7 +1888,7 @@ package body Sem_Ch13 is
                Set_From_Aspect_Specification (Aitem);
             end Make_Aitem_Pragma;
 
-         --  Start of processing for Analyze_One_Aspect
+         --  Start of processing for Analyze_Aspect_Specifications
 
          begin
             --  Skip aspect if already analyzed, to avoid looping in some cases
@@ -1937,9 +1973,11 @@ package body Sem_Ch13 is
             if not Implementation_Defined_Aspect (A_Id) then
                Error_Msg_Name_1 := Nam;
 
-               --  Not allowed for renaming declarations
+               --  Not allowed for renaming declarations. Examine the original
+               --  node because a subprogram renaming may have been rewritten
+               --  as a body.
 
-               if Nkind (N) in N_Renaming_Declaration then
+               if Nkind (Original_Node (N)) in N_Renaming_Declaration then
                   Error_Msg_N
                     ("aspect % not allowed for renaming declaration",
                      Aspect);
@@ -3821,8 +3859,8 @@ package body Sem_Ch13 is
       U_Ent : Entity_Id;
       --  The underlying entity to which the attribute applies. Generally this
       --  is the Underlying_Type of Ent, except in the case where the clause
-      --  applies to full view of incomplete type or private type in which case
-      --  U_Ent is just a copy of Ent.
+      --  applies to the full view of an incomplete or private type, in which
+      --  case U_Ent is just a copy of Ent.
 
       FOnly : Boolean := False;
       --  Reset to True for subtype specific attribute (Alignment, Size)
@@ -6616,7 +6654,13 @@ package body Sem_Ch13 is
    -----------------------------------
 
    procedure Analyze_Freeze_Generic_Entity (N : Node_Id) is
+      E : constant Entity_Id := Entity (N);
+
    begin
+      if not Is_Frozen (E) and then Has_Delayed_Aspects (E) then
+         Analyze_Aspects_At_Freeze_Point (E);
+      end if;
+
       Freeze_Entity_Checks (N);
    end Analyze_Freeze_Generic_Entity;
 
@@ -11397,6 +11441,7 @@ package body Sem_Ch13 is
    procedure Initialize is
    begin
       Address_Clause_Checks.Init;
+      Compile_Time_Warnings_Errors.Init;
       Unchecked_Conversions.Init;
 
       if AAMP_On_Target then
@@ -11941,7 +11986,9 @@ package body Sem_Ch13 is
       --  at the freeze point, and we must generate only a completion of this
       --  declaration. We do the same for private types, because the full view
       --  might be tagged. Otherwise we generate a declaration at the point of
-      --  the attribute definition clause.
+      --  the attribute definition clause. If the attribute definition comes
+      --  from an aspect specification the declaration is part of the freeze
+      --  actions of the type.
 
       function Build_Spec return Node_Id;
       --  Used for declaration and renaming declaration, so that this is
@@ -12033,18 +12080,32 @@ package body Sem_Ch13 is
              Object_Definition   => New_Occurrence_Of (Standard_Boolean, Loc));
       end if;
 
-      Insert_Action (N, Subp_Decl);
-      Set_Entity (N, Subp_Id);
+      if not Defer_Declaration
+        and then From_Aspect_Specification (N)
+        and then Has_Delayed_Freeze (Ent)
+      then
+         Append_Freeze_Action (Ent, Subp_Decl);
+
+      else
+         Insert_Action (N, Subp_Decl);
+         Set_Entity (N, Subp_Id);
+      end if;
 
       Subp_Decl :=
         Make_Subprogram_Renaming_Declaration (Loc,
           Specification => Build_Spec,
-          Name => New_Occurrence_Of (Subp, Loc));
+          Name          => New_Occurrence_Of (Subp, Loc));
 
       if Defer_Declaration then
          Set_TSS (Base_Type (Ent), Subp_Id);
+
       else
-         Insert_Action (N, Subp_Decl);
+         if From_Aspect_Specification (N) then
+            Append_Freeze_Action (Ent, Subp_Decl);
+         else
+            Insert_Action (N, Subp_Decl);
+         end if;
+
          Copy_TSS (Subp_Id, Base_Type (Ent));
       end if;
    end New_Stream_Subprogram;
@@ -13302,6 +13363,79 @@ package body Sem_Ch13 is
          end;
       end loop;
    end Validate_Address_Clauses;
+
+   -----------------------------------------
+   -- Validate_Compile_Time_Warning_Error --
+   -----------------------------------------
+
+   procedure Validate_Compile_Time_Warning_Error (N : Node_Id) is
+   begin
+      Compile_Time_Warnings_Errors.Append
+        (New_Val => CTWE_Entry'(Eloc  => Sloc (N),
+                                Scope => Current_Scope,
+                                Prag  => N));
+   end Validate_Compile_Time_Warning_Error;
+
+   ------------------------------------------
+   -- Validate_Compile_Time_Warning_Errors --
+   ------------------------------------------
+
+   procedure Validate_Compile_Time_Warning_Errors is
+      procedure Set_Scope (S : Entity_Id);
+      --  Install all enclosing scopes of S along with S itself
+
+      procedure Unset_Scope (S : Entity_Id);
+      --  Uninstall all enclosing scopes of S along with S itself
+
+      ---------------
+      -- Set_Scope --
+      ---------------
+
+      procedure Set_Scope (S : Entity_Id) is
+      begin
+         if S /= Standard_Standard then
+            Set_Scope (Scope (S));
+         end if;
+
+         Push_Scope (S);
+      end Set_Scope;
+
+      -----------------
+      -- Unset_Scope --
+      -----------------
+
+      procedure Unset_Scope (S : Entity_Id) is
+      begin
+         if S /= Standard_Standard then
+            Unset_Scope (Scope (S));
+         end if;
+
+         Pop_Scope;
+      end Unset_Scope;
+
+   --  Start of processing for Validate_Compile_Time_Warning_Errors
+
+   begin
+      Expander_Mode_Save_And_Set (False);
+      In_Compile_Time_Warning_Or_Error := True;
+
+      for N in Compile_Time_Warnings_Errors.First ..
+               Compile_Time_Warnings_Errors.Last
+      loop
+         declare
+            T : CTWE_Entry renames Compile_Time_Warnings_Errors.Table (N);
+
+         begin
+            Set_Scope (T.Scope);
+            Reset_Analyzed_Flags (T.Prag);
+            Process_Compile_Time_Warning_Or_Error (T.Prag, T.Eloc);
+            Unset_Scope (T.Scope);
+         end;
+      end loop;
+
+      In_Compile_Time_Warning_Or_Error := False;
+      Expander_Mode_Restore;
+   end Validate_Compile_Time_Warning_Errors;
 
    ---------------------------
    -- Validate_Independence --

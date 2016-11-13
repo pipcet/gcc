@@ -39,6 +39,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-ssa-loop-manip.h"
 #include "tree-ssa-loop-niter.h"
 #include "tree-ssa-loop.h"
+#include "ssa.h"
 #include "tree-into-ssa.h"
 #include "cfgloop.h"
 #include "tree-scalar-evolution.h"
@@ -233,7 +234,7 @@ struct mem_ref_group
 
 /* Assigned to PREFETCH_BEFORE when all iterations are to be prefetched.  */
 
-#define PREFETCH_ALL		(~(unsigned HOST_WIDE_INT) 0)
+#define PREFETCH_ALL		HOST_WIDE_INT_M1U
 
 /* Do not generate a prefetch if the unroll factor is significantly less
    than what is required by the prefetch.  This is to avoid redundant
@@ -1160,6 +1161,18 @@ issue_prefetch_ref (struct mem_ref *ref, unsigned unroll_factor, unsigned ahead)
           addr = force_gimple_operand_gsi (&bsi, unshare_expr (addr), true,
 					   NULL, true, GSI_SAME_STMT);
       }
+
+      if (addr_base != addr
+	  && TREE_CODE (addr_base) == SSA_NAME
+	  && TREE_CODE (addr) == SSA_NAME)
+	{
+	  duplicate_ssa_name_ptr_info (addr, SSA_NAME_PTR_INFO (addr_base));
+	  /* As this isn't a plain copy we have to reset alignment
+	     information.  */
+	  if (SSA_NAME_PTR_INFO (addr))
+	    mark_ptr_info_alignment_unknown (SSA_NAME_PTR_INFO (addr));
+	}
+
       /* Create the prefetch instruction.  */
       prefetch = gimple_build_call (builtin_decl_explicit (BUILT_IN_PREFETCH),
 				    3, addr, write_p, local);

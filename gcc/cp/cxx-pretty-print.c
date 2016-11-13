@@ -64,6 +64,9 @@ static void pp_cxx_parameter_declaration_clause (cxx_pretty_printer *, tree);
 static void pp_cxx_template_parameter (cxx_pretty_printer *, tree);
 static void pp_cxx_cast_expression (cxx_pretty_printer *, tree);
 static void pp_cxx_typeid_expression (cxx_pretty_printer *, tree);
+static void pp_cxx_unary_left_fold_expression (cxx_pretty_printer *, tree);
+static void pp_cxx_unary_right_fold_expression (cxx_pretty_printer *, tree);
+static void pp_cxx_binary_fold_expression (cxx_pretty_printer *, tree);
 
 
 static inline void
@@ -172,6 +175,7 @@ pp_cxx_unqualified_id (cxx_pretty_printer *pp, tree t)
 
     case OVERLOAD:
       t = OVL_CURRENT (t);
+      /* FALLTHRU */
     case VAR_DECL:
     case PARM_DECL:
     case CONST_DECL:
@@ -183,6 +187,7 @@ pp_cxx_unqualified_id (cxx_pretty_printer *pp, tree t)
     case USING_DECL:
     case TEMPLATE_DECL:
       t = DECL_NAME (t);
+      /* FALLTHRU */
 
     case IDENTIFIER_NODE:
       if (t == NULL)
@@ -312,6 +317,7 @@ pp_cxx_qualified_id (cxx_pretty_printer *pp, tree t)
 	 functions and some function templates.  */
     case OVERLOAD:
       t = OVL_CURRENT (t);
+      /* FALLTHRU */
     case FUNCTION_DECL:
       if (DECL_FUNCTION_MEMBER_P (t))
 	pp_cxx_nested_name_specifier (pp, DECL_CONTEXT (t));
@@ -364,7 +370,7 @@ cxx_pretty_printer::constant (tree t)
 	  pp_string (this, "nullptr");
 	  break;
 	}
-      /* else fall through.  */
+      /* fall through.  */
 
     default:
       c_pretty_printer::constant (t);
@@ -412,6 +418,7 @@ pp_cxx_userdef_literal (cxx_pretty_printer *pp, tree t)
    GNU Extensions:
      __builtin_va_arg ( assignment-expression , type-id )
      __builtin_offsetof ( type-id, offsetof-expression )
+     __builtin_addressof ( expression )
 
      __has_nothrow_assign ( type-id )   
      __has_nothrow_constructor ( type-id )
@@ -419,6 +426,7 @@ pp_cxx_userdef_literal (cxx_pretty_printer *pp, tree t)
      __has_trivial_assign ( type-id )   
      __has_trivial_constructor ( type-id )
      __has_trivial_copy ( type-id )
+     __has_unique_object_representations ( type-id )
      __has_trivial_destructor ( type-id )
      __has_virtual_destructor ( type-id )     
      __is_abstract ( type-id )
@@ -453,6 +461,7 @@ cxx_pretty_printer::primary_expression (tree t)
 
     case BASELINK:
       t = BASELINK_FUNCTIONS (t);
+      /* FALLTHRU */
     case VAR_DECL:
     case PARM_DECL:
     case FIELD_DECL:
@@ -486,6 +495,10 @@ cxx_pretty_printer::primary_expression (tree t)
 
     case OFFSETOF_EXPR:
       pp_cxx_offsetof_expression (this, t);
+      break;
+
+    case ADDRESSOF_EXPR:
+      pp_cxx_addressof_expression (this, t);
       break;
 
     case REQUIRES_EXPR:
@@ -914,7 +927,7 @@ pp_cxx_pm_expression (cxx_pretty_printer *pp, tree t)
 	  pp_cxx_qualified_id (pp, t);
 	  break;
 	}
-      /* Else fall through.  */
+      /* Fall through.  */
     case MEMBER_REF:
     case DOTSTAR_EXPR:
       pp_cxx_pm_expression (pp, TREE_OPERAND (t, 0));
@@ -1104,6 +1117,7 @@ cxx_pretty_printer::expression (tree t)
 
     case OVERLOAD:
       t = OVL_CURRENT (t);
+      /* FALLTHRU */
     case VAR_DECL:
     case PARM_DECL:
     case FIELD_DECL:
@@ -1189,6 +1203,19 @@ cxx_pretty_printer::expression (tree t)
       pp_cxx_ws_string (this, "...");
       break;
 
+    case UNARY_LEFT_FOLD_EXPR:
+      pp_cxx_unary_left_fold_expression (this, t);
+      break;
+
+    case UNARY_RIGHT_FOLD_EXPR:
+      pp_cxx_unary_right_fold_expression (this, t);
+    break;
+
+    case BINARY_LEFT_FOLD_EXPR:
+    case BINARY_RIGHT_FOLD_EXPR:
+      pp_cxx_binary_fold_expression (this, t);
+      break;
+
     case TEMPLATE_ID_EXPR:
       pp_cxx_template_id (this, t);
       break;
@@ -1215,6 +1242,7 @@ cxx_pretty_printer::expression (tree t)
       break;
 
     case PRED_CONSTR:
+    case CHECK_CONSTR:
     case EXPR_CONSTR:
     case TYPE_CONSTR:
     case ICONV_CONSTR:
@@ -1304,7 +1332,9 @@ cxx_pretty_printer::declaration_specifiers (tree t)
       else if (DECL_NONSTATIC_MEMBER_FUNCTION_P (t))
 	declaration_specifiers (TREE_TYPE (TREE_TYPE (t)));
       else
-	default:
+        c_pretty_printer::declaration_specifiers (t);
+      break;
+    default:
         c_pretty_printer::declaration_specifiers (t);
       break;
     }
@@ -1410,7 +1440,7 @@ pp_cxx_type_specifier_seq (cxx_pretty_printer *pp, tree t)
 	  pp_cxx_ptr_operator (pp, t);
 	  break;
 	}
-      /* else fall through */
+      /* fall through */
 
     default:
       if (!(TREE_CODE (t) == FUNCTION_DECL && DECL_CONSTRUCTOR_P (t)))
@@ -1453,6 +1483,7 @@ pp_cxx_ptr_operator (cxx_pretty_printer *pp, tree t)
 	  pp_star (pp);
 	  break;
 	}
+      /* FALLTHRU */
     case OFFSET_TYPE:
       if (TYPE_PTRMEM_P (t))
 	{
@@ -1463,7 +1494,7 @@ pp_cxx_ptr_operator (cxx_pretty_printer *pp, tree t)
 	  pp_cxx_cv_qualifier_seq (pp, t);
 	  break;
 	}
-      /* else fall through.  */
+      /* fall through.  */
 
     default:
       pp_unsupported_tree (pp, t);
@@ -2300,6 +2331,11 @@ pp_cxx_constrained_type_spec (cxx_pretty_printer *pp, tree c)
 {
   PPTag tag(pp, __FUNCTION__);
   tree t, a;
+  if (c == error_mark_node)
+    {
+      pp_cxx_ws_string(pp, "<unsatisfied-constrained-placeholder>");
+      return;
+    }
   placeholder_extract_concept_and_args (c, t, a);
   pp->id_expression (t);
   if (TREE_VEC_LENGTH (a) > 1)
@@ -2518,6 +2554,111 @@ pp_cxx_offsetof_expression (cxx_pretty_printer *pp, tree t)
 }
 
 void
+pp_cxx_addressof_expression (cxx_pretty_printer *pp, tree t)
+{
+  pp_cxx_ws_string (pp, "__builtin_addressof");
+  pp_cxx_left_paren (pp);
+  pp->expression (TREE_OPERAND (t, 0));
+  pp_cxx_right_paren (pp);
+}
+
+static char const*
+get_fold_operator (tree t)
+{
+  int op = int_cst_value (FOLD_EXPR_OP (t));
+  if (FOLD_EXPR_MODIFY_P (t))
+    {
+      switch (op)
+        {
+        case NOP_EXPR: return "=";
+        case PLUS_EXPR: return "+=";
+        case MINUS_EXPR: return "-=";
+        case MULT_EXPR: return "*=";
+        case TRUNC_DIV_EXPR: return "/=";
+        case TRUNC_MOD_EXPR: return "%=";
+        case BIT_XOR_EXPR: return "^=";
+        case BIT_AND_EXPR: return "&=";
+        case BIT_IOR_EXPR: return "|=";
+        case LSHIFT_EXPR: return "<<=";
+        case RSHIFT_EXPR: return ">>=";
+        default: gcc_unreachable ();
+        }
+    }
+  else
+    {
+      switch (op)
+        {
+        case PLUS_EXPR: return "+";
+        case MINUS_EXPR: return "-";
+        case MULT_EXPR: return "*";
+        case TRUNC_DIV_EXPR: return "/";
+        case TRUNC_MOD_EXPR: return "%";
+        case BIT_XOR_EXPR: return "^";
+        case BIT_AND_EXPR: return "&";
+        case BIT_IOR_EXPR: return "|";
+        case LSHIFT_EXPR: return "<<";
+        case RSHIFT_EXPR: return ">>";
+        case EQ_EXPR: return "==";
+        case NE_EXPR: return "!=";
+        case LT_EXPR: return "<";
+        case GT_EXPR: return ">";
+        case LE_EXPR: return "<=";
+        case GE_EXPR: return ">=";
+        case TRUTH_ANDIF_EXPR: return "&&";
+        case TRUTH_ORIF_EXPR: return "||";
+        case MEMBER_REF: return "->*";
+        case DOTSTAR_EXPR: return ".*";
+        case OFFSET_REF: return ".*";
+        default: return ","; /* FIXME: Not the right default.  */
+        }
+    }
+}
+
+void
+pp_cxx_unary_left_fold_expression (cxx_pretty_printer *pp, tree t)
+{
+  char const* op = get_fold_operator (t);
+  tree expr = PACK_EXPANSION_PATTERN (FOLD_EXPR_PACK (t));
+  pp_cxx_left_paren (pp);
+  pp_cxx_ws_string (pp, "...");
+  pp_cxx_ws_string (pp, op);
+  pp->expression (expr);
+  pp_cxx_right_paren (pp);
+}
+
+void
+pp_cxx_unary_right_fold_expression (cxx_pretty_printer *pp, tree t)
+{
+  char const* op = get_fold_operator (t);
+  tree expr = PACK_EXPANSION_PATTERN (FOLD_EXPR_PACK (t));
+  pp_cxx_left_paren (pp);
+  pp->expression (expr);
+  pp_space (pp);
+  pp_cxx_ws_string (pp, op);
+  pp_cxx_ws_string (pp, "...");
+  pp_cxx_right_paren (pp);
+}
+
+void
+pp_cxx_binary_fold_expression (cxx_pretty_printer *pp, tree t)
+{
+  char const* op = get_fold_operator (t);
+  tree t1 = TREE_OPERAND (t, 1);
+  tree t2 = TREE_OPERAND (t, 2);
+  if (t1 == FOLD_EXPR_PACK (t))
+    t1 = PACK_EXPANSION_PATTERN (t1);
+  else
+    t2 = PACK_EXPANSION_PATTERN (t2);
+  pp_cxx_left_paren (pp);
+  pp->expression (t1);
+  pp_cxx_ws_string (pp, op);
+  pp_cxx_ws_string (pp, "...");
+  pp_cxx_ws_string (pp, op);
+  pp->expression (t2);
+  pp_cxx_right_paren (pp);
+}
+
+void
 pp_cxx_trait_expression (cxx_pretty_printer *pp, tree t)
 {
   PPTag tag(pp, __FUNCTION__);
@@ -2545,6 +2686,9 @@ pp_cxx_trait_expression (cxx_pretty_printer *pp, tree t)
       break;
     case CPTK_HAS_TRIVIAL_DESTRUCTOR:
       pp_cxx_ws_string (pp, "__has_trivial_destructor");
+      break;
+    case CPTK_HAS_UNIQUE_OBJ_REPRESENTATIONS:
+      pp_cxx_ws_string (pp, "__has_unique_object_representations");
       break;
     case CPTK_HAS_VIRTUAL_DESTRUCTOR:
       pp_cxx_ws_string (pp, "__has_virtual_destructor");
@@ -2736,6 +2880,7 @@ pp_cxx_compound_requirement (cxx_pretty_printer *pp, tree t)
       pp_cxx_ws_string (pp, "->");
       pp->type_id (type);
     }
+  pp_cxx_semicolon (pp);
 }
 
 /* nested requirement:
@@ -2752,55 +2897,94 @@ pp_cxx_nested_requirement (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_predicate_constraint (cxx_pretty_printer *pp, tree t)
 {
-  PPTag tag(pp, __FUNCTION__);
-  pp_string (pp, "predicate");
-  pp_left_paren (pp);
   pp->expression (TREE_OPERAND (t, 0));
-  pp_right_paren (pp);
+}
+
+void
+pp_cxx_check_constraint (cxx_pretty_printer *pp, tree t)
+{
+  tree decl = CHECK_CONSTR_CONCEPT (t);
+  tree tmpl = DECL_TI_TEMPLATE (decl);
+  tree args = CHECK_CONSTR_ARGS (t);
+  tree id = build_nt (TEMPLATE_ID_EXPR, tmpl, args);
+
+  if (VAR_P (decl))
+    pp->expression (id);
+  else if (TREE_CODE (decl) == FUNCTION_DECL)
+    {
+      tree call = build_vl_exp (CALL_EXPR, 2);
+      TREE_OPERAND (call, 0) = integer_two_node;
+      TREE_OPERAND (call, 1) = id;
+      pp->expression (call);
+    }
+  else
+    gcc_unreachable ();
 }
 
 void
 pp_cxx_expression_constraint (cxx_pretty_printer *pp, tree t)
 {
+<<<<<<< HEAD
   PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "valid_expr");
   pp_left_paren (pp);
+=======
+  pp_string (pp, "<valid-expression ");
+  pp_cxx_left_paren (pp);
+>>>>>>> gnu/master
   pp->expression (TREE_OPERAND (t, 0));
-  pp_right_paren (pp);
+  pp_cxx_right_paren (pp);
+  pp_string (pp, ">");
 }
 
 void
 pp_cxx_type_constraint (cxx_pretty_printer *pp, tree t)
 {
+<<<<<<< HEAD
   PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "valid_type");
   pp_left_paren (pp);
+=======
+  pp_string (pp, "<valid-type ");
+>>>>>>> gnu/master
   pp->type_id (TREE_OPERAND (t, 0));
-  pp_right_paren (pp);
+  pp_string (pp, ">");
 }
 
 void
 pp_cxx_implicit_conversion_constraint (cxx_pretty_printer *pp, tree t)
 {
+<<<<<<< HEAD
   PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "convertible");
   pp_left_paren (pp);
+=======
+  pp_string (pp, "<implicitly-conversion ");
+  pp_cxx_left_paren (pp);
+>>>>>>> gnu/master
   pp->expression (ICONV_CONSTR_EXPR (t));
-  pp_cxx_separate_with (pp, ',');
-  pp->expression (ICONV_CONSTR_TYPE (t));
-  pp_right_paren (pp);
+  pp_cxx_right_paren (pp);
+  pp_cxx_ws_string (pp, "to");
+  pp->type_id (ICONV_CONSTR_TYPE (t));
+  pp_string (pp, ">");
 }
 
 void
 pp_cxx_argument_deduction_constraint (cxx_pretty_printer *pp, tree t)
 {
+<<<<<<< HEAD
   PPTag tag(pp, __FUNCTION__);
   pp_string (pp, "deducible");
   pp_left_paren (pp);
+=======
+  pp_string (pp, "<argument-deduction ");
+  pp_cxx_left_paren (pp);
+>>>>>>> gnu/master
   pp->expression (DEDUCT_CONSTR_EXPR (t));
-  pp_cxx_separate_with (pp, ',');
+  pp_cxx_right_paren (pp);
+  pp_cxx_ws_string (pp, "as");
   pp->expression (DEDUCT_CONSTR_PATTERN (t));
-  pp_right_paren (pp);
+  pp_string (pp, ">");
 }
 
 void
@@ -2808,9 +2992,10 @@ pp_cxx_exception_constraint (cxx_pretty_printer *pp, tree t)
 {
   PPTag tag(pp, __FUNCTION__);
   pp_cxx_ws_string (pp, "noexcept");
-  pp_left_paren (pp);
+  pp_cxx_whitespace (pp);
+  pp_cxx_left_paren (pp);
   pp->expression (TREE_OPERAND (t, 0));
-  pp_right_paren (pp);
+  pp_cxx_right_paren (pp);
 }
 
 void
@@ -2818,15 +3003,14 @@ pp_cxx_parameterized_constraint (cxx_pretty_printer *pp, tree t)
 {
   PPTag tag(pp, __FUNCTION__);
   pp_left_paren (pp);
-  pp_string (pp, "forall");
+  pp_string (pp, "<requires ");
   if (tree parms = PARM_CONSTR_PARMS (t))
     {
-      if (parms)
 	pp_cxx_parameter_declaration_clause (pp, parms);
       pp_cxx_whitespace (pp);
     }
   pp_cxx_constraint (pp, PARM_CONSTR_OPERAND (t));
-  pp_right_paren (pp);
+  pp_string (pp, ">");
 }
 
 void
@@ -2860,6 +3044,10 @@ pp_cxx_constraint (cxx_pretty_printer *pp, tree t)
       pp_cxx_predicate_constraint (pp, t);
       break;
 
+    case CHECK_CONSTR:
+      pp_cxx_check_constraint (pp, t);
+      break;
+
     case EXPR_CONSTR:
       pp_cxx_expression_constraint (pp, t);
       break;
@@ -2890,6 +3078,10 @@ pp_cxx_constraint (cxx_pretty_printer *pp, tree t)
 
     case DISJ_CONSTR:
       pp_cxx_disjunction (pp, t);
+      break;
+
+    case EXPR_PACK_EXPANSION:
+      pp->expression (TREE_OPERAND (t, 0));
       break;
 
     default:

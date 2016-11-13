@@ -22,6 +22,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "target.h"
 #include "c-family/c-common.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "c-family/c-pragma.h"
 
@@ -433,8 +434,6 @@ ix86_target_macros_internal (HOST_WIDE_INT isa_flag,
     def_or_undef (parse_in, "__XSAVES__");
   if (isa_flag & OPTION_MASK_ISA_MPX)
     def_or_undef (parse_in, "__MPX__");
-  if (isa_flag & OPTION_MASK_ISA_PCOMMIT)
-    def_or_undef (parse_in, "__PCOMMIT__");
   if (isa_flag & OPTION_MASK_ISA_CLWB)
     def_or_undef (parse_in, "__CLWB__");
   if (isa_flag & OPTION_MASK_ISA_MWAITX)

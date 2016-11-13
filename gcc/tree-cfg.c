@@ -621,10 +621,7 @@ get_abnormal_succ_dispatcher (basic_block bb)
 	gimple_stmt_iterator gsi
 	  = gsi_start_nondebug_after_labels_bb (e->dest);
 	gimple *g = gsi_stmt (gsi);
-	if (g
-	    && is_gimple_call (g)
-	    && gimple_call_internal_p (g)
-	    && gimple_call_internal_fn (g) == IFN_ABNORMAL_DISPATCHER)
+	if (g && gimple_call_internal_p (g, IFN_ABNORMAL_DISPATCHER))
 	  return e->dest;
       }
   return NULL;
@@ -807,7 +804,7 @@ make_edges_bb (basic_block bb, struct omp_region **pcur_region, int *pomp_index)
 	}
       /* Some calls are known not to return.  */
       else
-	fallthru = !(gimple_call_flags (last) & ECF_NORETURN);
+	fallthru = !gimple_call_noreturn_p (last);
       break;
 
     case GIMPLE_ASSIGN:
@@ -2789,7 +2786,7 @@ verify_address (tree t, tree base)
       return t;
     }
 
-  if (!(TREE_CODE (base) == VAR_DECL
+  if (!(VAR_P (base)
 	|| TREE_CODE (base) == PARM_DECL
 	|| TREE_CODE (base) == RESULT_DECL))
     return NULL_TREE;
@@ -2905,7 +2902,7 @@ verify_expr (tree *tp, int *walk_subtrees, void *data ATTRIBUTE_UNUSED)
 	if ((tem = verify_address (t, x)))
 	  return tem;
 
-	if (!(TREE_CODE (x) == VAR_DECL
+	if (!(VAR_P (x)
 	      || TREE_CODE (x) == PARM_DECL
 	      || TREE_CODE (x) == RESULT_DECL))
 	  return NULL;
@@ -4985,15 +4982,14 @@ verify_expr_location_1 (tree *tp, int *walk_subtrees, void *data)
 {
   hash_set<tree> *blocks = (hash_set<tree> *) data;
 
-  if (TREE_CODE (*tp) == VAR_DECL
-      && DECL_HAS_DEBUG_EXPR_P (*tp))
+  if (VAR_P (*tp) && DECL_HAS_DEBUG_EXPR_P (*tp))
     {
       tree t = DECL_DEBUG_EXPR (*tp);
       tree addr = walk_tree (&t, verify_expr_no_block, NULL, NULL);
       if (addr)
 	return addr;
     }
-  if ((TREE_CODE (*tp) == VAR_DECL
+  if ((VAR_P (*tp)
        || TREE_CODE (*tp) == PARM_DECL
        || TREE_CODE (*tp) == RESULT_DECL)
       && DECL_HAS_VALUE_EXPR_P (*tp))
@@ -5412,7 +5408,7 @@ gimple_verify_flow_info (void)
 	case GIMPLE_CALL:
 	  if (!gimple_call_builtin_p (stmt, BUILT_IN_RETURN))
 	    break;
-	  /* ... fallthru ... */
+	  /* fallthru */
 	case GIMPLE_RETURN:
 	  if (!single_succ_p (bb)
 	      || (single_succ_edge (bb)->flags
@@ -5992,13 +5988,11 @@ gimple_duplicate_bb (basic_block bb)
 	{
 	  tree base = get_base_address (lhs);
 	  if (base
-	      && (TREE_CODE (base) == VAR_DECL
-		  || TREE_CODE (base) == RESULT_DECL)
+	      && (VAR_P (base) || TREE_CODE (base) == RESULT_DECL)
 	      && DECL_IGNORED_P (base)
 	      && !TREE_STATIC (base)
 	      && !DECL_EXTERNAL (base)
-	      && (TREE_CODE (base) != VAR_DECL
-		  || !DECL_HAS_VALUE_EXPR_P (base)))
+	      && (!VAR_P (base) || !DECL_HAS_VALUE_EXPR_P (base)))
 	    DECL_NONSHAREABLE (base) = 1;
 	}
 
@@ -6624,8 +6618,7 @@ move_stmt_op (tree *tp, int *walk_subtrees, void *data)
 	     statements, and in alias lists of other variables.  It would be
 	     quite difficult to expunge it from all those places.  ??? It might
 	     suffice to do this for addressable variables.  */
-	  if ((TREE_CODE (t) == VAR_DECL
-	       && !is_global_var (t))
+	  if ((VAR_P (t) && !is_global_var (t))
 	      || TREE_CODE (t) == CONST_DECL)
 	    replace_by_duplicate_decl (tp, p->vars_map, p->to_context);
 	}
@@ -7011,12 +7004,12 @@ replace_block_vars_by_duplicates (tree block, hash_map<tree, tree> *vars_map,
   for (tp = &BLOCK_VARS (block); *tp; tp = &DECL_CHAIN (*tp))
     {
       t = *tp;
-      if (TREE_CODE (t) != VAR_DECL && TREE_CODE (t) != CONST_DECL)
+      if (!VAR_P (t) && TREE_CODE (t) != CONST_DECL)
 	continue;
       replace_by_duplicate_decl (&t, vars_map, to_context);
       if (t != *tp)
 	{
-	  if (TREE_CODE (*tp) == VAR_DECL && DECL_HAS_VALUE_EXPR_P (*tp))
+	  if (VAR_P (*tp) && DECL_HAS_VALUE_EXPR_P (*tp))
 	    {
 	      tree x = DECL_VALUE_EXPR (*tp);
 	      struct replace_decls_d rd = { vars_map, to_context };
@@ -7581,11 +7574,13 @@ dump_function_to_file (tree fndecl, FILE *file, int flags)
 
 	    any_var = true;
 	  }
+
+      tree name;
+
       if (gimple_in_ssa_p (cfun))
-	for (ix = 1; ix < num_ssa_names; ++ix)
+	FOR_EACH_SSA_NAME (ix, name, cfun)
 	  {
-	    tree name = ssa_name (ix);
-	    if (name && !SSA_NAME_VAR (name))
+	    if (!SSA_NAME_VAR (name))
 	      {
 		fprintf (file, "  ");
 		print_generic_expr (file, TREE_TYPE (name), flags);
@@ -7919,14 +7914,19 @@ gimple_block_ends_with_condjump_p (const_basic_block bb)
 }
 
 
-/* Return true if we need to add fake edge to exit at statement T.
-   Helper function for gimple_flow_call_edges_add.  */
+/* Return true if statement T may terminate execution of BB in ways not
+   explicitly represtented in the CFG.  */
 
-static bool
-need_fake_edge_p (gimple *t)
+bool
+stmt_can_terminate_bb_p (gimple *t)
 {
   tree fndecl = NULL_TREE;
   int call_flags = 0;
+
+  /* Eh exception not handled internally terminates execution of the whole
+     function.  */
+  if (stmt_can_throw_external (t))
+    return true;
 
   /* NORETURN and LONGJMP calls already have an edge to exit.
      CONST and PURE calls do not need one.
@@ -7960,6 +7960,13 @@ need_fake_edge_p (gimple *t)
       edge e;
       basic_block bb;
 
+      if (call_flags & (ECF_PURE | ECF_CONST)
+	  && !(call_flags & ECF_LOOPING_CONST_OR_PURE))
+	return false;
+
+      /* Function call may do longjmp, terminate program or do other things.
+	 Special case noreturn that have non-abnormal edges out as in this case
+	 the fact is sufficiently represented by lack of edges out of T.  */
       if (!(call_flags & ECF_NORETURN))
 	return true;
 
@@ -8024,7 +8031,7 @@ gimple_flow_call_edges_add (sbitmap blocks)
       if (!gsi_end_p (gsi))
 	t = gsi_stmt (gsi);
 
-      if (t && need_fake_edge_p (t))
+      if (t && stmt_can_terminate_bb_p (t))
 	{
 	  edge e;
 
@@ -8059,7 +8066,7 @@ gimple_flow_call_edges_add (sbitmap blocks)
 	  do
 	    {
 	      stmt = gsi_stmt (gsi);
-	      if (need_fake_edge_p (stmt))
+	      if (stmt_can_terminate_bb_p (stmt))
 		{
 		  edge e;
 
@@ -8975,16 +8982,14 @@ execute_fixup_cfg (void)
   gcov_type count_scale;
   edge e;
   edge_iterator ei;
+  cgraph_node *node = cgraph_node::get (current_function_decl);
 
   count_scale
-      = GCOV_COMPUTE_SCALE (cgraph_node::get (current_function_decl)->count,
-			    ENTRY_BLOCK_PTR_FOR_FN (cfun)->count);
+    = GCOV_COMPUTE_SCALE (node->count, ENTRY_BLOCK_PTR_FOR_FN (cfun)->count);
 
-  ENTRY_BLOCK_PTR_FOR_FN (cfun)->count =
-			    cgraph_node::get (current_function_decl)->count;
-  EXIT_BLOCK_PTR_FOR_FN (cfun)->count =
-			    apply_scale (EXIT_BLOCK_PTR_FOR_FN (cfun)->count,
-                                       count_scale);
+  ENTRY_BLOCK_PTR_FOR_FN (cfun)->count = node->count;
+  EXIT_BLOCK_PTR_FOR_FN (cfun)->count
+    = apply_scale (EXIT_BLOCK_PTR_FOR_FN (cfun)->count, count_scale);
 
   FOR_EACH_EDGE (e, ei, ENTRY_BLOCK_PTR_FOR_FN (cfun)->succs)
     e->count = apply_scale (e->count, count_scale);
@@ -9026,7 +9031,7 @@ execute_fixup_cfg (void)
 	    {
 	      tree lhs = get_base_address (gimple_get_lhs (stmt));
 
-	      if (TREE_CODE (lhs) == VAR_DECL
+	      if (VAR_P (lhs)
 		  && (TREE_STATIC (lhs) || DECL_EXTERNAL (lhs))
 		  && varpool_node::get (lhs)->writeonly)
 		{
@@ -9044,7 +9049,7 @@ execute_fixup_cfg (void)
 	    {
 	      tree lhs = get_base_address (gimple_get_lhs (stmt));
 
-	      if (TREE_CODE (lhs) == VAR_DECL
+	      if (VAR_P (lhs)
 		  && (TREE_STATIC (lhs) || DECL_EXTERNAL (lhs))
 		  && varpool_node::get (lhs)->writeonly)
 		{
@@ -9073,14 +9078,23 @@ execute_fixup_cfg (void)
 	  if (!stmt
 	      || (!is_ctrl_stmt (stmt)
 		  && (!is_gimple_call (stmt)
-		      || (gimple_call_flags (stmt) & ECF_NORETURN) == 0)))
+		      || !gimple_call_noreturn_p (stmt))))
 	    {
 	      if (stmt && is_gimple_call (stmt))
 		gimple_call_set_ctrl_altering (stmt, false);
-	      stmt = gimple_build_call
-		  (builtin_decl_implicit (BUILT_IN_UNREACHABLE), 0);
+	      tree fndecl = builtin_decl_implicit (BUILT_IN_UNREACHABLE);
+	      stmt = gimple_build_call (fndecl, 0);
 	      gimple_stmt_iterator gsi = gsi_last_bb (bb);
 	      gsi_insert_after (&gsi, stmt, GSI_NEW_STMT);
+	      if (!cfun->after_inlining)
+		{
+		  gcall *call_stmt = dyn_cast <gcall *> (stmt);
+		  int freq
+		    = compute_call_stmt_bb_frequency (current_function_decl,
+						      bb);
+		  node->create_edge (cgraph_node::get_create (fndecl),
+				     call_stmt, bb->count, freq);
+		}
 	    }
 	}
     }
@@ -9276,6 +9290,7 @@ test_linear_chain ()
   ASSERT_EQ (1, dom_by_b.length ());
   ASSERT_EQ (bb_c, dom_by_b[0]);
   free_dominance_info (CDI_DOMINATORS);
+  dom_by_b.release ();
 
   /* Similarly for post-dominance: each BB in our chain is post-dominated
      by the one after it.  */
@@ -9286,6 +9301,7 @@ test_linear_chain ()
   ASSERT_EQ (1, postdom_by_b.length ());
   ASSERT_EQ (bb_a, postdom_by_b[0]);
   free_dominance_info (CDI_POST_DOMINATORS);
+  postdom_by_b.release ();
 
   pop_cfun ();
 }
@@ -9346,8 +9362,10 @@ test_diamond ()
   ASSERT_EQ (bb_a, get_immediate_dominator (CDI_DOMINATORS, bb_d));
   vec<basic_block> dom_by_a = get_dominated_by (CDI_DOMINATORS, bb_a);
   ASSERT_EQ (3, dom_by_a.length ()); /* B, C, D, in some order.  */
+  dom_by_a.release ();
   vec<basic_block> dom_by_b = get_dominated_by (CDI_DOMINATORS, bb_b);
   ASSERT_EQ (0, dom_by_b.length ());
+  dom_by_b.release ();
   free_dominance_info (CDI_DOMINATORS);
 
   /* Similarly for post-dominance.  */
@@ -9357,8 +9375,10 @@ test_diamond ()
   ASSERT_EQ (bb_d, get_immediate_dominator (CDI_POST_DOMINATORS, bb_c));
   vec<basic_block> postdom_by_d = get_dominated_by (CDI_POST_DOMINATORS, bb_d);
   ASSERT_EQ (3, postdom_by_d.length ()); /* A, B, C in some order.  */
+  postdom_by_d.release ();
   vec<basic_block> postdom_by_b = get_dominated_by (CDI_POST_DOMINATORS, bb_b);
   ASSERT_EQ (0, postdom_by_b.length ());
+  postdom_by_b.release ();
   free_dominance_info (CDI_POST_DOMINATORS);
 
   pop_cfun ();

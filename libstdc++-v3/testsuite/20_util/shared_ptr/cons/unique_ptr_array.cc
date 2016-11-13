@@ -1,4 +1,4 @@
-// { dg-options "-std=gnu++11" }
+// { dg-do run { target c++11 } }
 
 // Copyright (C) 2012-2016 Free Software Foundation, Inc.
 //
@@ -35,8 +35,6 @@ struct A : std::enable_shared_from_this<A>
 int
 test01()
 {
-  bool test __attribute__((unused)) = true;
-
   std::unique_ptr<A[]> up(new A[2]);
   std::shared_ptr<A> sp(std::move(up));
   VERIFY( up.get() == 0 );

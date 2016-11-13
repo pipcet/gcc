@@ -314,10 +314,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  @brief  %Vector copy constructor.
        *  @param  __x  A %vector of identical element and allocator types.
        *
-       *  The newly-created %vector uses a copy of the allocation
-       *  object used by @a __x.  All the elements of @a __x are copied,
-       *  but any extra memory in
-       *  @a __x (for fast expansion) will not be copied.
+       *  All the elements of @a __x are copied, but any unused capacity in
+       *  @a __x  will not be copied
+       *  (i.e. capacity() == size() in the new %vector).
+       *
+       *  The newly-created %vector uses a copy of the allocator object used
+       *  by @a __x (unless the allocator traits dictate a different object).
        */
       vector(const vector& __x)
       : _Base(__x.size(),
@@ -434,9 +436,10 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  @brief  %Vector assignment operator.
        *  @param  __x  A %vector of identical element and allocator types.
        *
-       *  All the elements of @a __x are copied, but any extra memory in
-       *  @a __x (for fast expansion) will not be copied.  Unlike the
-       *  copy constructor, the allocator object is not copied.
+       *  All the elements of @a __x are copied, but any unused capacity in
+       *  @a __x will not be copied.
+       *
+       *  Whether the allocator is copied depends on the allocator traits.
        */
       vector&
       operator=(const vector& __x);
@@ -448,7 +451,9 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *
        *  The contents of @a __x are moved into this %vector (without copying,
        *  if the allocators permit it).
-       *  @a __x is a valid, but unspecified %vector.
+       *  Afterwards @a __x is a valid, but unspecified %vector.
+       *
+       *  Whether the allocator is moved depends on the allocator traits.
        */
       vector&
       operator=(vector&& __x) noexcept(_Alloc_traits::_S_nothrow_move())
@@ -469,7 +474,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *
        *  Note that the assignment completely changes the %vector and
        *  that the resulting %vector's size is the same as the number
-       *  of elements assigned.  Old data may be lost.
+       *  of elements assigned.
        */
       vector&
       operator=(initializer_list<value_type> __l)
@@ -488,7 +493,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  This function fills a %vector with @a __n copies of the given
        *  value.  Note that the assignment completely changes the
        *  %vector and that the resulting %vector's size is the same as
-       *  the number of elements assigned.  Old data may be lost.
+       *  the number of elements assigned.
        */
       void
       assign(size_type __n, const value_type& __val)
@@ -504,7 +509,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *
        *  Note that the assignment completely changes the %vector and
        *  that the resulting %vector's size is the same as the number
-       *  of elements assigned.  Old data may be lost.
+       *  of elements assigned.
        */
 #if __cplusplus >= 201103L
       template<typename _InputIterator,
@@ -533,7 +538,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *
        *  Note that the assignment completely changes the %vector and
        *  that the resulting %vector's size is the same as the number
-       *  of elements assigned.  Old data may be lost.
+       *  of elements assigned.
        */
       void
       assign(initializer_list<value_type> __l)
@@ -909,19 +914,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *   Returns a pointer such that [data(), data() + size()) is a valid
        *   range.  For a non-empty %vector, data() == &front().
        */
-#if __cplusplus >= 201103L
       _Tp*
-#else
-      pointer
-#endif
       data() _GLIBCXX_NOEXCEPT
       { return _M_data_ptr(this->_M_impl._M_start); }
 
-#if __cplusplus >= 201103L
       const _Tp*
-#else
-      const_pointer
-#endif
       data() const _GLIBCXX_NOEXCEPT
       { return _M_data_ptr(this->_M_impl._M_start); }
 
@@ -946,11 +943,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 	    ++this->_M_impl._M_finish;
 	  }
 	else
-#if __cplusplus >= 201103L
-	  _M_emplace_back_aux(__x);
-#else
-	  _M_insert_aux(end(), __x);
-#endif
+	  _M_realloc_insert(end(), __x);
       }
 
 #if __cplusplus >= 201103L
@@ -959,7 +952,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       { emplace_back(std::move(__x)); }
 
       template<typename... _Args>
+#if __cplusplus > 201402L
+        reference
+#else
 	void
+#endif
 	emplace_back(_Args&&... __args);
 #endif
 
@@ -995,7 +992,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        */
       template<typename... _Args>
 	iterator
-	emplace(const_iterator __position, _Args&&... __args);
+	emplace(const_iterator __position, _Args&&... __args)
+	{ return _M_emplace_aux(__position, std::forward<_Args>(__args)...); }
 
       /**
        *  @brief  Inserts given value into %vector before specified iterator.
@@ -1040,7 +1038,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        */
       iterator
       insert(const_iterator __position, value_type&& __x)
-      { return emplace(__position, std::move(__x)); }
+      { return _M_insert_rval(__position, std::move(__x)); }
 
       /**
        *  @brief  Inserts an initializer_list into the %vector.
@@ -1222,6 +1220,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  (Three pointers, so it should be quite fast.)
        *  Note that the global std::swap() function is specialized such that
        *  std::swap(v1,v2) will feed to this function.
+       *
+       *  Whether the allocators are swapped depends on the allocator traits.
        */
       void
       swap(vector& __x) _GLIBCXX_NOEXCEPT
@@ -1431,30 +1431,66 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       _M_shrink_to_fit();
 #endif
 
-      // Called by insert(p,x)
 #if __cplusplus < 201103L
+      // Called by insert(p,x)
       void
       _M_insert_aux(iterator __position, const value_type& __x);
+
+      void
+      _M_realloc_insert(iterator __position, const value_type& __x);
 #else
-      template<typename... _Args>
-	static void
-	_S_insert_aux_assign(iterator __pos, _Args&&... __args)
-	{ *__pos =  _Tp(std::forward<_Args>(__args)...); }
+      // A value_type object constructed with _Alloc_traits::construct()
+      // and destroyed with _Alloc_traits::destroy().
+      struct _Temporary_value
+      {
+	template<typename... _Args>
+	  explicit
+	  _Temporary_value(vector* __vec, _Args&&... __args) : _M_this(__vec)
+	  {
+	    _Alloc_traits::construct(_M_this->_M_impl, _M_ptr(),
+				     std::forward<_Args>(__args)...);
+	  }
 
-      static void
-      _S_insert_aux_assign(iterator __pos, _Tp&& __arg)
-      { *__pos = std::move(__arg); }
+	~_Temporary_value()
+	{ _Alloc_traits::destroy(_M_this->_M_impl, _M_ptr()); }
+
+	value_type&
+	_M_val() { return *reinterpret_cast<_Tp*>(&__buf); }
+
+      private:
+	pointer
+	_M_ptr() { return pointer_traits<pointer>::pointer_to(_M_val()); }
+
+	vector* _M_this;
+	typename aligned_storage<sizeof(_Tp), alignof(_Tp)>::type __buf;
+      };
+
+      // Called by insert(p,x) and other functions when insertion needs to
+      // reallocate or move existing elements. _Arg is either _Tp& or _Tp.
+      template<typename _Arg>
+	void
+	_M_insert_aux(iterator __position, _Arg&& __arg);
 
       template<typename... _Args>
 	void
-	_M_insert_aux(iterator __position, _Args&&... __args);
+	_M_realloc_insert(iterator __position, _Args&&... __args);
 
+      // Either move-construct at the end, or forward to _M_insert_aux.
+      iterator
+      _M_insert_rval(const_iterator __position, value_type&& __v);
+
+      // Try to emplace at the end, otherwise forward to _M_insert_aux.
       template<typename... _Args>
-	void
-	_M_emplace_back_aux(_Args&&... __args);
+	iterator
+	_M_emplace_aux(const_iterator __position, _Args&&... __args);
+
+      // Emplacing an rvalue of the correct type can use _M_insert_rval.
+      iterator
+      _M_emplace_aux(const_iterator __position, value_type&& __v)
+      { return _M_insert_rval(__position, std::move(__v)); }
 #endif
 
-      // Called by the latter.
+      // Called by _M_fill_insert, _M_insert_aux etc.
       size_type
       _M_check_len(size_type __n, const char* __s) const
       {
@@ -1514,21 +1550,31 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
       }
 #endif
 
-#if __cplusplus >= 201103L
       template<typename _Up>
 	_Up*
-	_M_data_ptr(_Up* __ptr) const
+	_M_data_ptr(_Up* __ptr) const _GLIBCXX_NOEXCEPT
 	{ return __ptr; }
 
+#if __cplusplus >= 201103L
       template<typename _Ptr>
 	typename std::pointer_traits<_Ptr>::element_type*
 	_M_data_ptr(_Ptr __ptr) const
 	{ return empty() ? nullptr : std::__addressof(*__ptr); }
 #else
-      template<typename _Ptr>
-	_Ptr
-	_M_data_ptr(_Ptr __ptr) const
+      template<typename _Up>
+	_Up*
+	_M_data_ptr(_Up* __ptr) _GLIBCXX_NOEXCEPT
 	{ return __ptr; }
+
+      template<typename _Ptr>
+	value_type*
+	_M_data_ptr(_Ptr __ptr)
+	{ return __ptr.operator->(); }
+
+      template<typename _Ptr>
+	const value_type*
+	_M_data_ptr(_Ptr __ptr) const
+	{ return __ptr.operator->(); }
 #endif
     };
 

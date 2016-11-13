@@ -244,6 +244,7 @@ package body Einfo is
    --    Relative_Deadline_Variable      Node28
    --    Underlying_Record_View          Node28
 
+   --    Anonymous_Masters               Elist29
    --    BIP_Initialization_Call         Node29
    --    Subprograms_For_Type            Elist29
 
@@ -265,7 +266,7 @@ package body Einfo is
 
    --    Contract                        Node34
 
-   --    Anonymous_Master                Node35
+   --    Anonymous_Designated_Type       Node35
    --    Import_Pragma                   Node35
 
    --    Class_Wide_Preconds             List38
@@ -561,7 +562,7 @@ package body Einfo is
    --    Has_Predicates                  Flag250
 
    --    Has_Implicit_Dereference        Flag251
-   --    Is_Processed_Transient          Flag252
+   --    Is_Finalized_Transient          Flag252
    --    Disable_Controlled              Flag253
    --    Is_Implementation_Defined       Flag254
    --    Is_Predicate_Function           Flag255
@@ -608,10 +609,10 @@ package body Einfo is
    --    Has_Inherited_Invariants        Flag291
    --    Is_Partial_Invariant_Procedure  Flag292
    --    Is_Actual_Subtype               Flag293
+   --    Has_Pragma_Unused               Flag294
+   --    Is_Ignored_Transient            Flag295
+   --    Has_Partial_Visible_Refinement  Flag296
 
-   --    (unused)                        Flag294
-   --    (unused)                        Flag295
-   --    (unused)                        Flag296
    --    (unused)                        Flag297
    --    (unused)                        Flag298
    --    (unused)                        Flag299
@@ -766,11 +767,20 @@ package body Einfo is
       return Uint14 (Id);
    end Alignment;
 
-   function Anonymous_Master (Id : E) return E is
+   function Anonymous_Designated_Type (Id : E) return E is
    begin
-      pragma Assert (Is_Type (Id));
+      pragma Assert (Ekind (Id) = E_Variable);
       return Node35 (Id);
-   end Anonymous_Master;
+   end Anonymous_Designated_Type;
+
+   function Anonymous_Masters (Id : E) return L is
+   begin
+      pragma Assert (Ekind_In (Id, E_Function,
+                                   E_Package,
+                                   E_Procedure,
+                                   E_Subprogram_Body));
+      return Elist29 (Id);
+   end Anonymous_Masters;
 
    function Anonymous_Object (Id : E) return E is
    begin
@@ -1682,6 +1692,12 @@ package body Einfo is
       return Flag232 (Id);
    end Has_Own_Invariants;
 
+   function Has_Partial_Visible_Refinement (Id : E) return B is
+   begin
+      pragma Assert (Ekind (Id) = E_Abstract_State);
+      return Flag296 (Id);
+   end Has_Partial_Visible_Refinement;
+
    function Has_Per_Object_Constraint (Id : E) return B is
    begin
       return Flag154 (Id);
@@ -1760,6 +1776,11 @@ package body Einfo is
       pragma Assert (Is_Type (Id));
       return Flag212 (Id);
    end Has_Pragma_Unreferenced_Objects;
+
+   function Has_Pragma_Unused (Id : E) return B is
+   begin
+      return Flag294 (Id);
+   end Has_Pragma_Unused;
 
    function Has_Predicates (Id : E) return B is
    begin
@@ -2180,6 +2201,12 @@ package body Einfo is
       return Flag99 (Id);
    end Is_Exported;
 
+   function Is_Finalized_Transient (Id : E) return B is
+   begin
+      pragma Assert (Ekind_In (Id, E_Constant, E_Loop_Parameter, E_Variable));
+      return Flag252 (Id);
+   end Is_Finalized_Transient;
+
    function Is_First_Subtype (Id : E) return B is
    begin
       return Flag70 (Id);
@@ -2244,6 +2271,12 @@ package body Einfo is
       pragma Assert (Nkind (Id) in N_Entity);
       return Flag278 (Id);
    end Is_Ignored_Ghost_Entity;
+
+   function Is_Ignored_Transient (Id : E) return B is
+   begin
+      pragma Assert (Ekind_In (Id, E_Constant, E_Loop_Parameter, E_Variable));
+      return Flag295 (Id);
+   end Is_Ignored_Transient;
 
    function Is_Immediately_Visible (Id : E) return B is
    begin
@@ -2460,12 +2493,6 @@ package body Einfo is
       pragma Assert (Ekind_In (Id, E_Function, E_Procedure));
       return Flag245 (Id);
    end Is_Private_Primitive;
-
-   function Is_Processed_Transient (Id : E) return B is
-   begin
-      pragma Assert (Ekind_In (Id, E_Constant, E_Loop_Parameter, E_Variable));
-      return Flag252 (Id);
-   end Is_Processed_Transient;
 
    function Is_Public (Id : E) return B is
    begin
@@ -3709,11 +3736,20 @@ package body Einfo is
       Set_Elist16 (Id, V);
    end Set_Access_Disp_Table;
 
-   procedure Set_Anonymous_Master (Id : E; V : E) is
+   procedure Set_Anonymous_Designated_Type (Id : E; V : E) is
    begin
-      pragma Assert (Is_Type (Id));
+      pragma Assert (Ekind (Id) = E_Variable);
       Set_Node35 (Id, V);
-   end Set_Anonymous_Master;
+   end Set_Anonymous_Designated_Type;
+
+   procedure Set_Anonymous_Masters (Id : E; V : L) is
+   begin
+      pragma Assert (Ekind_In (Id, E_Function,
+                                   E_Package,
+                                   E_Procedure,
+                                   E_Subprogram_Body));
+      Set_Elist29 (Id, V);
+   end Set_Anonymous_Masters;
 
    procedure Set_Anonymous_Object (Id : E; V : E) is
    begin
@@ -4687,6 +4723,12 @@ package body Einfo is
       Set_Flag232 (Id, V);
    end Set_Has_Own_Invariants;
 
+   procedure Set_Has_Partial_Visible_Refinement (Id : E; V : B := True) is
+   begin
+      pragma Assert (Ekind (Id) = E_Abstract_State);
+      Set_Flag296 (Id, V);
+   end Set_Has_Partial_Visible_Refinement;
+
    procedure Set_Has_Per_Object_Constraint (Id : E; V : B := True) is
    begin
       Set_Flag154 (Id, V);
@@ -4767,6 +4809,11 @@ package body Einfo is
       pragma Assert (Is_Type (Id));
       Set_Flag212 (Id, V);
    end Set_Has_Pragma_Unreferenced_Objects;
+
+   procedure Set_Has_Pragma_Unused (Id : E; V : B := True) is
+   begin
+      Set_Flag294 (Id, V);
+   end Set_Has_Pragma_Unused;
 
    procedure Set_Has_Predicates (Id : E; V : B := True) is
    begin
@@ -5238,6 +5285,12 @@ package body Einfo is
       Set_Flag99 (Id, V);
    end Set_Is_Exported;
 
+   procedure Set_Is_Finalized_Transient (Id : E; V : B := True) is
+   begin
+      pragma Assert (Ekind_In (Id, E_Constant, E_Loop_Parameter, E_Variable));
+      Set_Flag252 (Id, V);
+   end Set_Is_Finalized_Transient;
+
    procedure Set_Is_First_Subtype (Id : E; V : B := True) is
    begin
       Set_Flag70 (Id, V);
@@ -5318,6 +5371,12 @@ package body Einfo is
         or else Ekind (Id) = E_Void);
       Set_Flag278 (Id, V);
    end Set_Is_Ignored_Ghost_Entity;
+
+   procedure Set_Is_Ignored_Transient (Id : E; V : B := True) is
+   begin
+      pragma Assert (Ekind_In (Id, E_Constant, E_Loop_Parameter, E_Variable));
+      Set_Flag295 (Id, V);
+   end Set_Is_Ignored_Transient;
 
    procedure Set_Is_Immediately_Visible (Id : E; V : B := True) is
    begin
@@ -5532,12 +5591,6 @@ package body Einfo is
       pragma Assert (Ekind_In (Id, E_Function, E_Procedure));
       Set_Flag245 (Id, V);
    end Set_Is_Private_Primitive;
-
-   procedure Set_Is_Processed_Transient (Id : E; V : B := True) is
-   begin
-      pragma Assert (Ekind_In (Id, E_Constant, E_Loop_Parameter, E_Variable));
-      Set_Flag252 (Id, V);
-   end Set_Is_Processed_Transient;
 
    procedure Set_Is_Public (Id : E; V : B := True) is
    begin
@@ -7463,13 +7516,14 @@ package body Einfo is
       pragma Assert (Ekind (Id) = E_Abstract_State);
       Constits := Refinement_Constituents (Id);
 
-      --  For a refinement to be non-null, the first constituent must be
-      --  anything other than null.
+      --  A partial refinement is always non-null. For a full refinement to be
+      --  non-null, the first constituent must be anything other than null.
 
       return
-        Has_Visible_Refinement (Id)
-          and then Present (Constits)
-          and then Nkind (Node (First_Elmt (Constits))) /= N_Null;
+        Has_Partial_Visible_Refinement (Id)
+          or else (Has_Visible_Refinement (Id)
+                    and then Present (Constits)
+                    and then Nkind (Node (First_Elmt (Constits))) /= N_Null);
    end Has_Non_Null_Visible_Refinement;
 
    -----------------------------
@@ -8348,6 +8402,89 @@ package body Einfo is
       return Empty;
    end Partial_Invariant_Procedure;
 
+   -------------------------------------
+   -- Partial_Refinement_Constituents --
+   -------------------------------------
+
+   function Partial_Refinement_Constituents (Id : E) return L is
+      Constits : Elist_Id := No_Elist;
+
+      procedure Add_Usable_Constituents (Item : E);
+      --  Add global item Item and/or its constituents to list Constits when
+      --  they can be used in a global refinement within the current scope. The
+      --  criteria are:
+      --    1) If Item is an abstract state with full refinement visible, add
+      --       its constituents.
+      --    2) If Item is an abstract state with only partial refinement
+      --       visible, add both Item and its constituents.
+      --    3) If Item is an abstract state without a visible refinement, add
+      --       it.
+      --    4) If Id is not an abstract state, add it.
+
+      procedure Add_Usable_Constituents (List : Elist_Id);
+      --  Apply Add_Usable_Constituents to every constituent in List
+
+      -----------------------------
+      -- Add_Usable_Constituents --
+      -----------------------------
+
+      procedure Add_Usable_Constituents (Item : E) is
+      begin
+         if Ekind (Item) = E_Abstract_State then
+            if Has_Visible_Refinement (Item) then
+               Add_Usable_Constituents (Refinement_Constituents (Item));
+
+            elsif Has_Partial_Visible_Refinement (Item) then
+               Append_New_Elmt (Item, Constits);
+               Add_Usable_Constituents (Part_Of_Constituents (Item));
+
+            else
+               Append_New_Elmt (Item, Constits);
+            end if;
+
+         else
+            Append_New_Elmt (Item, Constits);
+         end if;
+      end Add_Usable_Constituents;
+
+      procedure Add_Usable_Constituents (List : Elist_Id) is
+         Constit_Elmt : Elmt_Id;
+      begin
+         if Present (List) then
+            Constit_Elmt := First_Elmt (List);
+            while Present (Constit_Elmt) loop
+               Add_Usable_Constituents (Node (Constit_Elmt));
+               Next_Elmt (Constit_Elmt);
+            end loop;
+         end if;
+      end Add_Usable_Constituents;
+
+   --  Start of processing for Partial_Refinement_Constituents
+
+   begin
+      --  "Refinement" is a concept applicable only to abstract states
+
+      pragma Assert (Ekind (Id) = E_Abstract_State);
+
+      if Has_Visible_Refinement (Id) then
+         Constits := Refinement_Constituents (Id);
+
+      --  A refinement may be partially visible when objects declared in the
+      --  private part of a package are subject to a Part_Of indicator.
+
+      elsif Has_Partial_Visible_Refinement (Id) then
+         Add_Usable_Constituents (Part_Of_Constituents (Id));
+
+      --  Function should only be called when full or partial refinement is
+      --  visible.
+
+      else
+         raise Program_Error;
+      end if;
+
+      return Constits;
+   end Partial_Refinement_Constituents;
+
    ------------------------
    -- Predicate_Function --
    ------------------------
@@ -9162,6 +9299,7 @@ package body Einfo is
       W ("Has_Pragma_Unmodified",           Flag233 (Id));
       W ("Has_Pragma_Unreferenced",         Flag180 (Id));
       W ("Has_Pragma_Unreferenced_Objects", Flag212 (Id));
+      W ("Has_Pragma_Unused",               Flag294 (Id));
       W ("Has_Predicates",                  Flag250 (Id));
       W ("Has_Primitive_Operations",        Flag120 (Id));
       W ("Has_Private_Ancestor",            Flag151 (Id));
@@ -9230,6 +9368,7 @@ package body Einfo is
       W ("Is_Entry_Formal",                 Flag52  (Id));
       W ("Is_Exception_Handler",            Flag286 (Id));
       W ("Is_Exported",                     Flag99  (Id));
+      W ("Is_Finalized_Transient",          Flag252 (Id));
       W ("Is_First_Subtype",                Flag70  (Id));
       W ("Is_For_Access_Subtype",           Flag118 (Id));
       W ("Is_Formal_Subprogram",            Flag111 (Id));
@@ -9242,6 +9381,7 @@ package body Einfo is
       W ("Is_Hidden_Non_Overridden_Subpgm", Flag2   (Id));
       W ("Is_Hidden_Open_Scope",            Flag171 (Id));
       W ("Is_Ignored_Ghost_Entity",         Flag278 (Id));
+      W ("Is_Ignored_Transient",            Flag295 (Id));
       W ("Is_Immediately_Visible",          Flag7   (Id));
       W ("Is_Implementation_Defined",       Flag254 (Id));
       W ("Is_Imported",                     Flag24  (Id));
@@ -9281,7 +9421,6 @@ package body Einfo is
       W ("Is_Private_Composite",            Flag107 (Id));
       W ("Is_Private_Descendant",           Flag53  (Id));
       W ("Is_Private_Primitive",            Flag245 (Id));
-      W ("Is_Processed_Transient",          Flag252 (Id));
       W ("Is_Public",                       Flag10  (Id));
       W ("Is_Pure",                         Flag44  (Id));
       W ("Is_Pure_Unit_Access_Type",        Flag189 (Id));
@@ -10443,6 +10582,12 @@ package body Einfo is
    procedure Write_Field29_Name (Id : Entity_Id) is
    begin
       case Ekind (Id) is
+         when E_Function                                   |
+              E_Package                                    |
+              E_Procedure                                  |
+              E_Subprogram_Body                            =>
+            Write_Str ("Anonymous_Masters");
+
          when E_Constant                                   |
               E_Variable                                   =>
             Write_Str ("BIP_Initialization_Call");
@@ -10590,8 +10735,8 @@ package body Einfo is
    procedure Write_Field35_Name (Id : Entity_Id) is
    begin
       case Ekind (Id) is
-         when Type_Kind                                    =>
-            Write_Str ("Anonymous_Master");
+         when E_Variable                                   =>
+            Write_Str ("Anonymous_Designated_Type");
 
          when Subprogram_Kind                              =>
             Write_Str ("Import_Pragma");

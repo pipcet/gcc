@@ -21,6 +21,7 @@
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "memmodel.h"
 #include "backend.h"
 #include "target.h"
 #include "rtl.h"
@@ -4419,15 +4420,15 @@ get_jump_target (rtx branch)
 
 /* Implement TARGET_SCHED_ADJUST_COST.  */
 static int
-tilegx_sched_adjust_cost (rtx_insn *insn, rtx link, rtx_insn *dep_insn,
-			  int cost)
+tilegx_sched_adjust_cost (rtx_insn *insn, int dep_type, rtx_insn *dep_insn,
+			  int cost, unsigned int)
 {
   /* If we have a true dependence, INSN is a call, and DEP_INSN
      defines a register that is needed by the call (argument or stack
      pointer) , set its latency to 0 so that it can be bundled with
      the call.  Explicitly check for and exclude the case when
      DEP_INSN defines the target of the jump.  */
-  if (CALL_P (insn) && REG_NOTE_KIND (link) == REG_DEP_TRUE)
+  if (CALL_P (insn) && dep_type == REG_DEP_TRUE)
     {
       rtx target = get_jump_target (insn);
       if (!REG_P (target) || !set_of (target, dep_insn))
@@ -5544,6 +5545,11 @@ tilegx_file_end (void)
 #undef  TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE tilegx_option_override
 
+#ifdef TARGET_THREAD_SSP_OFFSET
+#undef TARGET_STACK_PROTECT_GUARD
+#define TARGET_STACK_PROTECT_GUARD hook_tree_void_null
+#endif
+
 #undef  TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P tilegx_scalar_mode_supported_p
 
@@ -5624,6 +5630,9 @@ tilegx_file_end (void)
 
 #undef  TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P tilegx_legitimate_constant_p
+
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
 
 #undef  TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P tilegx_legitimate_address_p

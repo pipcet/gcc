@@ -1169,10 +1169,10 @@
 
 ;; Merge movsd/movhpd to movupd for TARGET_SSE_UNALIGNED_LOAD_OPTIMAL targets.
 (define_peephole2
-  [(set (match_operand:V2DF 0 "register_operand")
+  [(set (match_operand:V2DF 0 "sse_reg_operand")
 	(vec_concat:V2DF (match_operand:DF 1 "memory_operand")
 			 (match_operand:DF 4 "const0_operand")))
-   (set (match_operand:V2DF 2 "register_operand")
+   (set (match_operand:V2DF 2 "sse_reg_operand")
 	(vec_concat:V2DF (vec_select:DF (match_dup 2)
 					(parallel [(const_int 0)]))
 			 (match_operand:DF 3 "memory_operand")))]
@@ -1181,13 +1181,25 @@
   [(set (match_dup 2) (match_dup 4))]
   "operands[4] = adjust_address (operands[1], V2DFmode, 0);")
 
+(define_peephole2
+  [(set (match_operand:DF 0 "sse_reg_operand")
+	(match_operand:DF 1 "memory_operand"))
+   (set (match_operand:V2DF 2 "sse_reg_operand")
+	(vec_concat:V2DF (match_operand:DF 4 "sse_reg_operand")
+			 (match_operand:DF 3 "memory_operand")))]
+  "TARGET_SSE2 && TARGET_SSE_UNALIGNED_LOAD_OPTIMAL
+   && REGNO (operands[4]) == REGNO (operands[2])
+   && ix86_operands_ok_for_move_multiple (operands, true, DFmode)"
+  [(set (match_dup 2) (match_dup 4))]
+  "operands[4] = adjust_address (operands[1], V2DFmode, 0);")
+
 ;; Merge movlpd/movhpd to movupd for TARGET_SSE_UNALIGNED_STORE_OPTIMAL targets.
 (define_peephole2
   [(set (match_operand:DF 0 "memory_operand")
-	(vec_select:DF (match_operand:V2DF 1 "register_operand")
+	(vec_select:DF (match_operand:V2DF 1 "sse_reg_operand")
 		       (parallel [(const_int 0)])))
    (set (match_operand:DF 2 "memory_operand")
-	(vec_select:DF (match_operand:V2DF 3 "register_operand")
+	(vec_select:DF (match_operand:V2DF 3 "sse_reg_operand")
 		       (parallel [(const_int 1)])))]
   "TARGET_SSE2 && TARGET_SSE_UNALIGNED_STORE_OPTIMAL
    && ix86_operands_ok_for_move_multiple (operands, false, DFmode)"
@@ -1621,10 +1633,6 @@
    (set_attr "prefix" "orig,vex")
    (set_attr "mode" "SF")])
 
-;; ??? For !flag_finite_math_only, the representation with SMIN/SMAX
-;; isn't really correct, as those rtl operators aren't defined when
-;; applied to NaNs.  Hopefully the optimizers won't get too smart on us.
-
 (define_expand "<code><mode>3<mask_name><round_saeonly_name>"
   [(set (match_operand:VF 0 "register_operand")
 	(smaxmin:VF
@@ -1632,18 +1640,30 @@
 	  (match_operand:VF 2 "<round_saeonly_nimm_predicate>")))]
   "TARGET_SSE && <mask_mode512bit_condition> && <round_saeonly_mode512bit_condition>"
 {
-  if (!flag_finite_math_only)
-    operands[1] = force_reg (<MODE>mode, operands[1]);
-  ix86_fixup_binary_operands_no_copy (<CODE>, <MODE>mode, operands);
+  if (!flag_finite_math_only || flag_signed_zeros)
+    {
+      operands[1] = force_reg (<MODE>mode, operands[1]);
+      emit_insn (gen_ieee_<maxmin_float><mode>3<mask_name><round_saeonly_name>
+		 (operands[0], operands[1], operands[2]
+		  <mask_operand_arg34>
+		  <round_saeonly_mask_arg3>));
+      DONE;
+    }
+  else
+    ix86_fixup_binary_operands_no_copy (<CODE>, <MODE>mode, operands);
 })
 
-(define_insn "*<code><mode>3_finite<mask_name><round_saeonly_name>"
+;; These versions of the min/max patterns are intentionally ignorant of
+;; their behavior wrt -0.0 and NaN (via the commutative operand mark).
+;; Since both the tree-level MAX_EXPR and the rtl-level SMAX operator
+;; are undefined in this condition, we're certain this is correct.
+
+(define_insn "*<code><mode>3<mask_name><round_saeonly_name>"
   [(set (match_operand:VF 0 "register_operand" "=x,v")
 	(smaxmin:VF
 	  (match_operand:VF 1 "<round_saeonly_nimm_predicate>" "%0,v")
 	  (match_operand:VF 2 "<round_saeonly_nimm_predicate>" "xBm,<round_saeonly_constraint>")))]
-  "TARGET_SSE && flag_finite_math_only
-   && ix86_binary_operator_ok (<CODE>, <MODE>mode, operands)
+  "TARGET_SSE && ix86_binary_operator_ok (<CODE>, <MODE>mode, operands)
    && <mask_mode512bit_condition> && <round_saeonly_mode512bit_condition>"
   "@
    <maxmin_float><ssemodesuffix>\t{%2, %0|%0, %2}
@@ -1654,16 +1674,23 @@
    (set_attr "prefix" "<mask_prefix3>")
    (set_attr "mode" "<MODE>")])
 
-(define_insn "*<code><mode>3<mask_name><round_saeonly_name>"
+;; These versions of the min/max patterns implement exactly the operations
+;;   min = (op1 < op2 ? op1 : op2)
+;;   max = (!(op1 < op2) ? op1 : op2)
+;; Their operands are not commutative, and thus they may be used in the
+;; presence of -0.0 and NaN.
+
+(define_insn "ieee_<ieee_maxmin><mode>3<mask_name><round_saeonly_name>"
   [(set (match_operand:VF 0 "register_operand" "=x,v")
-	(smaxmin:VF
-	  (match_operand:VF 1 "register_operand" "0,v")
-	  (match_operand:VF 2 "<round_saeonly_nimm_predicate>" "xBm,<round_saeonly_constraint>")))]
-  "TARGET_SSE && !flag_finite_math_only
+	(unspec:VF
+	  [(match_operand:VF 1 "register_operand" "0,v")
+	   (match_operand:VF 2 "<round_saeonly_nimm_predicate>" "xBm,<round_saeonly_constraint>")]
+	  IEEE_MAXMIN))]
+  "TARGET_SSE
    && <mask_mode512bit_condition> && <round_saeonly_mode512bit_condition>"
   "@
-   <maxmin_float><ssemodesuffix>\t{%2, %0|%0, %2}
-   v<maxmin_float><ssemodesuffix>\t{<round_saeonly_mask_op3>%2, %1, %0<mask_operand3>|%0<mask_operand3>, %1, %2<round_saeonly_mask_op3>}"
+   <ieee_maxmin><ssemodesuffix>\t{%2, %0|%0, %2}
+   v<ieee_maxmin><ssemodesuffix>\t{<round_saeonly_mask_op3>%2, %1, %0<mask_operand3>|%0<mask_operand3>, %1, %2<round_saeonly_mask_op3>}"
   [(set_attr "isa" "noavx,avx")
    (set_attr "type" "sseadd")
    (set_attr "btver2_sse_attr" "maxmin")
@@ -1687,42 +1714,6 @@
    (set_attr "btver2_sse_attr" "maxmin")
    (set_attr "prefix" "<round_saeonly_prefix>")
    (set_attr "mode" "<ssescalarmode>")])
-
-;; These versions of the min/max patterns implement exactly the operations
-;;   min = (op1 < op2 ? op1 : op2)
-;;   max = (!(op1 < op2) ? op1 : op2)
-;; Their operands are not commutative, and thus they may be used in the
-;; presence of -0.0 and NaN.
-
-(define_insn "*ieee_smin<mode>3"
-  [(set (match_operand:VF 0 "register_operand" "=x,v")
-	(unspec:VF
-	  [(match_operand:VF 1 "register_operand" "0,v")
-	   (match_operand:VF 2 "vector_operand" "xBm,vm")]
-	 UNSPEC_IEEE_MIN))]
-  "TARGET_SSE"
-  "@
-   min<ssemodesuffix>\t{%2, %0|%0, %2}
-   vmin<ssemodesuffix>\t{%2, %1, %0|%0, %1, %2}"
-  [(set_attr "isa" "noavx,avx")
-   (set_attr "type" "sseadd")
-   (set_attr "prefix" "orig,vex")
-   (set_attr "mode" "<MODE>")])
-
-(define_insn "*ieee_smax<mode>3"
-  [(set (match_operand:VF 0 "register_operand" "=x,v")
-	(unspec:VF
-	  [(match_operand:VF 1 "register_operand" "0,v")
-	   (match_operand:VF 2 "vector_operand" "xBm,vm")]
-	 UNSPEC_IEEE_MAX))]
-  "TARGET_SSE"
-  "@
-   max<ssemodesuffix>\t{%2, %0|%0, %2}
-   vmax<ssemodesuffix>\t{%2, %1, %0|%0, %1, %2}"
-  [(set_attr "isa" "noavx,avx")
-   (set_attr "type" "sseadd")
-   (set_attr "prefix" "orig,vex")
-   (set_attr "mode" "<MODE>")])
 
 (define_insn "avx_addsubv4df3"
   [(set (match_operand:V4DF 0 "register_operand" "=x")
@@ -2655,6 +2646,18 @@
 	  [(match_operand:V2DI 2 "register_operand")
 	   (match_operand:V2DI 3 "vector_operand")]))]
   "TARGET_SSE4_2"
+{
+  bool ok = ix86_expand_int_vec_cmp (operands);
+  gcc_assert (ok);
+  DONE;
+})
+
+(define_expand "vec_cmpeqv2div2di"
+  [(set (match_operand:V2DI 0 "register_operand")
+	(match_operator:V2DI 1 ""
+	  [(match_operand:V2DI 2 "register_operand")
+	   (match_operand:V2DI 3 "vector_operand")]))]
+  "TARGET_SSE4_1"
 {
   bool ok = ix86_expand_int_vec_cmp (operands);
   gcc_assert (ok);
@@ -4675,7 +4678,7 @@
 (define_insn "<floatsuffix>float<sseintvecmodelower><mode>2<mask_name><round_name>"
   [(set (match_operand:VF2_AVX512VL 0 "register_operand" "=v")
 	(any_float:VF2_AVX512VL
-	  (match_operand:<sseintvecmode> 1 "nonimmediate_operand" "vm")))]
+	  (match_operand:<sseintvecmode> 1 "nonimmediate_operand" "<round_constraint>")))]
   "TARGET_AVX512DQ"
   "vcvt<floatsuffix>qq2pd\t{<round_mask_op2>%1, %0<mask_operand2>|%0<mask_operand2>, %1<round_mask_op2>}"
   [(set_attr "type" "ssecvt")
@@ -6945,7 +6948,7 @@
 	    (parallel [(match_operand 2  "const_0_to_7_operand")
 	      (match_operand 3  "const_0_to_7_operand")]))
 	  (match_operand:<ssequartermode> 4 "memory_operand" "0")
-	  (match_operand:QI 5 "register_operand" "k")))]
+	  (match_operand:QI 5 "register_operand" "Yk")))]
   "TARGET_AVX512DQ
    && (INTVAL (operands[2]) % 2 == 0)
    && (INTVAL (operands[2]) == INTVAL (operands[3]) - 1)
@@ -7159,7 +7162,7 @@
 	      (const_int 12) (const_int 13)
 	      (const_int 14) (const_int 15)]))
 	  (match_operand:<ssehalfvecmode> 2 "memory_operand" "0")
-	  (match_operand:QI 3 "register_operand" "k")))]
+	  (match_operand:QI 3 "register_operand" "Yk")))]
   "TARGET_AVX512DQ
    && rtx_equal_p (operands[2], operands[0])"
   "vextract<shuffletype>32x8\t{$0x1, %1, %0%{%3%}|%0%{%3%}, %1, 0x1}"
@@ -7365,7 +7368,7 @@
 	    (parallel [(const_int 0) (const_int 1)
 		      (const_int 2) (const_int 3)]))
 	  (match_operand:<ssehalfvecmode> 2 "memory_operand" "0")
-	  (match_operand:QI 3 "register_operand" "k")))]
+	  (match_operand:QI 3 "register_operand" "Yk")))]
   "TARGET_AVX512VL && TARGET_AVX512F
    && rtx_equal_p (operands[2], operands[0])"
   "vextract<shuffletype>32x4\t{$0x0, %1, %0%{%3%}|%0%{%3%}, %1, 0x0}"
@@ -7383,7 +7386,7 @@
 	    (parallel [(const_int 4) (const_int 5)
 		      (const_int 6) (const_int 7)]))
 	  (match_operand:<ssehalfvecmode> 2 "memory_operand" "0")
-	  (match_operand:<ssehalfvecmode> 3 "register_operand" "k")))]
+	  (match_operand:<ssehalfvecmode> 3 "register_operand" "Yk")))]
   "TARGET_AVX512F && TARGET_AVX512VL
    && rtx_equal_p (operands[2], operands[0])"
   "vextract<shuffletype>32x4\t{$0x1, %1, %0%{%3%}|%0%{%3%}, %1, 0x1}"
@@ -11168,6 +11171,21 @@
   DONE;
 })
 
+(define_expand "vcondeq<VI8F_128:mode>v2di"
+  [(set (match_operand:VI8F_128 0 "register_operand")
+	(if_then_else:VI8F_128
+	  (match_operator 3 ""
+	    [(match_operand:V2DI 4 "vector_operand")
+	     (match_operand:V2DI 5 "general_operand")])
+	  (match_operand:VI8F_128 1)
+	  (match_operand:VI8F_128 2)))]
+  "TARGET_SSE4_1"
+{
+  bool ok = ix86_expand_int_vcond (operands);
+  gcc_assert (ok);
+  DONE;
+})
+
 (define_mode_iterator VEC_PERM_AVX2
   [V16QI V8HI V4SI V2DI V4SF V2DF
    (V32QI "TARGET_AVX2") (V16HI "TARGET_AVX2")
@@ -11272,47 +11290,52 @@
   static char buf[64];
   const char *ops;
   const char *tmp;
+  const char *ssesuffix;
 
   switch (get_attr_mode (insn))
     {
     case MODE_XI:
       gcc_assert (TARGET_AVX512F);
+      /* FALLTHRU */
     case MODE_OI:
       gcc_assert (TARGET_AVX2);
+      /* FALLTHRU */
     case MODE_TI:
       gcc_assert (TARGET_SSE2);
+      tmp = "pandn";
       switch (<MODE>mode)
 	{
 	case V64QImode:
 	case V32HImode:
 	  /* There is no vpandnb or vpandnw instruction, nor vpandn for
 	     512-bit vectors. Use vpandnq instead.  */
-	  tmp = "pandnq";
+	  ssesuffix = "q";
 	  break;
 	case V16SImode:
 	case V8DImode:
-	  tmp = "pandn<ssemodesuffix>";
+	  ssesuffix = "<ssemodesuffix>";
 	  break;
 	case V8SImode:
 	case V4DImode:
 	case V4SImode:
 	case V2DImode:
-	  tmp = TARGET_AVX512VL ? "pandn<ssemodesuffix>" : "pandn";
+	  ssesuffix = TARGET_AVX512VL ? "<ssemodesuffix>" : "";
 	  break;
 	default:
-	  tmp = TARGET_AVX512VL ? "pandnq" : "pandn";
-	  break;
+	  ssesuffix = TARGET_AVX512VL ? "q" : "";
 	}
       break;
 
     case MODE_V16SF:
       gcc_assert (TARGET_AVX512F);
+      /* FALLTHRU */
     case MODE_V8SF:
       gcc_assert (TARGET_AVX);
+      /* FALLTHRU */
     case MODE_V4SF:
       gcc_assert (TARGET_SSE);
-
-      tmp = "andnps";
+      tmp = "andn";
+      ssesuffix = "ps";
       break;
 
     default:
@@ -11322,16 +11345,16 @@
   switch (which_alternative)
     {
     case 0:
-      ops = "%s\t{%%2, %%0|%%0, %%2}";
+      ops = "%s%s\t{%%2, %%0|%%0, %%2}";
       break;
     case 1:
-      ops = "v%s\t{%%2, %%1, %%0|%%0, %%1, %%2}";
+      ops = "v%s%s\t{%%2, %%1, %%0|%%0, %%1, %%2}";
       break;
     default:
       gcc_unreachable ();
     }
 
-  snprintf (buf, sizeof (buf), ops, tmp);
+  snprintf (buf, sizeof (buf), ops, tmp, ssesuffix);
   return buf;
 }
   [(set_attr "isa" "noavx,avx")
@@ -11397,63 +11420,65 @@
   static char buf[64];
   const char *ops;
   const char *tmp;
+  const char *ssesuffix;
 
   switch (get_attr_mode (insn))
     {
     case MODE_XI:
       gcc_assert (TARGET_AVX512F);
+      /* FALLTHRU */
     case MODE_OI:
-      gcc_assert (TARGET_AVX2 || TARGET_AVX512VL);
+      gcc_assert (TARGET_AVX2);
+      /* FALLTHRU */
     case MODE_TI:
-      gcc_assert (TARGET_SSE2 || TARGET_AVX512VL);
+      gcc_assert (TARGET_SSE2);
+      tmp = "p<logic>";
       switch (<MODE>mode)
-      {
-        case V16SImode:
-        case V8DImode:
-          if (TARGET_AVX512F)
-          {
-            tmp = "p<logic><ssemodesuffix>";
-            break;
-          }
-        case V8SImode:
-        case V4DImode:
-        case V4SImode:
-        case V2DImode:
-          tmp = TARGET_AVX512VL ? "p<logic><ssemodesuffix>" : "p<logic>";
-          break;
-        default:
-          gcc_unreachable ();
-      }
+	{
+	case V16SImode:
+	case V8DImode:
+	  ssesuffix = "<ssemodesuffix>";
+	  break;
+	case V8SImode:
+	case V4DImode:
+	case V4SImode:
+	case V2DImode:
+	  ssesuffix = TARGET_AVX512VL ? "<ssemodesuffix>" : "";
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
       break;
 
-   case MODE_V8SF:
+    case MODE_V8SF:
       gcc_assert (TARGET_AVX);
-   case MODE_V4SF:
+      /* FALLTHRU */
+    case MODE_V4SF:
       gcc_assert (TARGET_SSE);
-      gcc_assert (!<mask_applied>);
-      tmp = "<logic>ps";
+      tmp = "<logic>";
+      ssesuffix = "ps";
       break;
 
-   default:
+    default:
       gcc_unreachable ();
-   }
+    }
 
   switch (which_alternative)
     {
     case 0:
       if (<mask_applied>)
-        ops = "v%s\t{%%2, %%0, %%0<mask_operand3_1>|%%0<mask_operand3_1>, %%0, %%2}";
+        ops = "v%s%s\t{%%2, %%0, %%0<mask_operand3_1>|%%0<mask_operand3_1>, %%0, %%2}";
       else
-        ops = "%s\t{%%2, %%0|%%0, %%2}";
+        ops = "%s%s\t{%%2, %%0|%%0, %%2}";
       break;
     case 1:
-      ops = "v%s\t{%%2, %%1, %%0<mask_operand3_1>|%%0<mask_operand3_1>, %%1, %%2}";
+      ops = "v%s%s\t{%%2, %%1, %%0<mask_operand3_1>|%%0<mask_operand3_1>, %%1, %%2}";
       break;
     default:
       gcc_unreachable ();
     }
 
-  snprintf (buf, sizeof (buf), ops, tmp);
+  snprintf (buf, sizeof (buf), ops, tmp, ssesuffix);
   return buf;
 }
   [(set_attr "isa" "noavx,avx")
@@ -11498,61 +11523,56 @@
     {
     case MODE_XI:
       gcc_assert (TARGET_AVX512F);
+      /* FALLTHRU */
     case MODE_OI:
-      gcc_assert (TARGET_AVX2 || TARGET_AVX512VL);
+      gcc_assert (TARGET_AVX2);
+      /* FALLTHRU */
     case MODE_TI:
-      gcc_assert (TARGET_SSE2 || TARGET_AVX512VL);
+      gcc_assert (TARGET_SSE2);
+      tmp = "p<logic>";
       switch (<MODE>mode)
-        {
-        case V64QImode:
-        case V32HImode:
-          if (TARGET_AVX512F)
-          {
-            tmp = "p<logic>";
-            ssesuffix = "q";
-            break;
-          }
-        case V32QImode:
-        case V16HImode:
-        case V16QImode:
-        case V8HImode:
-          if (TARGET_AVX512VL || TARGET_AVX2 || TARGET_SSE2)
-          {
-            tmp = "p<logic>";
-            ssesuffix = TARGET_AVX512VL ? "q" : "";
-            break;
-          }
-        default:
-          gcc_unreachable ();
-      }
+	{
+	case V64QImode:
+	case V32HImode:
+	  ssesuffix = "q";
+	  break;
+	case V32QImode:
+	case V16HImode:
+	case V16QImode:
+	case V8HImode:
+	  ssesuffix = TARGET_AVX512VL ? "q" : "";
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
       break;
 
-   case MODE_V8SF:
+    case MODE_V8SF:
       gcc_assert (TARGET_AVX);
-   case MODE_V4SF:
+      /* FALLTHRU */
+    case MODE_V4SF:
       gcc_assert (TARGET_SSE);
-      tmp = "<logic>ps";
-      ssesuffix = "";
+      tmp = "<logic>";
+      ssesuffix = "ps";
       break;
 
-   default:
+    default:
       gcc_unreachable ();
-   }
+    }
 
   switch (which_alternative)
     {
     case 0:
-      ops = "%s\t{%%2, %%0|%%0, %%2}";
-      snprintf (buf, sizeof (buf), ops, tmp);
+      ops = "%s%s\t{%%2, %%0|%%0, %%2}";
       break;
     case 1:
       ops = "v%s%s\t{%%2, %%1, %%0|%%0, %%1, %%2}";
-      snprintf (buf, sizeof (buf), ops, tmp, ssesuffix);
       break;
     default:
       gcc_unreachable ();
     }
 
+  snprintf (buf, sizeof (buf), ops, tmp, ssesuffix);
   return buf;
 }
   [(set_attr "isa" "noavx,avx")
@@ -12343,7 +12363,7 @@
 		       (const_int 12) (const_int 13)
 		       (const_int 14) (const_int 15)]))))]
   "TARGET_AVX512DQ"
-  "vinsert<shuffletype>32x8\t{$0x0, %2, %1, %0<mask_operand3>|%0<mask_operand3>, %1, %2, $0x0}"
+  "vinsert<shuffletype>32x8\t{$0x0, %2, %1, %0<mask_operand3>|%0<mask_operand3>, %1, %2, 0x0}"
   [(set_attr "type" "sselog")
    (set_attr "length_immediate" "1")
    (set_attr "prefix" "evex")
@@ -12360,7 +12380,7 @@
 		       (const_int 6) (const_int 7)]))
 	  (match_operand:<ssehalfvecmode> 2 "nonimmediate_operand" "vm")))]
   "TARGET_AVX512DQ"
-  "vinsert<shuffletype>32x8\t{$0x1, %2, %1, %0<mask_operand3>|%0<mask_operand3>, %1, %2, $0x1}"
+  "vinsert<shuffletype>32x8\t{$0x1, %2, %1, %0<mask_operand3>|%0<mask_operand3>, %1, %2, 0x1}"
   [(set_attr "type" "sselog")
    (set_attr "length_immediate" "1")
    (set_attr "prefix" "evex")
@@ -12375,7 +12395,7 @@
 	    (parallel [(const_int 4) (const_int 5)
 		       (const_int 6) (const_int 7)]))))]
   "TARGET_AVX512F"
-  "vinsert<shuffletype>64x4\t{$0x0, %2, %1, %0<mask_operand3>|%0<mask_operand3>, %1, %2, $0x0}"
+  "vinsert<shuffletype>64x4\t{$0x0, %2, %1, %0<mask_operand3>|%0<mask_operand3>, %1, %2, 0x0}"
   [(set_attr "type" "sselog")
    (set_attr "length_immediate" "1")
    (set_attr "prefix" "evex")

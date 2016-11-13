@@ -316,7 +316,7 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
   if (TREE_USED (node))
     fputs (" used", file);
   if (TREE_NOTHROW (node))
-    fputs (TYPE_P (node) ? " align-ok" : " nothrow", file);
+    fputs (" nothrow", file);
   if (TREE_PUBLIC (node))
     fputs (" public", file);
   if (TREE_PRIVATE (node))
@@ -601,6 +601,8 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 	fputs (" type_5", file);
       if (TYPE_LANG_FLAG_6 (node))
 	fputs (" type_6", file);
+      if (TYPE_LANG_FLAG_7 (node))
+	fputs (" type_7", file);
 
       mode = TYPE_MODE (node);
       fprintf (file, " %s", GET_MODE_NAME (mode));
@@ -692,8 +694,10 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 	  i = 0;
 	  FOR_EACH_CALL_EXPR_ARG (arg, iter, node)
 	    {
-	      char temp[10];
-	      sprintf (temp, "arg %d", i);
+	      /* Buffer big enough to format a 32-bit UINT_MAX into, plus
+		 the text.  */
+	      char temp[15];
+	      sprintf (temp, "arg %u", i);
 	      print_node (file, temp, arg, indent + 4);
 	      i++;
 	    }
@@ -704,7 +708,9 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 
 	  for (i = 0; i < len; i++)
 	    {
-	      char temp[10];
+	      /* Buffer big enough to format a 32-bit UINT_MAX into, plus
+		 the text.  */
+	      char temp[15];
 
 	      sprintf (temp, "arg %d", i);
 	      print_node (file, temp, TREE_OPERAND (node, i), indent + 4);
@@ -763,13 +769,24 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 
 	case VECTOR_CST:
 	  {
-	    char buf[10];
+	    /* Big enough for 2 UINT_MAX plus the string below.  */
+	    char buf[32];
 	    unsigned i;
 
 	    for (i = 0; i < VECTOR_CST_NELTS (node); ++i)
 	      {
-		sprintf (buf, "elt%u: ", i);
+		unsigned j;
+		/* Coalesce the output of identical consecutive elements.  */
+		for (j = i + 1; j < VECTOR_CST_NELTS (node); j++)
+		  if (VECTOR_CST_ELT (node, j) != VECTOR_CST_ELT (node, i))
+		    break;
+		j--;
+		if (i == j)
+		  sprintf (buf, "elt%u: ", i);
+		else
+		  sprintf (buf, "elt%u...elt%u: ", i, j);
 		print_node (file, buf, VECTOR_CST_ELT (node, i), indent + 4);
+		i = j;
 	      }
 	  }
 	  break;
@@ -812,7 +829,9 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 	  for (i = 0; i < len; i++)
 	    if (TREE_VEC_ELT (node, i))
 	      {
-		char temp[10];
+	      /* Buffer big enough to format a 32-bit UINT_MAX into, plus
+		 the text.  */
+		char temp[15];
 		sprintf (temp, "elt %d", i);
 		print_node (file, temp, TREE_VEC_ELT (node, i), indent + 4);
 	      }
@@ -822,7 +841,7 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 	  {
 	    unsigned HOST_WIDE_INT cnt;
 	    tree index, value;
-	    len = vec_safe_length (CONSTRUCTOR_ELTS (node));
+	    len = CONSTRUCTOR_NELTS (node);
 	    fprintf (file, " lngt %d", len);
 	    FOR_EACH_CONSTRUCTOR_ELT (CONSTRUCTOR_ELTS (node),
 				      cnt, index, value)
@@ -867,8 +886,14 @@ print_node (FILE *file, const char *prefix, tree node, int indent)
 
 	case SSA_NAME:
 	  print_node_brief (file, "var", SSA_NAME_VAR (node), indent + 4);
+	  indent_to (file, indent + 4);
 	  fprintf (file, "def_stmt ");
-	  print_gimple_stmt (file, SSA_NAME_DEF_STMT (node), indent + 4, 0);
+	  {
+	    pretty_printer buffer;
+	    buffer.buffer->stream = file;
+	    pp_gimple_stmt_1 (&buffer, SSA_NAME_DEF_STMT (node), indent + 4, 0);
+	    pp_flush (&buffer);
+	  }
 
 	  indent_to (file, indent + 4);
 	  fprintf (file, "version %u", SSA_NAME_VERSION (node));

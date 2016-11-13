@@ -26,6 +26,7 @@
 #include "rtl.h"
 #include "tree.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "stringpool.h"
 #include "insn-config.h"
@@ -2121,7 +2122,7 @@ v850_handle_data_area_attribute (tree* node,
 	  *no_add_attrs = true;
 	}
 
-      /* Drop through.  */
+      /* FALLTHRU */
 
     case FUNCTION_DECL:
       area = v850_get_data_area (decl);
@@ -2476,6 +2477,7 @@ v850_output_aligned_bss (FILE * file,
 
     case DATA_AREA_TDA:
       switch_to_section (tdata_section);
+      break;
       
     default:
       switch_to_section (bss_section);
@@ -3339,6 +3341,9 @@ v850_gen_movdi (rtx * operands)
 
 #undef  TARGET_LEGITIMATE_CONSTANT_P
 #define TARGET_LEGITIMATE_CONSTANT_P v850_legitimate_constant_p
+
+#undef TARGET_LRA_P
+#define TARGET_LRA_P hook_bool_void_false
 
 #undef  TARGET_ADDR_SPACE_LEGITIMATE_ADDRESS_P
 #define TARGET_ADDR_SPACE_LEGITIMATE_ADDRESS_P v850_legitimate_address_p

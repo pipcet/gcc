@@ -750,11 +750,39 @@ const_with_all_bytes_same (tree val)
   int i, len;
 
   if (integer_zerop (val)
-      || real_zerop (val)
       || (TREE_CODE (val) == CONSTRUCTOR
           && !TREE_CLOBBER_P (val)
           && CONSTRUCTOR_NELTS (val) == 0))
     return 0;
+
+  if (real_zerop (val))
+    {
+      /* Only return 0 for +0.0, not for -0.0, which doesn't have
+	 an all bytes same memory representation.  Don't transform
+	 -0.0 stores into +0.0 even for !HONOR_SIGNED_ZEROS.  */
+      switch (TREE_CODE (val))
+	{
+	case REAL_CST:
+	  if (!real_isneg (TREE_REAL_CST_PTR (val)))
+	    return 0;
+	  break;
+	case COMPLEX_CST:
+	  if (!const_with_all_bytes_same (TREE_REALPART (val))
+	      && !const_with_all_bytes_same (TREE_IMAGPART (val)))
+	    return 0;
+	  break;
+	case VECTOR_CST:
+	  unsigned int j;
+	  for (j = 0; j < VECTOR_CST_NELTS (val); ++j)
+	    if (const_with_all_bytes_same (VECTOR_CST_ELT (val, j)))
+	      break;
+	  if (j == VECTOR_CST_NELTS (val))
+	    return 0;
+	  break;
+	default:
+	  break;
+	}
+    }
 
   if (CHAR_BIT != 8 || BITS_PER_UNIT != 8)
     return -1;
@@ -888,13 +916,15 @@ destroy_loop (struct loop *loop)
   cancel_loop_tree (loop);
   rescan_loop_exit (exit, false, true);
 
-  for (i = 0; i < nbbs; i++)
+  i = nbbs;
+  do
     {
       /* We have made sure to not leave any dangling uses of SSA
          names defined in the loop.  With the exception of virtuals.
 	 Make sure we replace all uses of virtual defs that will remain
 	 outside of the loop with the bare symbol as delete_basic_block
 	 will release them.  */
+      --i;
       for (gphi_iterator gsi = gsi_start_phis (bbs[i]); !gsi_end_p (gsi);
 	   gsi_next (&gsi))
 	{
@@ -912,6 +942,8 @@ destroy_loop (struct loop *loop)
 	}
       delete_basic_block (bbs[i]);
     }
+  while (i != 0);
+
   free (bbs);
 
   set_immediate_dominator (CDI_DOMINATORS, dest,
@@ -1376,9 +1408,11 @@ pg_add_dependence_edges (struct graph *rdg, vec<loop_p> loops, int dir,
 	else
 	  this_dir = 0;
 	free_dependence_relation (ddr);
-	if (dir == 0)
+	if (this_dir == 2)
+	  return 2;
+	else if (dir == 0)
 	  dir = this_dir;
-	else if (dir != this_dir)
+	else if (this_dir != 0 && dir != this_dir)
 	  return 2;
 	/* Shuffle "back" dr1.  */
 	dr1 = saved_dr1;
@@ -1504,6 +1538,7 @@ distribute_loop (struct loop *loop, vec<gimple *> stmts,
      memory accesses.  */
   for (i = 0; partitions.iterate (i, &into); ++i)
     {
+      bool changed = false;
       if (partition_builtin_p (into))
 	continue;
       for (int j = i + 1;
@@ -1524,8 +1559,15 @@ distribute_loop (struct loop *loop, vec<gimple *> stmts,
 	      partitions.unordered_remove (j);
 	      partition_free (partition);
 	      j--;
+	      changed = true;
 	    }
 	}
+      /* If we fused 0 1 2 in step 1 to 0,2 1 as 0 and 2 have similar
+         accesses when 1 and 2 have similar accesses but not 0 and 1
+	 then in the next iteration we will fail to consider merging
+	 1 into 0,2.  So try again if we did any merging into 0.  */
+      if (changed)
+	i--;
     }
 
   /* Build the partition dependency graph.  */

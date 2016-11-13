@@ -176,11 +176,28 @@
   return false;
 })
 
+; Predicate that always allows wraparound of the one-bit range.
 (define_predicate "contiguous_bitmask_operand"
   (match_code "const_int")
 {
-  return s390_contiguous_bitmask_p (INTVAL (op), GET_MODE_BITSIZE (mode), NULL, NULL);
+  return s390_contiguous_bitmask_p (INTVAL (op), true,
+                                    GET_MODE_BITSIZE (mode), NULL, NULL);
 })
+
+; Same without wraparound.
+(define_predicate "contiguous_bitmask_nowrap_operand"
+  (match_code "const_int")
+{
+  return s390_contiguous_bitmask_p
+    (INTVAL (op), false, GET_MODE_BITSIZE (mode), NULL, NULL);
+})
+
+;; Return true if OP is ligitimate for any LOC instruction.
+
+(define_predicate "loc_operand"
+  (ior (match_operand 0 "nonimmediate_operand")
+      (and (match_code "const_int")
+	   (match_test "INTVAL (op) <= 32767 && INTVAL (op) >= -32768"))))
 
 ;; operators --------------------------------------------------------------
 

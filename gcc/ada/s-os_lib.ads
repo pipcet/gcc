@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1995-2015, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2016, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -425,7 +425,7 @@ package System.OS_Lib is
    --  not actually be readable due to some other process having exclusive
    --  access.
 
-   function Is_Readable_File (Name : String) return Boolean;
+   function Is_Owner_Readable_File (Name : String) return Boolean;
    --  Determines if the given string, Name, is the name of an existing file
    --  that is readable. Returns True if so, False otherwise. Note that this
    --  function simply interrogates the file attributes (e.g. using the C
@@ -449,13 +449,29 @@ package System.OS_Lib is
    --  contains the name of the file to which it is linked. Symbolic links may
    --  span file systems and may refer to directories.
 
-   function Is_Writable_File (Name : String) return Boolean;
+   function Is_Owner_Writable_File (Name : String) return Boolean;
    --  Determines if the given string, Name, is the name of an existing file
    --  that is writable. Returns True if so, False otherwise. Note that this
    --  function simply interrogates the file attributes (e.g. using the C
    --  function stat), so it does not indicate a situation in which a file may
    --  not actually be writable due to some other process having exclusive
    --  access.
+
+   function Is_Read_Accessible_File (Name : String) return Boolean;
+   --  Determines if the given string, Name, is the name of an existing file
+   --  that is readable. Returns True if so, False otherwise.
+
+   function Is_Write_Accessible_File (Name : String) return Boolean;
+   --  Determines if the given string, Name, is the name of an existing file
+   --  that is writable. Returns True if so, False otherwise.
+
+   function Is_Readable_File (Name : String) return Boolean
+     renames Is_Read_Accessible_File;
+   function Is_Writable_File (Name : String) return Boolean
+     renames Is_Write_Accessible_File;
+   --  These subprograms provided for backward compatibility and should not be
+   --  used. Use Is_Owner_Readable_File/Is_Owner_Writable_File or
+   --  Is_Read_Accessible_File/Is_Write_Accessible_File instead.
 
    function Locate_Exec_On_Path (Exec_Name : String) return String_Access;
    --  Try to locate an executable whose name is given by Exec_Name in the
@@ -675,10 +691,10 @@ package System.OS_Lib is
 
    function Is_Directory (Name : C_File_Name) return Boolean;
    function Is_Executable_File (Name : C_File_Name) return Boolean;
-   function Is_Readable_File (Name : C_File_Name) return Boolean;
+   function Is_Owner_Readable_File (Name : C_File_Name) return Boolean;
    function Is_Regular_File (Name : C_File_Name) return Boolean;
    function Is_Symbolic_Link (Name : C_File_Name) return Boolean;
-   function Is_Writable_File (Name : C_File_Name) return Boolean;
+   function Is_Owner_Writable_File (Name : C_File_Name) return Boolean;
 
    function Locate_Regular_File
      (File_Name : C_File_Name;

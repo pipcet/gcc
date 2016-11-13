@@ -92,6 +92,8 @@ static const struct attribute_spec gfc_attribute_table[] =
        affects_type_identity } */
   { "omp declare target", 0, 0, true,  false, false,
     gfc_handle_omp_declare_target_attribute, false },
+  { "omp declare target link", 0, 0, true,  false, false,
+    gfc_handle_omp_declare_target_attribute, false },
   { "oacc function", 0, -1, true,  false, false,
     gfc_handle_omp_declare_target_attribute, false },
   { NULL,		  0, 0, false, false, false, NULL, false }
@@ -119,6 +121,7 @@ static const struct attribute_spec gfc_attribute_table[] =
 #undef LANG_HOOKS_OMP_CLAUSE_LINEAR_CTOR
 #undef LANG_HOOKS_OMP_CLAUSE_DTOR
 #undef LANG_HOOKS_OMP_FINISH_CLAUSE
+#undef LANG_HOOKS_OMP_SCALAR_P
 #undef LANG_HOOKS_OMP_DISREGARD_VALUE_EXPR
 #undef LANG_HOOKS_OMP_PRIVATE_DEBUG_CLAUSE
 #undef LANG_HOOKS_OMP_PRIVATE_OUTER_REF
@@ -150,6 +153,7 @@ static const struct attribute_spec gfc_attribute_table[] =
 #define LANG_HOOKS_OMP_CLAUSE_LINEAR_CTOR	gfc_omp_clause_linear_ctor
 #define LANG_HOOKS_OMP_CLAUSE_DTOR		gfc_omp_clause_dtor
 #define LANG_HOOKS_OMP_FINISH_CLAUSE		gfc_omp_finish_clause
+#define LANG_HOOKS_OMP_SCALAR_P			gfc_omp_scalar_p
 #define LANG_HOOKS_OMP_DISREGARD_VALUE_EXPR	gfc_omp_disregard_value_expr
 #define LANG_HOOKS_OMP_PRIVATE_DEBUG_CLAUSE	gfc_omp_private_debug_clause
 #define LANG_HOOKS_OMP_PRIVATE_OUTER_REF	gfc_omp_private_outer_ref
@@ -286,6 +290,9 @@ binding_level {
   tree blocks;
   /* The binding level containing this one (the enclosing binding level).  */
   struct binding_level *level_chain;
+  /* True if nreverse has been already called on names; if false, names
+     are ordered from newest declaration to oldest one.  */
+  bool reversed;
 };
 
 /* The binding level currently in effect.  */
@@ -296,7 +303,7 @@ static GTY(()) struct binding_level *current_binding_level = NULL;
 static GTY(()) struct binding_level *global_binding_level;
 
 /* Binding level structures are initialized by copying this one.  */
-static struct binding_level clear_binding_level = { NULL, NULL, NULL };
+static struct binding_level clear_binding_level = { NULL, NULL, NULL, false };
 
 
 /* Return true if we are in the global binding level.  */
@@ -310,6 +317,11 @@ global_bindings_p (void)
 tree
 getdecls (void)
 {
+  if (!current_binding_level->reversed)
+    {
+      current_binding_level->reversed = true;
+      current_binding_level->names = nreverse (current_binding_level->names);
+    }
   return current_binding_level->names;
 }
 
@@ -347,7 +359,7 @@ poplevel (int keep, int functionbody)
      binding level that we are about to exit and which is returned by this
      routine.  */
   tree block_node = NULL_TREE;
-  tree decl_chain = current_binding_level->names;
+  tree decl_chain = getdecls ();
   tree subblock_chain = current_binding_level->blocks;
   tree subblock_node;
 

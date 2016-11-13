@@ -452,7 +452,7 @@ func TestWalk(t *testing.T) {
 	checkMarks(t, true)
 	errors = errors[0:0]
 
-	// Test permission errors.  Only possible if we're not root
+	// Test permission errors. Only possible if we're not root
 	// and only on some file systems (AFS, FAT).  To avoid errors during
 	// all.bash on those file systems, skip during go test -short.
 	if os.Getuid() > 0 && !testing.Short() {
@@ -843,7 +843,7 @@ func TestEvalSymlinks(t *testing.T) {
 		if p, err := filepath.EvalSymlinks(path); err != nil {
 			t.Errorf("EvalSymlinks(%q) error: %v", d.path, err)
 		} else if filepath.Clean(p) != filepath.Clean(dest) {
-			t.Errorf("Clean(%q)=%q, want %q", path, p, dest)
+			t.Errorf("EvalSymlinks(%q)=%q, want %q", path, p, dest)
 		}
 
 		// test EvalSymlinks(".")
@@ -875,6 +875,34 @@ func TestEvalSymlinks(t *testing.T) {
 			t.Errorf(`EvalSymlinks(".") in %q directory returns %q, want "." or %q`, d.path, p, want)
 		}()
 
+		// test EvalSymlinks(".."+path)
+		func() {
+			defer func() {
+				err := os.Chdir(wd)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}()
+
+			err := os.Chdir(simpleJoin(tmpDir, "test"))
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			path := simpleJoin("..", d.path)
+			dest := simpleJoin("..", d.dest)
+			if filepath.IsAbs(d.dest) || os.IsPathSeparator(d.dest[0]) {
+				dest = d.dest
+			}
+
+			if p, err := filepath.EvalSymlinks(path); err != nil {
+				t.Errorf("EvalSymlinks(%q) error: %v", d.path, err)
+			} else if filepath.Clean(p) != filepath.Clean(dest) {
+				t.Errorf("EvalSymlinks(%q)=%q, want %q", path, p, dest)
+			}
+		}()
+
 		// test EvalSymlinks where parameter is relative path
 		func() {
 			defer func() {
@@ -892,7 +920,7 @@ func TestEvalSymlinks(t *testing.T) {
 			if p, err := filepath.EvalSymlinks(d.path); err != nil {
 				t.Errorf("EvalSymlinks(%q) error: %v", d.path, err)
 			} else if filepath.Clean(p) != filepath.Clean(d.dest) {
-				t.Errorf("Clean(%q)=%q, want %q", d.path, p, d.dest)
+				t.Errorf("EvalSymlinks(%q)=%q, want %q", d.path, p, d.dest)
 			}
 		}()
 	}
@@ -1018,7 +1046,7 @@ func TestAbs(t *testing.T) {
 		vol := filepath.VolumeName(root)
 		var extra []string
 		for _, path := range absTests {
-			if strings.Index(path, "$") != -1 {
+			if strings.Contains(path, "$") {
 				continue
 			}
 			path = vol + path

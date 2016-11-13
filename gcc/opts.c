@@ -500,10 +500,12 @@ static const struct default_options default_options_table[] =
       REORDER_BLOCKS_ALGORITHM_STC },
     { OPT_LEVELS_2_PLUS, OPT_freorder_functions, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_ftree_vrp, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fcode_hoisting, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_ftree_pre, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_ftree_switch_conversion, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fipa_cp, NULL, 1 },
-    { OPT_LEVELS_2_PLUS, OPT_fipa_cp_alignment, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fipa_bit_cp, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fipa_vrp, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fdevirtualize, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fdevirtualize_speculatively, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fipa_sra, NULL, 1 },
@@ -519,6 +521,7 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_2_PLUS, OPT_fisolate_erroneous_paths_dereference, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_fipa_ra, NULL, 1 },
     { OPT_LEVELS_2_PLUS, OPT_flra_remat, NULL, 1 },
+    { OPT_LEVELS_2_PLUS, OPT_fstore_merging, NULL, 1 },
 
     /* -O3 optimizations.  */
     { OPT_LEVELS_3_PLUS, OPT_ftree_loop_distribute_patterns, NULL, 1 },
@@ -528,6 +531,7 @@ static const struct default_options default_options_table[] =
        regardless of them being declared inline.  */
     { OPT_LEVELS_3_PLUS_AND_SIZE, OPT_finline_functions, NULL, 1 },
     { OPT_LEVELS_1_PLUS_NOT_DEBUG, OPT_finline_functions_called_once, NULL, 1 },
+    { OPT_LEVELS_3_PLUS, OPT_fsplit_loops, NULL, 1 },
     { OPT_LEVELS_3_PLUS, OPT_funswitch_loops, NULL, 1 },
     { OPT_LEVELS_3_PLUS, OPT_fgcse_after_reload, NULL, 1 },
     { OPT_LEVELS_3_PLUS, OPT_ftree_loop_vectorize, NULL, 1 },
@@ -938,7 +942,6 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
     opts->x_debug_generate_pub_sections = 2;
 
   /* Userspace and kernel ASan conflict with each other.  */
-
   if ((opts->x_flag_sanitize & SANITIZE_USER_ADDRESS)
       && (opts->x_flag_sanitize & SANITIZE_KERNEL_ADDRESS))
     error_at (loc,
@@ -946,20 +949,23 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
 	      "-fsanitize=kernel-address");
 
   /* And with TSan.  */
-
   if ((opts->x_flag_sanitize & SANITIZE_ADDRESS)
       && (opts->x_flag_sanitize & SANITIZE_THREAD))
     error_at (loc,
 	      "-fsanitize=address and -fsanitize=kernel-address "
 	      "are incompatible with -fsanitize=thread");
 
-  /* Error recovery is not allowed for LSan and TSan.  */
+  if ((opts->x_flag_sanitize & SANITIZE_LEAK)
+      && (opts->x_flag_sanitize & SANITIZE_THREAD))
+    error_at (loc,
+	      "-fsanitize=leak is incompatible with -fsanitize=thread");
 
-  if (opts->x_flag_sanitize_recover & SANITIZE_THREAD)
-    error_at (loc, "-fsanitize-recover=thread is not supported");
-
-  if (opts->x_flag_sanitize_recover & SANITIZE_LEAK)
-    error_at (loc, "-fsanitize-recover=leak is not supported");
+  /* Check error recovery for -fsanitize-recover option.  */
+  for (int i = 0; sanitizer_opts[i].name != NULL; ++i)
+    if ((opts->x_flag_sanitize_recover & sanitizer_opts[i].flag)
+	&& !sanitizer_opts[i].can_recover)
+      error_at (loc, "-fsanitize-recover=%s is not supported",
+		sanitizer_opts[i].name);
 
   /* When instrumenting the pointers, we don't want to remove
      the null pointer checks.  */
@@ -968,10 +974,29 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
     opts->x_flag_delete_null_pointer_checks = 0;
 
   /* Aggressive compiler optimizations may cause false negatives.  */
-  if (opts->x_flag_sanitize)
+  if (opts->x_flag_sanitize & ~(SANITIZE_LEAK | SANITIZE_UNREACHABLE))
     {
       opts->x_flag_aggressive_loop_optimizations = 0;
       opts->x_flag_strict_overflow = 0;
+    }
+
+  /* Enable -fsanitize-address-use-after-scope if address sanitizer is
+     enabled.  */
+  if (opts->x_flag_sanitize
+      && !opts_set->x_flag_sanitize_address_use_after_scope)
+    opts->x_flag_sanitize_address_use_after_scope = true;
+
+  /* Force -fstack-reuse=none in case -fsanitize-address-use-after-scope
+     is enabled.  */
+  if (opts->x_flag_sanitize_address_use_after_scope)
+    {
+      if (opts->x_flag_stack_reuse != SR_NONE
+	  && opts_set->x_flag_stack_reuse != SR_NONE)
+	error_at (loc,
+		  "-fsanitize-address-use-after-scope requires "
+		  "-fstack-reuse=none option");
+
+      opts->x_flag_stack_reuse = SR_NONE;
     }
 }
 
@@ -1418,11 +1443,13 @@ enable_fdo_optimizations (struct gcc_options *opts,
   if (!opts_set->x_flag_ipa_cp_clone
       && value && opts->x_flag_ipa_cp)
     opts->x_flag_ipa_cp_clone = value;
-  if (!opts_set->x_flag_ipa_cp_alignment
+  if (!opts_set->x_flag_ipa_bit_cp
       && value && opts->x_flag_ipa_cp)
-    opts->x_flag_ipa_cp_alignment = value;
+    opts->x_flag_ipa_bit_cp = value;
   if (!opts_set->x_flag_predictive_commoning)
     opts->x_flag_predictive_commoning = value;
+  if (!opts_set->x_flag_split_loops)
+    opts->x_flag_split_loops = value;
   if (!opts_set->x_flag_unswitch_loops)
     opts->x_flag_unswitch_loops = value;
   if (!opts_set->x_flag_gcse_after_reload)
@@ -1442,33 +1469,38 @@ enable_fdo_optimizations (struct gcc_options *opts,
 /* -f{,no-}sanitize{,-recover}= suboptions.  */
 const struct sanitizer_opts_s sanitizer_opts[] =
 {
-#define SANITIZER_OPT(name, flags) { #name, flags, sizeof #name - 1 }
-  SANITIZER_OPT (address, SANITIZE_ADDRESS | SANITIZE_USER_ADDRESS),
-  SANITIZER_OPT (kernel-address, SANITIZE_ADDRESS | SANITIZE_KERNEL_ADDRESS),
-  SANITIZER_OPT (thread, SANITIZE_THREAD),
-  SANITIZER_OPT (leak, SANITIZE_LEAK),
-  SANITIZER_OPT (shift, SANITIZE_SHIFT),
-  SANITIZER_OPT (integer-divide-by-zero, SANITIZE_DIVIDE),
-  SANITIZER_OPT (undefined, SANITIZE_UNDEFINED),
-  SANITIZER_OPT (unreachable, SANITIZE_UNREACHABLE),
-  SANITIZER_OPT (vla-bound, SANITIZE_VLA),
-  SANITIZER_OPT (return, SANITIZE_RETURN),
-  SANITIZER_OPT (null, SANITIZE_NULL),
-  SANITIZER_OPT (signed-integer-overflow, SANITIZE_SI_OVERFLOW),
-  SANITIZER_OPT (bool, SANITIZE_BOOL),
-  SANITIZER_OPT (enum, SANITIZE_ENUM),
-  SANITIZER_OPT (float-divide-by-zero, SANITIZE_FLOAT_DIVIDE),
-  SANITIZER_OPT (float-cast-overflow, SANITIZE_FLOAT_CAST),
-  SANITIZER_OPT (bounds, SANITIZE_BOUNDS),
-  SANITIZER_OPT (bounds-strict, SANITIZE_BOUNDS | SANITIZE_BOUNDS_STRICT),
-  SANITIZER_OPT (alignment, SANITIZE_ALIGNMENT),
-  SANITIZER_OPT (nonnull-attribute, SANITIZE_NONNULL_ATTRIBUTE),
-  SANITIZER_OPT (returns-nonnull-attribute, SANITIZE_RETURNS_NONNULL_ATTRIBUTE),
-  SANITIZER_OPT (object-size, SANITIZE_OBJECT_SIZE),
-  SANITIZER_OPT (vptr, SANITIZE_VPTR),
-  SANITIZER_OPT (all, ~0),
+#define SANITIZER_OPT(name, flags, recover) \
+    { #name, flags, sizeof #name - 1, recover }
+  SANITIZER_OPT (address, (SANITIZE_ADDRESS | SANITIZE_USER_ADDRESS), true),
+  SANITIZER_OPT (kernel-address, (SANITIZE_ADDRESS | SANITIZE_KERNEL_ADDRESS),
+		 true),
+  SANITIZER_OPT (thread, SANITIZE_THREAD, false),
+  SANITIZER_OPT (leak, SANITIZE_LEAK, false),
+  SANITIZER_OPT (shift, SANITIZE_SHIFT, true),
+  SANITIZER_OPT (shift-base, SANITIZE_SHIFT_BASE, true),
+  SANITIZER_OPT (shift-exponent, SANITIZE_SHIFT_EXPONENT, true),
+  SANITIZER_OPT (integer-divide-by-zero, SANITIZE_DIVIDE, true),
+  SANITIZER_OPT (undefined, SANITIZE_UNDEFINED, true),
+  SANITIZER_OPT (unreachable, SANITIZE_UNREACHABLE, false),
+  SANITIZER_OPT (vla-bound, SANITIZE_VLA, true),
+  SANITIZER_OPT (return, SANITIZE_RETURN, false),
+  SANITIZER_OPT (null, SANITIZE_NULL, true),
+  SANITIZER_OPT (signed-integer-overflow, SANITIZE_SI_OVERFLOW, true),
+  SANITIZER_OPT (bool, SANITIZE_BOOL, true),
+  SANITIZER_OPT (enum, SANITIZE_ENUM, true),
+  SANITIZER_OPT (float-divide-by-zero, SANITIZE_FLOAT_DIVIDE, true),
+  SANITIZER_OPT (float-cast-overflow, SANITIZE_FLOAT_CAST, true),
+  SANITIZER_OPT (bounds, SANITIZE_BOUNDS, true),
+  SANITIZER_OPT (bounds-strict, SANITIZE_BOUNDS | SANITIZE_BOUNDS_STRICT, true),
+  SANITIZER_OPT (alignment, SANITIZE_ALIGNMENT, true),
+  SANITIZER_OPT (nonnull-attribute, SANITIZE_NONNULL_ATTRIBUTE, true),
+  SANITIZER_OPT (returns-nonnull-attribute, SANITIZE_RETURNS_NONNULL_ATTRIBUTE,
+		 true),
+  SANITIZER_OPT (object-size, SANITIZE_OBJECT_SIZE, true),
+  SANITIZER_OPT (vptr, SANITIZE_VPTR, true),
+  SANITIZER_OPT (all, ~0U, true),
 #undef SANITIZER_OPT
-  { NULL, 0, 0 }
+  { NULL, 0U, 0UL, false }
 };
 
 /* Parse comma separated sanitizer suboptions from P for option SCODE,
@@ -1510,11 +1542,20 @@ parse_sanitizer_options (const char *p, location_t loc, int scode,
 		      error_at (loc, "-fsanitize=all option is not valid");
 		  }
 		else
-		  flags |= ~(SANITIZE_USER_ADDRESS | SANITIZE_THREAD
-			     | SANITIZE_LEAK);
+		  flags |= ~(SANITIZE_THREAD | SANITIZE_LEAK
+			     | SANITIZE_UNREACHABLE | SANITIZE_RETURN);
 	      }
 	    else if (value)
-	      flags |= sanitizer_opts[i].flag;
+	      {
+		/* Do not enable -fsanitize-recover=unreachable and
+		   -fsanitize-recover=return if -fsanitize-recover=undefined
+		   is selected.  */
+		if (sanitizer_opts[i].flag == SANITIZE_UNDEFINED)
+		  flags |= (SANITIZE_UNDEFINED
+			    & ~(SANITIZE_UNREACHABLE | SANITIZE_RETURN));
+		else
+		  flags |= sanitizer_opts[i].flag;
+	      }
 	    else
 	      flags &= ~sanitizer_opts[i].flag;
 	    found = true;
@@ -1761,10 +1802,15 @@ common_handle_option (struct gcc_options *opts,
       /* Deferred.  */
       break;
 
+    case OPT_fsanitize_address_use_after_scope:
+      opts->x_flag_sanitize_address_use_after_scope = value;
+      break;
+
     case OPT_fsanitize_recover:
       if (value)
 	opts->x_flag_sanitize_recover
-	  |= SANITIZE_UNDEFINED | SANITIZE_NONDEFAULT;
+	  |= (SANITIZE_UNDEFINED | SANITIZE_NONDEFAULT)
+	     & ~(SANITIZE_UNREACHABLE | SANITIZE_RETURN);
       else
 	opts->x_flag_sanitize_recover
 	  &= ~(SANITIZE_UNDEFINED | SANITIZE_NONDEFAULT);
@@ -1979,6 +2025,7 @@ common_handle_option (struct gcc_options *opts,
       opts->x_flag_profile_use = true;
       value = true;
       /* No break here - do -fprofile-use processing. */
+      /* FALLTHRU */
     case OPT_fprofile_use:
       enable_fdo_optimizations (opts, opts_set, value);
       if (!opts_set->x_flag_profile_reorder_functions)
@@ -1995,6 +2042,7 @@ common_handle_option (struct gcc_options *opts,
       opts->x_flag_auto_profile = true;
       value = true;
       /* No break here - do -fauto-profile processing. */
+      /* FALLTHRU */
     case OPT_fauto_profile:
       enable_fdo_optimizations (opts, opts_set, value);
       if (!opts_set->x_flag_profile_correction)
@@ -2008,6 +2056,7 @@ common_handle_option (struct gcc_options *opts,
       opts->x_profile_data_prefix = xstrdup (arg);
       value = true;
       /* No break here - do -fprofile-generate processing. */
+      /* FALLTHRU */
     case OPT_fprofile_generate:
       if (!opts_set->x_profile_arc_flag)
 	opts->x_profile_arc_flag = value;
@@ -2228,7 +2277,14 @@ handle_param (struct gcc_options *opts, struct gcc_options *opts_set,
 
       enum compiler_param index;
       if (!find_param (arg, &index))
-	error_at (loc, "invalid --param name %qs", arg);
+	{
+	  const char *suggestion = find_param_fuzzy (arg);
+	  if (suggestion)
+	    error_at (loc, "invalid --param name %qs; did you mean %qs?",
+		      arg, suggestion);
+	  else
+	    error_at (loc, "invalid --param name %qs", arg);
+	}
       else
 	{
 	  if (!param_string_value_p (index, equal + 1, &value))

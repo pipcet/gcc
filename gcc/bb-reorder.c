@@ -100,6 +100,7 @@
 #include "tree.h"
 #include "cfghooks.h"
 #include "df.h"
+#include "memmodel.h"
 #include "optabs.h"
 #include "regs.h"
 #include "emit-rtl.h"
@@ -2354,7 +2355,10 @@ reorder_basic_blocks_simple (void)
      To start with, everything points to itself, nothing is assigned yet.  */
 
   FOR_ALL_BB_FN (bb, cfun)
-    bb->aux = bb;
+    {
+      bb->aux = bb;
+      bb->flags &= ~BB_VISITED;
+    }
 
   EXIT_BLOCK_PTR_FOR_FN (cfun)->aux = 0;
 

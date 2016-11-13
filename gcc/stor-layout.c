@@ -25,6 +25,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "function.h"
 #include "rtl.h"
 #include "tree.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "stringpool.h"
 #include "regs.h"
@@ -398,7 +399,7 @@ int_mode_for_mode (machine_mode mode)
       if (mode == BLKmode)
 	break;
 
-      /* ... fall through ...  */
+      /* fall through */
 
     case MODE_CC:
     default:
@@ -596,7 +597,7 @@ layout_decl (tree decl, unsigned int known_align)
     return;
 
   gcc_assert (code == VAR_DECL || code == PARM_DECL || code == RESULT_DECL
-	      || code == TYPE_DECL ||code == FIELD_DECL);
+	      || code == TYPE_DECL || code == FIELD_DECL);
 
   rtl = DECL_RTL_IF_SET (decl);
 
@@ -768,8 +769,8 @@ layout_decl (tree decl, unsigned int known_align)
     }
 }
 
-/* Given a VAR_DECL, PARM_DECL or RESULT_DECL, clears the results of
-   a previous call to layout_decl and calls it again.  */
+/* Given a VAR_DECL, PARM_DECL, RESULT_DECL, or FIELD_DECL, clears the
+   results of a previous call to layout_decl and calls it again.  */
 
 void
 relayout_decl (tree decl)
@@ -778,7 +779,8 @@ relayout_decl (tree decl)
   DECL_MODE (decl) = VOIDmode;
   if (!DECL_USER_ALIGN (decl))
     SET_DECL_ALIGN (decl, 0);
-  SET_DECL_RTL (decl, 0);
+  if (DECL_RTL_SET_P (decl))
+    SET_DECL_RTL (decl, 0);
 
   layout_decl (decl, 0);
 }
@@ -1136,7 +1138,7 @@ place_field (record_layout_info rli, tree field)
      really like a structure field.  If it is a FUNCTION_DECL, it's a
      method.  In both cases, all we do is lay out the decl, and we do
      it *after* the record is laid out.  */
-  if (TREE_CODE (field) == VAR_DECL)
+  if (VAR_P (field))
     {
       vec_safe_push (rli->pending_statics, field);
       return;
@@ -1168,14 +1170,12 @@ place_field (record_layout_info rli, tree field)
   /* Work out the known alignment so far.  Note that A & (-A) is the
      value of the least-significant bit in A that is one.  */
   if (! integer_zerop (rli->bitpos))
-    known_align = (tree_to_uhwi (rli->bitpos)
-		   & - tree_to_uhwi (rli->bitpos));
+    known_align = least_bit_hwi (tree_to_uhwi (rli->bitpos));
   else if (integer_zerop (rli->offset))
     known_align = 0;
   else if (tree_fits_uhwi_p (rli->offset))
     known_align = (BITS_PER_UNIT
-		   * (tree_to_uhwi (rli->offset)
-		      & - tree_to_uhwi (rli->offset)));
+		   * least_bit_hwi (tree_to_uhwi (rli->offset)));
   else
     known_align = rli->offset_align;
 
@@ -1478,14 +1478,12 @@ place_field (record_layout_info rli, tree field)
      approximate this by seeing if its position changed), lay out the field
      again; perhaps we can use an integral mode for it now.  */
   if (! integer_zerop (DECL_FIELD_BIT_OFFSET (field)))
-    actual_align = (tree_to_uhwi (DECL_FIELD_BIT_OFFSET (field))
-		    & - tree_to_uhwi (DECL_FIELD_BIT_OFFSET (field)));
+    actual_align = least_bit_hwi (tree_to_uhwi (DECL_FIELD_BIT_OFFSET (field)));
   else if (integer_zerop (DECL_FIELD_OFFSET (field)))
     actual_align = MAX (BIGGEST_ALIGNMENT, rli->record_align);
   else if (tree_fits_uhwi_p (DECL_FIELD_OFFSET (field)))
     actual_align = (BITS_PER_UNIT
-		   * (tree_to_uhwi (DECL_FIELD_OFFSET (field))
-		      & - tree_to_uhwi (DECL_FIELD_OFFSET (field))));
+		    * least_bit_hwi (tree_to_uhwi (DECL_FIELD_OFFSET (field))));
   else
     actual_align = DECL_OFFSET_ALIGN (field);
   /* ACTUAL_ALIGN is still the actual alignment *within the record* .
@@ -2572,7 +2570,7 @@ initialize_sizetypes (void)
     }
 
   bprecision
-    = MIN (precision + BITS_PER_UNIT_LOG + 1, MAX_FIXED_MODE_SIZE);
+    = MIN (precision + LOG2_BITS_PER_UNIT + 1, MAX_FIXED_MODE_SIZE);
   bprecision
     = GET_MODE_PRECISION (smallest_mode_for_size (bprecision, MODE_INT));
   if (bprecision > HOST_BITS_PER_DOUBLE_INT)
@@ -2899,13 +2897,13 @@ get_mode_bounds (machine_mode mode, int sign,
     }
   else if (sign)
     {
-      min_val = -((unsigned HOST_WIDE_INT) 1 << (size - 1));
-      max_val = ((unsigned HOST_WIDE_INT) 1 << (size - 1)) - 1;
+      min_val = -(HOST_WIDE_INT_1U << (size - 1));
+      max_val = (HOST_WIDE_INT_1U << (size - 1)) - 1;
     }
   else
     {
       min_val = 0;
-      max_val = ((unsigned HOST_WIDE_INT) 1 << (size - 1) << 1) - 1;
+      max_val = (HOST_WIDE_INT_1U << (size - 1) << 1) - 1;
     }
 
   *mmin = gen_int_mode (min_val, target_mode);

@@ -147,6 +147,11 @@
   (and (match_code "const_int")
        (match_test "INTVAL (op) >= 0 && INTVAL (op) <= 63")))
 
+;; Return 1 if op is an unsigned 7-bit constant integer.
+(define_predicate "u7bit_cint_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 127)")))
+
 ;; Return 1 if op is a signed 8-bit constant integer.
 ;; Integer multiplication complete more quickly
 (define_predicate "s8bit_cint_operand"
@@ -199,6 +204,11 @@
 (define_predicate "const_2_to_3_operand"
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 2, 3)")))
+
+;; Match op = 0..7.
+(define_predicate "const_0_to_7_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
 
 ;; Match op = 0..15
 (define_predicate "const_0_to_15_operand"
@@ -1161,6 +1171,12 @@
 ;; comparisons that generate a -1/0 mask.
 (define_predicate "fpmask_comparison_operator"
   (match_code "eq,gt,ge"))
+
+;; Return 1 if OP is a comparison operator suitable for vector/scalar
+;; comparisons that generate a 0/-1 mask (i.e. the inverse of
+;; fpmask_comparison_operator).
+(define_predicate "invert_fpmask_comparison_operator"
+  (match_code "ne,unlt,unle"))
 
 ;; Return 1 if OP is a comparison operation that is valid for a branch
 ;; insn, which is true if the corresponding bit in the CC register is set.

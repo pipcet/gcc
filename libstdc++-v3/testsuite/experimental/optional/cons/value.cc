@@ -1,5 +1,4 @@
-// { dg-options "-std=gnu++14" }
-// { dg-do run }
+// { dg-do run { target c++14 } }
 
 // Copyright (C) 2013-2016 Free Software Foundation, Inc.
 //
@@ -22,6 +21,7 @@
 #include <testsuite_hooks.h>
 
 #include <vector>
+#include <string>
 
 struct tracker
 {
@@ -235,5 +235,50 @@ int main()
     { result = bad_catch; }
 
     VERIFY( result == caught );
+  }
+
+  {
+    std::experimental::optional<std::string> os = "foo";
+    struct X
+    {
+      explicit X(int) {}
+      X& operator=(int) {return *this;}
+    };
+    std::experimental::optional<X> ox{42};
+    std::experimental::optional<int> oi{42};
+    std::experimental::optional<X> ox2{oi};
+    std::experimental::optional<std::string> os2;
+    os2 = "foo";
+    std::experimental::optional<X> ox3;
+    ox3 = 42;
+    std::experimental::optional<X> ox4;
+    ox4 = oi;
+  }
+
+  {
+    std::experimental::optional<std::experimental::optional<int>> ooi =
+      std::experimental::optional<int>();
+    VERIFY(bool(ooi));
+    ooi = std::experimental::optional<int>();
+    VERIFY(bool(ooi));
+    ooi = std::experimental::optional<int>(42);
+    VERIFY(bool(ooi));
+    VERIFY(bool(*ooi));
+    std::experimental::optional<std::experimental::optional<int>> ooi2 =
+      std::experimental::optional<short>();
+    VERIFY(bool(ooi2));
+    ooi2 = std::experimental::optional<short>();
+    VERIFY(bool(ooi2));
+    ooi2 = std::experimental::optional<short>(6);
+    VERIFY(bool(ooi2));
+    VERIFY(bool(*ooi2));
+    std::experimental::optional<std::experimental::optional<int>> ooi3 =
+      std::experimental::optional<int>(42);
+    VERIFY(bool(ooi3));
+    VERIFY(bool(*ooi3));
+    std::experimental::optional<std::experimental::optional<int>> ooi4 =
+      std::experimental::optional<short>(6);
+    VERIFY(bool(ooi4));
+    VERIFY(bool(*ooi4));
   }
 }

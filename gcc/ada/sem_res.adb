@@ -6034,6 +6034,15 @@ package body Sem_Res is
          end;
 
       else
+         --  If the function returns the limited view of type, the call must
+         --  appear in a context in which the non-limited view is available.
+         --  As is done in Try_Object_Operation, use the available view to
+         --  prevent back-end confusion.
+
+         if From_Limited_With (Etype (Nam)) then
+            Set_Etype (Nam, Available_View (Etype (Nam)));
+         end if;
+
          Set_Etype (N, Etype (Nam));
       end if;
 
@@ -7119,6 +7128,7 @@ package body Sem_Res is
             --  read as it simply establishes an alias.
 
             if Ekind (E) = E_Variable
+              and then Dynamic_Elaboration_Checks
               and then Nkind (Par) /= N_Object_Renaming_Declaration
             then
                Check_Elab_Call (N);
@@ -9485,7 +9495,12 @@ package body Sem_Res is
          then
             null;
 
-         elsif Nkind (N) = N_Qualified_Expression then
+         --  In the case of a qualified expression in an allocator, the check
+         --  is applied when expanding the allocator, so avoid redundant check.
+
+         elsif Nkind (N) = N_Qualified_Expression
+           and then Nkind (Parent (N)) /= N_Allocator
+         then
             Apply_Predicate_Check (N, Target_Typ);
          end if;
       end if;
@@ -9950,10 +9965,10 @@ package body Sem_Res is
 
    begin
       --  Ensure all actions associated with the left operand (e.g.
-      --  finalization of transient controlled objects) are fully evaluated
-      --  locally within an expression with actions. This is particularly
-      --  helpful for coverage analysis. However this should not happen in
-      --  generics or if Minimize_Expression_With_Actions is set.
+      --  finalization of transient objects) are fully evaluated locally within
+      --  an expression with actions. This is particularly helpful for coverage
+      --  analysis. However this should not happen in generics or if option
+      --  Minimize_Expression_With_Actions is set.
 
       if Expander_Active and not Minimize_Expression_With_Actions then
          declare

@@ -469,6 +469,14 @@ package body Ghost is
          if Ghost_Mode > None then
             return True;
 
+         --  A Ghost type may be referenced in a use_type clause
+         --  (SPARK RM 6.9.10).
+
+         elsif Present (Parent (Context))
+           and then Nkind (Parent (Context)) = N_Use_Type_Clause
+         then
+            return True;
+
          --  Routine Expand_Record_Extension creates a parent subtype without
          --  inserting it into the tree. There is no good way of recognizing
          --  this special case as there is no parent. Try to approximate the
@@ -595,6 +603,7 @@ package body Ghost is
            and then Present (Deriv_Typ)
            and then not Is_Ghost_Entity (Deriv_Typ)
            and then not Is_Ghost_Entity (Over_Subp)
+           and then not Is_Abstract_Subprogram (Over_Subp)
          then
             Error_Msg_N ("incompatible overriding in effect", Subp);
 
@@ -608,8 +617,9 @@ package body Ghost is
          --  A non-Ghost primitive of a type extension cannot override an
          --  inherited Ghost primitive (SPARK RM 6.9(8)).
 
-         if not Is_Ghost_Entity (Subp)
-           and then Is_Ghost_Entity (Over_Subp)
+         if Is_Ghost_Entity (Over_Subp)
+           and then not Is_Ghost_Entity (Subp)
+           and then not Is_Abstract_Subprogram (Subp)
          then
             Error_Msg_N ("incompatible overriding in effect", Subp);
 
@@ -1171,6 +1181,17 @@ package body Ghost is
             --  of expansion. Destroy it and stop the traversal on this branch.
 
             if Is_Ignored_Ghost_Node (N) then
+               Prune (N);
+               return Skip;
+
+            --  A freeze node for an ignored ghost entity must be pruned as
+            --  well, to prevent meaningless references in the back end.
+
+            --  ??? the freeze node itself should be ignored ghost
+
+            elsif Nkind (N) = N_Freeze_Entity
+              and then Is_Ignored_Ghost_Entity (Entity (N))
+            then
                Prune (N);
                return Skip;
 

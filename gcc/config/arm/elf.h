@@ -104,7 +104,8 @@
    the code more efficient, but for Thumb-1 it's better to put them out of
    band unless we are generating compressed tables.  */
 #define JUMP_TABLES_IN_TEXT_SECTION					\
-   (TARGET_32BIT || (TARGET_THUMB && (optimize_size || flag_pic)))
+   ((TARGET_32BIT || (TARGET_THUMB && (optimize_size || flag_pic))) \
+    && !target_pure_code)
 
 #ifndef LINK_SPEC
 #define LINK_SPEC "%{mbig-endian:-EB} %{mlittle-endian:-EL} -X"
@@ -148,8 +149,9 @@
   while (0)
 
 /* Horrible hack: We want to prevent some libgcc routines being included
-   for some multilibs.  */
-#ifndef __ARM_ARCH_6M__
+   for some multilibs.  The condition should match the one in
+   libgcc/config/arm/lib1funcs.S.  */
+#if __ARM_ARCH_ISA_ARM || __ARM_ARCH_ISA_THUMB != 1
 #undef L_fixdfsi
 #undef L_fixunsdfsi
 #undef L_truncdfsf2

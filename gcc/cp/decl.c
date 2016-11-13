@@ -68,16 +68,13 @@ static int unary_op_p (enum tree_code);
 static void push_local_name (tree);
 static tree grok_reference_init (tree, tree, tree, int);
 static tree grokvardecl (tree, tree, tree, const cp_decl_specifier_seq *,
-			 int, int, int, tree);
+			 int, int, int, bool, int, tree);
 static int check_static_variable_definition (tree, tree);
 static void record_unknown_type (tree, const char *);
 static tree builtin_function_1 (tree, tree, bool);
 static int member_function_or_else (tree, tree, enum overload_flags);
-static void bad_specifiers (tree, enum bad_spec_place, int, int, int, int,
-			    int);
 static void check_for_uninitialized_const_var (tree);
 static tree local_variable_p_walkfn (tree *, int *, void *);
-static tree record_builtin_java_type (const char *, int);
 static const char *tag_name (enum tag_types);
 static tree lookup_and_check_tag (enum tag_types, tree, tag_scope, bool);
 static int walk_namespaces_r (tree, walk_namespaces_fn, void *);
@@ -218,6 +215,7 @@ struct GTY((for_user)) named_label_entry {
   bool in_catch_scope;
   bool in_omp_scope;
   bool in_transaction_scope;
+  bool in_constexpr_if;
 };
 
 #define named_labels cp_function_chain->x_named_labels
@@ -226,6 +224,9 @@ struct GTY((for_user)) named_label_entry {
    (Zero if we are at namespace scope, one inside the body of a
    function, two inside the body of a function in a local class, etc.)  */
 int function_depth;
+
+/* Whether the exception-specifier is part of a function type (i.e. C++17).  */
+bool flag_noexcept_type;
 
 /* States indicating how grokdeclarator() should handle declspecs marked
    with __attribute__((deprecated)).  An object declared as
@@ -476,6 +477,16 @@ objc_mark_locals_volatile (void *enclosing_blk)
     }
 }
 
+/* True if B is the level for the condition of a constexpr if.  */
+
+static bool
+level_for_constexpr_if (cp_binding_level *b)
+{
+  return (b->kind == sk_cond && b->this_entity
+	  && TREE_CODE (b->this_entity) == IF_STMT
+	  && IF_STMT_CONSTEXPR_P (b->this_entity));
+}
+
 /* Update data for defined and undefined labels when leaving a scope.  */
 
 int
@@ -511,6 +522,10 @@ poplevel_named_label_1 (named_label_entry **slot, cp_binding_level *bl)
 	  break;
 	case sk_transaction:
 	  ent->in_transaction_scope = true;
+	  break;
+	case sk_block:
+	  if (level_for_constexpr_if (bl->level_chain))
+	    ent->in_constexpr_if = true;
 	  break;
 	default:
 	  break;
@@ -625,9 +640,8 @@ poplevel (int keep, int reverse, int functionbody)
       BLOCK_SUPERCONTEXT (link) = block;
 
   /* We still support the old for-scope rules, whereby the variables
-     in a for-init statement were in scope after the for-statement
-     ended.  We only use the new rules if flag_new_for_scope is
-     nonzero.  */
+     in a init statement were in scope after the for-statement ended.
+     We only use the new rules if flag_new_for_scope is nonzero.  */
   leaving_for_scope
     = current_binding_level->kind == sk_for && flag_new_for_scope == 1;
 
@@ -923,6 +937,27 @@ wrapup_globals_for_namespace (tree name_space, void* data ATTRIBUTE_UNUSED)
 
   /* Write out any globals that need to be output.  */
   return wrapup_global_declarations (vec, len);
+}
+
+/* Diagnose odr-used extern inline variables without definitions
+   in the current TU.  */
+int
+diagnose_inline_vars_for_namespace (tree name_space, void *)
+{
+  cp_binding_level *level = NAMESPACE_LEVEL (name_space);
+  vec<tree, va_gc> *statics = level->static_decls;
+  tree decl;
+  unsigned int i;
+
+  FOR_EACH_VEC_SAFE_ELT (statics, i, decl)
+    if (VAR_P (decl)
+	&& DECL_EXTERNAL (decl)
+	&& DECL_INLINE_VAR_P (decl)
+	&& DECL_ODR_USED (decl))
+      error_at (DECL_SOURCE_LOCATION (decl),
+		"odr-used inline variable %qD is not defined", decl);
+
+  return 0;
 }
 
 /* In C++, you don't have to write `struct S' to refer to `S'; you
@@ -2085,6 +2120,9 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	    |= DECL_NONTRIVIALLY_INITIALIZED_P (olddecl);
 	  DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (newdecl)
 	    |= DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (olddecl);
+          if (DECL_CLASS_SCOPE_P (olddecl))
+            DECL_DECLARED_CONSTEXPR_P (newdecl)
+	      |= DECL_DECLARED_CONSTEXPR_P (olddecl);
 
 	  /* Merge the threadprivate attribute from OLDDECL into NEWDECL.  */
 	  if (DECL_LANG_SPECIFIC (olddecl)
@@ -2740,8 +2778,8 @@ redeclaration_error_message (tree newdecl, tree olddecl)
 	 warn_extern_redeclared_static.  */
 
       /* Defining the same name twice is no good.  */
-      if (DECL_INITIAL (olddecl) != NULL_TREE
-	  && DECL_INITIAL (newdecl) != NULL_TREE)
+      if (decl_defined_p (olddecl)
+	  && decl_defined_p (newdecl))
 	{
 	  if (DECL_NAME (olddecl) == NULL_TREE)
 	    return G_("%q#D not declared in class");
@@ -2869,6 +2907,27 @@ redeclaration_error_message (tree newdecl, tree olddecl)
 	 is valid.  */
       if (DECL_EXTERNAL (newdecl) || DECL_EXTERNAL (olddecl))
 	return NULL;
+
+      /* Static data member declared outside a class definition
+	 if the variable is defined within the class with constexpr
+	 specifier is declaration rather than definition (and
+	 deprecated).  */
+      if (cxx_dialect >= cxx1z
+	  && DECL_CLASS_SCOPE_P (olddecl)
+	  && DECL_DECLARED_CONSTEXPR_P (olddecl)
+	  && !DECL_INITIAL (newdecl))
+	{
+	  DECL_EXTERNAL (newdecl) = 1;
+	  /* For now, only warn with explicit -Wdeprecated.  */
+	  if (global_options_set.x_warn_deprecated
+	      && warning_at (DECL_SOURCE_LOCATION (newdecl), OPT_Wdeprecated,
+			     "redundant redeclaration of %<constexpr%> static "
+			     "data member %qD", newdecl))
+	    inform (DECL_SOURCE_LOCATION (olddecl),
+		    "previous declaration of %qD", olddecl);
+	  return NULL;
+	}
+
       /* Reject two definitions.  */
       return G_("redefinition of %q#D");
     }
@@ -3047,7 +3106,7 @@ check_previous_goto_1 (tree decl, cp_binding_level* level, tree names,
   cp_binding_level *b;
   bool complained = false;
   int identified = 0;
-  bool saw_eh = false, saw_omp = false, saw_tm = false;
+  bool saw_eh = false, saw_omp = false, saw_tm = false, saw_cxif = false;
 
   if (exited_omp)
     {
@@ -3132,6 +3191,20 @@ check_previous_goto_1 (tree decl, cp_binding_level* level, tree names,
 		    "  enters synchronized or atomic statement");
 	  saw_tm = true;
 	}
+      if (!saw_cxif && b->kind == sk_block
+	  && level_for_constexpr_if (b->level_chain))
+	{
+	  if (identified < 2)
+	    {
+	      complained = identify_goto (decl, input_location, locus,
+					  DK_ERROR);
+	      identified = 2;
+	    }
+	  if (complained)
+	    inform (EXPR_LOCATION (b->level_chain->this_entity),
+		    "  enters constexpr if statement");
+	  saw_cxif = true;
+	}
     }
 
   return !identified;
@@ -3200,10 +3273,11 @@ check_goto (tree decl)
     }
 
   if (ent->in_try_scope || ent->in_catch_scope || ent->in_transaction_scope
+      || ent->in_constexpr_if
       || ent->in_omp_scope || !vec_safe_is_empty (ent->bad_decls))
     {
       diagnostic_t diag_kind = DK_PERMERROR;
-      if (ent->in_try_scope || ent->in_catch_scope
+      if (ent->in_try_scope || ent->in_catch_scope || ent->in_constexpr_if
 	  || ent->in_transaction_scope || ent->in_omp_scope)
 	diag_kind = DK_ERROR;
       complained = identify_goto (decl, DECL_SOURCE_LOCATION (decl),
@@ -3248,6 +3322,8 @@ check_goto (tree decl)
 	inform (input_location, "  enters catch block");
       else if (ent->in_transaction_scope)
 	inform (input_location, "  enters synchronized or atomic statement");
+      else if (ent->in_constexpr_if)
+	inform (input_location, "  enters constexpr if statement");
     }
 
   if (ent->in_omp_scope)
@@ -3860,53 +3936,6 @@ record_builtin_type (enum rid rid_index,
     debug_hooks->type_decl (tdecl, 0);
 }
 
-/* Record one of the standard Java types.
- * Declare it as having the given NAME.
- * If SIZE > 0, it is the size of one of the integral types;
- * otherwise it is the negative of the size of one of the other types.  */
-
-static tree
-record_builtin_java_type (const char* name, int size)
-{
-  tree type, decl;
-  if (size > 0)
-    {
-      type = build_nonstandard_integer_type (size, 0);
-      type = build_distinct_type_copy (type);
-    }
-  else if (size > -32)
-    {
-      tree stype;
-      /* "__java_char" or ""__java_boolean".  */
-      type = build_nonstandard_integer_type (-size, 1);
-      type = build_distinct_type_copy (type);
-      /* Get the signed type cached and attached to the unsigned type,
-	 so it doesn't get garbage-collected at "random" times,
-	 causing potential codegen differences out of different UIDs
-	 and different alias set numbers.  */
-      stype = build_nonstandard_integer_type (-size, 0);
-      stype = build_distinct_type_copy (stype);
-      TREE_CHAIN (type) = stype;
-      /*if (size == -1)	TREE_SET_CODE (type, BOOLEAN_TYPE);*/
-    }
-  else
-    { /* "__java_float" or ""__java_double".  */
-      type = make_node (REAL_TYPE);
-      TYPE_PRECISION (type) = - size;
-      layout_type (type);
-    }
-  record_builtin_type (RID_MAX, name, type);
-  decl = TYPE_NAME (type);
-
-  /* Suppress generate debug symbol entries for these types,
-     since for normal C++ they are just clutter.
-     However, push_lang_context undoes this if extern "Java" is seen.  */
-  DECL_IGNORED_P (decl) = 1;
-
-  TYPE_FOR_JAVA (type) = 1;
-  return type;
-}
-
 /* Push a type into the namespace so that the back ends ignore it.  */
 
 static void
@@ -3947,7 +3976,6 @@ initialize_predefined_identifiers (void)
   static const predefined_identifier predefined_identifiers[] = {
     { "C++", &lang_name_cplusplus, 0 },
     { "C", &lang_name_c, 0 },
-    { "Java", &lang_name_java, 0 },
     /* Some of these names have a trailing space so that it is
        impossible for them to conflict with names written by users.  */
     { "__ct ", &ctor_identifier, 1 },
@@ -4017,16 +4045,9 @@ cxx_init_decl_processing (void)
   std_node = current_namespace;
   pop_namespace ();
 
-  c_common_nodes_and_builtins ();
+  flag_noexcept_type = (cxx_dialect >= cxx1z);
 
-  java_byte_type_node = record_builtin_java_type ("__java_byte", 8);
-  java_short_type_node = record_builtin_java_type ("__java_short", 16);
-  java_int_type_node = record_builtin_java_type ("__java_int", 32);
-  java_long_type_node = record_builtin_java_type ("__java_long", 64);
-  java_float_type_node = record_builtin_java_type ("__java_float", -32);
-  java_double_type_node = record_builtin_java_type ("__java_double", -64);
-  java_char_type_node = record_builtin_java_type ("__java_char", -16);
-  java_boolean_type_node = record_builtin_java_type ("__java_boolean", -1);
+  c_common_nodes_and_builtins ();
 
   integer_two_node = build_int_cst (NULL_TREE, 2);
 
@@ -4100,6 +4121,17 @@ cxx_init_decl_processing (void)
   /* Now, C++.  */
   current_lang_name = lang_name_cplusplus;
 
+  if (aligned_new_threshold > 1
+      && !pow2p_hwi (aligned_new_threshold))
+    {
+      error ("-faligned-new=%d is not a power of two", aligned_new_threshold);
+      aligned_new_threshold = 1;
+    }
+  if (aligned_new_threshold == -1)
+    aligned_new_threshold = (cxx_dialect >= cxx1z) ? 1 : 0;
+  if (aligned_new_threshold == 1)
+    aligned_new_threshold = malloc_alignment () / BITS_PER_UNIT;
+
   {
     tree newattrs, extvisattr;
     tree newtype, deltype;
@@ -4165,6 +4197,47 @@ cxx_init_decl_processing (void)
 	deltype = build_exception_variant (deltype, empty_except_spec);
 	push_cp_library_fn (DELETE_EXPR, deltype, ECF_NOTHROW);
 	push_cp_library_fn (VEC_DELETE_EXPR, deltype, ECF_NOTHROW);
+      }
+
+    if (aligned_new_threshold)
+      {
+	push_namespace (std_identifier);
+	tree align_id = get_identifier ("align_val_t");
+	align_type_node = start_enum (align_id, NULL_TREE, size_type_node,
+				      NULL_TREE, /*scoped*/true, NULL);
+	pop_namespace ();
+
+	/* operator new (size_t, align_val_t); */
+	newtype = build_function_type_list (ptr_type_node, size_type_node,
+					    align_type_node, NULL_TREE);
+	newtype = cp_build_type_attribute_variant (newtype, newattrs);
+	newtype = build_exception_variant (newtype, new_eh_spec);
+	opnew = push_cp_library_fn (NEW_EXPR, newtype, 0);
+	DECL_IS_MALLOC (opnew) = 1;
+	DECL_IS_OPERATOR_NEW (opnew) = 1;
+	opnew = push_cp_library_fn (VEC_NEW_EXPR, newtype, 0);
+	DECL_IS_MALLOC (opnew) = 1;
+	DECL_IS_OPERATOR_NEW (opnew) = 1;
+
+	/* operator delete (void *, align_val_t); */
+	deltype = build_function_type_list (void_type_node, ptr_type_node,
+					    align_type_node, NULL_TREE);
+	deltype = cp_build_type_attribute_variant (deltype, extvisattr);
+	deltype = build_exception_variant (deltype, empty_except_spec);
+	push_cp_library_fn (DELETE_EXPR, deltype, ECF_NOTHROW);
+	push_cp_library_fn (VEC_DELETE_EXPR, deltype, ECF_NOTHROW);
+
+	if (flag_sized_deallocation)
+	  {
+	    /* operator delete (void *, size_t, align_val_t); */
+	    deltype = build_function_type_list (void_type_node, ptr_type_node,
+						size_type_node, align_type_node,
+						NULL_TREE);
+	    deltype = cp_build_type_attribute_variant (deltype, extvisattr);
+	    deltype = build_exception_variant (deltype, empty_except_spec);
+	    push_cp_library_fn (DELETE_EXPR, deltype, ECF_NOTHROW);
+	    push_cp_library_fn (VEC_DELETE_EXPR, deltype, ECF_NOTHROW);
+	  }
       }
 
     nullptr_type_node = make_node (NULLPTR_TYPE);
@@ -4614,7 +4687,7 @@ check_tag_decl (cp_decl_specifier_seq *declspecs,
     }
   /* Check for an anonymous union.  */
   else if (declared_type && RECORD_OR_UNION_CODE_P (TREE_CODE (declared_type))
-	   && TYPE_ANONYMOUS_P (declared_type))
+	   && TYPE_UNNAMED_P (declared_type))
     {
       /* 7/3 In a simple-declaration, the optional init-declarator-list
 	 can be omitted only when declaring a class (clause 9) or
@@ -5114,7 +5187,7 @@ start_decl_1 (tree decl, bool initialized)
   else if (aggregate_definition_p && !complete_p)
     {
       if (type_uses_auto (type))
-	error ("declaration of %q#D has no initializer", decl);
+	gcc_unreachable ();
       else
 	error ("aggregate %q#D has incomplete type and cannot be defined",
 	       decl);
@@ -5380,11 +5453,12 @@ maybe_commonize_var (tree decl)
 {
   /* Static data in a function with comdat linkage also has comdat
      linkage.  */
-  if (TREE_STATIC (decl)
-      /* Don't mess with __FUNCTION__.  */
-      && ! DECL_ARTIFICIAL (decl)
-      && DECL_FUNCTION_SCOPE_P (decl)
-      && vague_linkage_p (DECL_CONTEXT (decl)))
+  if ((TREE_STATIC (decl)
+       /* Don't mess with __FUNCTION__.  */
+       && ! DECL_ARTIFICIAL (decl)
+       && DECL_FUNCTION_SCOPE_P (decl)
+       && vague_linkage_p (DECL_CONTEXT (decl)))
+      || (TREE_PUBLIC (decl) && DECL_INLINE_VAR_P (decl)))
     {
       if (flag_weak)
 	{
@@ -5410,10 +5484,17 @@ maybe_commonize_var (tree decl)
 		 be merged.  */
 	      TREE_PUBLIC (decl) = 0;
 	      DECL_COMMON (decl) = 0;
+	      const char *msg;
+	      if (DECL_INLINE_VAR_P (decl))
+		msg = G_("sorry: semantics of inline variable "
+			 "%q#D are wrong (you%'ll wind up with "
+			 "multiple copies)");
+	      else
+		msg = G_("sorry: semantics of inline function "
+			 "static data %q#D are wrong (you%'ll wind "
+			 "up with multiple copies)");
 	      if (warning_at (DECL_SOURCE_LOCATION (decl), 0,
-			      "sorry: semantics of inline function static "
-			      "data %q#D are wrong (you%'ll wind up "
-			      "with multiple copies)", decl))
+			      msg, decl))
 		inform (DECL_SOURCE_LOCATION (decl),
 			"you can work around this by removing the initializer");
 	    }
@@ -5491,10 +5572,27 @@ next_initializable_field (tree field)
   while (field
 	 && (TREE_CODE (field) != FIELD_DECL
 	     || (DECL_C_BIT_FIELD (field) && !DECL_NAME (field))
-	     || DECL_ARTIFICIAL (field)))
+	     || (DECL_ARTIFICIAL (field)
+		 && !(cxx_dialect >= cxx1z && DECL_FIELD_IS_BASE (field)))))
     field = DECL_CHAIN (field);
 
   return field;
+}
+
+/* Return true for [dcl.init.list] direct-list-initialization from
+   single element of enumeration with a fixed underlying type.  */
+
+bool
+is_direct_enum_init (tree type, tree init)
+{
+  if (cxx_dialect >= cxx1z
+      && TREE_CODE (type) == ENUMERAL_TYPE
+      && ENUM_FIXED_UNDERLYING_TYPE_P (type)
+      && TREE_CODE (init) == CONSTRUCTOR
+      && CONSTRUCTOR_IS_DIRECT_INIT (init)
+      && CONSTRUCTOR_NELTS (init) == 1)
+    return true;
+  return false;
 }
 
 /* Subroutine of reshape_init_array and reshape_init_vector, which does
@@ -5849,7 +5947,7 @@ reshape_init_r (tree type, reshape_iter *d, bool first_initializer_p,
 	 element (as allowed by [dcl.init.string]).  */
       if (!first_initializer_p
 	  && TREE_CODE (str_init) == CONSTRUCTOR
-	  && vec_safe_length (CONSTRUCTOR_ELTS (str_init)) == 1)
+	  && CONSTRUCTOR_NELTS (str_init) == 1)
 	{
 	  str_init = (*CONSTRUCTOR_ELTS (str_init))[0].value;
 	}
@@ -5894,8 +5992,10 @@ reshape_init_r (tree type, reshape_iter *d, bool first_initializer_p,
 	    }
 	}
 
-      warning (OPT_Wmissing_braces, "missing braces around initializer for %qT",
-	       type);
+      if (complain & tf_warning)
+	warning (OPT_Wmissing_braces,
+		 "missing braces around initializer for %qT",
+		 type);
     }
 
   /* Dispatch to specialized routines.  */
@@ -5939,6 +6039,17 @@ reshape_init (tree type, tree init, tsubst_flags_t complain)
      initializer.  */
   if (vec_safe_is_empty (v))
     return init;
+
+  /* Handle [dcl.init.list] direct-list-initialization from
+     single element of enumeration with a fixed underlying type.  */
+  if (is_direct_enum_init (type, init))
+    {
+      tree elt = CONSTRUCTOR_ELT (init, 0)->value;
+      if (check_narrowing (ENUM_UNDERLYING_TYPE (type), elt, complain))
+	return cp_build_c_cast (type, elt, tf_warning_or_error);
+      else
+	return error_mark_node;
+    }
 
   /* Recurse on this CONSTRUCTOR.  */
   d.cur = &(*v)[0];
@@ -6050,7 +6161,7 @@ check_initializer (tree decl, tree init, int flags, vec<tree, va_gc> **cleanups)
 
   if (init && BRACE_ENCLOSED_INITIALIZER_P (init))
     {
-      int init_len = vec_safe_length (CONSTRUCTOR_ELTS (init));
+      int init_len = CONSTRUCTOR_NELTS (init);
       if (SCALAR_TYPE_P (type))
 	{
 	  if (init_len == 0)
@@ -6228,15 +6339,19 @@ check_initializer (tree decl, tree init, int flags, vec<tree, va_gc> **cleanups)
       TREE_CONSTANT (decl) = false;
     }
 
-  if (init_code && DECL_IN_AGGR_P (decl))
+  if (init_code
+      && (DECL_IN_AGGR_P (decl) && !DECL_VAR_DECLARED_INLINE_P (decl)))
     {
       static int explained = 0;
 
       if (cxx_dialect < cxx11)
 	error ("initializer invalid for static member with constructor");
-      else
+      else if (cxx_dialect < cxx1z)
 	error ("non-constant in-class initialization invalid for static "
 	       "member %qD", decl);
+      else
+	error ("non-constant in-class initialization invalid for non-inline "
+	       "static member %qD", decl);
       if (!explained)
 	{
 	  inform (input_location,
@@ -6292,7 +6407,9 @@ make_rtl_for_nonlocal_decl (tree decl, tree init, const char* asmspec)
       /* An in-class declaration of a static data member should be
 	 external; it is only a declaration, and not a definition.  */
       if (init == NULL_TREE)
-	gcc_assert (DECL_EXTERNAL (decl) || !TREE_PUBLIC (decl));
+	gcc_assert (DECL_EXTERNAL (decl)
+		    || !TREE_PUBLIC (decl)
+		    || DECL_INLINE_VAR_P (decl));
     }
 
   /* We don't create any RTL for local variables.  */
@@ -6303,7 +6420,7 @@ make_rtl_for_nonlocal_decl (tree decl, tree init, const char* asmspec)
      DECL_EXPR is expanded.  But with constexpr its function might never
      be expanded, so go ahead and tell cgraph about the variable now.  */
   defer_p = ((DECL_FUNCTION_SCOPE_P (decl)
-	      && !DECL_DECLARED_CONSTEXPR_P (DECL_CONTEXT (decl)))
+	      && !var_in_maybe_constexpr_fn (decl))
 	     || DECL_VIRTUAL_P (decl));
 
   /* Defer template instantiations.  */
@@ -6598,6 +6715,19 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
   if (type == error_mark_node)
     return;
 
+  /* Warn about register storage specifiers except when in GNU global
+     or local register variable extension.  */
+  if (VAR_P (decl) && DECL_REGISTER (decl) && asmspec_tree == NULL_TREE)
+    {
+      if (cxx_dialect >= cxx1z)
+	pedwarn (DECL_SOURCE_LOCATION (decl), OPT_Wregister,
+		 "ISO C++1z does not allow %<register%> storage "
+		 "class specifier");
+      else
+	warning_at (DECL_SOURCE_LOCATION (decl), OPT_Wregister,
+		    "%<register%> storage class specifier used");
+    }
+
   /* If a name was specified, get the string.  */
   if (at_namespace_scope_p ())
     asmspec_tree = maybe_apply_renaming_pragma (decl, asmspec_tree);
@@ -6627,12 +6757,11 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	      return;
 	    }
 
-	  error ("declaration of %q#D has no initializer", decl);
-	  TREE_TYPE (decl) = error_mark_node;
-	  return;
+	  gcc_unreachable ();
 	}
       d_init = init;
-      if (TREE_CODE (d_init) == TREE_LIST)
+      if (TREE_CODE (d_init) == TREE_LIST
+	  && !CLASS_PLACEHOLDER_TEMPLATE (auto_node))
 	d_init = build_x_compound_expr_from_list (d_init, ELK_INIT,
 						  tf_warning_or_error);
       d_init = resolve_nondeduced_context (d_init, tf_warning_or_error);
@@ -6836,20 +6965,6 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	     is *not* defined.  */
 	  && (!DECL_EXTERNAL (decl) || init))
 	{
-	  if (TYPE_FOR_JAVA (type) && MAYBE_CLASS_TYPE_P (type))
-	    {
-	      tree jclass
-		= IDENTIFIER_GLOBAL_VALUE (get_identifier ("jclass"));
-	      /* Allow libjava/prims.cc define primitive classes.  */
-	      if (init != NULL_TREE
-		  || jclass == NULL_TREE
-		  || TREE_CODE (jclass) != TYPE_DECL
-		  || !POINTER_TYPE_P (TREE_TYPE (jclass))
-		  || !same_type_ignoring_top_level_qualifiers_p
-					(type, TREE_TYPE (TREE_TYPE (jclass))))
-		error ("Java object %qD not allocated with %<new%>", decl);
-	      init = NULL_TREE;
-	    }
 	  cleanups = make_tree_vector ();
 	  init = check_initializer (decl, init, flags, &cleanups);
 
@@ -6893,9 +7008,6 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	   so that we can decide later to emit debug info for them.  */
 	record_types_used_by_current_var_decl (decl);
     }
-  else if (TREE_CODE (decl) == FIELD_DECL
-	   && TYPE_FOR_JAVA (type) && MAYBE_CLASS_TYPE_P (type))
-    error ("non-static data member %qD has Java class type", decl);
 
   /* Add this declaration to the statement-tree.  This needs to happen
      after the call to check_initializer so that the DECL_EXPR for a
@@ -7696,8 +7808,6 @@ bad_specifiers (tree object,
       case BSP_VAR:
 	if (virtualp)
 	  error ("%qD declared as a %<virtual%> variable", object);
-	if (inlinep)
-	  error ("%qD declared as an %<inline%> variable", object);
 	if (quals)
 	  error ("%<const%> and %<volatile%> function specifiers on "
 	         "%qD invalid in variable declaration", object);
@@ -7735,6 +7845,7 @@ bad_specifiers (tree object,
   if (friendp)
     error ("%q+D declared as a friend", object);
   if (raises
+      && !flag_noexcept_type
       && (TREE_CODE (object) == TYPE_DECL
 	  || (!TYPE_PTRFN_P (TREE_TYPE (object))
 	      && !TYPE_REFFN_P (TREE_TYPE (object))
@@ -7921,7 +8032,7 @@ grokfndecl (tree ctype,
 
       /* Adjust the required expression into a constraint. */
       if (decl_reqs)
-        decl_reqs = make_predicate_constraint (decl_reqs);
+        decl_reqs = normalize_expression (decl_reqs);
 
       tree ci = build_constraints (tmpl_reqs, decl_reqs);
       set_constraints (decl, ci);
@@ -8131,7 +8242,27 @@ grokfndecl (tree ctype,
 	}
     }
 
-  if (IDENTIFIER_OPNAME_P (DECL_NAME (decl))
+  if (deduction_guide_p (decl))
+    {
+      if (!DECL_NAMESPACE_SCOPE_P (decl))
+	{
+	  error_at (location, "deduction guide %qD must be declared at "
+		    "namespace scope", decl);
+	  return NULL_TREE;
+	}
+      tree type = TREE_TYPE (DECL_NAME (decl));
+      if (CP_DECL_CONTEXT (decl) != CP_TYPE_CONTEXT (type))
+	{
+	  error_at (location, "deduction guide %qD must be declared in the "
+		    "same scope as %qT", decl, type);
+	  inform (location_of (type), "  declared here");
+	  return NULL_TREE;
+	}
+      if (funcdef_flag)
+	error_at (location,
+		  "deduction guide %qD must not have a function body", decl);
+    }
+  else if (IDENTIFIER_OPNAME_P (DECL_NAME (decl))
       && !grok_op_properties (decl, /*complain=*/true))
     return NULL_TREE;
   else if (UDLIT_OPER_P (DECL_NAME (decl)))
@@ -8258,9 +8389,7 @@ grokfndecl (tree ctype,
 	check_main_parameter_types (decl);
     }
 
-  if (ctype != NULL_TREE
-      && (! TYPE_FOR_JAVA (ctype) || check_java_method (decl))
-      && check)
+  if (ctype != NULL_TREE && check)
     {
       tree old_decl = check_classfn (ctype, decl,
 				     (processing_template_decl
@@ -8388,7 +8517,9 @@ grokvardecl (tree type,
 	     tree orig_declarator,
 	     const cp_decl_specifier_seq *declspecs,
 	     int initialized,
-	     int flags,
+	     int type_quals,
+	     int inlinep,
+	     bool conceptp,
 	     int template_count,
 	     tree scope)
 {
@@ -8397,8 +8528,8 @@ grokvardecl (tree type,
 
   gcc_assert (!name || identifier_p (name));
 
-  bool constp = flags&1;
-  bool conceptp = flags&2;
+  bool constp = (type_quals & TYPE_QUAL_CONST) != 0;
+  bool volatilep = (type_quals & TYPE_QUAL_VOLATILE) != 0;
 
   /* Compute the scope in which to place the variable, but remember
      whether or not that scope was explicitly specified by the user.   */
@@ -8453,7 +8584,10 @@ grokvardecl (tree type,
   else if (toplevel_bindings_p ())
     {
       TREE_PUBLIC (decl) = (declspecs->storage_class != sc_static
-			    && (DECL_THIS_EXTERN (decl) || ! constp));
+			    && (DECL_THIS_EXTERN (decl)
+				|| ! constp
+				|| volatilep
+				|| inlinep));
       TREE_STATIC (decl) = ! DECL_EXTERNAL (decl);
     }
   /* Not at top level, only `static' makes a static definition.  */
@@ -8625,8 +8759,10 @@ check_static_variable_definition (tree decl, tree type)
   if (dependent_type_p (type))
     return 0;
   /* If DECL is declared constexpr, we'll do the appropriate checks
-     in check_initializer.  */
-  if (DECL_P (decl) && DECL_DECLARED_CONSTEXPR_P (decl))
+     in check_initializer.  Similarly for inline static data members.  */
+  if (DECL_P (decl)
+      && (DECL_DECLARED_CONSTEXPR_P (decl)
+	  || DECL_VAR_DECLARED_INLINE_P (decl)))
     return 0;
   else if (cxx_dialect >= cxx11 && !INTEGRAL_OR_ENUMERATION_TYPE_P (type))
     {
@@ -9110,7 +9246,7 @@ check_special_function_return_type (special_function_kind sfk,
 	error_at (smallest_type_quals_location (type_quals, locations),
 		  "qualifiers are not allowed on constructor declaration");
 
-      if (targetm.cxx.cdtor_returns_this () && !TYPE_FOR_JAVA (optype))
+      if (targetm.cxx.cdtor_returns_this ())
 	type = build_pointer_type (optype);
       else
 	type = void_type_node;
@@ -9124,10 +9260,8 @@ check_special_function_return_type (special_function_kind sfk,
 		  "qualifiers are not allowed on destructor declaration");
 
       /* We can't use the proper return type here because we run into
-	 problems with ambiguous bases and covariant returns.
-	 Java classes are left unchanged because (void *) isn't a valid
-	 Java type, and we don't want to change the Java ABI.  */
-      if (targetm.cxx.cdtor_returns_this () && !TYPE_FOR_JAVA (optype))
+	 problems with ambiguous bases and covariant returns.  */
+      if (targetm.cxx.cdtor_returns_this ())
 	type = build_pointer_type (void_type_node);
       else
 	type = void_type_node;
@@ -9174,6 +9308,29 @@ check_var_type (tree identifier, tree type)
     }
 
   return type;
+}
+
+/* Handle declaring DECL as an inline variable.  */
+
+static void
+mark_inline_variable (tree decl)
+{
+  bool inlinep = true;
+  if (! toplevel_bindings_p ())
+    {
+      error ("%<inline%> specifier invalid for variable "
+	     "%qD declared at block scope", decl);
+      inlinep = false;
+    }
+  else if (cxx_dialect < cxx1z)
+    pedwarn (DECL_SOURCE_LOCATION (decl), 0,
+	     "inline variables are only available "
+	     "with -std=c++1z or -std=gnu++1z");
+  if (inlinep)
+    {
+      retrofit_lang_decl (decl);
+      SET_DECL_VAR_DECLARED_INLINE_P (decl);
+    }
 }
 
 /* Given declspecs and a declarator (abstract or otherwise), determine
@@ -9332,6 +9489,11 @@ grokdeclarator (const cp_declarator *declarator,
 
   if (initialized > 1)
     funcdef_flag = true;
+
+  location_t typespec_loc = smallest_type_quals_location (type_quals,
+						      declspecs->locations);
+  if (typespec_loc == UNKNOWN_LOCATION)
+    typespec_loc = declspecs->locations[ds_type_spec];
 
   /* Look inside a declarator for the name being declared
      and get it as a string, for an error message.  */
@@ -9854,6 +10016,16 @@ grokdeclarator (const cp_declarator *declarator,
   /* We might have ignored or rejected some of the qualifiers.  */
   type_quals = cp_type_quals (type);
 
+  if (cxx_dialect >= cxx1z && type && is_auto (type)
+      && innermost_code != cdk_function
+      && id_declarator && declarator != id_declarator)
+    if (tree tmpl = CLASS_PLACEHOLDER_TEMPLATE (type))
+    {
+      error_at (typespec_loc, "template placeholder type %qT must be followed "
+		"by a simple declarator-id", type);
+      inform (DECL_SOURCE_LOCATION (tmpl), "%qD declared here", tmpl);
+    }
+
   staticp = 0;
   inlinep = decl_spec_seq_has_spec_p (declspecs, ds_inline);
   virtualp =  decl_spec_seq_has_spec_p (declspecs, ds_virtual);
@@ -10089,8 +10261,10 @@ grokdeclarator (const cp_declarator *declarator,
 	    if (type_quals != TYPE_UNQUALIFIED)
 	      {
 		if (SCALAR_TYPE_P (type) || VOID_TYPE_P (type))
-		  warning (OPT_Wignored_qualifiers,
-			   "type qualifiers ignored on function return type");
+		  {
+		    warning_at (typespec_loc, OPT_Wignored_qualifiers, "type "
+				"qualifiers ignored on function return type");
+		  }
 		/* We now know that the TYPE_QUALS don't apply to the
 		   decl, but to its return type.  */
 		type_quals = TYPE_UNQUALIFIED;
@@ -10137,11 +10311,12 @@ grokdeclarator (const cp_declarator *declarator,
 	    funcdecl_p = inner_declarator && inner_declarator->kind == cdk_id;
 
 	    /* Handle a late-specified return type.  */
+	    tree late_return_type = declarator->u.function.late_return_type;
 	    if (funcdecl_p)
 	      {
-		if (type_uses_auto (type))
+		if (tree auto_node = type_uses_auto (type))
 		  {
-		    if (!declarator->u.function.late_return_type)
+		    if (!late_return_type)
 		      {
 			if (current_class_type
 			    && LAMBDA_TYPE_P (current_class_type))
@@ -10169,8 +10344,32 @@ grokdeclarator (const cp_declarator *declarator,
 			       name, type);
 			return error_mark_node;
 		      }
+		    if (tree tmpl = CLASS_PLACEHOLDER_TEMPLATE (auto_node))
+		      {
+			if (!late_return_type)
+			  {
+			    if (dguide_name_p (unqualified_id))
+			      error_at (typespec_loc, "deduction guide for "
+					"%qT must have trailing return type",
+					TREE_TYPE (tmpl));
+			    else
+			      error_at (typespec_loc, "deduced class type %qT "
+					"in function return type", type);
+			    inform (DECL_SOURCE_LOCATION (tmpl),
+				    "%qD declared here", tmpl);
+			  }
+			else if (CLASS_TYPE_P (late_return_type)
+				 && CLASSTYPE_TEMPLATE_INFO (late_return_type)
+				 && (CLASSTYPE_TI_TEMPLATE (late_return_type)
+				     == tmpl))
+			  /* OK */;
+			else
+			  error ("trailing return type %qT of deduction guide "
+				 "is not a specialization of %qT",
+				 late_return_type, TREE_TYPE (tmpl));
+		      }
 		  }
-		else if (declarator->u.function.late_return_type
+		else if (late_return_type
 			 && sfk != sfk_conversion)
 		  {
 		    if (cxx_dialect < cxx11)
@@ -10184,12 +10383,11 @@ grokdeclarator (const cp_declarator *declarator,
 		    return error_mark_node;
 		  }
 	      }
-	    type = splice_late_return_type
-	      (type, declarator->u.function.late_return_type);
+	    type = splice_late_return_type (type, late_return_type);
 	    if (type == error_mark_node)
 	      return error_mark_node;
 
-	    if (declarator->u.function.late_return_type)
+	    if (late_return_type)
 	      late_return_type_p = true;
 
 	    if (ctype == NULL_TREE
@@ -10317,6 +10515,9 @@ grokdeclarator (const cp_declarator *declarator,
 		 The optional attribute-specifier-seq appertains to
 		 the function type.  */
 	      decl_attributes (&type, attrs, 0);
+
+	    if (raises)
+	      type = build_exception_variant (type, raises);
 	  }
 	  break;
 
@@ -10700,11 +10901,6 @@ grokdeclarator (const cp_declarator *declarator,
     {
       tree decl;
 
-      /* Note that the grammar rejects storage classes
-	 in typenames, fields or parameters.  */
-      if (current_lang_name == lang_name_java)
-	TYPE_FOR_JAVA (type) = 1;
-
       /* This declaration:
 
 	   typedef void f(int) const;
@@ -10771,7 +10967,7 @@ grokdeclarator (const cp_declarator *declarator,
 	  && unqualified_id
 	  && TYPE_NAME (type)
 	  && TREE_CODE (TYPE_NAME (type)) == TYPE_DECL
-	  && TYPE_ANONYMOUS_P (type)
+	  && TYPE_UNNAMED_P (type)
 	  && declspecs->type_definition_p
 	  && attributes_naming_typedef_ok (*attrlist)
 	  && cp_type_quals (type) == TYPE_UNQUALIFIED)
@@ -10783,7 +10979,7 @@ grokdeclarator (const cp_declarator *declarator,
 	    {
 	      if (anon_aggrname_p (TYPE_IDENTIFIER (t)))
 		/* We do not rename the debug info representing the
-		   anonymous tagged type because the standard says in
+		   unnamed tagged type because the standard says in
 		   [dcl.typedef] that the naming applies only for
 		   linkage purposes.  */
 		/*debug_hooks->set_name (t, decl);*/
@@ -10791,7 +10987,7 @@ grokdeclarator (const cp_declarator *declarator,
   	    }
 
 	  if (TYPE_LANG_SPECIFIC (type))
-	    TYPE_WAS_ANONYMOUS (type) = 1;
+	    TYPE_WAS_UNNAMED (type) = 1;
 
 	  /* If this is a typedef within a template class, the nested
 	     type is a (non-primary) template.  The name for the
@@ -10800,7 +10996,7 @@ grokdeclarator (const cp_declarator *declarator,
 	    DECL_NAME (CLASSTYPE_TI_TEMPLATE (type))
 	      = TYPE_IDENTIFIER (type);
 
-	  /* Adjust linkage now that we aren't anonymous anymore.  */
+	  /* Adjust linkage now that we aren't unnamed anymore.  */
 	  reset_type_linkage (type);
 
 	  /* FIXME remangle member functions; member functions of a
@@ -10973,7 +11169,8 @@ grokdeclarator (const cp_declarator *declarator,
       if (ctype || in_namespace)
 	error ("cannot use %<::%> in parameter declaration");
 
-      if (type_uses_auto (type))
+      if (type_uses_auto (type)
+	  && !(cxx_dialect >= cxx1z && template_parm_flag))
 	{
 	  if (cxx_dialect >= cxx14)
 	    error ("%<auto%> parameter not permitted in this context");
@@ -11021,12 +11218,19 @@ grokdeclarator (const cp_declarator *declarator,
       }
     else if (decl_context == FIELD)
       {
-	if (!staticp && !friendp && TREE_CODE (type) != METHOD_TYPE
-	    && type_uses_auto (type))
-	  {
-	    error ("non-static data member declared %<auto%>");
-	    type = error_mark_node;
-	  }
+	if (!staticp && !friendp && TREE_CODE (type) != METHOD_TYPE)
+	  if (tree auto_node = type_uses_auto (type))
+	    {
+	      location_t loc = declspecs->locations[ds_type_spec];
+	      if (CLASS_PLACEHOLDER_TEMPLATE (auto_node))
+		error_at (loc, "invalid use of template-name %qE without an "
+			  "argument list",
+			  CLASS_PLACEHOLDER_TEMPLATE (auto_node));
+	      else
+		error_at (loc, "non-static data member declared with "
+			  "placeholder %qT", auto_node);
+	      type = error_mark_node;
+	    }
 
 	/* The C99 flexible array extension.  */
 	if (!staticp && TREE_CODE (type) == ARRAY_TYPE
@@ -11275,11 +11479,6 @@ grokdeclarator (const cp_declarator *declarator,
 					    : input_location,
 					    VAR_DECL, unqualified_id, type);
 		set_linkage_for_static_data_member (decl);
-		/* Even if there is an in-class initialization, DECL
-		   is considered undefined until an out-of-class
-		   definition is provided.  */
-		DECL_EXTERNAL (decl) = 1;
-
 		if (thread_p)
 		  {
 		    CP_DECL_THREAD_LOCAL_P (decl) = true;
@@ -11297,6 +11496,17 @@ grokdeclarator (const cp_declarator *declarator,
 			   "initializer", decl);
 		    constexpr_p = false;
 		  }
+
+		if (inlinep)
+		  mark_inline_variable (decl);
+
+		if (!DECL_VAR_DECLARED_INLINE_P (decl)
+		    && !(cxx_dialect >= cxx1z && constexpr_p))
+		  /* Even if there is an in-class initialization, DECL
+		     is considered undefined until an out-of-class
+		     definition is provided, unless this is an inline
+		     variable.  */
+		  DECL_EXTERNAL (decl) = 1;
 	      }
 	    else
 	      {
@@ -11337,7 +11547,8 @@ grokdeclarator (const cp_declarator *declarator,
 
 	    bad_specifiers (decl, BSP_FIELD, virtualp,
 			    memfn_quals != TYPE_UNQUALIFIED,
-			    inlinep, friendp, raises != NULL_TREE);
+			    staticp ? false : inlinep, friendp,
+			    raises != NULL_TREE);
 	  }
       }
     else if (TREE_CODE (type) == FUNCTION_TYPE
@@ -11460,7 +11671,9 @@ grokdeclarator (const cp_declarator *declarator,
 	decl = grokvardecl (type, dname, unqualified_id,
 			    declspecs,
 			    initialized,
-			    ((type_quals & TYPE_QUAL_CONST) != 0) | (2 * concept_p),
+			    type_quals,
+			    inlinep,
+			    concept_p,
 			    template_count,
 			    ctype ? ctype : in_namespace);
 	if (decl == NULL_TREE)
@@ -11499,7 +11712,26 @@ grokdeclarator (const cp_declarator *declarator,
 		   decl);
 	    constexpr_p = false;
 	  }
+
+	if (inlinep)
+	  mark_inline_variable (decl);
       }
+
+    if (VAR_P (decl) && !initialized)
+      if (tree auto_node = type_uses_auto (type))
+	{
+	  location_t loc = declspecs->locations[ds_type_spec];
+	  if (tree tmpl = CLASS_PLACEHOLDER_TEMPLATE (auto_node))
+	    {
+	      error_at (loc, "invalid use of template-name %qE without an "
+			"argument list", tmpl);
+	      inform (loc, "class template argument deduction "
+		      "requires an initializer");
+	    }
+	  else
+	    error_at (loc, "declaration of %q#D has no initializer", decl);
+	  TREE_TYPE (decl) = error_mark_node;
+	}
 
     if (storage_class == sc_extern && initialized && !funcdef_flag)
       {
@@ -11521,7 +11753,20 @@ grokdeclarator (const cp_declarator *declarator,
        and in case doing stupid register allocation.  */
 
     if (storage_class == sc_register)
-      DECL_REGISTER (decl) = 1;
+      {
+	DECL_REGISTER (decl) = 1;
+	/* Warn about register storage specifiers on PARM_DECLs.  */
+	if (TREE_CODE (decl) == PARM_DECL)
+	  {
+	    if (cxx_dialect >= cxx1z)
+	      pedwarn (DECL_SOURCE_LOCATION (decl), OPT_Wregister,
+		       "ISO C++1z does not allow %<register%> storage "
+		       "class specifier");
+	    else
+	      warning_at (DECL_SOURCE_LOCATION (decl), OPT_Wregister,
+			  "%<register%> storage class specifier used");
+	  }
+      }
     else if (storage_class == sc_extern)
       DECL_THIS_EXTERN (decl) = 1;
     else if (storage_class == sc_static)
@@ -11757,16 +12002,6 @@ grokparms (tree parmlist, tree *parms)
 	     void type terminates the parameter list.  */
 	  type = error_mark_node;
 	  TREE_TYPE (decl) = error_mark_node;
-	}
-
-      if (type != error_mark_node
-	  && TYPE_FOR_JAVA (type)
-	  && MAYBE_CLASS_TYPE_P (type))
-	{
-	  error ("parameter %qD has Java class type", decl);
-	  type = error_mark_node;
-	  TREE_TYPE (decl) = error_mark_node;
-	  init = NULL_TREE;
 	}
 
       if (type != error_mark_node)
@@ -12961,29 +13196,22 @@ xref_basetypes (tree ref, tree base_list)
   if (max_bases)
     {
       vec_alloc (BINFO_BASE_ACCESSES (binfo), max_bases);
-      /* An aggregate cannot have baseclasses.  */
-      CLASSTYPE_NON_AGGREGATE (ref) = 1;
+      /* A C++98 POD cannot have base classes.  */
+      CLASSTYPE_NON_LAYOUT_POD_P (ref) = true;
 
       if (TREE_CODE (ref) == UNION_TYPE)
 	error ("derived union %qT invalid", ref);
     }
 
   if (max_bases > 1)
-    {
-      if (TYPE_FOR_JAVA (ref))
-	error ("Java class %qT cannot have multiple bases", ref);
-      else
-	warning (OPT_Wmultiple_inheritance,
-		 "%qT defined with multiple direct bases", ref);
-    }
+    warning (OPT_Wmultiple_inheritance,
+	     "%qT defined with multiple direct bases", ref);
 
   if (max_vbases)
     {
       vec_alloc (CLASSTYPE_VBASECLASSES (ref), max_vbases);
 
-      if (TYPE_FOR_JAVA (ref))
-	error ("Java class %qT cannot have virtual bases", ref);
-      else if (max_dvbases)
+      if (max_dvbases)
 	warning (OPT_Wvirtual_inheritance,
 		 "%qT defined with direct virtual base", ref);
     }
@@ -12997,6 +13225,13 @@ xref_basetypes (tree ref, tree base_list)
       if (access == access_default_node)
 	access = default_access;
 
+      /* Before C++17, an aggregate cannot have base classes.  In C++17, an
+	 aggregate can't have virtual, private, or protected base classes.  */
+      if (cxx_dialect < cxx1z
+	  || access != access_public_node
+	  || via_virtual)
+	CLASSTYPE_NON_AGGREGATE (ref) = true;
+
       if (PACK_EXPANSION_P (basetype))
         basetype = PACK_EXPANSION_PATTERN (basetype);
       if (TREE_CODE (basetype) == TYPE_DECL)
@@ -13007,9 +13242,6 @@ xref_basetypes (tree ref, tree base_list)
 		 basetype);
 	  goto dropped_base;
 	}
-
-      if (TYPE_FOR_JAVA (basetype) && (current_lang_depth () == 0))
-	TYPE_FOR_JAVA (ref) = 1;
 
       base_binfo = NULL_TREE;
       if (CLASS_TYPE_P (basetype) && !dependent_scope_p (basetype))
@@ -13585,14 +13817,23 @@ build_enumerator (tree name, tree value, tree enumtype, tree attributes,
 
 	  if (value != NULL_TREE)
 	    {
-	      value = cxx_constant_value (value);
-
-	      if (TREE_CODE (value) != INTEGER_CST
-		  || ! INTEGRAL_OR_ENUMERATION_TYPE_P (TREE_TYPE (value)))
+	      if (! INTEGRAL_OR_UNSCOPED_ENUMERATION_TYPE_P
+		  (TREE_TYPE (value)))
 		{
-		  error ("enumerator value for %qD is not an integer constant",
-			 name);
+		  error ("enumerator value for %qD must have integral or "
+			 "unscoped enumeration type", name);
 		  value = NULL_TREE;
+		}
+	      else
+		{
+		  value = cxx_constant_value (value);
+
+		  if (TREE_CODE (value) != INTEGER_CST)
+		    {
+		      error ("enumerator value for %qD is not an integer "
+			     "constant", name);
+		      value = NULL_TREE;
+		    }
 		}
 	    }
 	}
@@ -13776,15 +14017,11 @@ check_function_type (tree decl, tree current_function_parms)
   if (dependent_type_p (return_type)
       || type_uses_auto (return_type))
     return;
-  if (!COMPLETE_OR_VOID_TYPE_P (return_type)
-      || (TYPE_FOR_JAVA (return_type) && MAYBE_CLASS_TYPE_P (return_type)))
+  if (!COMPLETE_OR_VOID_TYPE_P (return_type))
     {
       tree args = TYPE_ARG_TYPES (fntype);
 
-      if (!COMPLETE_OR_VOID_TYPE_P (return_type))
-	error ("return type %q#T is incomplete", return_type);
-      else
-	error ("return type has Java class type %q#T", return_type);
+      error ("return type %q#T is incomplete", return_type);
 
       /* Make it return void instead.  */
       if (TREE_CODE (fntype) == METHOD_TYPE)
@@ -14376,13 +14613,7 @@ store_parm_decls (tree current_function_parms)
 	{
 	  next = DECL_CHAIN (parm);
 	  if (TREE_CODE (parm) == PARM_DECL)
-	    {
-	      if (DECL_NAME (parm) == NULL_TREE
-		  || !VOID_TYPE_P (parm))
-		pushdecl (parm);
-	      else
-		error ("parameter %qD declared void", parm);
-	    }
+	    pushdecl (parm);
 	  else
 	    {
 	      /* If we find an enum constant or a type tag,
@@ -14445,8 +14676,7 @@ finish_constructor_body (void)
   tree val;
   tree exprstmt;
 
-  if (targetm.cxx.cdtor_returns_this ()
-      && (! TYPE_FOR_JAVA (current_class_type)))
+  if (targetm.cxx.cdtor_returns_this ())
     {
       /* Any return from a constructor will end up here.  */
       add_stmt (build_stmt (input_location, LABEL_EXPR, cdtor_label));
@@ -14742,6 +14972,14 @@ finish_function (int flags)
   // If this is a concept, check that the definition is reasonable.
   if (DECL_DECLARED_CONCEPT_P (fndecl))
     check_function_concept (fndecl);
+
+  /* Lambda closure members are implicitly constexpr if possible.  */
+  if (cxx_dialect >= cxx1z
+      && LAMBDA_TYPE_P (CP_DECL_CONTEXT (fndecl))
+      && (processing_template_decl
+	  || is_valid_constexpr_fn (fndecl, /*complain*/false))
+      && potential_constant_expression (DECL_SAVED_TREE (fndecl)))
+    DECL_DECLARED_CONSTEXPR_P (fndecl) = true;
 
   /* Save constexpr function body before it gets munged by
      the NRV transformation.   */

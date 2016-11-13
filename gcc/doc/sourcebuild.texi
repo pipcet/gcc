@@ -1321,6 +1321,25 @@ Target supports array and structure sizes that are 32 bits or longer.
 
 @item 4byte_wchar_t
 Target has @code{wchar_t} that is at least 4 bytes.
+
+@item float@var{n}
+Target has the @code{_Float@var{n}} type.
+
+@item float@var{n}x
+Target has the @code{_Float@var{n}x} type.
+
+@item float@var{n}_runtime
+Target has the @code{_Float@var{n}} type, including runtime support
+for any options added with @code{dg-add-options}.
+
+@item float@var{n}x_runtime
+Target has the @code{_Float@var{n}x} type, including runtime support
+for any options added with @code{dg-add-options}.
+
+@item floatn_nx_runtime
+Target has runtime support for any options added with
+@code{dg-add-options} for any @code{_Float@var{n}} or
+@code{_Float@var{n}x} type.
 @end table
 
 @subsubsection Fortran-specific attributes
@@ -1341,6 +1360,10 @@ Target supports Fortran @code{real} kinds larger than @code{real(8)}.
 @table @code
 @item vect_condition
 Target supports vector conditional operations.
+
+@item vect_cond_mixed
+Target supports vector conditional operations where comparison operands
+have different type from the value operands.
 
 @item vect_double
 Target supports hardware vectors of @code{double}.
@@ -1575,6 +1598,13 @@ options, including @code{-mfp16-format=ieee} if necessary to obtain the
 Test system supports executing Neon half-precision float instructions.
 (Implies previous.)
 
+@item arm_fp16_alternative_ok
+ARM target supports the ARM FP16 alternative format.  Some multilibs
+may be incompatible with the options needed.
+
+@item arm_fp16_none_ok
+ARM target supports specifying none as the ARM FP16 format.
+
 @item arm_thumb1_ok
 ARM target generates Thumb-1 code for @code{-mthumb}.
 
@@ -1599,6 +1629,7 @@ ARM target supports @code{-mfpu=neon-fp-armv8 -mfloat-abi=softfp}.
 Some multilibs may be incompatible with these options.
 
 @item arm_v8_1a_neon_ok
+@anchor{arm_v8_1a_neon_ok}
 ARM target supports options to generate ARMv8.1 Adv.SIMD instructions.
 Some multilibs may be incompatible with these options.
 
@@ -1610,9 +1641,43 @@ arm_v8_1a_neon_ok.
 @item arm_acq_rel
 ARM target supports acquire-release instructions.
 
+@item arm_v8_2a_fp16_scalar_ok
+@anchor{arm_v8_2a_fp16_scalar_ok}
+ARM target supports options to generate instructions for ARMv8.2 and
+scalar instructions from the FP16 extension.  Some multilibs may be
+incompatible with these options.
+
+@item arm_v8_2a_fp16_scalar_hw
+ARM target supports executing instructions for ARMv8.2 and scalar
+instructions from the FP16 extension.  Some multilibs may be
+incompatible with these options.  Implies arm_v8_2a_fp16_neon_ok.
+
+@item arm_v8_2a_fp16_neon_ok
+@anchor{arm_v8_2a_fp16_neon_ok}
+ARM target supports options to generate instructions from ARMv8.2 with
+the FP16 extension.  Some multilibs may be incompatible with these
+options.  Implies arm_v8_2a_fp16_scalar_ok.
+
+@item arm_v8_2a_fp16_neon_hw
+ARM target supports executing instructions from ARMv8.2 with the FP16
+extension.  Some multilibs may be incompatible with these options.
+Implies arm_v8_2a_fp16_neon_ok and arm_v8_2a_fp16_scalar_hw.
+
 @item arm_prefer_ldrd_strd
 ARM target prefers @code{LDRD} and @code{STRD} instructions over
 @code{LDM} and @code{STM} instructions.
+
+@item arm_thumb1_movt_ok
+ARM target generates Thumb-1 code for @code{-mthumb} with @code{MOVW}
+and @code{MOVT} instructions available.
+
+@item arm_thumb1_cbz_ok
+ARM target generates Thumb-1 code for @code{-mthumb} with
+@code{CBZ} and @code{CBNZ} instructions available.
+
+@item arm_divmod_simode
+ARM target for which divmod transform is disabled, if it supports hardware
+div instruction.
 
 @end table
 
@@ -1787,6 +1852,13 @@ Target requires a command line argument to enable a SIMD instruction set.
 
 @item pie_copyreloc
 The x86-64 target linker supports PIE with copy reloc.
+
+@item divmod
+Target supporting hardware divmod insn or divmod libcall.
+
+@item divmod_simode
+Target supporting hardware divmod insn or divmod libcall for SImode.
+
 @end table
 
 @subsubsection Environment attributes
@@ -2116,12 +2188,35 @@ the @ref{arm_neon_fp16_ok,,arm_neon_fp16_ok effective target keyword}.
 arm vfp3 floating point support; see
 the @ref{arm_vfp3_ok,,arm_vfp3_ok effective target keyword}.
 
+@item arm_v8_1a_neon
+Add options for ARMv8.1 with Adv.SIMD support, if this is supported
+by the target; see the @ref{arm_v8_1a_neon_ok,,arm_v8_1a_neon_ok}
+effective target keyword.
+
+@item arm_v8_2a_fp16_scalar
+Add options for ARMv8.2 with scalar FP16 support, if this is
+supported by the target; see the
+@ref{arm_v8_2a_fp16_scalar_ok,,arm_v8_2a_fp16_scalar_ok} effective
+target keyword.
+
+@item arm_v8_2a_fp16_neon
+Add options for ARMv8.2 with Adv.SIMD FP16 support, if this is
+supported by the target; see the
+@ref{arm_v8_2a_fp16_neon_ok,,arm_v8_2a_fp16_neon_ok} effective target
+keyword.
+
 @item bind_pic_locally
 Add the target-specific flags needed to enable functions to bind
 locally when using pic/PIC passes in the testsuite.
 
 @item c99_runtime
 Add the target-specific flags needed to access the C99 runtime.
+
+@item float@var{n}
+Add the target-specific flags needed to use the @code{_Float@var{n}} type.
+
+@item float@var{n}x
+Add the target-specific flags needed to use the @code{_Float@var{n}x} type.
 
 @item ieee
 Add the target-specific flags needed to enable full IEEE
@@ -2394,10 +2489,6 @@ $ make check-ada CHAPTERS="c3 c9"
 The tests are organized by directory, each directory corresponding to
 a chapter of the Ada Reference Manual.  So for example, @file{c9} corresponds
 to chapter 9, which deals with tasking features of the language.
-
-There is also an extra chapter called @file{gcc} containing a template for
-creating new executable tests, although this is deprecated in favor of
-the @file{gnat.dg} testsuite.
 
 The tests are run using two @command{sh} scripts: @file{run_acats} and
 @file{run_all.sh}.  To run the tests using a simulator or a cross

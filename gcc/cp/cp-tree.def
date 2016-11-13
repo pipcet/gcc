@@ -334,6 +334,11 @@ DEFTREECODE (TAG_DEFN, "tag_defn", tcc_expression, 0)
 /* Represents an 'offsetof' expression during template expansion.  */
 DEFTREECODE (OFFSETOF_EXPR, "offsetof_expr", tcc_expression, 1)
 
+/* Represents an '__builtin_addressof' expression during template
+   expansion.  This is similar to ADDR_EXPR, but it doesn't invoke
+   overloaded & operators.  */
+DEFTREECODE (ADDRESSOF_EXPR, "addressof_expr", tcc_expression, 1)
+
 /* Represents the -> operator during template expansion.  */
 DEFTREECODE (ARROW_EXPR, "arrow_expr", tcc_expression, 1)
 
@@ -536,6 +541,14 @@ DEFTREECODE (NESTED_REQ, "nested_req", tcc_expression, 1)
    PRED_CONSTR_EXPR has the expression to be evaluated. */
 DEFTREECODE (PRED_CONSTR, "pred_constr", tcc_expression, 1)
 
+/* A check constraint represents the checking of a concept
+   C. It has two operands: the template defining the concept
+   and a sequence of template arguments.
+
+   CHECK_CONSTR_CONCEPT has the concept definition
+   CHECK_CONSTR_ARGUMENTS are the template arguments */
+DEFTREECODE (CHECK_CONSTR, "check_constr", tcc_expression, 2)
+
 /* An expression constraint determines the validity of a expression E.
 
    EXPR_CONST_EXPR has the expression being validated. */
@@ -560,7 +573,7 @@ DEFTREECODE (ICONV_CONSTR, "iconv_constr", tcc_expression, 2)
    T must contain at least one place holder.
 
    DEDUCT_CONSTR_EXPR has the expression E
-   DEDUCT_CONSTR_PATTERN has the type patter T.
+   DEDUCT_CONSTR_PATTERN has the type pattern T.
    DEDUCT_CONSTR_PLACEHOLDERS has the list of placeholder nodes in T. */
 DEFTREECODE (DEDUCT_CONSTR, "deduct_constr", tcc_expression, 3)
 

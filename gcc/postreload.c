@@ -26,6 +26,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "predict.h"
 #include "df.h"
+#include "memmodel.h"
 #include "tm_p.h"
 #include "optabs.h"
 #include "regs.h"
@@ -39,10 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "cselib.h"
 #include "tree-pass.h"
 #include "dbgcnt.h"
-
-#ifndef LOAD_EXTEND_OP
-#define LOAD_EXTEND_OP(M) UNKNOWN
-#endif
 
 static int reload_cse_noop_set_p (rtx);
 static bool reload_cse_simplify (rtx_insn *, rtx);
@@ -153,7 +150,8 @@ reload_cse_simplify (rtx_insn *insn, rtx testreg)
 		  value = SET_DEST (part);
 		}
 	    }
-	  else if (GET_CODE (part) != CLOBBER)
+	  else if (GET_CODE (part) != CLOBBER
+		   && GET_CODE (part) != USE)
 	    break;
 	}
 

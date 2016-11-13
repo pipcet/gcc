@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build ignore
+
 package crc32
 
 // This file contains the code to call the SSE 4.2 version of the Castagnoli
@@ -30,6 +32,10 @@ func updateCastagnoli(crc uint32, p []byte) uint32 {
 	if sse42 {
 		return castagnoliSSE42(crc, p)
 	}
+	// Use slicing-by-8 on larger inputs.
+	if len(p) >= sliceBy8Cutoff {
+		return updateSlicingBy8(crc, castagnoliTable8, p)
+	}
 	return update(crc, castagnoliTable, p)
 }
 
@@ -44,8 +50,8 @@ func updateIEEE(crc uint32, p []byte) uint32 {
 		return crc
 	}
 
-	// only use slicing-by-8 when input is >= 4KB
-	if len(p) >= 4096 {
+	// Use slicing-by-8 on larger inputs.
+	if len(p) >= sliceBy8Cutoff {
 		ieeeTable8Once.Do(func() {
 			ieeeTable8 = makeTable8(IEEE)
 		})

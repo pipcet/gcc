@@ -27,8 +27,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple.h"
 #include "predict.h"
 #include "stringpool.h"
+#include "tree-vrp.h"
 #include "tree-ssanames.h"
 #include "expmed.h"
+#include "memmodel.h"
 #include "optabs.h"
 #include "emit-rtl.h"
 #include "diagnostic-core.h"
@@ -235,12 +237,30 @@ expand_ASAN_CHECK (internal_fn, gcall *)
   gcc_unreachable ();
 }
 
+/* This should get expanded in the sanopt pass.  */
+
+static void
+expand_ASAN_MARK (internal_fn, gcall *)
+{
+  gcc_unreachable ();
+}
+
+
 /* This should get expanded in the tsan pass.  */
 
 static void
 expand_TSAN_FUNC_EXIT (internal_fn, gcall *)
 {
   gcc_unreachable ();
+}
+
+/* This should get expanded in the lower pass.  */
+
+static void
+expand_FALLTHROUGH (internal_fn, gcall *call)
+{
+  error_at (gimple_location (call),
+	    "invalid use of attribute %<fallthrough%>");
 }
 
 /* Helper function for expand_addsub_overflow.  Return 1
@@ -836,56 +856,68 @@ expand_addsub_overflow (location_t loc, tree_code code, tree lhs,
 	delete_insns_since (last);
       }
 
-    rtx_code_label *sub_check = gen_label_rtx ();
-    int pos_neg = 3;
-
     /* Compute the operation.  On RTL level, the addition is always
        unsigned.  */
     res = expand_binop (mode, code == PLUS_EXPR ? add_optab : sub_optab,
 			op0, op1, NULL_RTX, false, OPTAB_LIB_WIDEN);
 
-    /* If we can prove one of the arguments (for MINUS_EXPR only
+    /* If we can prove that one of the arguments (for MINUS_EXPR only
        the second operand, as subtraction is not commutative) is always
        non-negative or always negative, we can do just one comparison
-       and conditional jump instead of 2 at runtime, 3 present in the
-       emitted code.  If one of the arguments is CONST_INT, all we
-       need is to make sure it is op1, then the first
-       do_compare_rtx_and_jump will be just folded.  Otherwise try
-       to use range info if available.  */
-    if (code == PLUS_EXPR && CONST_INT_P (op0))
-      std::swap (op0, op1);
-    else if (CONST_INT_P (op1))
-      ;
-    else if (code == PLUS_EXPR && TREE_CODE (arg0) == SSA_NAME)
+       and conditional jump.  */
+    int pos_neg = get_range_pos_neg (arg1);
+    if (code == PLUS_EXPR)
       {
-        pos_neg = get_range_pos_neg (arg0);
-        if (pos_neg != 3)
-	  std::swap (op0, op1);
-      }
-    if (pos_neg == 3 && !CONST_INT_P (op1) && TREE_CODE (arg1) == SSA_NAME)
-      pos_neg = get_range_pos_neg (arg1);
-
-    /* If the op1 is negative, we have to use a different check.  */
-    if (pos_neg == 3)
-      do_compare_rtx_and_jump (op1, const0_rtx, LT, false, mode, NULL_RTX,
-			       NULL, sub_check, PROB_EVEN);
-
-    /* Compare the result of the operation with one of the operands.  */
-    if (pos_neg & 1)
-      do_compare_rtx_and_jump (res, op0, code == PLUS_EXPR ? GE : LE,
-			       false, mode, NULL_RTX, NULL, done_label,
-			       PROB_VERY_LIKELY);
-
-    /* If we get here, we have to print the error.  */
-    if (pos_neg == 3)
-      {
-	emit_jump (do_error);
-	emit_label (sub_check);
+	int pos_neg0 = get_range_pos_neg (arg0);
+	if (pos_neg0 != 3 && pos_neg == 3)
+	  {
+	    std::swap (op0, op1);
+	    pos_neg = pos_neg0;
+	  }
       }
 
-    /* We have k = a + b for b < 0 here.  k <= a must hold.  */
-    if (pos_neg & 2)
-      do_compare_rtx_and_jump (res, op0, code == PLUS_EXPR ? LE : GE,
+    /* Addition overflows if and only if the two operands have the same sign,
+       and the result has the opposite sign.  Subtraction overflows if and
+       only if the two operands have opposite sign, and the subtrahend has
+       the same sign as the result.  Here 0 is counted as positive.  */
+    if (pos_neg == 3)
+      {
+	/* Compute op0 ^ op1 (operands have opposite sign).  */
+        rtx op_xor = expand_binop (mode, xor_optab, op0, op1, NULL_RTX, false,
+				   OPTAB_LIB_WIDEN);
+
+	/* Compute res ^ op1 (result and 2nd operand have opposite sign).  */
+	rtx res_xor = expand_binop (mode, xor_optab, res, op1, NULL_RTX, false,
+				    OPTAB_LIB_WIDEN);
+
+	rtx tem;
+	if (code == PLUS_EXPR)
+	  {
+	    /* Compute (res ^ op1) & ~(op0 ^ op1).  */
+	    tem = expand_unop (mode, one_cmpl_optab, op_xor, NULL_RTX, false);
+	    tem = expand_binop (mode, and_optab, res_xor, tem, NULL_RTX, false,
+				OPTAB_LIB_WIDEN);
+	  }
+	else
+	  {
+	    /* Compute (op0 ^ op1) & ~(res ^ op1).  */
+	    tem = expand_unop (mode, one_cmpl_optab, res_xor, NULL_RTX, false);
+	    tem = expand_binop (mode, and_optab, op_xor, tem, NULL_RTX, false,
+				OPTAB_LIB_WIDEN);
+	  }
+
+	/* No overflow if the result has bit sign cleared.  */
+	do_compare_rtx_and_jump (tem, const0_rtx, GE, false, mode, NULL_RTX,
+				 NULL, done_label, PROB_VERY_LIKELY);
+      }
+
+    /* Compare the result of the operation with the first operand.
+       No overflow for addition if second operand is positive and result
+       is larger or second operand is negative and result is smaller.
+       Likewise for subtraction with sign of second operand flipped.  */
+    else
+      do_compare_rtx_and_jump (res, op0,
+			       (pos_neg == 1) ^ (code == MINUS_EXPR) ? GE : LE,
 			       false, mode, NULL_RTX, NULL, done_label,
 			       PROB_VERY_LIKELY);
   }
@@ -1813,12 +1845,11 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	  return;
 	}
 
-      /* For sub-word operations, if target doesn't have them, start
-	 with precres widening right away, otherwise do it only
-	 if the most simple cases can't be used.  */
-      if (WORD_REGISTER_OPERATIONS
-	  && orig_precres == precres
-	  && precres < BITS_PER_WORD)
+      /* For operations with low precision, if target doesn't have them, start
+	 with precres widening right away, otherwise do it only if the most
+	 simple cases can't be used.  */
+      const int min_precision = targetm.min_arithmetic_precision ();
+      if (orig_precres == precres && precres < min_precision)
 	;
       else if ((uns0_p && uns1_p && unsr_p && prec0 <= precres
 		&& prec1 <= precres)
@@ -1832,7 +1863,10 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	    {
 	    case MINUS_EXPR:
 	      if (integer_zerop (arg0) && !unsr_p)
-		expand_neg_overflow (loc, lhs, arg1, false);
+		{
+		  expand_neg_overflow (loc, lhs, arg1, false);
+		  return;
+		}
 	      /* FALLTHRU */
 	    case PLUS_EXPR:
 	      expand_addsub_overflow (loc, code, lhs, arg0, arg1,
@@ -1850,7 +1884,7 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
       /* For sub-word operations, retry with a wider type first.  */
       if (orig_precres == precres && precop <= BITS_PER_WORD)
 	{
-	  int p = WORD_REGISTER_OPERATIONS ? BITS_PER_WORD : precop;
+	  int p = MAX (min_precision, precop);
 	  enum machine_mode m = smallest_mode_for_size (p, MODE_INT);
 	  tree optype = build_nonstandard_integer_type (GET_MODE_PRECISION (m),
 							uns0_p && uns1_p
@@ -2191,6 +2225,66 @@ static void
 expand_ATOMIC_COMPARE_EXCHANGE (internal_fn, gcall *call)
 {
   expand_ifn_atomic_compare_exchange (call);
+}
+
+/* Expand LAUNDER to assignment, lhs = arg0.  */
+
+static void
+expand_LAUNDER (internal_fn, gcall *call)
+{
+  tree lhs = gimple_call_lhs (call);
+
+  if (!lhs)
+    return;
+
+  expand_assignment (lhs, gimple_call_arg (call, 0), false);
+}
+
+/* Expand DIVMOD() using:
+ a) optab handler for udivmod/sdivmod if it is available.
+ b) If optab_handler doesn't exist, generate call to
+    target-specific divmod libfunc.  */
+
+static void
+expand_DIVMOD (internal_fn, gcall *call_stmt)
+{
+  tree lhs = gimple_call_lhs (call_stmt);
+  tree arg0 = gimple_call_arg (call_stmt, 0);
+  tree arg1 = gimple_call_arg (call_stmt, 1);
+
+  gcc_assert (TREE_CODE (TREE_TYPE (lhs)) == COMPLEX_TYPE);
+  tree type = TREE_TYPE (TREE_TYPE (lhs));
+  machine_mode mode = TYPE_MODE (type);
+  bool unsignedp = TYPE_UNSIGNED (type);
+  optab tab = (unsignedp) ? udivmod_optab : sdivmod_optab;
+
+  rtx op0 = expand_normal (arg0);
+  rtx op1 = expand_normal (arg1);
+  rtx target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+
+  rtx quotient, remainder, libfunc;
+
+  /* Check if optab_handler exists for divmod_optab for given mode.  */
+  if (optab_handler (tab, mode) != CODE_FOR_nothing)
+    {
+      quotient = gen_reg_rtx (mode);
+      remainder = gen_reg_rtx (mode);
+      expand_twoval_binop (tab, op0, op1, quotient, remainder, unsignedp);
+    }
+
+  /* Generate call to divmod libfunc if it exists.  */
+  else if ((libfunc = optab_libfunc (tab, mode)) != NULL_RTX)
+    targetm.expand_divmod_libfunc (libfunc, mode, op0, op1,
+				   &quotient, &remainder);
+
+  else
+    gcc_unreachable ();
+
+  /* Wrap the return value (quotient, remainder) within COMPLEX_EXPR.  */
+  expand_expr (build2 (COMPLEX_EXPR, TREE_TYPE (lhs),
+		       make_tree (TREE_TYPE (arg0), quotient),
+		       make_tree (TREE_TYPE (arg1), remainder)),
+	      target, VOIDmode, EXPAND_NORMAL);
 }
 
 /* Expand a call to FN using the operands in STMT.  FN has a single
