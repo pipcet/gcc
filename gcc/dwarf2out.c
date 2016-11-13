@@ -27119,7 +27119,7 @@ dwarf2out_assembly_start (void)
   ASM_GENERATE_INTERNAL_LABEL (cold_end_label, COLD_END_LABEL, 0);
 
   switch_to_section (text_section);
-  ASM_OUTPUT_LABEL (asm_out_file, text_section_label);
+  ASM_OUTPUT_DEBUG_LABEL (asm_out_file, TEXT_SECTION_LABEL, 0);
 #endif
 
   /* Make sure the line number table for .text always exists.  */

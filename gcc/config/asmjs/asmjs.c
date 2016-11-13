@@ -34,6 +34,7 @@
 #include "target.h"
 #include "hash-set.h"
 #include "machmode.h"
+#include "memmodel.h"
 #include "vec.h"
 #include "double-int.h"
 #include "input.h"
@@ -957,7 +958,7 @@ void asmjs_print_operation(FILE *stream, rtx x, asmjs_prec want_prec, asmjs_kind
     }
     case LABEL_REF: {
       char buf[256];
-      x = LABEL_REF_LABEL (x);
+      x = label_ref_label (x);
       asm_fprintf (stream, "$\n\t.codetextlabel ");
       ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
       ASM_OUTPUT_LABEL_REF (stream, buf);
