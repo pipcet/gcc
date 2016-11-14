@@ -2924,14 +2924,8 @@ pp_cxx_check_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_expression_constraint (cxx_pretty_printer *pp, tree t)
 {
-<<<<<<< HEAD
-  PPTag tag(pp, __FUNCTION__);
-  pp_string (pp, "valid_expr");
-  pp_left_paren (pp);
-=======
   pp_string (pp, "<valid-expression ");
   pp_cxx_left_paren (pp);
->>>>>>> gnu/master
   pp->expression (TREE_OPERAND (t, 0));
   pp_cxx_right_paren (pp);
   pp_string (pp, ">");
@@ -2940,13 +2934,7 @@ pp_cxx_expression_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_type_constraint (cxx_pretty_printer *pp, tree t)
 {
-<<<<<<< HEAD
-  PPTag tag(pp, __FUNCTION__);
-  pp_string (pp, "valid_type");
-  pp_left_paren (pp);
-=======
   pp_string (pp, "<valid-type ");
->>>>>>> gnu/master
   pp->type_id (TREE_OPERAND (t, 0));
   pp_string (pp, ">");
 }
@@ -2954,14 +2942,8 @@ pp_cxx_type_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_implicit_conversion_constraint (cxx_pretty_printer *pp, tree t)
 {
-<<<<<<< HEAD
-  PPTag tag(pp, __FUNCTION__);
-  pp_string (pp, "convertible");
-  pp_left_paren (pp);
-=======
   pp_string (pp, "<implicitly-conversion ");
   pp_cxx_left_paren (pp);
->>>>>>> gnu/master
   pp->expression (ICONV_CONSTR_EXPR (t));
   pp_cxx_right_paren (pp);
   pp_cxx_ws_string (pp, "to");
@@ -2972,14 +2954,8 @@ pp_cxx_implicit_conversion_constraint (cxx_pretty_printer *pp, tree t)
 void
 pp_cxx_argument_deduction_constraint (cxx_pretty_printer *pp, tree t)
 {
-<<<<<<< HEAD
-  PPTag tag(pp, __FUNCTION__);
-  pp_string (pp, "deducible");
-  pp_left_paren (pp);
-=======
   pp_string (pp, "<argument-deduction ");
   pp_cxx_left_paren (pp);
->>>>>>> gnu/master
   pp->expression (DEDUCT_CONSTR_EXPR (t));
   pp_cxx_right_paren (pp);
   pp_cxx_ws_string (pp, "as");
