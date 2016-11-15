@@ -1487,7 +1487,7 @@ simplify_operand_subreg (int nop, machine_mode reg_mode)
 	     pseudos we allocate stack memory enough for the biggest
 	     corresponding paradoxical subreg.  */
 	  if (!SLOW_UNALIGNED_ACCESS (mode, MEM_ALIGN (reg))
-	      || SLOW_UNALIGNED_ACCESS (innermode, MEM_ALIGN (reg))
+	      //|| SLOW_UNALIGNED_ACCESS (innermode, MEM_ALIGN (reg))
 	      || MEM_ALIGN (reg) >= GET_MODE_ALIGNMENT (mode))
 	    return true;
 
