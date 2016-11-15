@@ -1,3 +1,14 @@
+2016-11-15  Martin Jambor  <mjambor@suse.cz>
+            Alexander Monakov  <amonakov@ispras.ru>
+
+	* testsuite/libgomp.fortran/examples-4/device-1.f90 (e_57_1): Add
+	mapping clauses to target constructs.
+	* testsuite/libgomp.fortran/examples-4/device-3.f90 (e_57_3): Ditto.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* configure: Regenerate.
+
 2016-11-10  Jakub Jelinek  <jakub@redhat.com>
 
 	* omp_lib.f90.in (openmp_version): Change to 201511 from 201307.

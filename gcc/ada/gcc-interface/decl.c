@@ -388,7 +388,8 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
      must be specified unless it was specified by the programmer.  Exceptions
      are for access-to-protected-subprogram types and all access subtypes, as
      another GNAT type is used to lay out the GCC type for them.  */
-  gcc_assert (!Unknown_Esize (gnat_entity)
+  gcc_assert (!is_type
+	      || Known_Esize (gnat_entity)
 	      || Has_Size_Clause (gnat_entity)
 	      || (!IN (kind, Numeric_Kind)
 		  && !IN (kind, Enumeration_Kind)
@@ -1836,7 +1837,7 @@ gnat_to_gnu_entity (Entity_Id gnat_entity, tree gnu_expr, bool definition)
 	  && esize == CHAR_TYPE_SIZE
 	  && flag_signed_char)
 	gnu_type = make_signed_type (CHAR_TYPE_SIZE);
-      else if (Is_Unsigned_Type (Etype (gnat_entity))
+      else if (Is_Unsigned_Type (Underlying_Type (Etype (gnat_entity)))
 	       || (Esize (Etype (gnat_entity)) != Esize (gnat_entity)
 		   && Is_Unsigned_Type (gnat_entity))
 	       || Has_Biased_Representation (gnat_entity))
@@ -8022,6 +8023,14 @@ annotate_value (tree gnu_size)
   switch (TREE_CODE (gnu_size))
     {
     case INTEGER_CST:
+      /* For negative values, build NEGATE_EXPR of the opposite.  Such values
+	 can appear for discriminants in expressions for variants.  */
+      if (tree_int_cst_sgn (gnu_size) < 0)
+	{
+	  tree t = wide_int_to_tree (sizetype, wi::neg (gnu_size));
+	  return annotate_value (build1 (NEGATE_EXPR, sizetype, t));
+	}
+
       return TREE_OVERFLOW (gnu_size) ? No_Uint : UI_From_gnu (gnu_size);
 
     case COMPONENT_REF:

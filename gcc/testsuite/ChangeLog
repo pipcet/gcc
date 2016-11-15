@@ -1,3 +1,161 @@
+2016-11-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/cpp1z/decomp14.C: New test.
+	* g++.dg/cpp1z/decomp15.C: New test.
+	* g++.dg/cpp1z/decomp16.C: New test.
+
+	* g++.dg/cpp1z/decomp13.C: New test.
+
+	* g++.dg/cpp1y/auto-fn33.C (main): Turn // error: ... into dg-bogus.
+
+	PR c++/71988
+	* g++.dg/cpp0x/constexpr-71988.C: New test.
+
+2016-11-15  Maciej W. Rozycki  <macro@imgtec.com>
+
+	* gcc.target/mips/insn-casesi.c: New test case.
+	* gcc.target/mips/insn-pseudo-1.c: New test case.
+	* gcc.target/mips/insn-pseudo-2.c: New test case.
+	* gcc.target/mips/insn-pseudo-3.c: New test case.
+	* gcc.target/mips/insn-pseudo-4.c: New test case.
+	* gcc.target/mips/insn-tablejump.c: New test case.
+
+2016-11-15  Maciej W. Rozycki  <macro@imgtec.com>
+
+	* gcc.target/mips/mips.exp (mips_option_tests): Add
+	`-mcode-readable=yes' array element.
+
+2016-11-15  Maciej W. Rozycki  <macro@imgtec.com>
+
+	* gcc.target/mips/mips.exp (mips_option_tests): Add
+	`-mmicromips' array element.
+
+2016-11-15  Michael Matz  <matz@suse.de>
+
+	PR missed-optimization/77881
+	* gcc.target/i386/pr77881.c: New test.
+
+2016-11-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/78295
+	* gcc.dg/uninit-pr78295.c: Add -Wno-psabi to dg-options.
+
+2016-11-14  Michael Meissner  <meissner@linux.vnet.ibm.com>
+
+	* gcc.target/powerpc/vec-set-int.c: New test.
+	* gcc.target/powerpc/vec-set-short.c: Likesie.
+	* gcc.target/powerpc/vec-set-char.c: Likewise.
+
+2016-11-14  Jakub Jelinek  <jakub@redhat.com>
+
+	* g++.dg/cpp1z/feat-cxx1z.C: Test __cpp_structured_bindings macro.
+
+2016-11-14  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/78300
+	* gfortran.dg/class_result_3.f90: New test.
+
+2016-11-14  Prasad Ghangal  <prasad.ghangal@gmail.com>
+	    Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/gimplefe-1.c: New testcase.
+	* gcc.dg/gimplefe-2.c: Likewise.
+	* gcc.dg/gimplefe-3.c: Likewise.
+	* gcc.dg/gimplefe-4.c: Likewise.
+	* gcc.dg/gimplefe-5.c: Likewise.
+	* gcc.dg/gimplefe-6.c: Likewise.
+	* gcc.dg/gimplefe-7.c: Likewise.
+	* gcc.dg/gimplefe-8.c: Likewise.
+	* gcc.dg/gimplefe-9.c: Likewise.
+	* gcc.dg/gimplefe-10.c: Likewise.
+	* gcc.dg/gimplefe-11.c: Likewise.
+	* gcc.dg/gimplefe-12.c: Likewise.
+	* gcc.dg/gimplefe-13.c: Likewise.
+	* gcc.dg/gimplefe-14.c: Likewise.
+	* gcc.dg/gimplefe-15.c: Likewise.
+	* gcc.dg/gimplefe-16.c: Likewise.
+	* gcc.dg/gimplefe-17.c: Likewise.
+	* gcc.dg/gimplefe-18.c: Likewise.
+
+2016-11-14  Martin Liska  <mliska@suse.cz>
+
+	PR bootstrap/78069
+	* gcc.dg/no_profile_instrument_function-attr-1.c: Update test
+	to match scanned pattern.
+	* gcc.dg/tree-ssa/ssa-lim-11.c: Likewise.
+
+2016-11-14  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/78312
+	* gcc.dg/torture/pr78312.c: New testcase.
+
+2016-11-14  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/78093
+	* gcc.target/avr/torture/tiny-absdata-2.c: New test.
+
+2016-11-14  Jakub Jelinek  <jakub@redhat.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	Implement P0217R3 - C++17 structured bindings
+	* g++.dg/cpp1z/decomp1.C: New test.
+	* g++.dg/cpp1z/decomp2.C: New test.
+	* g++.dg/cpp1z/decomp3.C: New test.
+	* g++.dg/cpp1z/decomp4.C: New test.
+	* g++.dg/cpp1z/decomp5.C: New test.
+	* g++.dg/cpp1z/decomp6.C: New test.
+	* g++.dg/cpp1z/decomp7.C: New test.
+	* g++.dg/cpp1z/decomp8.C: New test.
+	* g++.dg/cpp1z/decomp9.C: New test.
+	* g++.dg/cpp1z/decomp10.C: New test.
+
+2016-11-13  Kugan Vivekanandarajah  <kuganv@linaro.org>
+
+	* g++.dg/torture/pr78268.C: New test.
+
+2016-11-13  Prathamesh Kulkarni  <prathamesh.kulkarni@linaro.org>
+
+	PR c/35503
+	* c-c++-common/pr35503-1.c: New test.
+	* c-c++-common/pr35503-2.c: Likewise.
+	* c-c++-common/pr35503-3.c: Likewise.
+	* gcc.dg/format/gcc_diag-1.c: Add tests for "Z" specifier.
+
+2016-11-13  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR rtl-optimization/78232
+	PR rtl-optimization/78248
+	* gcc.dg/ubsan/pr78248.c: New test.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/address_conv.adb: New test.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/renaming11.ad[sb]: New test.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-c++-common/dump-ada-spec-6.c: New test.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/lto21.adb: New test.
+	* gnat.dg/lto21_pkg1.ads: New helper.
+	* gnat.dg/lto21_pkg2.ad[sb]: Likewise.
+
+2016-11-13  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/60952
+	* gfortran.dg/typebound_proc_34.f90: New test.
+
+2016-11-13  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/66366
+	* gfortran.dg/class_57.f90: Changed error message.
+	* gfortran.dg/class_60.f90: New test.
+
 2016-11-12  David Edelsohn  <dje.gcc@gmail.com>
 
 	* g++.dg/pr78112.C: XFAIL AIX.
@@ -48,7 +206,7 @@
 	PR middle-end/78295
 	* gcc.dg/uninit-pr78295.c: New testcase.
 
-2016-11-10  Fritz O. Reese <fritzoreese@gmail.com>
+2016-11-10  Fritz O. Reese  <fritzoreese@gmail.com>
 
 	PR fortran/78277
 	* gfortran.dg/dec_structure_17.f90: New test.
@@ -129,7 +287,7 @@
 	PR target/78262
 	* gcc.target/i386/pr78262.c: New test.
 
-2016-11-09  Fritz O. Reese <fritzoreese@gmail.com>
+2016-11-09  Fritz O. Reese  <fritzoreese@gmail.com>
 
 	PR fortran/78259
 	* gfortran.dg/pr78259.f90: New test.

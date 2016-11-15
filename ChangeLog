@@ -1,3 +1,15 @@
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* Makefile.def: Remove references to GCJ.
+	* Makefile.tpl: Likewise.
+	* Makefile.in: Regenerate.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* config-ml.in: Remove references to GCJ.
+	* configure.ac: Likewise.
+	* configure: Regenerate.
+
 2016-11-01  Josh Conner  <joshconner@google.com>
 
 	* MAINTAINERS (Write After Approval): Update email address,

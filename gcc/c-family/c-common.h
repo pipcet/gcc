@@ -118,6 +118,12 @@ enum rid
 
   RID_FRACT, RID_ACCUM, RID_AUTO_TYPE, RID_BUILTIN_CALL_WITH_STATIC_CHAIN,
 
+  /* "__GIMPLE", for the GIMPLE-parsing extension to the C frontend. */
+  RID_GIMPLE,
+
+  /* "__PHI", for parsing PHI function in GIMPLE FE.  */
+  RID_PHI,
+
   /* C11 */
   RID_ALIGNAS, RID_GENERIC,
 
@@ -1492,6 +1498,7 @@ extern void warnings_for_convert_and_check (location_t, tree, tree, tree);
 extern void c_do_switch_warnings (splay_tree, location_t, tree, tree, bool,
 				  bool);
 extern void warn_for_omitted_condop (location_t, tree);
+extern void warn_for_restrict (unsigned, vec<tree, va_gc> *);
 
 /* Places where an lvalue, or modifiable lvalue, may be required.
    Used to select diagnostic messages in lvalue_error and

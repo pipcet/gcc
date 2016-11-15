@@ -2259,7 +2259,7 @@ perform_koenig_lookup (cp_expr fn, vec<tree, va_gc> *args,
 	}
     }
 
-  if (fn && template_id)
+  if (fn && template_id && fn != error_mark_node)
     fn = build2 (TEMPLATE_ID_EXPR, unknown_type_node, fn, tmpl_args);
   
   return fn;
@@ -8889,6 +8889,21 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
       if (BASELINK_P (expr))
         /* See through BASELINK nodes to the underlying function.  */
         expr = BASELINK_FUNCTIONS (expr);
+
+      /* decltype of a decomposition name drops references in the tuple case
+	 (unlike decltype of a normal variable) and keeps cv-qualifiers from
+	 the containing object in the other cases (unlike decltype of a member
+	 access expression).  */
+      if (DECL_DECOMPOSITION_P (expr))
+	{
+	  if (DECL_HAS_VALUE_EXPR_P (expr))
+	    /* Expr is an array or struct subobject proxy, handle
+	       bit-fields properly.  */
+	    return unlowered_expr_type (expr);
+	  else
+	    /* Expr is a reference variable for the tuple case.  */
+	    return non_reference (TREE_TYPE (expr));
+	}
 
       switch (TREE_CODE (expr))
         {

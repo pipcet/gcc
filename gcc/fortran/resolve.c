@@ -214,27 +214,33 @@ resolve_procedure_interface (gfc_symbol *sym)
       if (ifc->result)
 	{
 	  sym->ts = ifc->result->ts;
+	  sym->attr.allocatable = ifc->result->attr.allocatable;
+	  sym->attr.pointer = ifc->result->attr.pointer;
+	  sym->attr.dimension = ifc->result->attr.dimension;
+	  sym->attr.class_ok = ifc->result->attr.class_ok;
+	  sym->as = gfc_copy_array_spec (ifc->result->as);
 	  sym->result = sym;
 	}
       else
-	sym->ts = ifc->ts;
+	{
+	  sym->ts = ifc->ts;
+	  sym->attr.allocatable = ifc->attr.allocatable;
+	  sym->attr.pointer = ifc->attr.pointer;
+	  sym->attr.dimension = ifc->attr.dimension;
+	  sym->attr.class_ok = ifc->attr.class_ok;
+	  sym->as = gfc_copy_array_spec (ifc->as);
+	}
       sym->ts.interface = ifc;
       sym->attr.function = ifc->attr.function;
       sym->attr.subroutine = ifc->attr.subroutine;
 
-      sym->attr.allocatable = ifc->attr.allocatable;
-      sym->attr.pointer = ifc->attr.pointer;
       sym->attr.pure = ifc->attr.pure;
       sym->attr.elemental = ifc->attr.elemental;
-      sym->attr.dimension = ifc->attr.dimension;
       sym->attr.contiguous = ifc->attr.contiguous;
       sym->attr.recursive = ifc->attr.recursive;
       sym->attr.always_explicit = ifc->attr.always_explicit;
       sym->attr.ext_attr |= ifc->attr.ext_attr;
       sym->attr.is_bind_c = ifc->attr.is_bind_c;
-      sym->attr.class_ok = ifc->attr.class_ok;
-      /* Copy array spec.  */
-      sym->as = gfc_copy_array_spec (ifc->as);
       /* Copy char length.  */
       if (ifc->ts.type == BT_CHARACTER && ifc->ts.u.cl)
 	{
@@ -13584,19 +13590,6 @@ resolve_component (gfc_component *c, gfc_symbol *sym)
       gfc_error ("The pointer component %qs of %qs at %L is a type "
                  "that has not been declared", c->name, sym->name,
                  &c->loc);
-      return false;
-    }
-
-  /* C437.  */
-  if (c->ts.type == BT_CLASS && c->attr.flavor != FL_PROCEDURE
-      && (!c->attr.class_ok
-          || !(CLASS_DATA (c)->attr.class_pointer
-               || CLASS_DATA (c)->attr.allocatable)))
-    {
-      gfc_error ("Component %qs with CLASS at %L must be allocatable "
-                 "or pointer", c->name, &c->loc);
-      /* Prevent a recurrence of the error.  */
-      c->ts.type = BT_UNKNOWN;
       return false;
     }
 

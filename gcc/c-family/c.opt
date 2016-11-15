@@ -200,6 +200,10 @@ F
 Driver C ObjC C++ ObjC++ Joined Separate MissingArgError(missing path after %qs)
 -F <dir>	Add <dir> to the end of the main framework include path.
 
+fgimple
+C Var(flag_gimple) Init(0)
+Enable parsing GIMPLE.
+
 H
 C ObjC C++ ObjC++
 Print the name of header files as they are used.
@@ -1084,6 +1088,11 @@ Warn if a class type has a base or a field whose type uses the anonymous namespa
 Wduplicate-decl-specifier
 C ObjC Var(warn_duplicate_decl_specifier) Warning LangEnabledBy(C ObjC,Wall)
 Warn when a declaration has duplicate const, volatile, restrict or _Atomic specifier.
+
+Wrestrict
+C ObjC C++ ObjC++ Var(warn_restrict) Warning LangEnabledBy(C ObjC C++ ObjC++)
+Warn when an argument passed to a restrict-qualified parameter aliases with
+another argument.
 
 ansi
 C ObjC C++ ObjC++

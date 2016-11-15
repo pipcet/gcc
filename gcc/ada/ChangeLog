@@ -1,3 +1,36 @@
+2016-11-14  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/Makefile.in: Replace s-interr-hwint.adb with
+	s-interr-vxworks.adb throughout.
+
+2016-11-13  Bob Duff  <duff@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity): In assertion about known
+	Esize, protect with !is_type and change !Unknown_Esize to Known_Esize.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (gnat_to_gnu_entity) <E_Signed_Integer_Subtype>:
+	Look at the underlying type for the signedness of the type.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/decl.c (annotate_value) <INTEGER_CST>: Deal specially
+	with negative constants.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/utils2.c (gnat_protect_expr): Also protect only the
+	address if the expression is the component of a dereference.
+	Do not use a reference type for the final temporary reference.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc-interface/Makefile.in (NO_OMIT_ADAFLAGS): Define.
+	(a-except.o): Replace -fno-inline with NO_INLINE_ADAFLAGS.
+	(s-memory.o): New rule.
+	(tracebak.o): Replace -fno-omit-frame-pointer with NO_OMIT_ADAFLAGS.
+
 2016-11-07  Tamar Christina  <tamar.christina@arm.com>
 
 	* adaint.c: Added signal.h for Windows.

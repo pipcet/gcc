@@ -3153,6 +3153,10 @@ non_const_var_error (tree r)
       else
 	gcc_unreachable ();
     }
+  else if (TREE_CODE (type) == REFERENCE_TYPE)
+    inform (DECL_SOURCE_LOCATION (r),
+	    "%qD was not initialized with a constant "
+	    "expression", r);
   else
     {
       if (cxx_dialect >= cxx11 && !DECL_DECLARED_CONSTEXPR_P (r))
@@ -3770,7 +3774,7 @@ cxx_eval_constant_expression (const constexpr_ctx *ctx, tree t,
       return (*ctx->values->get (t));
 
     case VAR_DECL:
-      if (is_capture_proxy (t))
+      if (DECL_HAS_VALUE_EXPR_P (t))
 	return cxx_eval_constant_expression (ctx, DECL_VALUE_EXPR (t),
 					     lval, non_constant_p, overflow_p);
       /* fall through */
@@ -5037,6 +5041,8 @@ potential_constant_expression_1 (tree t, bool want_rval, bool strict,
       return RECUR (TREE_OPERAND (t, 0), rval);
 
     case VAR_DECL:
+      if (DECL_HAS_VALUE_EXPR_P (t))
+	return RECUR (DECL_VALUE_EXPR (t), rval);
       if (want_rval
 	  && !var_in_maybe_constexpr_fn (t)
 	  && !type_dependent_expression_p (t)
@@ -5105,6 +5111,8 @@ potential_constant_expression_1 (tree t, bool want_rval, bool strict,
 #endif
       return RECUR (t, any);
 
+    case REALPART_EXPR:
+    case IMAGPART_EXPR:
     case COMPONENT_REF:
     case BIT_FIELD_REF:
     case ARROW_EXPR:
@@ -5276,8 +5284,6 @@ potential_constant_expression_1 (tree t, bool want_rval, bool strict,
 	return true;
       /* fall through.  */
 
-    case REALPART_EXPR:
-    case IMAGPART_EXPR:
     case CONJ_EXPR:
     case SAVE_EXPR:
     case FIX_TRUNC_EXPR:

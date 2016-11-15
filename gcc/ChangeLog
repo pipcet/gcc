@@ -1,3 +1,328 @@
+2016-11-15  Richard Sandiford  <richard.sandiford@arm.com>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* config/i386/i386.h (INCOMING_RETURN_ADDR_RTX): Use Pmode instead
+	of VOIDmode.
+	* config/ia64/ia64.h (INCOMING_RETURN_ADDR_RTX): Likewise.
+	* config/iq2000/iq2000.h (INCOMING_RETURN_ADDR_RTX): Likewise.
+	* config/m68k/m68k.h (INCOMING_RETURN_ADDR_RTX): Likewise.
+	* config/microblaze/microblaze.h (INCOMING_RETURN_ADDR_RTX): Likewise.
+	* config/mips/mips.h (INCOMING_RETURN_ADDR_RTX): Likewise.
+	* config/mn10300/mn10300.h (INCOMING_RETURN_ADDR_RTX): Likewise.
+	* config/nios2/nios2.h (INCOMING_RETURN_ADDR_RTX): Likewise.
+
+2016-11-15  Richard Sandiford  <richard.sandiford@arm.com>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* dce.c (check_argument_store): Pass the size instead of
+	the memory reference.
+	(find_call_stack_args): Pass MEM_SIZE to check_argument_store.
+
+2016-11-15  Richard Sandiford  <richard.sandiford@arm.com>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* alias.c (canon_rtx): Use simplify_gen_binary.
+
+2016-11-15  Richard Sandiford  <richard.sandiford@arm.com>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* rtl.h (load_extend_op): Declare.
+	* rtlanal.c (load_extend_op): New function.
+	(nonzero_bits1): Use it.
+	(num_sign_bit_copies1): Likewise.
+	* cse.c (cse_insn): Likewise.
+	* fold-const.c (fold_single_bit_test): Likewise.
+	(fold_unary_loc): Likewise.
+	* fwprop.c (free_load_extend): Likewise.
+	* postreload.c (reload_cse_simplify_set): Likewise.
+	(reload_cse_simplify_operands): Likewise.
+	* combine.c (try_combine): Likewise.
+	(simplify_set): Likewise.  Remove redundant SUBREG_BYTE and
+	subreg_lowpart_p checks.
+
+2016-11-15  Richard Sandiford  <richard.sandiford@arm.com>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* combine.c (simplify_shift_const_1): Use the number of bits
+	in the inner mode to determine the range of the shift.
+	When handling shifts of vectors, skip any rules that apply
+	only to scalars.
+
+2016-11-15  Richard Sandiford  <richard.sandiford@arm.com>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* rtlanal.c (num_sign_bit_copies1): Calculate bitwidth after
+	handling VOIDmode.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* doc/install.texi: Remove references to gcj/libjava.
+	* doc/invoke.texi: Likewise.
+
+2016-11-15  Jeff Law  <law@redhat.com>
+
+	* tree-ssa-threadbackward.c (fsm_find_thread_path): Remove unneeded
+	parameter.  Callers changed.
+	(check-subpath_and_update_thread_path): Extracted from
+	fsm_find_control_statement_thread_paths.
+	(handle_phi, handle_assignment, handle_assignment_p): Likewise.
+	(handle_phi, handle_assignment): Allow any constant node, not
+	just INTEGER_CST.
+
+2016-11-15  Claudiu Zissulescu  <claziss@synopsys.com>
+
+	* config/arc/arc-arch.h: New file.
+	* config/arc/arc-arches.def: Likewise.
+	* config/arc/arc-cpus.def: Likewise.
+	* config/arc/arc-options.def: Likewise.
+	* config/arc/t-multilib: Likewise.
+	* config/arc/genmultilib.awk: Likewise.
+	* config/arc/genoptions.awk: Likewise.
+	* config/arc/arc-tables.opt: Likewise.
+	* config/arc/driver-arc.c: Likewise.
+	* testsuite/gcc.target/arc/nps400-cpu-flag.c: Likewise.
+	* common/config/arc/arc-common.c (arc_handle_option): Trace
+	toggled options.
+	* config.gcc (arc*-*-*): Add arc-tables.opt to arc's extra
+	options; check for supported cpu against arc-cpus.def file.
+	(arc*-*-elf*, arc*-*-linux-uclibc*): Use new make fragment; define
+	TARGET_CPU_BUILD macro; add driver-arc.o as an extra object.
+	* config/arc/arc-c.def: Add emacs local variables.
+	* config/arc/arc-opts.h (processor_type): Use arc-cpus.def file.
+	(FPU_FPUS, FPU_FPUD, FPU_FPUDA, FPU_FPUDA_DIV, FPU_FPUDA_FMA)
+	(FPU_FPUDA_ALL, FPU_FPUS_DIV, FPU_FPUS_FMA, FPU_FPUS_ALL)
+	(FPU_FPUD_DIV, FPU_FPUD_FMA, FPU_FPUD_ALL): New defines.
+	(DEFAULT_arc_fpu_build): Define.
+	(DEFAULT_arc_mpy_option): Define.
+	* config/arc/arc-protos.h (arc_init): Delete.
+	* config/arc/arc.c (arc_cpu_name): New variable.
+	(arc_selected_cpu, arc_selected_arch, arc_arcem, arc_archs)
+	(arc_arc700, arc_arc600, arc_arc601): New variable.
+	(arc_init): Add static; remove selection of default tune value,
+	cleanup obsolete error messages.
+	(arc_override_options): Make use of .def files for selecting the
+	right cpu and option configurations.
+	* config/arc/arc.h (stdbool.h): Include.
+	(TARGET_CPU_DEFAULT): Define.
+	(CPP_SPEC): Remove mcpu=NPS400 handling.
+	(arc_cpu_to_as): Declare.
+	(EXTRA_SPEC_FUNCTIONS): Define.
+	(OPTION_DEFAULT_SPECS): Likewise.
+	(ASM_DEFAULT): Remove.
+	(ASM_SPEC): Use arc_cpu_to_as.
+	(DRIVER_SELF_SPECS): Remove deprecated options.
+	(arc_base_cpu):	Declare.
+	(TARGET_ARC600, TARGET_ARC601, TARGET_ARC700, TARGET_EM)
+	(TARGET_HS, TARGET_V2, TARGET_ARC600): Make them use arc_base_cpu
+	variable.
+	(MULTILIB_DEFAULTS): Use ARC_MULTILIB_CPU_DEFAULT.
+	* config/arc/arc.md (attr_cpu): Remove.
+	* config/arc/arc.opt (mno-mpy): Deprecate.
+	(mcpu=ARC600, mcpu=ARC601, mcpu=ARC700, mcpu=NPS400, mcpu=ARCEM)
+	(mcpu=ARCHS): Remove.
+	(mcrc, mdsp-packa, mdvbf, mmac-d16, mmac-24, mtelephony, mrtsc):
+	Deprecate.
+	(mbarrel_shifte, mspfp_, mdpfp_, mdsp_pack, mmac_): Remove.
+	(arc_fpu): Use new defines.
+	(mpy-option): Change to use numeric or string like inputs.
+	* config/arc/t-arc (driver-arc.o): New target.
+	(arc-cpus, t-multilib, arc-tables.opt): Likewise.
+	* config/arc/t-arc-newlib: Delete.
+	* config/arc/t-arc-uClibc: Renamed to t-uClibc.
+	* doc/invoke.texi (ARC): Update arc options.
+
+2016-11-15  Maciej W. Rozycki  <macro@imgtec.com>
+
+	* config/mips/mips.c (mips16_emit_constants): Emit `consttable'
+	insn at the beginning of the constant pool.
+	(mips_insert_insn_pseudos): New function.
+	(mips_machine_reorg2): Call it.
+	* config/mips/mips.md (unspec): Add UNSPEC_CONSTTABLE and
+	UNSPEC_INSN_PSEUDO enum values.
+	(insn_pseudo, consttable): New insns.
+
+2016-11-15  Michael Matz  <matz@suse.de>
+
+	PR missed-optimization/77881
+	* combine.c (simplify_comparison): Remove useless subregs
+	also inside the loop, not just after it.
+	(make_compound_operation): Recognize some subregs as being
+	masking as well.
+
+2016-11-15  Richard Sandiford  <richard.sandiford@arm.com>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* dwarf2out.c (mem_loc_descriptor): Fix GET_MODE_CLASS/
+	GET_MODE_SIZE typo.
+
+2016-11-14  Michael Meissner  <meissner@linux.vnet.ibm.com>
+
+	* config/rs6000/rs6000.c (rs6000_expand_vector_set): Add support
+	for using xxinsertw and vinsert{b,h} on ISA 3.0.
+
+	* config/rs6000/vsx.md (vsx_extract_<mode>): Update comment.
+	(vsx_set_<mode>_p9): New insn to generate xxinsertw and
+	vinsert{b,h} on ISA 3.0.
+
+2016-11-14  Thomas Preud'homme  <thomas.preudhomme@arm.com>
+
+	* tree-ssa-math-opts.c (find_bswap_or_nop): Zero out bytes in cmpxchg
+	and cmpnop in two steps: first the ones not accessed in original gimple
+	expression in a endian independent way and then the ones not accessed
+	in the final result in an endian-specific way.
+	(bswap_replace): Stop doing big endian adjustment.
+
+2016-11-14  Uros Bizjak  <ubizjak@gmail.com>
+
+	* config/i386/i386.md (*andndi3_doubleword): Merge operand constraints.
+	(*ashl<mode>3_doubleword): Ditto.
+
+2016-11-14  Martin Liska  <mliska@suse.cz>
+
+	* tree-ssa-dse.c (dse_optimize_stmt): Remove quotes and extra
+	new line.
+
+2016-11-14  Prasad Ghangal  <prasad.ghangal@gmail.com>
+	    Richard Biener  <rguenther@suse.de>
+
+	* doc/invoke.texi (fgimple): Document.
+	* dumpfile.h (TDF_GIMPLE): Add.
+	* dumpfile.c (dump_options): Add gimple.
+	* gimple-pretty-print.c (dump_gimple_switch): Adjust dump
+	for TDF_GIMPLE.
+	(dump_gimple_label): Likewise.
+	(dump_gimple_phi): Likewise.
+	(dump_gimple_bb_header): Likewise.
+	(dump_phi_nodes): Likewise.
+	(pp_cfg_jump): Likewise.  Pass in dump flags.
+	(dump_implicit_edges): Adjust.
+	* passes.c (pass_init_dump_file): Do not dump function header
+	for TDF_GIMPLE.
+	* tree-cfg.c (dump_function_to_file): Dump function return type
+	and __GIMPLE keyword for TDF_GIMPLE.  Change guard for dumping
+	GIMPLE stmts.
+	* tree-pretty-print.c (dump_decl_name): Adjust dump for TDF_GIMPLE.
+	(dump_generic_node): Likewise.
+	* function.h (struct function): Add pass_startwith member.
+	* passes.c (execute_one_pass): Implement startwith.
+	* tree-ssanames.c (make_ssa_name_fn): New argument, check for version
+	and assign proper version for parsed ssa names.
+	* tree-ssanames.h (make_ssa_name_fn): Add new argument to the function.
+	* internal-fn.c (expand_PHI): New function.
+	* internal-fn.h (expand_PHI): Declared here.
+	* internal-fn.def: New defination for PHI.
+	* tree-cfg.c (lower_phi_internal_fn): New function.
+	(build_gimple_cfg): Call it.
+	(verify_gimple_call): Condition for passing label as arg in internal
+	function PHI.
+	* tree-into-ssa.c (rewrite_add_phi_arguments): Handle already
+	present PHIs with arguments.
+
+2016-11-14  Martin Liska  <mliska@suse.cz>
+
+	PR bootstrap/78069
+	* common.opt: Add prefer-atomic as a new enum value for
+	-fprofile-update.
+	* coretypes.h: Likewise.
+	* doc/invoke.texi: Document the new option value.
+	* gcc.c: Replace atomic with prefer-atomic.  Remove warning.
+	* tree-profile.c (tree_profiling): Select default value
+	of -fprofile-update when 'prefer-atomic' is selected.
+
+2016-11-14  Wilco Dijkstra  <wdijkstr@arm.com>
+
+	* config/arm/cortex-a57.md (cortex_a57_alu): Move extend here, bfm...
+	(cortex_a57_alu_shift): ...here.
+
+2016-11-14  Wilco Dijkstra  <wdijkstr@arm.com>
+
+	* config/aarch64/aarch64.md (aarch64_ashl_sisd_or_int_<mode>3)
+	Use bfx attribute.
+	(aarch64_lshr_sisd_or_int_<mode>3): Likewise.
+	(aarch64_ashr_sisd_or_int_<mode>3): Likewise.
+	(<optab>si3_insn_uxtw): Likewise.
+	(<optab><mode>3_insn): Likewise.
+	(<ANY_EXTEND:optab><GPI:mode>_ashl<SHORT:mode>): Likewise.
+	(zero_extend<GPI:mode>_lshr<SHORT:mode>): Likewise.
+	(extend<GPI:mode>_ashr<SHORT:mode>): Likewise.
+	(<optab><mode>): Likewise.
+	(insv<mode>): Likewise.
+	(andim_ashift<mode>_bfiz): Likewise.
+	* config/aarch64/thunderx.md (thunderx_shift): Add bfx.
+	* config/arm/cortex-a53.md (cortex_a53_alu_shift): Likewise.
+	* config/arm/cortex-a57.md (cortex_a57_alu): Add bfx.
+	* config/arm/exynos-m1.md (exynos_m1_alu): Add bfx.
+	(exynos_m1_alu_p): Likewise.
+	* config/arm/types.md: Add bfx.
+	* config/arm/xgene1.md (xgene1_bfm): Add bfx.
+
+2016-11-14  Wilco Dijkstra  <wdijkstr@arm.com>
+
+	* config/aarch64/aarch64.c (cortexa57_vector_cost):
+	Change vec_stmt_cost, vec_align_load_cost and vec_unalign_load_cost.
+
+2016-11-14  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/78312
+	* gimple-ssa-backprop.c (backprop::prepare_change): Reset
+	flow-sensitive info.
+
+2016-11-14  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR target/78093
+	* doc/invoke.texi (AVR Options) [-mabsdata]: Document new option.
+	* config/avr/avr.opt (-mabsdata): New option.
+	* config/avr/avr-arch.h (avr_device_specific_features):	Add AVR_ISA_LDS.
+	* config/avr/avr.c (avr_encode_section_info) [AVR_TINY]: If
+	-mabsdata & symbol is not progmem, tag as AVR_SYMBOL_FLAG_TINY_ABSDATA.
+	* config/avr/avr-mcus.def (attiny4/5/9/10/20): Use AVR_ISA_LDS.
+	* config/avr/gen-avr-mmcu-specs.c (print_mcu): Print cc1_absdata
+	spec depending on AVR_ISA_LDS.
+	* config/avr/specs.h (CC1_SPEC): Enhanced by cc1_absdata spec.
+
+2016-11-13  Jakub Jelinek  <jakub@redhat.com>
+
+	* match.pd: Don't try to compare addresses of variables with
+	DECL_VALUE_EXPR.
+
+2016-11-13  Kugan Vivekanandarajah  <kuganv@linaro.org>
+
+	* ipa-cp.c (ipa_get_jf_pass_through_result): Skip unary expressions.
+	(propagate_vr_accross_jump_function): Handle unary expressions.
+	* ipa-prop.c (ipa_set_jf_unary_pass_through): New.
+	(load_from_param_1): New.
+	(load_from_unmodified_param): Factor common part into load_from_param_1.
+	(load_from_param): New.
+	(compute_complex_assign_jump_func): Handle unary expressions.
+	(update_jump_functions_after_inlining): Likewise.
+	(ipa_write_jump_function): Likewise.
+	(ipa_read_jump_function): Likewise.
+
+2016-11-13  Prathamesh Kulkarni  <prathamesh.kulkarni@linaro.org>
+
+	PR c/35503
+	* doc/invoke.texi: Document Wrestrict.
+	* pretty-print.c (pp_format): Add case for "Z" specifier.
+	(test_pp_format): Test "Z" specifier.
+
+2016-11-13  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* ipa-icf.c (sem_function::merge): Do not create a wrapper also if the
+	original function needs a static chain.
+
+2016-11-13  David Edelsohn  <dje.gcc@gmail.com>
+
+	PR target/78336
+	* config/rs6000/rs6000.c (rs6000_asm_weaken_decl): Protect
+	ASM_OUTPUT_DEF.
+
 2016-11-12  Segher Boessenkool  <segher@kernel.crashing.org>
 
 	PR target/77957

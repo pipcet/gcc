@@ -1,3 +1,331 @@
+2016-11-15  Tim Shen  <timshen@google.com>
+
+	* include/std/variant: Remove variant<T&>, variant<void>, variant<> support
+	to rebase on the post-Issaquah design.
+	* testsuite/20_util/variant/compile.cc: Likewise.
+
+2016-11-15  Matthias Klose  <doko@ubuntu.com>
+
+	* configure: Regenerate.
+
+2016-11-15  Jonathan Wakely  <jwakely@redhat.com>
+
+	* testsuite/19_diagnostics/error_code/is_error_code_v.cc: Fix license
+	text.
+	* testsuite/20_util/any/assign/emplace.cc: Likewise.
+	* testsuite/20_util/any/cons/in_place.cc: Likewise.
+	* testsuite/20_util/any/make_any.cc: Likewise.
+	* testsuite/20_util/any/requirements.cc: Likewise.
+	* testsuite/20_util/any/typedefs.cc: Likewise.
+	* testsuite/20_util/bind/is_placeholder_v.cc: Likewise.
+	* testsuite/20_util/duration/requirements/treat_as_floating_point_v.cc:
+	Likewise.
+	* testsuite/20_util/in_place/requirements.cc: Likewise.
+	* testsuite/20_util/optional/77288.cc: Likewise.
+	* testsuite/20_util/optional/assignment/1.cc: Likewise.
+	* testsuite/20_util/optional/assignment/2.cc: Likewise.
+	* testsuite/20_util/optional/assignment/3.cc: Likewise.
+	* testsuite/20_util/optional/assignment/4.cc: Likewise.
+	* testsuite/20_util/optional/assignment/5.cc: Likewise.
+	* testsuite/20_util/optional/assignment/6.cc: Likewise.
+	* testsuite/20_util/optional/assignment/7.cc: Likewise.
+	* testsuite/20_util/optional/cons/77727.cc: Likewise.
+	* testsuite/20_util/optional/cons/move.cc: Likewise.
+	* testsuite/20_util/optional/cons/value.cc: Likewise.
+	* testsuite/20_util/optional/cons/value_neg.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/cons/value.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/make_optional.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/observers/1.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/observers/2.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/observers/3.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/observers/4.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/observers/5.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/relops/1.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/relops/2.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/relops/3.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/relops/4.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/relops/5.cc: Likewise.
+	* testsuite/20_util/optional/constexpr/relops/6.cc: Likewise.
+	* testsuite/20_util/optional/hash.cc: Likewise.
+	* testsuite/20_util/optional/make_optional.cc: Likewise.
+	* testsuite/20_util/optional/observers/1.cc: Likewise.
+	* testsuite/20_util/optional/observers/2.cc: Likewise.
+	* testsuite/20_util/optional/observers/3.cc: Likewise.
+	* testsuite/20_util/optional/observers/4.cc: Likewise.
+	* testsuite/20_util/optional/observers/5.cc: Likewise.
+	* testsuite/20_util/optional/observers/6.cc: Likewise.
+	* testsuite/20_util/optional/relops/1.cc: Likewise.
+	* testsuite/20_util/optional/relops/2.cc: Likewise.
+	* testsuite/20_util/optional/relops/3.cc: Likewise.
+	* testsuite/20_util/optional/relops/4.cc: Likewise.
+	* testsuite/20_util/optional/relops/5.cc: Likewise.
+	* testsuite/20_util/optional/relops/6.cc: Likewise.
+	* testsuite/20_util/optional/requirements.cc: Likewise.
+	* testsuite/20_util/optional/swap/1.cc: Likewise.
+	* testsuite/20_util/optional/typedefs.cc: Likewise.
+	* testsuite/20_util/ratio/requirements/ratio_equal_v.cc: Likewise.
+	* testsuite/20_util/tuple/tuple_size_v.cc: Likewise.
+	* testsuite/20_util/uses_allocator/requirements/uses_allocator_v.cc:
+	Likewise.
+	* testsuite/20_util/variable_templates_for_traits.cc: Likewise.
+	* testsuite/20_util/variant/hash.cc: Likewise.
+	* testsuite/21_strings/basic_string_view/typedefs.cc: Likewise.
+	* testsuite/experimental/any/typedefs.cc: Likewise.
+	* testsuite/experimental/array/make_array.cc: Likewise.
+	* testsuite/experimental/array/neg.cc: Likewise.
+	* testsuite/experimental/chrono/value.cc: Likewise.
+	* testsuite/experimental/deque/erasure.cc: Likewise.
+	* testsuite/experimental/forward_list/erasure.cc: Likewise.
+	* testsuite/experimental/list/erasure.cc: Likewise.
+	* testsuite/experimental/map/erasure.cc: Likewise.
+	* testsuite/experimental/memory/observer_ptr/assignment/assign.cc:
+	Likewise.
+	* testsuite/experimental/memory/observer_ptr/cons/cons.cc: Likewise.
+	* testsuite/experimental/memory/observer_ptr/hash/hash.cc: Likewise.
+	* testsuite/experimental/memory/observer_ptr/make_observer.cc:
+	Likewise.
+	* testsuite/experimental/memory/observer_ptr/relops/relops.cc:
+	Likewise.
+	* testsuite/experimental/memory/observer_ptr/requirements.cc: Likewise.
+	* testsuite/experimental/memory/observer_ptr/swap/swap.cc: Likewise.
+	* testsuite/experimental/memory/observer_ptr/typedefs.cc: Likewise.
+	* testsuite/experimental/optional/77288.cc: Likewise.
+	* testsuite/experimental/optional/assignment/1.cc: Likewise.
+	* testsuite/experimental/optional/assignment/2.cc: Likewise.
+	* testsuite/experimental/optional/assignment/3.cc: Likewise.
+	* testsuite/experimental/optional/assignment/4.cc: Likewise.
+	* testsuite/experimental/optional/assignment/5.cc: Likewise.
+	* testsuite/experimental/optional/assignment/6.cc: Likewise.
+	* testsuite/experimental/optional/cons/77727.cc: Likewise.
+	* testsuite/experimental/optional/cons/move.cc: Likewise.
+	* testsuite/experimental/optional/cons/value.cc: Likewise.
+	* testsuite/experimental/optional/cons/value_neg.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/cons/value.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/make_optional.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/observers/1.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/observers/2.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/observers/3.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/observers/4.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/observers/5.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/relops/1.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/relops/2.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/relops/3.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/relops/4.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/relops/5.cc: Likewise.
+	* testsuite/experimental/optional/constexpr/relops/6.cc: Likewise.
+	* testsuite/experimental/optional/make_optional.cc: Likewise.
+	* testsuite/experimental/optional/observers/1.cc: Likewise.
+	* testsuite/experimental/optional/observers/2.cc: Likewise.
+	* testsuite/experimental/optional/observers/3.cc: Likewise.
+	* testsuite/experimental/optional/observers/4.cc: Likewise.
+	* testsuite/experimental/optional/observers/5.cc: Likewise.
+	* testsuite/experimental/optional/relops/1.cc: Likewise.
+	* testsuite/experimental/optional/relops/2.cc: Likewise.
+	* testsuite/experimental/optional/relops/3.cc: Likewise.
+	* testsuite/experimental/optional/relops/4.cc: Likewise.
+	* testsuite/experimental/optional/relops/5.cc: Likewise.
+	* testsuite/experimental/optional/relops/6.cc: Likewise.
+	* testsuite/experimental/optional/requirements.cc: Likewise.
+	* testsuite/experimental/optional/swap/1.cc: Likewise.
+	* testsuite/experimental/optional/typedefs.cc: Likewise.
+	* testsuite/experimental/propagate_const/assignment/move.cc: Likewise.
+	* testsuite/experimental/propagate_const/assignment/move_neg.cc:
+	Likewise.
+	* testsuite/experimental/propagate_const/cons/move.cc: Likewise.
+	* testsuite/experimental/propagate_const/cons/move_neg.cc: Likewise.
+	* testsuite/experimental/propagate_const/hash/1.cc: Likewise.
+	* testsuite/experimental/propagate_const/observers/1.cc: Likewise.
+	* testsuite/experimental/propagate_const/relops/1.cc: Likewise.
+	* testsuite/experimental/propagate_const/requirements1.cc: Likewise.
+	* testsuite/experimental/propagate_const/requirements2.cc: Likewise.
+	* testsuite/experimental/propagate_const/requirements3.cc: Likewise.
+	* testsuite/experimental/propagate_const/requirements4.cc: Likewise.
+	* testsuite/experimental/propagate_const/requirements5.cc: Likewise.
+	* testsuite/experimental/propagate_const/swap/1.cc: Likewise.
+	* testsuite/experimental/propagate_const/typedefs.cc: Likewise.
+	* testsuite/experimental/random/randint.cc: Likewise.
+	* testsuite/experimental/ratio/value.cc: Likewise.
+	* testsuite/experimental/set/erasure.cc: Likewise.
+	* testsuite/experimental/string/erasure.cc: Likewise.
+	* testsuite/experimental/string_view/typedefs.cc: Likewise.
+	* testsuite/experimental/system_error/value.cc: Likewise.
+	* testsuite/experimental/tuple/tuple_size.cc: Likewise.
+	* testsuite/experimental/type_traits/value.cc: Likewise.
+	* testsuite/experimental/unordered_map/erasure.cc: Likewise.
+	* testsuite/experimental/unordered_set/erasure.cc: Likewise.
+	* testsuite/experimental/vector/erasure.cc: Likewise.
+
+	* doc/xml/manual/intro.xml: Document LWG 2742 status.
+	* doc/html/*: Regenerate.
+	* include/bits/basic_string.h
+	(basic_string(const T&, size_type, size_type, const Allocator&)): Add
+	constructor for substring of basic_string_view, as per LWG 2742 but
+	with additional constraint to fix ambiguity.
+	* testsuite/21_strings/basic_string/cons/char/9.cc: New test.
+	* testsuite/21_strings/basic_string/cons/wchar_t/9.cc: New test.
+
+	* doc/xml/manual/intro.xml: Document LWG 2748 status.
+	* include/std/optional (optional<T>::swap): Use is_nothrow_swappable_v
+	for exception specification.
+	(swap(optional<T>&, optional<T>&)): Disable when T is not swappable.
+	* testsuite/20_util/optional/swap/2.cc: New test.
+
+2016-11-14  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Implement P0513R0, Poisoning the Hash.
+	* include/bits/functional_hash.h (__poison_hash): New.
+	* include/bits/unique_ptr.h
+	(hash<unique_ptr<_Tp, _Dp>>): Derive from __poison_hash.
+	* include/std/optional (hash<optional<_Tp>>): Likewise.
+	* include/std/variant (hash<variant<_Types...>>): Likewise.
+	* testsuite/20_util/default_delete/48631_neg.cc: Adjust.
+	* testsuite/20_util/default_delete/void_neg.cc: Likewise.
+	* testsuite/20_util/optional/hash.cc: New.
+	* testsuite/20_util/unique_ptr/assign/48635_neg.cc: Adjust.
+	* testsuite/20_util/unique_ptr/cons/cv_qual_neg.cc: Adjust.
+	* testsuite/20_util/unique_ptr/hash/1.cc: Add tests for
+	poisoned fancy pointer hashes.
+	* testsuite/20_util/variant/hash.cc: New.
+
+2016-11-14  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Implement P0504R0 (Revisiting in-place tag types for
+	any/optional/variant).
+	* include/std/any (any(_ValueType&& __value)): Constrain
+	the __is_in_place_type with the decayed type.
+	(make_any): Adjust to use the new tag type.
+	* include/std/utility (in_place_tag): Remove.
+	(in_place_t): Turn into a non-reference tag type.
+	(__in_place, __in_place_type, __in_place_index): Remove.
+	(in_place): Turn into an inline variable of non-reference
+	tag type.
+	(in_place<_Tp>): Remove.
+	(in_place_index<_Idx>): Remove.
+	(in_place_type_t): New.
+	(in_place_type): Turn into a variable template of non-reference
+	type.
+	(in_place_index_t): New.
+	(in_place_index): Turn into a variable template of non-reference
+	type.
+	* include/std/variant
+	(_Variant_storage(in_place_index_t<_Np>, _Args&&...)): Adjust to
+	use the new tag type.
+	(_Union(in_place_index_t<0>, _Args&&...)): Likewise.
+	(_Union(in_place_index_t<_Np>, _Args&&...)): Likewise.
+	(_Variant_base()): Likewise.
+	(variant(_Tp&&)): Likewise.
+	(variant(in_place_type_t<_Tp>, _Args&&...)): Likewise.
+	(variant(in_place_type_t<_Tp>, initializer_list<_Up>,
+	_Args&&...)): Likewise.
+	(variant(in_place_index_t<_Np>, _Args&&...)): Likewise.
+	(variant(in_place_index_t<_Np>, initializer_list<_Up>,
+	_Args&&...)): Likewise
+	(variant(allocator_arg_t, const _Alloc&)): Likewise.
+	(variant(allocator_arg_t, const _Alloc&, _Tp&&)): Likewise.
+	(variant(allocator_arg_t, const _Alloc&, in_place_type_t<_Tp>,
+	_Args&&...)): Likewise.
+	(variant(allocator_arg_t, const _Alloc&, in_place_type_t<_Tp>,
+	initializer_list<_Up>, _Args&&...)): Likewise.
+	(variant(allocator_arg_t, const _Alloc&, in_place_index_t<_Np>,
+	_Args&&...)): Likewise.
+	(variant(allocator_arg_t, const _Alloc&, in_place_index_t<_Np>,
+	initializer_list<_Up>, _Args&&...)): Likewise.
+	(emplace(_Args&&...)): Likewise.
+	(emplace(initializer_list<_Up>, _Args&&...)): Likewise.
+	* testsuite/20_util/any/cons/explicit.cc: Likewise.
+	* testsuite/20_util/any/cons/in_place.cc: Likewise.
+	* testsuite/20_util/any/requirements.cc: Add tests to
+	check that any is not constructible from the new in_place_type_t
+	of any value category.
+	* testsuite/20_util/in_place/requirements.cc: Adjust to
+	use the new tag type.
+	* testsuite/20_util/variant/compile.cc: Likewise.
+	* testsuite/20_util/variant/run.cc: Likewise.
+
+2016-11-14  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Use constexpr addressof in optional, SFINAE housekeeping
+	for any, optional and tuple.
+	* include/std/any (__do_emplace(_Args&&...)): New.
+	(__do_emplace(initializer_list<_Up>, _Args&&...)): Likewise.
+	(__any_constructible): Likewise.
+	(__any_constructible_t): Use __any_constructible.
+	(operator=(_ValueType&&)): SFINAE in the return type.
+	(emplace(_Args&&...)): Likewise.
+	(emplace(initializer_list<_Up>, _Args&&...)): Likewise.
+	* include/std/optional (_Has_addressof_mem): Remove.
+	(_Has_addressof_free): Likewise.
+	(_Has_addressof): Likewise.
+	(__constexpr_addressof(_Tp&)): Likewise.
+	(operator->): Use std::__addressof.
+	* include/std/tuple (operator=(const tuple<_UElements...>&)):
+	SFINAE in return type.
+	(operator=(tuple<_UElements...>&&)): Likewise.
+	* testsuite/20_util/any/misc/any_cast_neg.cc: Adjust.
+
+2016-11-14  Jonathan Wakely  <jwakely@redhat.com>
+
+	* include/bits/move.h (addressof(const _Tp&&)): Add deleted overload,
+	as per LWG 2598.
+
+	* include/std/future (future::share(), future<R&>::share())
+	(future<void>::share()): Add noexcept, as per LWG 2556.
+
+2016-11-13  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/78326
+	* include/experimental/memory_resource (memory_resource::_S_max_align):
+	Change access to protected.
+
+	* doc/xml/manual/status_cxx2017.xml: Update status.
+	* doc/html/manual/status.html: Regenerate.
+	* include/bits/shared_ptr.h (shared_ptr(unique_ptr<_Yp, _Del>)): Add
+	extension constructor to maintain C++14 behaviour.
+	* include/bits/shared_ptr_base.h (__sp_array_delete): Add new struct.
+	(__shared_count(_Ptr, false_type), __shared_count(_Ptr, true_type)):
+	New constructors.
+	(__sp_compatible_with, __sp_is_constructible): Add specializations
+	for array support.
+	(__sp_is_constructible_arr, __sp_is_constructible_arrN): New helpers.
+	(__shared_ptr_access): New base class for observer member functions.
+	(__shared_ptr::element_type): Use remove_extent.
+	(__shared_ptr::_UniqCompatible): Add __sp_compatible_with check.
+	(__shared_ptr(_Yp*)): Use tag dispatching to call new __shared_count
+	constructor.
+	(__shared_ptr(unique_ptr<_Yp, _Del>)): Add extension constructor.
+	(__shared_ptr::operator*, __shared_ptr::operator->): Remove and
+	inherit from __shared_ptr_access base class.
+	(__shared_ptr::__has_esft_base): Return false for array types.
+	(__weak_ptr::element_type): Use remove_extent.
+	* include/experimental/bits/shared_ptr.h (__libfund_v1): Remove.
+	(__shared_ptr<__libfund_v1<_Tp>>): Remove specializations.
+	(__wak_ptr<__libfund_v1<_Tp>>): Likewise.
+	(experimental::__sp_compatible_v): Redefine using
+	__sp_compatible_with.
+	(experimental::__sp_is_constructible_v): Redefine using
+	__sp_is_constructible.
+	(get_deleter, operator<<): Change argument from __shared_ptr to
+	shared_ptr.
+	* testsuite/20_util/shared_ptr/cons/array.cc: New test.
+	* testsuite/20_util/shared_ptr/cons/unique_ptr_array.cc: Adjust for
+	new behaviour.
+	* testsuite/20_util/shared_ptr/observers/array.cc: Test observers for
+	arrays.
+	* testsuite/20_util/shared_ptr/observers/array_neg.cc: New test.
+
+2016-11-13  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Implement P0403R1, Literal suffixes for basic_string_view.
+	* include/std/string_view
+	(operator""sv(const char*, size_t)): New.
+	(operator""sv(const wchar_t*, size_t)): Likewise.
+	(operator""sv(const char16_t*, size_t)): Likewise.
+	(operator""sv(const char32_t*, size_t)): Likewise.
+	* testsuite/21_strings/basic_string_view/literals/types.cc: New.
+	* testsuite/21_strings/basic_string_view/literals/values.cc: Likewise.
+	* testsuite/experimental/string_view/literals/values.cc: Add
+	tests for literals with embedded NULs.
+
 2016-11-12  Jonathan Wakely  <jwakely@redhat.com>
 
 	* src/filesystem/ops.cc (is_empty): Fix typo in exception message.
@@ -19,9 +347,9 @@
 
 2016-11-09  Tim Shen  <timshen@google.com>
 
-	* libstdc++-v3/include/bits/regex.h (regex_iterator::regex_iterator()):
+	* include/bits/regex.h (regex_iterator::regex_iterator()):
 	Define end() as _M_pregex == nullptr.
-	* libstdc++-v3/include/bits/regex.tcc (regex_iterator::operator==(),
+	* include/bits/regex.tcc (regex_iterator::operator==(),
 	regex_iterator::operator++()): Fix operator==() and operator++() to
 	look at null-ness of _M_pregex on both sides.
 	* testsuite/28_regex/regression.cc: New testcase.

@@ -1668,6 +1668,7 @@ declarator_can_be_parameter_pack (cp_declarator *declarator)
 	{
 	case cdk_id:
 	case cdk_array:
+	case cdk_decomp:
 	  found = true;
 	  break;
 
@@ -1721,6 +1722,7 @@ function_declarator_p (const cp_declarator *declarator)
 	  && declarator->declarator->kind == cdk_id)
 	return true;
       if (declarator->kind == cdk_id
+	  || declarator->kind == cdk_decomp
 	  || declarator->kind == cdk_error)
 	return false;
       declarator = declarator->declarator;
@@ -2200,6 +2202,8 @@ static void cp_parser_static_assert
   (cp_parser *, bool);
 static tree cp_parser_decltype
   (cp_parser *);
+static tree cp_parser_decomposition_declaration
+  (cp_parser *, cp_decl_specifier_seq *, tree *, location_t *);
 
 /* Declarators [gram.dcl.decl] */
 
@@ -3272,7 +3276,10 @@ cp_parser_diagnose_invalid_type_name (cp_parser *parser, tree id,
 		  parser->scope, id, parser->scope);
       else if (TYPE_P (parser->scope))
 	{
-	  if (cp_lexer_next_token_is (parser->lexer, CPP_LESS))
+	  if (!COMPLETE_TYPE_P (parser->scope))
+	    cxx_incomplete_type_error (location_of (id), NULL_TREE,
+				       parser->scope);
+	  else if (cp_lexer_next_token_is (parser->lexer, CPP_LESS))
 	    error_at (location_of (id),
 		      "%qE in %q#T does not name a template type",
 		      id, parser->scope);
@@ -6923,6 +6930,29 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 		if (TREE_CODE (arg2) == CONST_DECL)
 		  arg2 = DECL_INITIAL (arg2);
 		warn_for_memset (input_location, arg0, arg2, literal_mask);
+	      }
+
+	    if (TREE_CODE (postfix_expression) == FUNCTION_DECL
+		&& warn_restrict)
+	      {
+		unsigned i;
+		tree arg;
+		FOR_EACH_VEC_SAFE_ELT (args, i, arg)
+		  TREE_VISITED (arg) = 0;
+
+		unsigned param_pos = 0;
+		for (tree decl = DECL_ARGUMENTS (postfix_expression);
+		     decl != NULL_TREE;
+		     decl = DECL_CHAIN (decl), param_pos++)
+		  {
+		    tree type = TREE_TYPE (decl);
+		    if (POINTER_TYPE_P (type) && TYPE_RESTRICT (type)
+			&& !TYPE_READONLY (TREE_TYPE (type)))
+		      warn_for_restrict (param_pos, args);
+		  }
+
+		FOR_EACH_VEC_SAFE_ELT (args, i, arg)
+		  TREE_VISITED (arg) = 0;
 	      }
 
 	    if (TREE_CODE (postfix_expression) == COMPONENT_REF)
@@ -11445,16 +11475,45 @@ cp_parser_range_for (cp_parser *parser, tree scope, tree init, tree range_decl,
 		     bool ivdep)
 {
   tree stmt, range_expr;
-  cxx_binding *binding = NULL;
-  tree name = NULL_TREE;
+  auto_vec <cxx_binding *, 16> bindings;
+  auto_vec <tree, 16> names;
+  tree decomp_first_name = NULL_TREE;
+  unsigned int decomp_cnt = 0;
 
   /* Get the range declaration momentarily out of the way so that
      the range expression doesn't clash with it. */
   if (range_decl != error_mark_node)
     {
-      name = DECL_NAME (range_decl);
-      binding = IDENTIFIER_BINDING (name);
-      IDENTIFIER_BINDING (name) = binding->previous;
+      if (DECL_HAS_VALUE_EXPR_P (range_decl))
+	{
+	  tree v = DECL_VALUE_EXPR (range_decl);
+	  /* For decomposition declaration get all of the corresponding
+	     declarations out of the way.  */
+	  if (TREE_CODE (v) == ARRAY_REF
+	      && VAR_P (TREE_OPERAND (v, 0))
+	      && DECL_DECOMPOSITION_P (TREE_OPERAND (v, 0)))
+	    {
+	      tree d = range_decl;
+	      range_decl = TREE_OPERAND (v, 0);
+	      decomp_cnt = tree_to_uhwi (TREE_OPERAND (v, 1)) + 1;
+	      decomp_first_name = d;
+	      for (unsigned int i = 0; i < decomp_cnt; i++, d = DECL_CHAIN (d))
+		{
+		  tree name = DECL_NAME (d);
+		  names.quick_push (name);
+		  bindings.quick_push (IDENTIFIER_BINDING (name));
+		  IDENTIFIER_BINDING (name)
+		    = IDENTIFIER_BINDING (name)->previous;
+		}
+	    }
+	}
+      if (names.is_empty ())
+	{
+	  tree name = DECL_NAME (range_decl);
+	  names.quick_push (name);
+	  bindings.quick_push (IDENTIFIER_BINDING (name));
+	  IDENTIFIER_BINDING (name) = IDENTIFIER_BINDING (name)->previous;
+	}
     }
 
   if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_BRACE))
@@ -11465,11 +11524,12 @@ cp_parser_range_for (cp_parser *parser, tree scope, tree init, tree range_decl,
   else
     range_expr = cp_parser_expression (parser);
 
-  /* Put the range declaration back into scope. */
-  if (range_decl != error_mark_node)
+  /* Put the range declaration(s) back into scope. */
+  for (unsigned int i = 0; i < names.length (); i++)
     {
-      binding->previous = IDENTIFIER_BINDING (name);
-      IDENTIFIER_BINDING (name) = binding;
+      cxx_binding *binding = bindings[i];
+      binding->previous = IDENTIFIER_BINDING (names[i]);
+      IDENTIFIER_BINDING (names[i]) = binding;
     }
 
   /* If in template, STMT is converted to a normal for-statement
@@ -11490,7 +11550,8 @@ cp_parser_range_for (cp_parser *parser, tree scope, tree init, tree range_decl,
   else
     {
       stmt = begin_for_stmt (scope, init);
-      stmt = cp_convert_range_for (stmt, range_decl, range_expr, ivdep);
+      stmt = cp_convert_range_for (stmt, range_decl, range_expr,
+				   decomp_first_name, decomp_cnt, ivdep);
     }
   return stmt;
 }
@@ -11582,6 +11643,7 @@ do_range_for_auto_deduction (tree decl, tree range_expr)
 
 tree
 cp_convert_range_for (tree statement, tree range_decl, tree range_expr,
+		      tree decomp_first_name, unsigned int decomp_cnt,
 		      bool ivdep)
 {
   tree begin, end;
@@ -11655,6 +11717,8 @@ cp_convert_range_for (tree statement, tree range_decl, tree range_expr,
 					tf_warning_or_error),
 		  /*is_constant_init*/false, NULL_TREE,
 		  LOOKUP_ONLYCONVERTING);
+  if (VAR_P (range_decl) && DECL_DECOMPOSITION_P (range_decl))
+    cp_finish_decomp (range_decl, decomp_first_name, decomp_cnt);
 
   return statement;
 }
@@ -12528,6 +12592,8 @@ cp_parser_block_declaration (cp_parser *parser,
 
    simple-declaration:
      decl-specifier-seq [opt] init-declarator-list [opt] ;
+     decl-specifier-seq ref-qualifier [opt] [ identifier-list ]
+       brace-or-equal-initializer ;
 
    init-declarator-list:
      init-declarator
@@ -12612,6 +12678,45 @@ cp_parser_simple_declaration (cp_parser* parser,
       && cp_lexer_next_token_is_not (parser->lexer, CPP_OPEN_BRACE)
       && !cp_parser_error_occurred (parser))
     cp_parser_commit_to_tentative_parse (parser);
+
+  /* Look for C++17 decomposition declaration.  */
+  for (size_t n = 1; ; n++)
+    if (cp_lexer_nth_token_is (parser->lexer, n, CPP_AND)
+	|| cp_lexer_nth_token_is (parser->lexer, n, CPP_AND_AND))
+      continue;
+    else if (cp_lexer_nth_token_is (parser->lexer, n, CPP_OPEN_SQUARE)
+	     && !cp_lexer_nth_token_is (parser->lexer, n + 1, CPP_OPEN_SQUARE)
+	     && decl_specifiers.any_specifiers_p)
+      {
+	tree decl
+	  = cp_parser_decomposition_declaration (parser, &decl_specifiers,
+						 maybe_range_for_decl,
+						 &init_loc);
+
+	/* The next token should be either a `,' or a `;'.  */
+	cp_token *token = cp_lexer_peek_token (parser->lexer);
+	/* If it's a `;', we are done.  */
+	if (token->type == CPP_SEMICOLON || maybe_range_for_decl)
+	  goto finish;
+	/* Anything else is an error.  */
+	else
+	  {
+	    /* If we have already issued an error message we don't need
+	       to issue another one.  */
+	    if ((decl != error_mark_node
+		 && DECL_INITIAL (decl) != error_mark_node)
+		|| cp_parser_uncommitted_to_tentative_parse_p (parser))
+	      cp_parser_error (parser, "expected %<,%> or %<;%>");
+	    /* Skip tokens until we reach the end of the statement.  */
+	    cp_parser_skip_to_end_of_statement (parser);
+	    /* If the next token is now a `;', consume it.  */
+	    if (cp_lexer_next_token_is (parser->lexer, CPP_SEMICOLON))
+	      cp_lexer_consume_token (parser->lexer);
+	    goto done;
+	  }
+      }
+    else
+      break;
 
   tree last_type;
 
@@ -12765,6 +12870,7 @@ cp_parser_simple_declaration (cp_parser* parser,
     }
 
   /* Consume the `;'.  */
+ finish:
   if (!maybe_range_for_decl)
     cp_parser_require (parser, CPP_SEMICOLON, RT_SEMICOLON);
   else if (cp_lexer_next_token_is (parser->lexer, CPP_COLON))
@@ -12778,6 +12884,150 @@ cp_parser_simple_declaration (cp_parser* parser,
 
  done:
   pop_deferring_access_checks ();
+}
+
+/* Helper of cp_parser_simple_declaration, parse a decomposition declaration.
+     decl-specifier-seq ref-qualifier [opt] [ identifier-list ]
+       brace-or-equal-initializer ;  */
+
+static tree
+cp_parser_decomposition_declaration (cp_parser *parser,
+				     cp_decl_specifier_seq *decl_specifiers,
+				     tree *maybe_range_for_decl,
+				     location_t *init_loc)
+{
+  cp_ref_qualifier ref_qual = cp_parser_ref_qualifier_opt (parser);
+  location_t loc = cp_lexer_peek_token (parser->lexer)->location;
+  cp_parser_require (parser, CPP_OPEN_SQUARE, RT_OPEN_SQUARE);
+
+  /* Parse the identifier-list.  */
+  auto_vec<cp_expr, 10> v;
+  if (!cp_lexer_next_token_is (parser->lexer, CPP_CLOSE_SQUARE))
+    while (true)
+      {
+	cp_expr e = cp_parser_identifier (parser);
+	if (e.get_value () == error_mark_node)
+	  break;
+	v.safe_push (e);
+	if (!cp_lexer_next_token_is (parser->lexer, CPP_COMMA))
+	  break;
+	cp_lexer_consume_token (parser->lexer);
+      }
+
+  location_t end_loc = cp_lexer_peek_token (parser->lexer)->location;
+  if (!cp_parser_require (parser, CPP_CLOSE_SQUARE, RT_CLOSE_SQUARE))
+    {
+      end_loc = UNKNOWN_LOCATION;
+      cp_parser_skip_to_closing_parenthesis_1 (parser, true, CPP_CLOSE_SQUARE,
+					       false);
+      if (cp_lexer_next_token_is (parser->lexer, CPP_CLOSE_SQUARE))
+	cp_lexer_consume_token (parser->lexer);
+      else
+	{
+	  cp_parser_skip_to_end_of_statement (parser);
+	  return error_mark_node;
+	}
+    }
+
+  if (cxx_dialect < cxx1z)
+    pedwarn (loc, 0, "decomposition declaration only available with "
+		     "-std=c++1z or -std=gnu++1z");
+
+  tree pushed_scope;
+  cp_declarator *declarator = make_declarator (cdk_decomp);
+  loc = end_loc == UNKNOWN_LOCATION ? loc : make_location (loc, loc, end_loc);
+  declarator->id_loc = loc;
+  if (ref_qual != REF_QUAL_NONE)
+    declarator = make_reference_declarator (TYPE_UNQUALIFIED, declarator,
+					    ref_qual == REF_QUAL_RVALUE,
+					    NULL_TREE);
+  tree decl = start_decl (declarator, decl_specifiers, SD_INITIALIZED,
+			  NULL_TREE, decl_specifiers->attributes,
+			  &pushed_scope);
+  tree orig_decl = decl;
+
+  unsigned int i;
+  cp_expr e;
+  cp_decl_specifier_seq decl_specs;
+  clear_decl_specs (&decl_specs);
+  decl_specs.type = make_auto ();
+  tree prev = decl;
+  FOR_EACH_VEC_ELT (v, i, e)
+    {
+      if (i == 0)
+	declarator = make_id_declarator (NULL_TREE, e.get_value (), sfk_none);
+      else
+	declarator->u.id.unqualified_name = e.get_value ();
+      declarator->id_loc = e.get_location ();
+      tree elt_pushed_scope;
+      tree decl2 = start_decl (declarator, &decl_specs, SD_INITIALIZED,
+			       NULL_TREE, NULL_TREE, &elt_pushed_scope);
+      if (decl2 == error_mark_node)
+	decl = error_mark_node;
+      else if (decl != error_mark_node && DECL_CHAIN (decl2) != prev)
+	{
+	  /* Ensure we've diagnosed redeclaration if we aren't creating
+	     a new VAR_DECL.  */
+	  gcc_assert (errorcount);
+	  decl = error_mark_node;
+	}
+      else
+	prev = decl2;
+      if (elt_pushed_scope)
+	pop_scope (elt_pushed_scope);
+    }
+
+  if (v.is_empty ())
+    {
+      error_at (loc, "empty decomposition declaration");
+      decl = error_mark_node;
+    }
+
+  if (maybe_range_for_decl == NULL
+      || cp_lexer_next_token_is_not (parser->lexer, CPP_COLON))
+    {
+      bool non_constant_p = false, is_direct_init = false;
+      tree initializer;
+      *init_loc = cp_lexer_peek_token (parser->lexer)->location;
+      /* Parse the initializer.  */
+      if (cp_lexer_next_token_is (parser->lexer, CPP_OPEN_BRACE))
+	{
+	  initializer = cp_parser_braced_list (parser, &non_constant_p);
+	  CONSTRUCTOR_IS_DIRECT_INIT (initializer) = 1;
+	  is_direct_init = true;
+	}
+      else
+	{
+	  /* Consume the `='.  */
+	  cp_parser_require (parser, CPP_EQ, RT_EQ);
+	  initializer = cp_parser_initializer_clause (parser, &non_constant_p);
+	}
+
+      if (decl != error_mark_node)
+	{
+	  cp_finish_decl (decl, initializer, non_constant_p, NULL_TREE,
+			  is_direct_init ? LOOKUP_NORMAL : LOOKUP_IMPLICIT);
+	  cp_finish_decomp (decl, prev, v.length ());
+	}
+    }
+  else if (decl != error_mark_node)
+    {
+      *maybe_range_for_decl = prev;
+      /* Ensure DECL_VALUE_EXPR is created for all the decls but
+	 the underlying DECL.  */
+      cp_finish_decomp (decl, prev, v.length ());
+    }
+
+  if (pushed_scope)
+    pop_scope (pushed_scope);
+
+  if (decl == error_mark_node && DECL_P (orig_decl))
+    {
+      if (DECL_NAMESPACE_SCOPE_P (orig_decl))
+	SET_DECL_ASSEMBLER_NAME (orig_decl, get_identifier ("<decomp>"));
+    }
+
+  return decl;
 }
 
 /* Parse a decl-specifier-seq.
@@ -17004,24 +17254,28 @@ cp_parser_elaborated_type_specifier (cp_parser* parser,
   globalscope =  cp_parser_global_scope_opt (parser,
 					     /*current_scope_valid_p=*/false);
   /* Look for the nested-name-specifier.  */
+  tree nested_name_specifier;
   if (tag_type == typename_type && !globalscope)
     {
-      if (!cp_parser_nested_name_specifier (parser,
+      nested_name_specifier
+	= cp_parser_nested_name_specifier (parser,
 					   /*typename_keyword_p=*/true,
 					   /*check_dependency_p=*/true,
 					   /*type_p=*/true,
-					    is_declaration))
+					   is_declaration);
+      if (!nested_name_specifier)
 	return error_mark_node;
     }
   else
     /* Even though `typename' is not present, the proposed resolution
        to Core Issue 180 says that in `class A<T>::B', `B' should be
        considered a type-name, even if `A<T>' is dependent.  */
-    cp_parser_nested_name_specifier_opt (parser,
-					 /*typename_keyword_p=*/true,
-					 /*check_dependency_p=*/true,
-					 /*type_p=*/true,
-					 is_declaration);
+    nested_name_specifier
+      = cp_parser_nested_name_specifier_opt (parser,
+					     /*typename_keyword_p=*/true,
+					     /*check_dependency_p=*/true,
+					     /*type_p=*/true,
+					     is_declaration);
  /* For everything but enumeration types, consider a template-id.
     For an enumeration type, consider only a plain identifier.  */
   if (tag_type != enum_type)
@@ -17069,8 +17323,18 @@ cp_parser_elaborated_type_specifier (cp_parser* parser,
       else if (tag_type == typename_type && TREE_CODE (decl) != TYPE_DECL)
         ; 
       else if (TREE_CODE (decl) == TYPE_DECL)
-        type = check_elaborated_type_specifier (tag_type, decl,
-						/*allow_template_p=*/true);
+	{
+	  type = check_elaborated_type_specifier (tag_type, decl,
+						  /*allow_template_p=*/true);
+
+	  /* If the next token is a semicolon, this must be a specialization,
+	     instantiation, or friend declaration.  Check the scope while we
+	     still know whether or not we had a nested-name-specifier.  */
+	  if (type != error_mark_node
+	      && !nested_name_specifier && !is_friend
+	      && cp_lexer_next_token_is (parser->lexer, CPP_SEMICOLON))
+	    check_unqualified_spec_or_inst (type, token->location);
+	}
       else if (decl == error_mark_node)
 	type = error_mark_node; 
     }
@@ -18588,6 +18852,7 @@ strip_declarator_types (tree type, cp_declarator *declarator)
     switch (d->kind)
       {
       case cdk_id:
+      case cdk_decomp:
       case cdk_error:
 	d = NULL;
 	break;
@@ -22336,6 +22601,11 @@ cp_parser_class_head (cp_parser* parser,
 	{
 	  type = TREE_TYPE (id);
 	  type = maybe_process_partial_specialization (type);
+
+	  /* Check the scope while we still know whether or not we had a
+	     nested-name-specifier.  */
+	  if (type != error_mark_node)
+	    check_unqualified_spec_or_inst (type, type_start_token->location);
 	}
       if (nested_name_specifier)
 	pushed_scope = push_scope (nested_name_specifier);
@@ -25457,6 +25727,7 @@ cp_parser_check_declarator_template_parameters (cp_parser* parser,
       return (cp_parser_check_declarator_template_parameters
 	      (parser, declarator->declarator, declarator_location));
 
+    case cdk_decomp:
     case cdk_error:
       return true;
 

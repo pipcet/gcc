@@ -1,3 +1,106 @@
+2016-11-15  Jakub Jelinek  <jakub@redhat.com>
+
+	* decl.c (cp_finish_decomp): For DECL_NAMESPACE_SCOPE_P decl,
+	set DECL_ASSEMBLER_NAME.
+	* parser.c (cp_parser_decomposition_declaration): Likewise
+	if returning error_mark_node.
+	* mangle.c (mangle_decomp): New function.
+	* cp-tree.h (mangle_decomp): New declaration.
+
+2016-11-15  Jason Merrill  <jason@redhat.com>
+
+	PR c++/78358
+	* semantics.c (finish_decltype_type): Strip references for a tuple
+	decomposition.
+	* cp-tree.h (DECL_DECOMPOSITION_P): False for non-variables.
+
+	* decl2.c (decl_maybe_constant_var_p): References qualify.
+	* constexpr.c (non_const_var_error): Handle references.
+	* init.c (constant_value_1): Always check decl_constant_var_p.
+	* cp-gimplify.c (cp_fold_maybe_rvalue): Don't fold references.
+	* error.c (dump_decl_name): Split out from dump_decl.
+
+2016-11-14  Jason Merrill  <jason@redhat.com>
+
+	* tree.c (bitfield_p): New.
+	* cp-tree.h: Declare it.
+	* typeck.c (cxx_sizeof_expr, cxx_alignof_expr)
+	(cp_build_addr_expr_1): Use it instead of DECL_C_BIT_FIELD.
+	* decl.c (cp_finish_decomp): Look through reference.  Always
+	SET_DECL_DECOMPOSITION_P.
+	* semantics.c (finish_decltype_type): Adjust decomposition handling.
+
+2016-11-13  Jakub Jelinek  <jakub@redhat.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	Implement P0217R3 - C++17 structured bindings
+	* cp-tree.h (struct lang_decl_base): Add decomposition_p.
+	(DECL_DECOMPOSITION_P): New
+	(enum auto_deduction_context): Add adc_decomp_type.
+	(enum cp_declarator_kind): Add cdk_decomp.
+	* constexpr.c (cxx_eval_constant_expression): Look through
+	DECL_VALUE_EXPR.
+	(potential_constant_expression_1): Likewise.
+	* decl.c (reshape_init): Preserve CONSTRUCTOR_IS_DIRECT_INIT.
+	(check_initializer): Use build_aggr_init for DECL_DECOMPOSITION_P.
+	(cp_finish_decl): Pass adc_decomp_type for decomposition.
+	(find_decomp_class_base, get_tuple_size, get_tuple_element_type)
+	(get_tuple_decomp_init, cp_finish_decomp): New.
+	(grokdeclarator): Handle decomposition.
+	* init.c (build_aggr_init): Handle decomposition array.
+	(build_vec_init): Handle initialization from { array }.
+	* name-lookup.c (add_function): Always wrap TEMPLATE_DECL in
+	OVERLOAD.
+	* parser.c (declarator_can_be_parameter_pack): Handle cdk_decomp.
+	(function_declarator_p, strip_declarator_types)
+	(cp_parser_check_declarator_template_parameters): Likewise.
+	(cp_parser_range_for, cp_convert_range_for): Handle decomposition.
+	(cp_parser_simple_declaration): Parse decomposition.
+	(cp_parser_decomposition_declaration): New.
+	* pt.c (tsubst_decomp_names): New.
+	(subst_expr) [DECL_EXPR, RANGE_FOR_STMT]: Handle decomposition.
+	(do_auto_deduction): Handle adc_decomp_type.
+	* semantics.c (finish_decltype_type): Look through DECL_VALUE_EXPR.
+	* typeck.c (is_bitfield_expr_with_lowered_type): Likewise.
+	* tree.c (lvalue_kind): Likewise.
+	(cp_build_reference_type): Handle reference collapsing.
+
+2016-11-13  Jason Merrill  <jason@redhat.com>
+
+	* call.c (build_new_method_call_1): Include template arguments in
+	error message.
+	(print_error_for_call_failure): Likewise.
+	(build_new_function_call): Pass them in.
+	* name-lookup.c (supplement_binding_1): Don't complain about a
+	conflict with an erroneous declaration.
+	* error.c (dump_decl): Fix printing of alias declaration.
+	* decl.c (make_typename_type): Call cxx_incomplete_type_error.
+	* parser.c (cp_parser_diagnose_invalid_type_name): Likewise.
+	* semantics.c (perform_koenig_lookup): Don't wrap an error in
+	TEMPLATE_ID_EXPR.
+
+2016-11-13  Prathamesh Kulkarni  <prathamesh.kulkarni@linaro.org>
+
+	PR c/35503
+	* parser.c (cp_parser_postfix_pexpression): Call warn_for_restrict.
+
+2016-11-12  Jason Merrill  <jason@redhat.com>
+
+	CWG 2233
+	* typeck.c (convert_arguments): Handle default arg followed by none.
+
+	* constexpr.c (potential_constant_expression_1): REALPART_EXPR and
+	IMAGPART_EXPR can be lvalues.
+
+	DR 374
+	PR c++/56840
+	* pt.c (check_specialization_namespace): Allow any enclosing
+	namespace.
+	(check_unqualified_spec_or_inst): New.
+	(check_explicit_specialization): Call it.
+	* parser.c (cp_parser_elaborated_type_specifier)
+	(cp_parser_class_head): Call it.
+
 2016-11-10  Jason Merrill  <jason@redhat.com>
 
 	PR c++/77337
@@ -2940,8 +3043,8 @@
 2016-03-21  Richard Henderson  <rth@redhat.com>
 
 	PR c++/70273
-        * decl.c (notice_forced_label_r): New.
-        (cp_finish_decl): Use it.
+	* decl.c (notice_forced_label_r): New.
+	(cp_finish_decl): Use it.
 
 2016-03-21  Jason Merrill  <jason@redhat.com>
 

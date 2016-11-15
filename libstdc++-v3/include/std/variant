@@ -41,6 +41,7 @@
 #include <bits/functexcept.h>
 #include <bits/move.h>
 #include <bits/uses_allocator.h>
+#include <bits/functional_hash.h>
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -136,41 +137,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     struct __reserved_type_map_impl<const volatile _From, _To>
     { using type = add_cv_t<__reserved_type_map<_From, _To>>; };
 
-  // Stores a reference alternative as a... well, reference.
-  template<typename _Reference>
-    struct _Reference_storage
-    {
-      static_assert(is_reference_v<_Reference>,
-		    "BUG: _Reference should be a reference");
-
-      _Reference_storage(_Reference __ref) noexcept : _M_storage(__ref) { }
-
-      operator _Reference() noexcept
-      { return static_cast<_Reference>(_M_storage); }
-
-      _Reference _M_storage;
-    };
-
-  // Stores a void alternative, because it is not a regular type.
-  template<typename _Void>
-    struct _Void_storage { };
-
-  // Map from the alternative type to a non-qualified storage type.
-  template<typename _Alternative, typename = void>
-    struct __storage_type
-    { using type = _Alternative; };
-
+  // This abstraction might be useful for future features,
+  // e.g. boost::recursive_wrapper.
   template<typename _Alternative>
-    struct __storage_type<_Alternative,
-			  enable_if_t<is_reference_v<_Alternative>>>
-    { using type = _Reference_storage<_Alternative>; };
-
-  template<typename _Alternative>
-    struct __storage_type<_Alternative, enable_if_t<is_void_v<_Alternative>>>
-    { using type = _Void_storage<_Alternative>; };
-
-  template<typename _Type>
-    using __storage = typename __storage_type<_Type>::type;
+    using __storage = _Alternative;
 
   template<typename _Type, bool __is_literal = std::is_literal_type_v<_Type>>
     struct _Uninitialized;
@@ -201,37 +171,15 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  _M_storage;
     };
 
-  // Reverse mapping of __storage_type.
-  template<typename _Storage_type>
-    struct __alternative_type
-    {
-      static_assert(!is_reference_v<_Storage_type>,
-		    "BUG: _Storage_type should not be reference");
-      using type = _Storage_type;
-    };
-
-  template<typename _Reference>
-    struct __alternative_type<_Reference_storage<_Reference>>
-    { using type = _Reference; };
-
-  template<typename _Void>
-    struct __alternative_type<_Void_storage<_Void>>
-    { using type = _Void; };
-
   // Given a qualified storage type, return the desired reference.
-  // The qualified storage type is supposed to carry the variant object's
-  // qualifications and reference information, and the designated alternative's
-  // storage type.
-  // Returns the qualification-collapsed alternative references.
-  //
-  // For example, __get_alternative<_Reference_storage<int&&>&> returns int&.
+  // For example, variant<int>&& stores the int as __storage<int>, and
+  // _Qualified_storage will be __storage<int>&&.
   template<typename _Qualified_storage>
     decltype(auto)
     __get_alternative(void* __ptr)
     {
       using _Storage = decay_t<_Qualified_storage>;
-      using _Alternative = typename __alternative_type<_Storage>::type;
-      return __reserved_type_map<_Qualified_storage, _Alternative>(
+      return __reserved_type_map<_Qualified_storage, _Storage>(
 	*static_cast<_Storage*>(__ptr));
     }
 
@@ -302,7 +250,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
       template<size_t _Np, typename... _Args>
 	constexpr _Variant_storage(in_place_index_t<_Np>, _Args&&... __args)
-	: _M_union(in_place<_Np>, std::forward<_Args>(__args)...)
+	: _M_union(in_place_index<_Np>, std::forward<_Args>(__args)...)
 	{ }
 
       ~_Variant_storage() = default;
@@ -320,13 +268,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 	template<typename... _Args>
 	  constexpr _Union(in_place_index_t<0>, _Args&&... __args)
-	  : _M_first(in_place<0>, std::forward<_Args>(__args)...)
+	  : _M_first(in_place_index<0>, std::forward<_Args>(__args)...)
 	  { }
 
 	template<size_t _Np, typename... _Args,
 		 typename = enable_if_t<0 < _Np && _Np < sizeof...(_Rest) + 1>>
 	  constexpr _Union(in_place_index_t<_Np>, _Args&&... __args)
-	  : _M_rest(in_place<_Np - 1>, std::forward<_Args>(__args)...)
+	  : _M_rest(in_place_index<_Np - 1>, std::forward<_Args>(__args)...)
 	  { }
 
 	_Uninitialized<__storage<_First>> _M_first;
@@ -361,7 +309,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       _Variant_base()
       noexcept(is_nothrow_default_constructible_v<
 		 variant_alternative_t<0, variant<_Types...>>>)
-      : _Variant_base(in_place<0>) { }
+      : _Variant_base(in_place_index<0>) { }
 
       _Variant_base(const _Variant_base& __rhs)
       : _Storage(), _M_index(__rhs._M_index)
@@ -969,6 +917,13 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	variant<_Types...>>
     {
     private:
+      static_assert(sizeof...(_Types) > 0,
+		    "variant must have at least one alternative");
+      static_assert(!(std::is_reference_v<_Types> || ...),
+		    "variant must have no reference alternative");
+      static_assert(!(std::is_void_v<_Types> || ...),
+		    "variant must have no void alternative");
+
       using _Base = __detail::__variant::_Variant_base<_Types...>;
       using _Default_ctor_enabler =
 	_Enable_default_constructor<
@@ -1018,7 +973,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	constexpr
 	variant(_Tp&& __t)
 	noexcept(is_nothrow_constructible_v<__accepted_type<_Tp&&>, _Tp&&>)
-	: variant(in_place<__accepted_index<_Tp&&>>, std::forward<_Tp>(__t))
+	: variant(in_place_index<__accepted_index<_Tp&&>>, std::forward<_Tp>(__t))
 	{ __glibcxx_assert(holds_alternative<__accepted_type<_Tp&&>>(*this)); }
 
       template<typename _Tp, typename... _Args,
@@ -1026,7 +981,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 			  && is_constructible_v<_Tp, _Args&&...>>>
 	constexpr explicit
 	variant(in_place_type_t<_Tp>, _Args&&... __args)
-	: variant(in_place<__index_of<_Tp>>, std::forward<_Args>(__args)...)
+	: variant(in_place_index<__index_of<_Tp>>, std::forward<_Args>(__args)...)
 	{ __glibcxx_assert(holds_alternative<_Tp>(*this)); }
 
       template<typename _Tp, typename _Up, typename... _Args,
@@ -1036,7 +991,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	constexpr explicit
 	variant(in_place_type_t<_Tp>, initializer_list<_Up> __il,
 		_Args&&... __args)
-	: variant(in_place<__index_of<_Tp>>, __il,
+	: variant(in_place_index<__index_of<_Tp>>, __il,
 		  std::forward<_Args>(__args)...)
 	{ __glibcxx_assert(holds_alternative<_Tp>(*this)); }
 
@@ -1045,7 +1000,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		 is_constructible_v<__to_type<_Np>, _Args&&...>>>
 	constexpr explicit
 	variant(in_place_index_t<_Np>, _Args&&... __args)
-	: _Base(in_place<_Np>, std::forward<_Args>(__args)...),
+	: _Base(in_place_index<_Np>, std::forward<_Args>(__args)...),
 	_Default_ctor_enabler(_Enable_default_constructor_tag{})
 	{ __glibcxx_assert(index() == _Np); }
 
@@ -1055,7 +1010,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	constexpr explicit
 	variant(in_place_index_t<_Np>, initializer_list<_Up> __il,
 		_Args&&... __args)
-	: _Base(in_place<_Np>, __il, std::forward<_Args>(__args)...),
+	: _Base(in_place_index<_Np>, __il, std::forward<_Args>(__args)...),
 	_Default_ctor_enabler(_Enable_default_constructor_tag{})
 	{ __glibcxx_assert(index() == _Np); }
 
@@ -1063,7 +1018,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	       typename = enable_if_t<
 		 __is_uses_allocator_constructible_v<__to_type<0>, _Alloc>>>
 	variant(allocator_arg_t, const _Alloc& __a)
-	: variant(allocator_arg, __a, in_place<0>)
+	: variant(allocator_arg, __a, in_place_index<0>)
 	{ }
 
       template<typename _Alloc,
@@ -1091,7 +1046,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		   __accepted_type<_Tp&&>, _Alloc, _Tp&&>
 		 && !is_same_v<decay_t<_Tp>, variant>, variant&>>
 	variant(allocator_arg_t, const _Alloc& __a, _Tp&& __t)
-	: variant(allocator_arg, __a, in_place<__accepted_index<_Tp&&>>,
+	: variant(allocator_arg, __a, in_place_index<__accepted_index<_Tp&&>>,
 		  std::forward<_Tp>(__t))
 	{ __glibcxx_assert(holds_alternative<__accepted_type<_Tp&&>>(*this)); }
 
@@ -1102,7 +1057,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		   _Tp, _Alloc, _Args&&...>>>
 	variant(allocator_arg_t, const _Alloc& __a, in_place_type_t<_Tp>,
 		_Args&&... __args)
-	: variant(allocator_arg, __a, in_place<__index_of<_Tp>>,
+	: variant(allocator_arg, __a, in_place_index<__index_of<_Tp>>,
 		  std::forward<_Args>(__args)...)
 	{ __glibcxx_assert(holds_alternative<_Tp>(*this)); }
 
@@ -1113,7 +1068,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		   _Tp, _Alloc, initializer_list<_Up>&, _Args&&...>>>
 	variant(allocator_arg_t, const _Alloc& __a, in_place_type_t<_Tp>,
 		initializer_list<_Up> __il, _Args&&... __args)
-	: variant(allocator_arg, __a, in_place<__index_of<_Tp>>, __il,
+	: variant(allocator_arg, __a, in_place_index<__index_of<_Tp>>, __il,
 		  std::forward<_Args>(__args)...)
 	{ __glibcxx_assert(holds_alternative<_Tp>(*this)); }
 
@@ -1123,7 +1078,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		   __to_type<_Np>, _Alloc, _Args&&...>>>
 	variant(allocator_arg_t, const _Alloc& __a, in_place_index_t<_Np>,
 		_Args&&... __args)
-	: _Base(__a, in_place<_Np>, std::forward<_Args>(__args)...),
+	: _Base(__a, in_place_index<_Np>, std::forward<_Args>(__args)...),
 	_Default_ctor_enabler(_Enable_default_constructor_tag{})
 	{ __glibcxx_assert(index() == _Np); }
 
@@ -1133,7 +1088,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 		   __to_type<_Np>, _Alloc, initializer_list<_Up>&, _Args&&...>>>
 	variant(allocator_arg_t, const _Alloc& __a, in_place_index_t<_Np>,
 		initializer_list<_Up> __il, _Args&&... __args)
-	: _Base(__a, in_place<_Np>, __il, std::forward<_Args>(__args)...),
+	: _Base(__a, in_place_index<_Np>, __il, std::forward<_Args>(__args)...),
 	_Default_ctor_enabler(_Enable_default_constructor_tag{})
 	{ __glibcxx_assert(index() == _Np); }
 
@@ -1188,7 +1143,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  this->~variant();
 	  __try
 	    {
-	      ::new (this) variant(in_place<_Np>,
+	      ::new (this) variant(in_place_index<_Np>,
 				   std::forward<_Args>(__args)...);
 	    }
 	  __catch (...)
@@ -1207,7 +1162,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	  this->~variant();
 	  __try
 	    {
-	      ::new (this) variant(in_place<_Np>, __il,
+	      ::new (this) variant(in_place_index<_Np>, __il,
 				   std::forward<_Args>(__args)...);
 	    }
 	  __catch (...)
@@ -1263,11 +1218,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 #endif
         __get_storage(_Vp&& __v);
     };
-
-  // To honor algebraic data type, variant<> should be a bottom type, which
-  // is 0 (as opposed to a void type, which is 1). Use incomplete type to model
-  // bottom type.
-  template<> class variant<>;
 
   template<size_t _Np, typename... _Types>
     variant_alternative_t<_Np, variant<_Types...>>&
@@ -1337,6 +1287,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename... _Types>
     struct hash<variant<_Types...>>
+    : private __poison_hash<remove_const_t<_Types>>...
     {
       using result_type = size_t;
       using argument_type = variant<_Types...>;

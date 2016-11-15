@@ -179,7 +179,7 @@ in the following sections.
 @xref{C Dialect Options,,Options Controlling C Dialect}.
 @gccoptlist{-ansi  -std=@var{standard}  -fgnu89-inline @gol
 -aux-info @var{filename} -fallow-parameterless-variadic-functions @gol
--fno-asm  -fno-builtin  -fno-builtin-@var{function} @gol
+-fno-asm  -fno-builtin  -fno-builtin-@var{function} -fgimple@gol
 -fhosted  -ffreestanding -fopenacc -fopenmp -fopenmp-simd @gol
 -fms-extensions -fplan9-extensions -fsso-struct=@var{endianness}
 -fallow-single-precision  -fcond-mismatch -flax-vector-conversions @gol
@@ -292,7 +292,7 @@ Objective-C and Objective-C++ Dialects}.
 -Wparentheses -Wno-pedantic-ms-format @gol
 -Wplacement-new -Wplacement-new=@var{n} @gol
 -Wpointer-arith  -Wno-pointer-to-int-cast @gol
--Wno-pragmas -Wredundant-decls  -Wno-return-local-addr @gol
+-Wno-pragmas -Wredundant-decls -Wrestrict  -Wno-return-local-addr @gol
 -Wreturn-type  -Wsequence-point  -Wshadow  -Wno-shadow-ivar @gol
 -Wshadow=global, -Wshadow=local, -Wshadow=compatible-local @gol
 -Wshift-overflow -Wshift-overflow=@var{n} @gol
@@ -650,7 +650,8 @@ Objective-C and Objective-C++ Dialects}.
 -mpure-code}
 
 @emph{AVR Options}
-@gccoptlist{-mmcu=@var{mcu} -maccumulate-args -mbranch-cost=@var{cost} @gol
+@gccoptlist{-mmcu=@var{mcu} -mabsdata -maccumulate-args @gol
+-mbranch-cost=@var{cost} @gol
 -mcall-prologues -mint8 -mn_flash=@var{size} -mno-interrupts @gol
 -mrelax -mrmw -mstrict-X -mtiny-stack -mfract-convert-truncate -nodevicelib @gol
 -Waddr-space-convert -Wmisspelled-isr}
@@ -1949,6 +1950,13 @@ built-in functions selectively when using @option{-fno-builtin} or
 #define abs(n)          __builtin_abs ((n))
 #define strcpy(d, s)    __builtin_strcpy ((d), (s))
 @end smallexample
+
+@item -fgimple
+@opindex fgimple
+
+Enable parsing of function definitions marked with @code{__GIMPLE}.
+This is an experimental feature that allows unit testing of GIMPLE
+passes.
 
 @item -fhosted
 @opindex fhosted
@@ -6186,6 +6194,12 @@ reduce the padding and so make the structure smaller.
 @opindex Wno-redundant-decls
 Warn if anything is declared more than once in the same scope, even in
 cases where multiple declaration is valid and changes nothing.
+
+@item -Wrestrict
+@opindex Wrestrict
+@opindex Wno-restrict
+Warn when an argument passed to a restrict-qualified parameter
+aliases with another argument.
 
 @item -Wnested-externs @r{(C and Objective-C only)}
 @opindex Wnested-externs
@@ -10497,12 +10511,17 @@ To optimize the program based on the collected profile information, use
 
 Alter the update method for an application instrumented for profile
 feedback based optimization.  The @var{method} argument should be one of
-@samp{single} or @samp{atomic}.  The first one is useful for single-threaded
-applications, while the second one prevents profile corruption by emitting
-thread-safe code.
+@samp{single}, @samp{atomic} or @samp{prefer-atomic}.
+The first one is useful for single-threaded applications,
+while the second one prevents profile corruption by emitting thread-safe code.
 
 @strong{Warning:} When an application does not properly join all threads
 (or creates an detached thread), a profile file can be still corrupted.
+
+Using @samp{prefer-atomic} would be transformed either to @samp{atomic},
+when supported by a target, or to @samp{single} otherwise.  The GCC driver
+automatically selects @samp{prefer-atomic} when @option{-pthread}
+is present in the command line.
 
 @item -fsanitize=address
 @opindex fsanitize=address
@@ -11431,10 +11450,9 @@ of these is when the application wishes to throw and catch exceptions
 across different shared libraries.  In that case, each of the libraries
 as well as the application itself should use the shared @file{libgcc}.
 
-Therefore, the G++ and GCJ drivers automatically add
-@option{-shared-libgcc} whenever you build a shared library or a main
-executable, because C++ and Java programs typically use exceptions, so
-this is the right thing to do.
+Therefore, the G++ and driver automatically adds @option{-shared-libgcc}
+ whenever you build a shared library or a main executable, because C++
+ programs typically use exceptions, so this is the right thing to do.
 
 If, instead, you use the GCC driver to create shared libraries, you may
 find that they are not always linked with the shared @file{libgcc}.
@@ -11448,7 +11466,7 @@ propagate through such shared libraries, without incurring relocation
 costs at library load time.
 
 However, if a library or main executable is supposed to throw or catch
-exceptions, you must link it using the G++ or GCJ driver, as appropriate
+exceptions, you must link it using the G++ driver, as appropriate
 for the languages used in the program, or using the option
 @option{-shared-libgcc}, such that it is linked with the shared
 @file{libgcc}.
@@ -14155,29 +14173,92 @@ values for @var{cpu} are
 @table @samp
 @opindex mA6
 @opindex mARC600
-@item ARC600
 @item arc600
 Compile for ARC600.  Aliases: @option{-mA6}, @option{-mARC600}.
 
-@item ARC601
 @item arc601
 @opindex mARC601
 Compile for ARC601.  Alias: @option{-mARC601}.
 
-@item ARC700
 @item arc700
 @opindex mA7
 @opindex mARC700
 Compile for ARC700.  Aliases: @option{-mA7}, @option{-mARC700}.
 This is the default when configured with @option{--with-cpu=arc700}@.
 
-@item ARCEM
 @item arcem
 Compile for ARC EM.
 
-@item ARCHS
 @item archs
 Compile for ARC HS.
+
+@item em
+@opindex em
+Compile for ARC EM cpu with no hardware extension.
+
+@item em4
+@opindex em4
+Compile for ARC EM4 cpu.
+
+@item em4_dmips
+@opindex em4_dmips
+Compile for ARC EM4 DMIPS cpu.
+
+@item em4_fpus
+@opindex em4_fpus
+Compile for ARC EM4 DMIPS cpu with single precision floating point
+extension.
+
+@item em4_fpuda
+@opindex em4_fpuda
+Compile for ARC EM4 DMIPS cpu with single precision floating point and
+double assists instructions.
+
+@item hs
+@opindex hs
+Compile for ARC HS cpu with no hardware extension, except the atomic
+instructions.
+
+@item hs34
+@opindex hs34
+Compile for ARC HS34 cpu.
+
+@item hs38
+@opindex hs38
+Compile for ARC HS38 cpu.
+
+@item hs38_linux
+@opindex hs38_linux
+Compile for ARC HS38 cpu with all hardware extensions on.
+
+@item arc600_norm
+@opindex arc600_norm
+Compile for ARC 600 cpu with norm instruction enabled.
+
+@item arc600_mul32x16
+@opindex arc600_mul32x16
+Compile for ARC 600 cpu with norm and mul32x16 instructions enabled.
+
+@item arc600_mul64
+@opindex arc600_mul64
+Compile for ARC 600 cpu with norm and mul64 instructions enabled.
+
+@item arc601_norm
+@opindex arc601_norm
+Compile for ARC 601 cpu with norm instruction enabled.
+
+@item arc601_mul32x16
+@opindex arc601_mul32x16
+Compile for ARC 601 cpu with norm and mul32x16 instructions enabled.
+
+@item arc601_mul64
+@opindex arc601_mul64
+Compile for ARC 601 cpu with norm and mul64 instructions enabled.
+
+@item nps400
+@opindex nps400
+Compile for ARC 700 on NPS400 chip.
+
 @end table
 
 @item -mdpfp
@@ -14204,7 +14285,8 @@ supported.  This is always enabled for @option{-mcpu=ARC700}.
 
 @item -mno-mpy
 @opindex mno-mpy
-Do not generate mpy instructions for ARC700.
+Do not generate mpy instructions for ARC700.  This instruction is
+deprecated.
 
 @item -mmul32x16
 @opindex mmul32x16
@@ -14411,12 +14493,14 @@ define preprocessor macro symbols.
 @item -mdsp-packa
 @opindex mdsp-packa
 Passed down to the assembler to enable the DSP Pack A extensions.
-Also sets the preprocessor symbol @code{__Xdsp_packa}.
+Also sets the preprocessor symbol @code{__Xdsp_packa}.  This option is
+deprecated.
 
 @item -mdvbf
 @opindex mdvbf
 Passed down to the assembler to enable the dual viterbi butterfly
-extension.  Also sets the preprocessor symbol @code{__Xdvbf}.
+extension.  Also sets the preprocessor symbol @code{__Xdvbf}.  This
+option is deprecated.
 
 @c ARC700 4.10 extension instruction
 @item -mlock
@@ -14428,19 +14512,19 @@ Conditional extension.  Also sets the preprocessor symbol
 @item -mmac-d16
 @opindex mmac-d16
 Passed down to the assembler.  Also sets the preprocessor symbol
-@code{__Xxmac_d16}.
+@code{__Xxmac_d16}.  This option is deprecated.
 
 @item -mmac-24
 @opindex mmac-24
 Passed down to the assembler.  Also sets the preprocessor symbol
-@code{__Xxmac_24}.
+@code{__Xxmac_24}.  This option is deprecated.
 
 @c ARC700 4.10 extension instruction
 @item -mrtsc
 @opindex mrtsc
 Passed down to the assembler to enable the 64-bit Time-Stamp Counter
 extension instruction.  Also sets the preprocessor symbol
-@code{__Xrtsc}.
+@code{__Xrtsc}.  This option is deprecated.
 
 @c ARC700 4.10 extension instruction
 @item -mswape
@@ -14453,7 +14537,7 @@ extension instruction.  Also sets the preprocessor symbol
 @opindex mtelephony
 Passed down to the assembler to enable dual and single operand
 instructions for telephony.  Also sets the preprocessor symbol
-@code{__Xtelephony}.
+@code{__Xtelephony}.  This option is deprecated.
 
 @item -mxy
 @opindex mxy
@@ -15303,6 +15387,13 @@ The default for this option is@tie{}@samp{avr2}.
 GCC supports the following AVR devices and ISAs:
 
 @include avr-mmcu.texi
+
+@item -mabsdata
+@opindex mabsdata
+
+Assume that all data in static storage can be accessed by LDS / STS
+instructions.  This option has only an effect on reduced Tiny devices like
+ATtiny40.
 
 @item -maccumulate-args
 @opindex maccumulate-args
