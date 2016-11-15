@@ -2046,14 +2046,16 @@ void asmjs_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   asm_fprintf(f, "\t.ascii \"f_\"\n\t.codetextlabel .L.%s\n\t.ascii \": f_\"\n\t.codetextlabel .L.%s\n\t.ascii \",\\n\"\n", cooked_name, cooked_name);
   asm_fprintf(f, "\t.popsection\n");
 
-  asm_fprintf(f, "\t.section .special.define,\"a\"\n");
+  asm_fprintf(f, "\t.pushsection .special.define,\"a\"\n");
   asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
   asm_fprintf(f, "\t.ascii \"\\tdeffun({name: \\\"f_\"\n\t.codetextlabel .L.%s\n\t.ascii \"\\\", symbol: \\\"%s\\\", pc0: \"\n\t.codetextlabel .L.%s\n\t.ascii \", pc1: \"\n\t.codetextlabel .ends.%s\n\t.ascii \", regsize: %d, regmask: 0x%x});\\n\"\n", cooked_name, cooked_name, cooked_name, cooked_name, asmjs_function_regsize(decl), asmjs_function_regmask(decl));
   asm_fprintf(f, "\t.popsection\n");
+  asm_fprintf(f, "\t.popsection\n");
 
-  asm_fprintf(f, "\t.section .special.fpswitch,\"a\"\n");
+  asm_fprintf(f, "\t.pushsection .special.fpswitch%%S,\"a\"\n");
   asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
   asm_fprintf(f, "\tcase $\n\t.codetextlabelr12 .L.%s\n\t:\n\treturn f_$\n\t.codetextlabel .L.%s\n\t(dpc|0, sp|0, r0|0, r1|0, rpc|0, pc0|0)|0;\n", cooked_name, cooked_name);
+  asm_fprintf(f, "\t.popsection\n");
   asm_fprintf(f, "\t.popsection\n");
 }
 
