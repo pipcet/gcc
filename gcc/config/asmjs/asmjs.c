@@ -2045,6 +2045,7 @@ void asmjs_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
   asm_fprintf(f, "\t.ascii \"f_\"\n\t.codetextlabel .L.%s\n\t.ascii \": f_\"\n\t.codetextlabel .L.%s\n\t.ascii \",\\n\"\n", cooked_name, cooked_name);
   asm_fprintf(f, "\t.popsection\n");
+  asm_fprintf(f, "\t.popsection\n");
 
   asm_fprintf(f, "\t.pushsection .special.define,\"a\"\n");
   asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
@@ -2057,6 +2058,7 @@ void asmjs_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   asm_fprintf(f, "\tcase $\n\t.codetextlabelr12 .L.%s\n\t:\n\treturn f_$\n\t.codetextlabel .L.%s\n\t(dpc|0, sp|0, r0|0, r1|0, rpc|0, pc0|0)|0;\n", cooked_name, cooked_name);
   asm_fprintf(f, "\t.popsection\n");
   asm_fprintf(f, "\t.popsection\n");
+  asm_fprintf(f, "\t.pushsection .javascript%%S,\"a\"\n");
 }
 
 void asmjs_output_ascii (FILE *f, const void *ptr, size_t len)
