@@ -800,10 +800,10 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
   case REG: {
     if (want_lval && lval_l) {
       if (REGNO (x) == RV_REG)
-	asm_fprintf (stream, "i32.const 4096");
+	asm_fprintf (stream, "i32.const 8288");
       else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
 	asm_fprintf (stream, "i32.const %d",
-		     4104 + 8*(REGNO (x)-A0_REG));
+		     8296 + 8*(REGNO (x)-A0_REG));
       else
 	return false;
 
@@ -817,10 +817,10 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
 	asm_fprintf (stream, "set_local $%s", reg_names[REGNO (x)]);
     } else {
       if (REGNO (x) == RV_REG)
-	asm_fprintf (stream, "i32.const 4096\n\ti32.load a=2 0");
+	asm_fprintf (stream, "i32.const 8288\n\ti32.load a=2 0");
       else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
 	asm_fprintf (stream, "i32.const %d\n\ti32.load a=2 0",
-		     4104 + 8*(REGNO (x)-A0_REG));
+		     8296 + 8*(REGNO (x)-A0_REG));
       else
 	asm_fprintf (stream, "get_local $%s", reg_names[REGNO (x)]);
     }

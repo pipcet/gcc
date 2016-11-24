@@ -250,7 +250,7 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      .dpc .LI%=\n\tset_local $dpc\n\ti32.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\.dpc .LI%=\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
+      .dpc .LI%=\n\tset_local $dpc\n\ti32.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
       .dpc .LI%=\n\tset_local $dpc\n\ti32.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
 
 (define_expand "call"

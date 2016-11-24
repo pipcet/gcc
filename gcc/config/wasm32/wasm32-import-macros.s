@@ -28,8 +28,8 @@ __str_\smodule:
         get_local $pc0
         get_local $dpc
         get_local $sp
-        i32.const 1
-        i32.const 2
+        get_local $r0
+        get_local $r1
         i32.const 3
         call $syscall
         set_local $r0

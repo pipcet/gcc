@@ -199,7 +199,7 @@ __wasm_code_\name\():
         .endm
 
         .macro jump1
-        br __wasm_depth - __wasm_blocks - 1
+        br __wasm_depth - __wasm_blocks
         .endm
 
         .macro throw1
