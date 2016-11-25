@@ -193,19 +193,33 @@ __wasm_code_\name\():
         .endm
 
         .macro jump
-        br __wasm_depth - __wasm_blocks - 1
+        .byte 0x06
+        .byte 1
+        rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro throw
-        br __wasm_depth - __wasm_blocks
+        .byte 0x06
+        .byte 2
+        rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro jump1
-        br __wasm_depth - __wasm_blocks
+        .byte 0x06
+        .byte 3
+        rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro throw1
-        br __wasm_depth - __wasm_blocks
+        .byte 0x06
+        .byte 4
+        rleb128 __wasm_depth - __wasm_blocks - 2
+        .endm
+
+        .macro jump2
+        .byte 0x06
+        .byte 5
+        rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro endefun name
@@ -245,6 +259,11 @@ __wasm_blocks_\name\()_end:
         .offset __wasm_blocks
 __wasm_blocks_\name\()_sym:
         .popsection
+        i32.const .
+        get_local $pc0
+        get_local $dpc
+        call $trace
+        drop
         get_local $dpc
         .byte 0x0e
         rleb128 __wasm_blocks-1
