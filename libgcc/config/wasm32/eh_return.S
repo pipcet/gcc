@@ -2,7 +2,7 @@
 
         .globl $eh_return
 
-        createsig FiiiiiiiE
+        createsig FiiiiE
         .pushsection .wasm.chars.import
         .byte 0x00
         .popsection
@@ -10,7 +10,7 @@
         lstring "sys"
         lstring "eh_return"
         .byte 0x00
-        rleb128 __sigchar_FiiiiiiiE
+        rleb128 __sigchar_FiiiiE
         .popsection
         .pushsection .wasm.chars.function_index.a,"",@nobits
 $eh_return:
