@@ -50,11 +50,11 @@
         .set $tp, 8192
 
         .macro .flush
-        i64.const .LFl\@
+        i32.const .LFl\@
         set_local $dpc
         get_local $fp
-        i64.const 1
-        i64.or
+        i32.const 1
+        i32.or
         set_local $rp
         throw
         .wasmtextlabeldpcdef .LFl\@
@@ -129,6 +129,7 @@ __sigchar_\sig:
         .byte 0x5a
         .set __wasm_function_index, \name\()
         .popsection
+        .ifeqs "\name","main"
         .pushsection .wasm.chars.export
         .byte 0
         .popsection
@@ -137,6 +138,7 @@ __sigchar_\sig:
         .byte 0
         rleb128 \name
         .popsection
+        .endif
         .pushsection .wasm.chars.code
         .byte 0
         .popsection
@@ -275,7 +277,6 @@ __wasm_blocks_\name\()_sym:
         .ifndef __wasm_function_index
         .pushsection .wasm.chars.function_index.b,""
 0:
-        .byte 0xa5
         .popsection
         .set __wasm_function_index, 0b
         .endif
