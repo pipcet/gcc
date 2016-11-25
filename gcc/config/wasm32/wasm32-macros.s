@@ -193,19 +193,27 @@ __wasm_code_\name\():
         .endm
 
         .macro jump
-        br __wasm_depth - __wasm_blocks - 1
+        .byte 0x06
+        .byte 1
+        rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro throw
-        br __wasm_depth - __wasm_blocks
+        .byte 0x06
+        .byte 2
+        rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro jump1
-        br __wasm_depth - __wasm_blocks
+        .byte 0x06
+        .byte 3
+        rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro throw1
-        br __wasm_depth - __wasm_blocks
+        .byte 0x06
+        .byte 4
+        rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro endefun name
