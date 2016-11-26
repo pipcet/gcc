@@ -139,6 +139,27 @@ __sigchar_\sig:
         rleb128 \name
         .popsection
         .endif
+        .ifeqs "\name","_start"
+        .pushsection .wasm.chars.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.export
+        lstring \name
+        .byte 0
+        rleb128 \name
+        .popsection
+        .endif
+        .pushsection .wasm.chars.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.export
+        rleb128 18
+        .ascii "f_"
+        .reloc .,R_ASMJS_HEX16,\name
+        .ascii "0000000000000000"
+        .byte 0
+        rleb128 \name
+        .popsection
         .pushsection .wasm.chars.code
         .byte 0
         .popsection
@@ -216,6 +237,12 @@ __wasm_code_\name\():
         rleb128 __wasm_depth - __wasm_blocks - 2
         .endm
 
+        .macro jump2
+        .byte 0x06
+        .byte 5
+        rleb128 __wasm_depth - __wasm_blocks - 2
+        .endm
+
         .macro endefun name
         .local __wasm_locals_\name\()
         .local __wasm_locals_\name\()_end
@@ -253,6 +280,11 @@ __wasm_blocks_\name\()_end:
         .offset __wasm_blocks
 __wasm_blocks_\name\()_sym:
         .popsection
+        i32.const .
+        get_local $pc0
+        get_local $dpc
+        call $trace
+        drop
         get_local $dpc
         .byte 0x0e
         rleb128 __wasm_blocks-1

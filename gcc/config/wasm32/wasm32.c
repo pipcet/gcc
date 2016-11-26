@@ -1688,7 +1688,7 @@ static unsigned wasm32_function_regload(FILE *stream,
 	}
     }
 
-  asm_fprintf (stream, "\tjump\n");
+  asm_fprintf (stream, "\tjump2\n");
 
   if (size != total_size)
     gcc_unreachable();
