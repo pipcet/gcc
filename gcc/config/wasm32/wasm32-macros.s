@@ -95,8 +95,37 @@
         .byte 0x00
         .endm
 
+        .macro rleb128_64 expr:vararg
+        .reloc .,R_ASMJS_LEB128,\expr
+        .rept 9
+        .byte 0x80
+        .endr
+        .byte 0x00
+        .endm
+
+        .macro rleb128_32 expr:vararg
+        .reloc .,R_ASMJS_LEB128,\expr
+        .rept 4
+        .byte 0x80
+        .endr
+        .byte 0x00
+        .endm
+
+        .macro rleb128_8 expr:vararg
+        .reloc .,R_ASMJS_LEB128,\expr
+        .rept 1
+        .byte 0x80
+        .endr
+        .byte 0x00
+        .endm
+
+        .macro rleb128_1 expr:vararg
+        .reloc .,R_ASMJS_LEB128,\expr
+        .byte 0x00
+        .endm
+
         .macro lstring str
-        rleb128 2f - 1f
+        rleb128_32 2f - 1f
 1:
         .ascii "\str"
 2:
@@ -136,7 +165,7 @@ __sigchar_\sig:
         .pushsection .wasm.payload.export
         lstring \name
         .byte 0
-        rleb128 \name
+        rleb128_32 \name
         .popsection
         .endif
         .ifeqs "\name","_start"
@@ -146,19 +175,19 @@ __sigchar_\sig:
         .pushsection .wasm.payload.export
         lstring \name
         .byte 0
-        rleb128 \name
+        rleb128_32 \name
         .popsection
         .endif
         .pushsection .wasm.chars.export
         .byte 0
         .popsection
         .pushsection .wasm.payload.export
-        rleb128 18
+        rleb128_8 18
         .ascii "f_"
         .reloc .,R_ASMJS_HEX16,\name
         .ascii "0000000000000000"
         .byte 0
-        rleb128 \name
+        rleb128_32 \name
         .popsection
         .pushsection .wasm.chars.code
         .byte 0
@@ -204,7 +233,7 @@ __sigchar_\sig:
         .popsection
         .endif
         .pushsection .wasm.payload.function
-        rleb128 __sigchar_\sig
+        rleb128_32 __sigchar_\sig
         .popsection
 
         .set __wasm_counter, __wasm_counter + 1
@@ -216,31 +245,31 @@ __wasm_code_\name\():
         .macro jump
         .byte 0x06
         .byte 1
-        rleb128 __wasm_depth - __wasm_blocks - 2
+        rleb128_32 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro throw
         .byte 0x06
         .byte 2
-        rleb128 __wasm_depth - __wasm_blocks - 2
+        rleb128_32 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro jump1
         .byte 0x06
         .byte 3
-        rleb128 __wasm_depth - __wasm_blocks - 2
+        rleb128_32 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro throw1
         .byte 0x06
         .byte 4
-        rleb128 __wasm_depth - __wasm_blocks - 2
+        rleb128_32 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro jump2
         .byte 0x06
         .byte 5
-        rleb128 __wasm_depth - __wasm_blocks - 2
+        rleb128_32 __wasm_depth - __wasm_blocks - 2
         .endm
 
         .macro endefun name
@@ -255,7 +284,7 @@ __wasm_code_\name\():
         .popsection
         .popsection
         .pushsection .wasm.payload.code,2*__wasm_counter
-        rleb128 2b - 1f
+        rleb128_32 2b - 1f
 1:
 __wasm_locals_\name\():
         .byte 0x02
@@ -287,13 +316,13 @@ __wasm_blocks_\name\()_sym:
         drop
         get_local $dpc
         .byte 0x0e
-        rleb128 __wasm_blocks-1
+        rleb128_32 __wasm_blocks-1
         .set __wasm_block, 0
         .rept __wasm_blocks-1
-        rleb128 __wasm_block
+        rleb128_32 __wasm_block
         .set __wasm_block, __wasm_block + 1
         .endr
-        rleb128 __wasm_blocks-1
+        rleb128_32 __wasm_blocks-1
         end
         .popsection
         .else

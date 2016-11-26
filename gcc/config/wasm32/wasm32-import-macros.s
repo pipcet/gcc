@@ -34,7 +34,7 @@ __str_\smodule:
         call $syscall
         set_local $r0
         get_local $fp
-        return[1]
+        return
         end
 	endefun \name
         .popsection
