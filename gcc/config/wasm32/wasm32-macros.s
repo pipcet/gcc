@@ -139,6 +139,27 @@ __sigchar_\sig:
         rleb128 \name
         .popsection
         .endif
+        .ifeqs "\name","_start"
+        .pushsection .wasm.chars.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.export
+        lstring \name
+        .byte 0
+        rleb128 \name
+        .popsection
+        .endif
+        .pushsection .wasm.chars.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.export
+        rleb128 18
+        .ascii "f_"
+        .reloc .,R_ASMJS_HEX16,\name
+        .ascii "0000000000000000"
+        .byte 0
+        rleb128 \name
+        .popsection
         .pushsection .wasm.chars.code
         .byte 0
         .popsection
