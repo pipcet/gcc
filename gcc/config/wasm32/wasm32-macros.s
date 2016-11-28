@@ -272,6 +272,12 @@ __wasm_code_\name\():
         rleb128_32 __wasm_depth - __wasm_blocks - 2
         .endm
 
+        .macro throw_if
+        .byte 0x06
+        .byte 6
+        rleb128_32 __wasm_depth - __wasm_blocks - 2
+        .endm
+
         .macro endefun name
         .local __wasm_locals_\name\()
         .local __wasm_locals_\name\()_end
@@ -299,6 +305,7 @@ __wasm_locals_\name\()_end:
         set_local $sp
         .ifne __wasm_blocks
 __wasm_ast_\name\():
+        block[]
         loop[]
 __wasm_blocks_\name:
         .rept __wasm_blocks
