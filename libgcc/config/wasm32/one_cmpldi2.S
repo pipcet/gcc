@@ -9,6 +9,6 @@
         i32.xor
         i32.store a=2 0
         i32.const 0
-        return[1]
+        return
         end
         endefun __one_cmplsi2
