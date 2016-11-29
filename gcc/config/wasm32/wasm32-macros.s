@@ -316,11 +316,6 @@ __wasm_blocks_\name\()_end:
         .offset __wasm_blocks
 __wasm_blocks_\name\()_sym:
         .popsection
-        i32.const .
-        get_local $pc0
-        get_local $dpc
-        call $trace
-        drop
         get_local $dpc
         .byte 0x0e
         rleb128_32 __wasm_blocks-1
