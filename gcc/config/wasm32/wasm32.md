@@ -241,8 +241,8 @@
           (match_operand:SI 1 "general_operand" "rmi,rmi"))]
       ""
       "@
-      .dpc .LI%=\n\tset_local $dpc\n\ti32.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
-      .dpc .LI%=\n\tset_local $dpc\n\ti32.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\t%0\n\tcall %L0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\t%0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
@@ -250,8 +250,8 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       ""
       "@
-      .dpc .LI%=\n\tset_local $dpc\n\ti32.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] %L0\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
-      .dpc .LI%=\n\tset_local $dpc\n\ti32.const 0\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\t%0\n\tcall[6] $indcall\n\tset_local $rp\n\ti32.const 3\n\tget_local $rp\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\t%0\n\tcall %L0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\t%0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)

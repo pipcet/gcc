@@ -319,12 +319,13 @@ __wasm_blocks_\name\()_sym:
         get_local $dpc
         .byte 0x0e
         rleb128_32 __wasm_blocks-1
-        .set __wasm_block, 0
-        .rept __wasm_blocks-1
+        rleb128_32 __wasm_blocks-1
+        .set __wasm_block, 1
+        .rept __wasm_blocks-2
         rleb128_32 __wasm_block
         .set __wasm_block, __wasm_block + 1
         .endr
-        rleb128_32 __wasm_blocks-1
+        rleb128_32 0
         end
         .popsection
         .else
