@@ -193,10 +193,10 @@ __sigchar_\sig:
         .byte 0
         .popsection
         .if 1
-        .pushsection .wasm.chars.name
+        .pushsection .wasm.chars.name.b
         .byte 0
         .popsection
-        .pushsection .wasm.payload.name
+        .pushsection .wasm.payload.name.b
         lstring \name
         .byte 31
         lstring dpc

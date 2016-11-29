@@ -16,3 +16,13 @@
 $trace:
         .byte 0x00
         .popsection
+        .pushsection .wasm.chars.name.a
+        .byte 0x00
+        .popsection
+        .pushsection .wasm.payload.name.a
+        lstring $indcall
+        .byte 3
+        lstring a
+        lstring b
+        lstring c
+        .popsection
