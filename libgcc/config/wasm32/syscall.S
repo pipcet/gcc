@@ -21,11 +21,5 @@ $syscall:
         .popsection
         .pushsection .wasm.payload.name.a
         lstring $syscall
-        .byte 6
-        lstring dpc
-        lstring sp1
-        lstring r0
-        lstring r1
-        lstring rpc
-        lstring pc0
+        .byte 0
         .popsection

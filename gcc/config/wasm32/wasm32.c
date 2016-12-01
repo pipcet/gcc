@@ -1435,8 +1435,11 @@ rtx wasm32_libcall_value(machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
   switch (mode) {
   case SFmode:
   case DFmode:
-    return NULL_RTX;
   default:
+    return NULL_RTX;
+  case QImode:
+  case HImode:
+  case SImode:
     return gen_rtx_REG (mode, RV_REG);
   }
 }

@@ -21,9 +21,5 @@ $eh_return:
         .popsection
         .pushsection .wasm.payload.name.a
         lstring $eh_return
-        .byte 4
-        lstring a
-        lstring b
-        lstring c
-        lstring d
+        .byte 0
         .popsection
