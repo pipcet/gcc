@@ -1490,9 +1490,14 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	     explicitly declared.  */
 	  if (DECL_ANTICIPATED (olddecl))
 	    {
-	      /* Deal with fileptr_type_node.  FILE type is not known
-		 at the time we create the builtins.  */
 	      tree t1, t2;
+
+	      /* A new declaration doesn't match a built-in one unless it
+		 is also extern "C".  */
+	      gcc_assert (DECL_IS_BUILTIN (olddecl));
+	      gcc_assert (DECL_EXTERN_C_P (olddecl));
+	      if (!DECL_EXTERN_C_P (newdecl))
+		return NULL_TREE;
 
 	      for (t1 = TYPE_ARG_TYPES (TREE_TYPE (newdecl)),
 		   t2 = TYPE_ARG_TYPES (TREE_TYPE (olddecl));
@@ -1500,6 +1505,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 		   t1 = TREE_CHAIN (t1), t2 = TREE_CHAIN (t2))
 		if (!t1 || !t2)
 		  break;
+	        /* Deal with fileptr_type_node.  FILE type is not known
+		   at the time we create the builtins.  */
 		else if (TREE_VALUE (t2) == fileptr_type_node)
 		  {
 		    tree t = TREE_VALUE (t1);
@@ -1520,8 +1527,34 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 			TYPE_ARG_TYPES (TREE_TYPE (olddecl)) = oldargs;
 		      }
 		  }
+		/* Likewise for const struct tm*.  */
+		else if (TREE_VALUE (t2) == const_tm_ptr_type_node)
+		  {
+		    tree t = TREE_VALUE (t1);
+
+		    if (TYPE_PTR_P (t)
+			&& TYPE_IDENTIFIER (TREE_TYPE (t))
+			   == get_identifier ("tm")
+			&& compparms (TREE_CHAIN (t1), TREE_CHAIN (t2)))
+		      {
+			tree oldargs = TYPE_ARG_TYPES (TREE_TYPE (olddecl));
+
+			TYPE_ARG_TYPES (TREE_TYPE (olddecl))
+			  = TYPE_ARG_TYPES (TREE_TYPE (newdecl));
+			types_match = decls_match (newdecl, olddecl);
+			if (types_match)
+			  return duplicate_decls (newdecl, olddecl,
+						  newdecl_is_friend);
+			TYPE_ARG_TYPES (TREE_TYPE (olddecl)) = oldargs;
+		      }
+		  }
 		else if (! same_type_p (TREE_VALUE (t1), TREE_VALUE (t2)))
 		  break;
+
+	      warning_at (DECL_SOURCE_LOCATION (newdecl),
+			  OPT_Wbuiltin_declaration_mismatch,
+			  "declaration of %q+#D conflicts with built-in "
+			  "declaration %q#D", newdecl, olddecl);
 	    }
 	  else if ((DECL_EXTERN_C_P (newdecl)
 		    && DECL_EXTERN_C_P (olddecl))
@@ -1531,7 +1564,8 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 	      /* A near match; override the builtin.  */
 
 	      if (TREE_PUBLIC (newdecl))
-		warning_at (DECL_SOURCE_LOCATION (newdecl), 0,
+		warning_at (DECL_SOURCE_LOCATION (newdecl),
+			    OPT_Wbuiltin_declaration_mismatch,
 			    "new declaration %q#D ambiguates built-in "
 			    "declaration %q#D", newdecl, olddecl);
 	      else
@@ -2243,6 +2277,7 @@ duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
       TREE_TYPE (olddecl) = TREE_TYPE (newdecl);
       TREE_READONLY (olddecl) = TREE_READONLY (newdecl);
       TREE_THIS_VOLATILE (olddecl) = TREE_THIS_VOLATILE (newdecl);
+      TREE_NOTHROW (olddecl) = TREE_NOTHROW (newdecl);
       TREE_SIDE_EFFECTS (olddecl) = TREE_SIDE_EFFECTS (newdecl);
     }
 
@@ -2967,7 +3002,7 @@ make_label_decl (tree id, int local_p)
   decl = build_decl (input_location, LABEL_DECL, id, void_type_node);
 
   DECL_CONTEXT (decl) = current_function_decl;
-  DECL_MODE (decl) = VOIDmode;
+  SET_DECL_MODE (decl, VOIDmode);
   C_DECLARED_LABEL_FLAG (decl) = local_p;
 
   /* Say where one reference is to the label, for the sake of the
@@ -6839,7 +6874,9 @@ cp_finish_decl (tree decl, tree init, bool init_const_expr_p,
 	  /* Set these flags now for templates.  We'll update the flags in
 	     store_init_value for instantiations.  */
 	  DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (decl) = 1;
-	  if (decl_maybe_constant_var_p (decl))
+	  if (decl_maybe_constant_var_p (decl)
+	      /* FIXME setting TREE_CONSTANT on refs breaks the back end.  */
+	      && TREE_CODE (type) != REFERENCE_TYPE)
 	    TREE_CONSTANT (decl) = 1;
 	}
     }
@@ -7293,6 +7330,22 @@ get_tuple_decomp_init (tree decl, unsigned i)
     }
 }
 
+/* It's impossible to recover the decltype of a tuple decomposition variable
+   based on the actual type of the variable, so store it in a hash table.  */
+static GTY(()) hash_map<tree,tree> *decomp_type_table;
+static void
+store_decomp_type (tree v, tree t)
+{
+  if (!decomp_type_table)
+    decomp_type_table = hash_map<tree,tree>::create_ggc (13);
+  decomp_type_table->put (v, t);
+}
+tree
+lookup_decomp_type (tree v)
+{
+  return *decomp_type_table->get (v);
+}
+
 /* Finish a decomposition declaration.  DECL is the underlying declaration
    "e", FIRST is the head of a chain of decls for the individual identifiers
    chained through DECL_CHAIN in reverse order and COUNT is the number of
@@ -7467,6 +7520,8 @@ cp_finish_decomp (tree decl, tree first, unsigned int count)
 		      v[i]);
 	      goto error_out;
 	    }
+	  /* Save the decltype away before reference collapse.  */
+	  store_decomp_type (v[i], eltype);
 	  eltype = cp_build_reference_type (eltype, !lvalue_p (init));
 	  TREE_TYPE (v[i]) = eltype;
 	  layout_decl (v[i], 0);
@@ -14225,8 +14280,11 @@ finish_enum_value_list (tree enumtype)
   if (at_class_scope_p ()
       && COMPLETE_TYPE_P (current_class_type)
       && UNSCOPED_ENUM_P (enumtype))
-    insert_late_enum_def_into_classtype_sorted_fields (enumtype,
-						       current_class_type);
+    {
+      insert_late_enum_def_into_classtype_sorted_fields (enumtype,
+							 current_class_type);
+      fixup_type_variants (current_class_type);
+    }
 
   /* Finish debugging output for this type.  */
   rest_of_type_compilation (enumtype, namespace_bindings_p ());

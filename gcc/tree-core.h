@@ -438,6 +438,10 @@ enum omp_clause_code {
   /* Internally used only clause, holding SIMD uid.  */
   OMP_CLAUSE__SIMDUID_,
 
+  /* Internally used only clause, flag whether this is SIMT simd
+     loop or not.  */
+  OMP_CLAUSE__SIMT_,
+
   /* Internally used only clause, holding _Cilk_for # of iterations
      on OMP_PARALLEL.  */
   OMP_CLAUSE__CILK_FOR_COUNT_,
@@ -618,6 +622,7 @@ enum tree_index {
   TI_VA_LIST_FPR_COUNTER_FIELD,
   TI_BOOLEAN_TYPE,
   TI_FILEPTR_TYPE,
+  TI_CONST_TM_PTR_TYPE,
   TI_POINTER_SIZED_TYPE,
 
   TI_POINTER_BOUNDS_TYPE,

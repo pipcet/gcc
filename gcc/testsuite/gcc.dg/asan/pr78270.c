@@ -1,5 +1,6 @@
-// { dg-do compile }
-// { dg-additional-options "-Wno-switch-unreachable" }
+/* PR sanitizer/78270 */
+/* { dg-do compile } */
+/* { dg-additional-options "-Wno-switch-unreachable" } */
 
 typedef struct
 {

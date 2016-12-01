@@ -5576,6 +5576,7 @@ attributes.
 * MeP Variable Attributes::
 * Microsoft Windows Variable Attributes::
 * MSP430 Variable Attributes::
+* Nvidia PTX Variable Attributes::
 * PowerPC Variable Attributes::
 * RL78 Variable Attributes::
 * SPU Variable Attributes::
@@ -6255,6 +6256,20 @@ placed.
 These attributes are the same as the MSP430 function attributes of the
 same name (@pxref{MSP430 Function Attributes}).  
 These attributes can be applied to both functions and variables.
+@end table
+
+@node Nvidia PTX Variable Attributes
+@subsection Nvidia PTX Variable Attributes
+
+These variable attributes are supported by the Nvidia PTX back end:
+
+@table @code
+@item shared
+@cindex @code{shared} attribute, Nvidia PTX
+Use this attribute to place a variable in the @code{.shared} memory space.
+This memory space is private to each cooperative thread array; only threads
+within one thread block refer to the same instance of the variable.
+The runtime does not initialize variables in this memory space.
 @end table
 
 @node PowerPC Variable Attributes
@@ -10110,7 +10125,7 @@ follow pointer assignments through non-trivial control flow they rely
 on various optimization passes enabled with @option{-O2}.  However, to
 a limited extent, they can be used without optimization as well.
 
-@deftypefn {Built-in Function} {size_t} __builtin_object_size (void * @var{ptr}, int @var{type})
+@deftypefn {Built-in Function} {size_t} __builtin_object_size (const void * @var{ptr}, int @var{type})
 is a built-in construct that returns a constant number of bytes from
 @var{ptr} to the end of the object @var{ptr} pointer points to
 (if known at compile time).  @code{__builtin_object_size} never evaluates
@@ -15637,6 +15652,9 @@ vector float vec_ceil (vector float);
 
 vector signed int vec_cmpb (vector float, vector float);
 
+vector bool char vec_cmpeq (vector bool char, vector bool char);
+vector bool short vec_cmpeq (vector bool short, vector bool short);
+vector bool int vec_cmpeq (vector bool int, vector bool int);
 vector bool char vec_cmpeq (vector signed char, vector signed char);
 vector bool char vec_cmpeq (vector unsigned char, vector unsigned char);
 vector bool short vec_cmpeq (vector signed short, vector signed short);
@@ -17553,6 +17571,8 @@ int vec_any_lt (vector unsigned long long, vector unsigned long long);
 int vec_any_ne (vector long long, vector long long);
 int vec_any_ne (vector unsigned long long, vector unsigned long long);
 
+vector bool long long vec_cmpeq (vector bool long long, vector bool long long);
+
 vector long long vec_eqv (vector long long, vector long long);
 vector long long vec_eqv (vector bool long long, vector long long);
 vector long long vec_eqv (vector long long, vector bool long long);
@@ -17886,6 +17906,11 @@ If the ISA 3.0 instruction set additions (@option{-mcpu=power9})
 are available:
 
 @smallexample
+vector bool char vec_cmpne (vector bool char, vector bool char);
+vector bool short vec_cmpne (vector bool short, vector bool short);
+vector bool int vec_cmpne (vector bool int, vector bool int);
+vector bool long long vec_cmpne (vector bool long long, vector bool long long);
+
 vector long long vec_vctz (vector long long);
 vector unsigned long long vec_vctz (vector unsigned long long);
 vector int vec_vctz (vector int);

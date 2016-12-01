@@ -763,7 +763,10 @@ proc check_effective_target_untyped_assembly {} {
 
 proc check_effective_target_alloca {} {
     if { [istarget nvptx-*-*] } {
-	return 0
+	return [check_no_compiler_messages alloca assembly {
+	    void f (void*);
+	    void g (int n) { f (__builtin_alloca (n)); }
+	}]
     }
     return 1
 }
@@ -1008,12 +1011,19 @@ proc check_effective_target_fstack_protector {} {
 }
 
 # Return 1 if compilation with -freorder-blocks-and-partition is error-free
-# for trivial code, 0 otherwise.
+# for trivial code, 0 otherwise.  As some targets (ARM for example) only
+# warn when -fprofile-use is also supplied we test that combination too.
 
 proc check_effective_target_freorder {} {
-    return [check_no_compiler_messages freorder object {
+    if { [check_no_compiler_messages freorder object {
 	void foo (void) { }
     } "-freorder-blocks-and-partition"]
+    && [check_no_compiler_messages fprofile_use_freorder object {
+	void foo (void) { }
+    } "-fprofile-use -freorder-blocks-and-partition"] } {
+	return 1
+    }
+    return 0
 }
 
 # Return 1 if -fpic and -fPIC are supported, as in no warnings or errors
@@ -1730,6 +1740,36 @@ proc check_avx_hw_available { } {
     }]
 }
 
+# Return 1 if the target supports executing AVX2 instructions, 0
+# otherwise.  Cache the result.
+
+proc check_avx2_hw_available { } {
+    return [check_cached_effective_target avx2_hw_available {
+	# If this is not the right target then we can skip the test.
+	if { !([istarget x86_64-*-*] || [istarget i?86-*-*]) } {
+	    expr 0
+	} else {
+	    check_runtime_nocache avx2_hw_available {
+		#include "cpuid.h"
+		int main ()
+		{
+		  unsigned int eax, ebx, ecx, edx;
+		  if (!__get_cpuid (1, &eax, &ebx, &ecx, &edx)
+		      || ((ecx & bit_OSXSAVE) != bit_OSXSAVE))
+		    return 1;
+
+		  if (__get_cpuid_max (0, NULL) < 7)
+		    return 1;
+
+		  __cpuid_count (7, 0, eax, ebx, ecx, edx);
+
+		  return (ebx & bit_AVX2) != bit_AVX2;
+		}
+	    } ""
+	}
+    }]
+}
+
 # Return 1 if the target supports running SSE executables, 0 otherwise.
 
 proc check_effective_target_sse_runtime { } {
@@ -1799,6 +1839,17 @@ proc check_effective_target_mips_msa_runtime { } {
 proc check_effective_target_avx_runtime { } {
     if { [check_effective_target_avx]
 	 && [check_avx_hw_available]
+	 && [check_avx_os_support_available] } {
+	return 1
+    }
+    return 0
+}
+
+# Return 1 if the target supports running AVX2 executables, 0 otherwise.
+
+proc check_effective_target_avx2_runtime { } {
+    if { [check_effective_target_avx2]
+	 && [check_avx2_hw_available]
 	 && [check_avx_os_support_available] } {
 	return 1
     }
@@ -2483,43 +2534,43 @@ proc check_effective_target_has_q_floating_suffix { } {
 proc check_effective_target_float16 {} {
     return [check_no_compiler_messages_nocache float16 object {
         _Float16 x;
-    }]
+    } [add_options_for_float16 ""]]
 }
 
 proc check_effective_target_float32 {} {
     return [check_no_compiler_messages_nocache float32 object {
         _Float32 x;
-    }]
+    } [add_options_for_float32 ""]]
 }
 
 proc check_effective_target_float64 {} {
     return [check_no_compiler_messages_nocache float64 object {
         _Float64 x;
-    }]
+    } [add_options_for_float64 ""]]
 }
 
 proc check_effective_target_float128 {} {
     return [check_no_compiler_messages_nocache float128 object {
         _Float128 x;
-    }]
+    } [add_options_for_float128 ""]]
 }
 
 proc check_effective_target_float32x {} {
     return [check_no_compiler_messages_nocache float32x object {
         _Float32x x;
-    }]
+    } [add_options_for_float32x ""]]
 }
 
 proc check_effective_target_float64x {} {
     return [check_no_compiler_messages_nocache float64x object {
         _Float64x x;
-    }]
+    } [add_options_for_float64x ""]]
 }
 
 proc check_effective_target_float128x {} {
     return [check_no_compiler_messages_nocache float128x object {
         _Float128x x;
-    }]
+    } [add_options_for_float128x ""]]
 }
 
 # Likewise, but runtime support for any special options used as well
@@ -2582,6 +2633,9 @@ proc check_effective_target_floatn_nx_runtime {} {
 # the function name.
 
 proc add_options_for_float16 { flags } {
+    if { [istarget arm*-*-*] } {
+	return "$flags -mfp16-format=ieee"
+    }
     return "$flags"
 }
 
@@ -3674,25 +3728,26 @@ proc check_effective_target_arm_fp16_hw { } {
 # Usage: /* { dg-require-effective-target arm_arch_v5_ok } */
 #        /* { dg-add-options arm_arch_v5 } */
 #	 /* { dg-require-effective-target arm_arch_v5_multilib } */
-foreach { armfunc armflag armdef } { v4 "-march=armv4 -marm" __ARM_ARCH_4__
-				     v4t "-march=armv4t" __ARM_ARCH_4T__
-				     v5 "-march=armv5 -marm" __ARM_ARCH_5__
-				     v5t "-march=armv5t" __ARM_ARCH_5T__
-				     v5te "-march=armv5te" __ARM_ARCH_5TE__
-				     v6 "-march=armv6" __ARM_ARCH_6__
-				     v6k "-march=armv6k" __ARM_ARCH_6K__
-				     v6t2 "-march=armv6t2" __ARM_ARCH_6T2__
-				     v6z "-march=armv6z" __ARM_ARCH_6Z__
-				     v6m "-march=armv6-m -mthumb" __ARM_ARCH_6M__
-				     v7a "-march=armv7-a" __ARM_ARCH_7A__
-				     v7r "-march=armv7-r" __ARM_ARCH_7R__
-				     v7m "-march=armv7-m -mthumb" __ARM_ARCH_7M__
-				     v7em "-march=armv7e-m -mthumb" __ARM_ARCH_7EM__
-				     v8a "-march=armv8-a" __ARM_ARCH_8A__
-				     v8_1a "-march=armv8.1a" __ARM_ARCH_8A__
-				     v8_2a "-march=armv8.2a" __ARM_ARCH_8A__
-				     v8m_base "-march=armv8-m.base -mthumb" __ARM_ARCH_8M_BASE__
-				     v8m_main "-march=armv8-m.main -mthumb" __ARM_ARCH_8M_MAIN__ } {
+foreach { armfunc armflag armdef } {
+	v4 "-march=armv4 -marm" __ARM_ARCH_4__
+	v4t "-march=armv4t" __ARM_ARCH_4T__
+	v5 "-march=armv5 -marm" __ARM_ARCH_5__
+	v5t "-march=armv5t" __ARM_ARCH_5T__
+	v5te "-march=armv5te" __ARM_ARCH_5TE__
+	v6 "-march=armv6" __ARM_ARCH_6__
+	v6k "-march=armv6k" __ARM_ARCH_6K__
+	v6t2 "-march=armv6t2" __ARM_ARCH_6T2__
+	v6z "-march=armv6z" __ARM_ARCH_6Z__
+	v6m "-march=armv6-m -mthumb -mfloat-abi=soft" __ARM_ARCH_6M__
+	v7a "-march=armv7-a" __ARM_ARCH_7A__
+	v7r "-march=armv7-r" __ARM_ARCH_7R__
+	v7m "-march=armv7-m -mthumb" __ARM_ARCH_7M__
+	v7em "-march=armv7e-m -mthumb" __ARM_ARCH_7EM__
+	v8a "-march=armv8-a" __ARM_ARCH_8A__
+	v8_1a "-march=armv8.1a" __ARM_ARCH_8A__
+	v8_2a "-march=armv8.2a" __ARM_ARCH_8A__
+	v8m_base "-march=armv8-m.base -mthumb -mfloat-abi=soft" __ARM_ARCH_8M_BASE__
+	v8m_main "-march=armv8-m.main -mthumb" __ARM_ARCH_8M_MAIN__ } {
     eval [string map [list FUNC $armfunc FLAG $armflag DEF $armdef ] {
 	proc check_effective_target_arm_arch_FUNC_ok { } {
 	    if { [ string match "*-marm*" "FLAG" ] &&
@@ -4312,7 +4367,7 @@ proc check_effective_target_arm_prefer_ldrd_strd { } {
     }
 
     return [check_no_messages_and_pattern arm_prefer_ldrd_strd "strd\tr" assembly {
-        void foo (int *p) { p[0] = 1; p[1] = 0;}
+        void foo (void) { __asm__ ("" ::: "r4", "r5"); }
     }  "-O2 -mthumb" ]
 }
 
@@ -7820,12 +7875,16 @@ proc check_effective_target_fenv_exceptions {} {
 proc check_effective_target_tiny {} {
     global et_target_tiny_saved
 
-    if [info exists et_target_tine_saved] {
+    if [info exists et_target_tiny_saved] {
       verbose "check_effective_target_tiny: using cached result" 2
     } else {
        set et_target_tiny_saved 0
        if { [istarget aarch64*-*-*]
              && [check_effective_target_aarch64_tiny] } {
+         set et_target_tiny_saved 1
+       }
+       if { [istarget avr-*-*]
+             && [check_effective_target_avr_tiny] } {
          set et_target_tiny_saved 1
        }
     }

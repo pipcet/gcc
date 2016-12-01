@@ -11,6 +11,7 @@
 #include "go-c.h"
 #include "gogo.h"
 #include "go-diagnostics.h"
+#include "go-encode-id.h"
 #include "operator.h"
 #include "expressions.h"
 #include "statements.h"
@@ -1217,10 +1218,12 @@ Type::make_type_descriptor_var(Gogo* gogo)
 
       Type* td_type = Type::make_type_descriptor_type();
       Btype* td_btype = td_type->get_backend(gogo);
+      const char *name = "__go_tdn_unsafe.Pointer";
+      std::string asm_name(go_selectively_encode_id(name));
       this->type_descriptor_var_ =
-	gogo->backend()->immutable_struct_reference("__go_tdn_unsafe.Pointer",
-						    td_btype,
-						    bloc);
+	  gogo->backend()->immutable_struct_reference(name, asm_name,
+						      td_btype,
+						      bloc);
 
       if (phash != NULL)
 	*phash = this->type_descriptor_var_;
@@ -1239,10 +1242,11 @@ Type::make_type_descriptor_var(Gogo* gogo)
   const Package* dummy;
   if (this->type_descriptor_defined_elsewhere(nt, &dummy))
     {
+      std::string asm_name(go_selectively_encode_id(var_name));
       this->type_descriptor_var_ =
-	gogo->backend()->immutable_struct_reference(var_name,
-						    initializer_btype,
-						    loc);
+	  gogo->backend()->immutable_struct_reference(var_name, asm_name,
+						      initializer_btype,
+						      loc);
       if (phash != NULL)
 	*phash = this->type_descriptor_var_;
       return;
@@ -1271,8 +1275,9 @@ Type::make_type_descriptor_var(Gogo* gogo)
   // ensure that type_descriptor_pointer will work if called while
   // converting INITIALIZER.
 
+  std::string asm_name(go_selectively_encode_id(var_name));
   this->type_descriptor_var_ =
-    gogo->backend()->immutable_struct(var_name, false, is_common,
+      gogo->backend()->immutable_struct(var_name, asm_name, false, is_common,
 				      initializer_btype, loc);
   if (phash != NULL)
     *phash = this->type_descriptor_var_;
@@ -2187,8 +2192,10 @@ Type::make_gc_symbol_var(Gogo* gogo)
   const Package* dummy;
   if (this->type_descriptor_defined_elsewhere(nt, &dummy))
     {
+      std::string asm_name(go_selectively_encode_id(sym_name));
       this->gc_symbol_var_ =
-	gogo->backend()->implicit_variable_reference(sym_name, sym_btype);
+          gogo->backend()->implicit_variable_reference(sym_name, asm_name,
+                                                       sym_btype);
       if (phash != NULL)
 	*phash = this->gc_symbol_var_;
       return;
@@ -2213,8 +2220,10 @@ Type::make_gc_symbol_var(Gogo* gogo)
   // Since we are building the GC symbol in this package, we must create the
   // variable before converting the initializer to its backend representation
   // because the initializer may refer to the GC symbol for this type.
+  std::string asm_name(go_selectively_encode_id(sym_name));
   this->gc_symbol_var_ =
-    gogo->backend()->implicit_variable(sym_name, sym_btype, false, true, is_common, 0);
+      gogo->backend()->implicit_variable(sym_name, asm_name,
+                                         sym_btype, false, true, is_common, 0);
   if (phash != NULL)
     *phash = this->gc_symbol_var_;
 
@@ -4792,6 +4801,8 @@ bool
 Struct_type::is_identical(const Struct_type* t,
 			  bool errors_are_identical) const
 {
+  if (this->is_struct_incomparable_ != t->is_struct_incomparable_)
+    return false;
   const Struct_field_list* fields1 = this->fields();
   const Struct_field_list* fields2 = t->fields();
   if (fields1 == NULL || fields2 == NULL)
@@ -4929,7 +4940,10 @@ Struct_type::do_hash_for_method(Gogo* gogo) const
 	   ++pf)
 	ret = (ret << 1) + pf->type()->hash_for_method(gogo);
     }
-  return ret <<= 2;
+  ret <<= 2;
+  if (this->is_struct_incomparable_)
+    ret <<= 1;
+  return ret;
 }
 
 // Find the local field NAME.
@@ -5659,6 +5673,9 @@ Struct_type::do_mangled_name(Gogo* gogo, std::string* ret) const
 	}
     }
 
+  if (this->is_struct_incomparable_)
+    ret->push_back('x');
+
   ret->push_back('e');
 }
 
@@ -6052,6 +6069,9 @@ Array_type::is_identical(const Array_type* t, bool errors_are_identical) const
 			   errors_are_identical, NULL))
     return false;
 
+  if (this->is_array_incomparable_ != t->is_array_incomparable_)
+    return false;
+
   Expression* l1 = this->length();
   Expression* l2 = t->length();
 
@@ -6216,9 +6236,14 @@ Array_type::do_compare_is_identity(Gogo* gogo)
 unsigned int
 Array_type::do_hash_for_method(Gogo* gogo) const
 {
+  unsigned int ret;
+
   // There is no very convenient way to get a hash code for the
   // length.
-  return this->element_type_->hash_for_method(gogo) + 1;
+  ret = this->element_type_->hash_for_method(gogo) + 1;
+  if (this->is_array_incomparable_)
+    ret <<= 1;
+  return ret;
 }
 
 // Write the hash function for an array which can not use the identify
@@ -6916,6 +6941,8 @@ Array_type::do_mangled_name(Gogo* gogo, std::string* ret) const
       ret->append(s);
       free(s);
       mpz_clear(val);
+      if (this->is_array_incomparable_)
+	ret->push_back('x');
     }
   ret->push_back('e');
 }
@@ -7016,8 +7043,10 @@ Map_type::backend_zero_value(Gogo* gogo)
   Btype* barray_type = gogo->backend()->array_type(buint8_type, blength);
 
   std::string zname = Map_type::zero_value->name();
+  std::string asm_name(go_selectively_encode_id(zname));
   Bvariable* zvar =
-    gogo->backend()->implicit_variable(zname, barray_type, false, true, true,
+      gogo->backend()->implicit_variable(zname, asm_name,
+                                         barray_type, false, true, true,
 				       Map_type::zero_value_align);
   gogo->backend()->implicit_variable_set_init(zvar, zname, barray_type,
 					      false, true, true, NULL);

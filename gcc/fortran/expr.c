@@ -4132,7 +4132,12 @@ gfc_apply_init (gfc_typespec *ts, symbol_attribute *attr, gfc_expr *init)
                 {
                   gfc_set_constant_character_len (len, ctor->expr,
                                                   has_ts ? -1 : first_len);
-                  ctor->expr->ts.u.cl->length = gfc_copy_expr (ts->u.cl->length);
+		  if (!ctor->expr->ts.u.cl)
+		    ctor->expr->ts.u.cl
+		      = gfc_new_charlen (gfc_current_ns, ts->u.cl);
+		  else
+                    ctor->expr->ts.u.cl->length
+		      = gfc_copy_expr (ts->u.cl->length);
                 }
             }
         }
@@ -5286,7 +5291,8 @@ gfc_check_vardef_context (gfc_expr* e, bool pointer, bool alloc_obj,
      component.  Note that (normal) assignment to procedure pointers is not
      possible.  */
   check_intentin = !own_scope;
-  ptr_component = (sym->ts.type == BT_CLASS && CLASS_DATA (sym))
+  ptr_component = (sym->ts.type == BT_CLASS && sym->ts.u.derived
+		   && CLASS_DATA (sym))
 		  ? CLASS_DATA (sym)->attr.class_pointer : sym->attr.pointer;
   for (ref = e->ref; ref && check_intentin; ref = ref->next)
     {

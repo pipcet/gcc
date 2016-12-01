@@ -1728,11 +1728,9 @@ gfc_compare_interfaces (gfc_symbol *s1, gfc_symbol *s2, const char *name2,
        This is also done when comparing interfaces for dummy procedures and in
        procedure pointer assignments.  */
 
-    for (;;)
+    for (; f1 || f2; f1 = f1->next, f2 = f2->next)
       {
 	/* Check existence.  */
-	if (f1 == NULL && f2 == NULL)
-	  break;
 	if (f1 == NULL || f2 == NULL)
 	  {
 	    if (errmsg != NULL)
@@ -1740,9 +1738,6 @@ gfc_compare_interfaces (gfc_symbol *s1, gfc_symbol *s2, const char *name2,
 			"arguments", name2);
 	    return 0;
 	  }
-
-	if (UNLIMITED_POLY (f1->sym))
-	  goto next;
 
 	if (strict_flag)
 	  {
@@ -1772,9 +1767,6 @@ gfc_compare_interfaces (gfc_symbol *s1, gfc_symbol *s2, const char *name2,
 		return 0;
 	      }
 	  }
-next:
-	f1 = f1->next;
-	f2 = f2->next;
       }
 
   return 1;
@@ -3885,7 +3877,7 @@ matching_typebound_op (gfc_expr** tb_base,
 
 	if (base->expr->ts.type == BT_CLASS)
 	  {
-	    if (CLASS_DATA (base->expr) == NULL
+	    if (!base->expr->ts.u.derived || CLASS_DATA (base->expr) == NULL
 		|| !gfc_expr_attr (base->expr).class_ok)
 	      continue;
 	    derived = CLASS_DATA (base->expr)->ts.u.derived;
@@ -4941,15 +4933,15 @@ gfc_find_specific_dtio_proc (gfc_symbol *derived, bool write, bool formatted)
 	  && tb_io_st->n.sym
 	  && tb_io_st->n.sym->generic)
 	{
-	  gfc_interface *intr;
-	  for (intr = tb_io_st->n.sym->generic; intr; intr = intr->next)
+	  for (gfc_interface *intr = tb_io_st->n.sym->generic;
+	       intr && intr->sym && intr->sym->formal;
+	       intr = intr->next)
 	    {
 	      gfc_symbol *fsym = intr->sym->formal->sym;
-	      if (intr->sym && intr->sym->formal
-		  && ((fsym->ts.type == BT_CLASS
-		      && CLASS_DATA (fsym)->ts.u.derived == extended)
-		    || (fsym->ts.type == BT_DERIVED
-			&& fsym->ts.u.derived == extended)))
+	      if ((fsym->ts.type == BT_CLASS
+		   && CLASS_DATA (fsym)->ts.u.derived == extended)
+		  || (fsym->ts.type == BT_DERIVED
+		      && fsym->ts.u.derived == extended))
 		{
 		  dtio_sub = intr->sym;
 		  break;

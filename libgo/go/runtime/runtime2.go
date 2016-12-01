@@ -494,10 +494,9 @@ type p struct {
 	mcache      *mcache
 	// Not for gccgo: racectx     uintptr
 
-	// Not for gccgo yet: deferpool    [5][]*_defer // pool of available defer structs of different sizes (see panic.go)
-	// Not for gccgo yet: deferpoolbuf [5][32]*_defer
-	// Temporary gccgo type for deferpool field.
-	deferpool *_defer
+	// gccgo has only one size of defer.
+	deferpool    []*_defer
+	deferpoolbuf [32]*_defer
 
 	// Cache of goroutine ids, amortizes accesses to runtime·sched.goidgen.
 	goidcache    uint64
@@ -550,9 +549,6 @@ const (
 	_MaxGomaxprocs = 1 << 8
 )
 
-/*
-Commented out for gccgo for now.
-
 type schedt struct {
 	// accessed atomically. keep at top to ensure alignment on 32-bit systems.
 	goidgen  uint64
@@ -578,18 +574,17 @@ type schedt struct {
 	runqsize int32
 
 	// Global cache of dead G's.
-	gflock       mutex
-	gfreeStack   *g
-	gfreeNoStack *g
-	ngfree       int32
+	gflock mutex
+	gfree  *g
+	ngfree int32
 
 	// Central cache of sudog structs.
 	sudoglock  mutex
 	sudogcache *sudog
 
-	// Central pool of available defer structs of different sizes.
+	// Central pool of available defer structs.
 	deferlock mutex
-	deferpool [5]*_defer
+	deferpool *_defer
 
 	gcwaiting  uint32 // gc is waiting to run
 	stopwait   int32
@@ -608,7 +603,6 @@ type schedt struct {
 	procresizetime int64 // nanotime() of last change to gomaxprocs
 	totaltime      int64 // ∫gomaxprocs dt up to procresizetime
 }
-*/
 
 // The m.locked word holds two pieces of state counting active calls to LockOSThread/lockOSThread.
 // The low bit (LockExternal) is a boolean reporting whether any LockOSThread call is active.
@@ -701,7 +695,7 @@ func extendRandom(r []byte, n int) {
 // This is the gccgo version.
 type _defer struct {
 	// The next entry in the stack.
-	next *_defer
+	link *_defer
 
 	// The stack variable for the function which called this defer
 	// statement.  This is set to true if we are returning from
@@ -740,7 +734,7 @@ type _defer struct {
 // This is the gccgo version.
 type _panic struct {
 	// The next entry in the stack.
-	next *_panic
+	link *_panic
 
 	// The value associated with this panic.
 	arg interface{}
@@ -768,12 +762,14 @@ var (
 	//	allm        *m
 	//	allp        [_MaxGomaxprocs + 1]*p
 	//	gomaxprocs  int32
-	//	panicking   uint32
 
-	ncpu int32
+	panicking uint32
+	ncpu      int32
 
-//	forcegc     forcegcstate
-//	sched       schedt
+	//	forcegc     forcegcstate
+
+	sched schedt
+
 //	newprocs    int32
 
 // Information about what cpu features are available.

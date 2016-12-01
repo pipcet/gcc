@@ -1,3 +1,126 @@
+2016-11-29  David Malcolm  <dmalcolm@redhat.com>
+
+	PR c++/77922
+	* name-lookup.c (lookup_name_fuzzy): Filter out reserved words
+	that were filtered out by init_reswords.
+
+2016-11-28  Jakub Jelinek  <jakub@redhat.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	PR c++/72808
+	* decl.c (finish_enum_value_list): Call fixup_type_variants on
+	current_class_type after
+	insert_late_enum_def_into_classtype_sorted_fields.
+
+2016-11-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/77591
+	* typeck.c (maybe_warn_about_returning_address_of_local): Optimize
+	whats_returned through fold_for_warn.
+
+2016-11-27  Jason Merrill  <jason@redhat.com>
+
+	PR c++/77907
+	* constexpr.c (cxx_eval_constant_expression): Use cp_fold_convert.
+
+2016-11-24  Martin Liska  <mliska@suse.cz>
+
+	PR bootstrap/78493
+	* parser.c (cp_parser_range_for): Use safe_push instead of quick_push.
+
+2016-11-23  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/77907
+	* cp-gimplify.c (cp_fold) <case CALL_EXPR>: When calling constructor
+	and maybe_constant_value returns non-CALL_EXPR, create INIT_EXPR
+	with the object on lhs and maybe_constant_value returned expr on rhs.
+
+	PR c++/71450
+	* pt.c (tsubst_copy): Return error_mark_node when mark_used
+	fails, even when complain & tf_error.
+
+	PR c++/77739
+	* cp-gimplify.c (cp_gimplify_tree) <case VEC_INIT_EXPR>: Pass
+	false as handle_invisiref_parm_p to cp_genericize_tree.
+	(struct cp_genericize_data): Add handle_invisiref_parm_p field.
+	(cp_genericize_r): Don't wrap is_invisiref_parm into references
+	if !wtd->handle_invisiref_parm_p.
+	(cp_genericize_tree): Add handle_invisiref_parm_p argument,
+	set wtd.handle_invisiref_parm_p to it.
+	(cp_genericize): Pass true as handle_invisiref_parm_p to
+	cp_genericize_tree.  Formatting fix.
+
+2016-11-21  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	PR c++/71973
+	* decl.c (duplicate_decls): Warn when a built-in function is redefined.
+	Don't overload builtin functions with C++ functions.
+	Handle const_tm_ptr_type_node like file_ptr_node.
+	Copy the TREE_NOTHROW flag unmodified to the old decl.
+
+2016-11-18  Jason Merrill  <jason@redhat.com>
+
+	PR objc++/78418 - ICE in string tests on darwin
+	* tree.c (lvalue_kind): Guard DECL_HAS_VALUE_EXPR_P.
+
+2016-11-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/77285
+	* mangle.c (mangle_tls_init_fn, mangle_tls_wrapper_fn): Call
+	check_abi_tags.
+
+2016-11-18  Jason Merrill  <jason@redhat.com>
+
+	PR c++/67631 - list-init and explicit conversions
+	* semantics.c (finish_compound_literal): Call digest_init_flags.
+	* typeck2.c (digest_init_flags): Add complain parm.
+	(store_init_value): Pass it.
+
+2016-11-18  Richard Sandiford  <richard.sandiford@arm.com>
+ 	    Alan Hayward  <alan.hayward@arm.com>
+ 	    David Sherwood  <david.sherwood@arm.com>
+
+	* class.c (finish_struct_bits): Use SET_DECL_MODE.
+	(build_base_field_1, layout_class_type, finish_struct_1): Likewise.
+	* decl.c (make_label_decl): Likewise.
+	* pt.c (tsubst_decl): Likewise.
+
+2016-11-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/78193 - inherited ctor regressions on sparc32.
+	* call.c (build_over_call): Don't set CALL_FROM_THUNK_P here.
+	(build_call_a): Set it here, and don't insert EMPTY_CLASS_EXPR.
+	(convert_like_real) [ck_rvalue]: Also pass non-addressable
+	types along directly.
+
+2016-11-17  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/55080
+	* parser.c (cp_parser_non_integral_constant_expression): Issue a
+	pedwarn instead of an error for case NIC_FLOAT.
+
+2016-11-17  Jason Merrill  <jason@redhat.com>
+
+	PR c++/78124 - list-initialization and inherited ctor
+	* name-lookup.c (do_class_using_decl): Set CLASSTYPE_NON_AGGREGATE.
+
+	PR c++/78369 - {} as default argument
+	* call.c (build_special_member_call): Handle CONSTRUCTOR.
+
+	PR c++/68377
+	* parser.c (cp_parser_fold_expression): Check TREE_NO_WARNING.
+
+2016-11-16  Jason Merrill  <jason@redhat.com>
+
+	PR c++/78373
+	* decl.c (cp_finish_decl): Don't set TREE_CONSTANT on a reference.
+	* typeck2.c (store_init_value): Likewise.
+
+	* decl.c (store_decomp_type, lookup_decomp_type): New.
+	(cp_finish_decomp): Call store_decomp_type.
+	* semantics.c (finish_decltype_type): Call lookup_decomp_type.
+	* cp-tree.h: Declare lookup_decomp_type.
+
 2016-11-15  Jakub Jelinek  <jakub@redhat.com>
 
 	* decl.c (cp_finish_decomp): For DECL_NAMESPACE_SCOPE_P decl,

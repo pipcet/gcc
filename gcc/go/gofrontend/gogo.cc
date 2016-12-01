@@ -12,6 +12,7 @@
 
 #include "go-c.h"
 #include "go-diagnostics.h"
+#include "go-encode-id.h"
 #include "go-dump.h"
 #include "go-optimize.h"
 #include "lex.h"
@@ -4168,8 +4169,7 @@ Build_recover_thunks::function(Named_object* orig_no)
 
 // Return the expression to pass for the .can_recover parameter to the
 // new function.  This indicates whether a call to recover may return
-// non-nil.  The expression is
-// __go_can_recover(__builtin_return_address()).
+// non-nil.  The expression is runtime.canrecover(__builtin_return_address()).
 
 Expression*
 Build_recover_thunks::can_recover_arg(Location location)
@@ -4191,10 +4191,10 @@ Build_recover_thunks::can_recover_arg(Location location)
       results->push_back(Typed_identifier("", boolean_type, bloc));
       Function_type* fntype = Type::make_function_type(NULL, param_types,
 						       results, bloc);
-      can_recover = Named_object::make_function_declaration("__go_can_recover",
-							    NULL, fntype,
-							    bloc);
-      can_recover->func_declaration_value()->set_asm_name("__go_can_recover");
+      can_recover =
+	Named_object::make_function_declaration("runtime_canrecover",
+						NULL, fntype, bloc);
+      can_recover->func_declaration_value()->set_asm_name("runtime.canrecover");
     }
 
   Expression* fn = Expression::make_func_reference(builtin_return_address,
@@ -4217,10 +4217,10 @@ Build_recover_thunks::can_recover_arg(Location location)
 // function with an extra parameter, which is whether a call to
 // recover can succeed.  We then move the body of this function to
 // that one.  We then turn this function into a thunk which calls the
-// new one, passing the value of
-// __go_can_recover(__builtin_return_address()).  The function will be
-// marked as not splitting the stack.  This will cooperate with the
-// implementation of defer to make recover do the right thing.
+// new one, passing the value of runtime.canrecover(__builtin_return_address()).
+// The function will be marked as not splitting the stack.  This will
+// cooperate with the implementation of defer to make recover do the
+// right thing.
 
 void
 Gogo::build_recover_thunks()
@@ -5327,6 +5327,10 @@ Function::get_or_make_decl(Gogo* gogo, Named_object* no)
       if ((this->pragmas_ & GOPRAGMA_NOSPLIT) != 0)
 	disable_split_stack = true;
 
+      // Encode name if asm_name not already set at this point
+      if (asm_name.empty() && go_id_needs_encoding(no->get_id(gogo)))
+        asm_name = go_encode_id(no->get_id(gogo));
+
       // This should go into a unique section if that has been
       // requested elsewhere, or if this is a nointerface function.
       // We want to put a nointerface function into a unique section
@@ -5380,6 +5384,8 @@ Function_declaration::get_or_make_decl(Gogo* gogo, Named_object* no)
               asm_name.append(rtype->mangled_name(gogo));
             }
         }
+      else if (go_id_needs_encoding(no->get_id(gogo)))
+        asm_name = go_encode_id(no->get_id(gogo));
 
       Btype* functype = this->fntype_->get_backend_fntype(gogo);
       this->fndecl_ =
@@ -5634,7 +5640,7 @@ Function::build_defer_wrapper(Gogo* gogo, Named_object* named_function,
   // libgo/runtime/go-unwind.c.
 
   std::vector<Bstatement*> stmts;
-  Expression* call = Runtime::make_call(Runtime::CHECK_DEFER, end_loc, 1,
+  Expression* call = Runtime::make_call(Runtime::CHECKDEFER, end_loc, 1,
 					this->defer_stack(end_loc));
   Translate_context context(gogo, named_function, NULL, NULL);
   Bexpression* defer = call->get_backend(&context);
@@ -5647,11 +5653,11 @@ Function::build_defer_wrapper(Gogo* gogo, Named_object* named_function,
   go_assert(*except == NULL);
   *except = gogo->backend()->statement_list(stmts);
 
-  call = Runtime::make_call(Runtime::CHECK_DEFER, end_loc, 1,
+  call = Runtime::make_call(Runtime::CHECKDEFER, end_loc, 1,
                             this->defer_stack(end_loc));
   defer = call->get_backend(&context);
 
-  call = Runtime::make_call(Runtime::UNDEFER, end_loc, 1,
+  call = Runtime::make_call(Runtime::DEFERRETURN, end_loc, 1,
         		    this->defer_stack(end_loc));
   Bexpression* undefer = call->get_backend(&context);
   Bstatement* function_defer =
@@ -6595,25 +6601,39 @@ Variable::get_backend_variable(Gogo* gogo, Named_object* function,
 	      type = Type::make_pointer_type(type);
 	    }
 
-	  std::string n = Gogo::unpack_hidden_name(name);
+	  const std::string n = Gogo::unpack_hidden_name(name);
 	  Btype* btype = type->get_backend(gogo);
 
 	  Bvariable* bvar;
 	  if (Map_type::is_zero_value(this))
 	    bvar = Map_type::backend_zero_value(gogo);
 	  else if (this->is_global_)
-	    bvar = backend->global_variable((package == NULL
-					     ? gogo->package_name()
-					     : package->package_name()),
-					    (package == NULL
-					     ? gogo->pkgpath_symbol()
-					     : package->pkgpath_symbol()),
-					    n,
-					    btype,
-					    package != NULL,
-					    Gogo::is_hidden_name(name),
-					    this->in_unique_section_,
-					    this->location_);
+	    {
+	      std::string var_name(package != NULL
+				   ? package->package_name()
+				   : gogo->package_name());
+	      var_name.push_back('.');
+	      var_name.append(n);
+              std::string asm_name;
+              if (Gogo::is_hidden_name(name))
+                asm_name = var_name;
+              else
+                {
+                  asm_name = package != NULL
+                      ? package->pkgpath_symbol()
+                      : gogo->pkgpath_symbol();
+                  asm_name.push_back('.');
+                  asm_name.append(n);
+                }
+	      asm_name = go_encode_id(asm_name);
+	      bvar = backend->global_variable(var_name,
+					      asm_name,
+					      btype,
+					      package != NULL,
+					      Gogo::is_hidden_name(name),
+					      this->in_unique_section_,
+					      this->location_);
+	    }
 	  else if (function == NULL)
 	    {
 	      go_assert(saw_errors());

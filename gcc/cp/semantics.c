@@ -2713,7 +2713,8 @@ finish_compound_literal (tree type, tree compound_literal,
       if (type == error_mark_node)
 	return error_mark_node;
     }
-  compound_literal = digest_init (type, compound_literal, complain);
+  compound_literal = digest_init_flags (type, compound_literal, LOOKUP_NORMAL,
+					complain);
   if (TREE_CODE (compound_literal) == CONSTRUCTOR)
     TREE_HAS_CONSTRUCTOR (compound_literal) = true;
 
@@ -8902,7 +8903,7 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
 	    return unlowered_expr_type (expr);
 	  else
 	    /* Expr is a reference variable for the tuple case.  */
-	    return non_reference (TREE_TYPE (expr));
+	    return lookup_decomp_type (expr);
 	}
 
       switch (TREE_CODE (expr))

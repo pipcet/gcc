@@ -3674,6 +3674,44 @@ aarch64_bitmask_imm (HOST_WIDE_INT val_in, machine_mode mode)
   return val == mask * bitmask_imm_mul[__builtin_clz (bits) - 26];
 }
 
+/* Create mask of ones, covering the lowest to highest bits set in VAL_IN.  
+   Assumed precondition: VAL_IN Is not zero.  */
+
+unsigned HOST_WIDE_INT
+aarch64_and_split_imm1 (HOST_WIDE_INT val_in)
+{
+  int lowest_bit_set = ctz_hwi (val_in);
+  int highest_bit_set = floor_log2 (val_in);
+  gcc_assert (val_in != 0);
+
+  return ((HOST_WIDE_INT_UC (2) << highest_bit_set) -
+	  (HOST_WIDE_INT_1U << lowest_bit_set));
+}
+
+/* Create constant where bits outside of lowest bit set to highest bit set
+   are set to 1.  */
+
+unsigned HOST_WIDE_INT
+aarch64_and_split_imm2 (HOST_WIDE_INT val_in)
+{
+  return val_in | ~aarch64_and_split_imm1 (val_in);
+}
+
+/* Return true if VAL_IN is a valid 'and' bitmask immediate.  */
+
+bool
+aarch64_and_bitmask_imm (unsigned HOST_WIDE_INT val_in, machine_mode mode)
+{
+  if (aarch64_bitmask_imm (val_in, mode))
+    return false;
+
+  if (aarch64_move_imm (val_in, mode))
+    return false;
+
+  unsigned HOST_WIDE_INT imm2 = aarch64_and_split_imm2 (val_in);
+
+  return aarch64_bitmask_imm (imm2, mode);
+}
 
 /* Return true if val is an immediate that can be loaded into a
    register in a single instruction.  */
@@ -7424,7 +7462,8 @@ cost_plus:
       break;
     }
 
-  if (dump_file && (dump_flags & TDF_DETAILS))
+  if (dump_file
+      && flag_aarch64_verbose_cost)
     fprintf (dump_file,
       "\nFailed to cost RTX.  Assuming default cost.\n");
 
@@ -7440,7 +7479,8 @@ aarch64_rtx_costs_wrapper (rtx x, machine_mode mode, int outer,
 {
   bool result = aarch64_rtx_costs (x, mode, outer, param, cost, speed);
 
-  if (dump_file && (dump_flags & TDF_DETAILS))
+  if (dump_file
+      && flag_aarch64_verbose_cost)
     {
       print_rtl_single (dump_file, x);
       fprintf (dump_file, "\n%s cost: %d (%s)\n",
@@ -11474,8 +11514,8 @@ aarch64_emit_unlikely_jump (rtx insn)
 {
   int very_unlikely = REG_BR_PROB_BASE / 100 - 1;
 
-  insn = emit_jump_insn (insn);
-  add_int_reg_note (insn, REG_BR_PROB, very_unlikely);
+  rtx_insn *jump = emit_jump_insn (insn);
+  add_int_reg_note (jump, REG_BR_PROB, very_unlikely);
 }
 
 /* Expand a compare and swap pattern.  */
@@ -13209,6 +13249,63 @@ aarch64_expand_movmem (rtx *operands)
   return true;
 }
 
+/* Split a DImode store of a CONST_INT SRC to MEM DST as two
+   SImode stores.  Handle the case when the constant has identical
+   bottom and top halves.  This is beneficial when the two stores can be
+   merged into an STP and we avoid synthesising potentially expensive
+   immediates twice.  Return true if such a split is possible.  */
+
+bool
+aarch64_split_dimode_const_store (rtx dst, rtx src)
+{
+  rtx lo = gen_lowpart (SImode, src);
+  rtx hi = gen_highpart_mode (SImode, DImode, src);
+
+  bool size_p = optimize_function_for_size_p (cfun);
+
+  if (!rtx_equal_p (lo, hi))
+    return false;
+
+  unsigned int orig_cost
+    = aarch64_internal_mov_immediate (NULL_RTX, src, false, DImode);
+  unsigned int lo_cost
+    = aarch64_internal_mov_immediate (NULL_RTX, lo, false, SImode);
+
+  /* We want to transform:
+     MOV	x1, 49370
+     MOVK	x1, 0x140, lsl 16
+     MOVK	x1, 0xc0da, lsl 32
+     MOVK	x1, 0x140, lsl 48
+     STR	x1, [x0]
+   into:
+     MOV	w1, 49370
+     MOVK	w1, 0x140, lsl 16
+     STP	w1, w1, [x0]
+   So we want to perform this only when we save two instructions
+   or more.  When optimizing for size, however, accept any code size
+   savings we can.  */
+  if (size_p && orig_cost <= lo_cost)
+    return false;
+
+  if (!size_p
+      && (orig_cost <= lo_cost + 1))
+    return false;
+
+  rtx mem_lo = adjust_address (dst, SImode, 0);
+  if (!aarch64_mem_pair_operand (mem_lo, SImode))
+    return false;
+
+  rtx tmp_reg = gen_reg_rtx (SImode);
+  aarch64_expand_mov_immediate (tmp_reg, lo);
+  rtx mem_hi = aarch64_move_pointer (mem_lo, GET_MODE_SIZE (SImode));
+  /* Don't emit an explicit store pair as this may not be always profitable.
+     Let the sched-fusion logic decide whether to merge them.  */
+  emit_move_insn (mem_lo, tmp_reg);
+  emit_move_insn (mem_hi, tmp_reg);
+
+  return true;
+}
+
 /* Implement the TARGET_ASAN_SHADOW_OFFSET hook.  */
 
 static unsigned HOST_WIDE_INT
@@ -14143,12 +14240,20 @@ aarch64_vec_fpconst_pow_of_2 (rtx x)
   return firstval;
 }
 
-/* Implement TARGET_PROMOTED_TYPE to promote __fp16 to float.  */
+/* Implement TARGET_PROMOTED_TYPE to promote 16-bit floating point types
+   to float.
+
+   __fp16 always promotes through this hook.
+   _Float16 may promote if TARGET_FLT_EVAL_METHOD is 16, but we do that
+   through the generic excess precision logic rather than here.  */
+
 static tree
 aarch64_promoted_type (const_tree t)
 {
-  if (SCALAR_FLOAT_TYPE_P (t) && TYPE_PRECISION (t) == 16)
+  if (SCALAR_FLOAT_TYPE_P (t)
+      && TYPE_MAIN_VARIANT (t) == aarch64_fp16_type_node)
     return float_type_node;
+
   return NULL_TREE;
 }
 
@@ -14166,6 +14271,69 @@ aarch64_optab_supported_p (int op, machine_mode mode1, machine_mode,
     default:
       return true;
     }
+}
+
+/* Implement TARGET_LIBGCC_FLOATING_POINT_MODE_SUPPORTED_P - return TRUE
+   if MODE is HFmode, and punt to the generic implementation otherwise.  */
+
+static bool
+aarch64_libgcc_floating_mode_supported_p (machine_mode mode)
+{
+  return (mode == HFmode
+	  ? true
+	  : default_libgcc_floating_mode_supported_p (mode));
+}
+
+/* Implement TARGET_SCALAR_MODE_SUPPORTED_P - return TRUE
+   if MODE is HFmode, and punt to the generic implementation otherwise.  */
+
+static bool
+aarch64_scalar_mode_supported_p (machine_mode mode)
+{
+  return (mode == HFmode
+	  ? true
+	  : default_scalar_mode_supported_p (mode));
+}
+
+/* Set the value of FLT_EVAL_METHOD.
+   ISO/IEC TS 18661-3 defines two values that we'd like to make use of:
+
+    0: evaluate all operations and constants, whose semantic type has at
+       most the range and precision of type float, to the range and
+       precision of float; evaluate all other operations and constants to
+       the range and precision of the semantic type;
+
+    N, where _FloatN is a supported interchange floating type
+       evaluate all operations and constants, whose semantic type has at
+       most the range and precision of _FloatN type, to the range and
+       precision of the _FloatN type; evaluate all other operations and
+       constants to the range and precision of the semantic type;
+
+   If we have the ARMv8.2-A extensions then we support _Float16 in native
+   precision, so we should set this to 16.  Otherwise, we support the type,
+   but want to evaluate expressions in float precision, so set this to
+   0.  */
+
+static enum flt_eval_method
+aarch64_excess_precision (enum excess_precision_type type)
+{
+  switch (type)
+    {
+      case EXCESS_PRECISION_TYPE_FAST:
+      case EXCESS_PRECISION_TYPE_STANDARD:
+	/* We can calculate either in 16-bit range and precision or
+	   32-bit range and precision.  Make that decision based on whether
+	   we have native support for the ARMv8.2-A 16-bit floating-point
+	   instructions or not.  */
+	return (TARGET_FP_F16INST
+		? FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16
+		: FLT_EVAL_METHOD_PROMOTE_TO_FLOAT);
+      case EXCESS_PRECISION_TYPE_IMPLICIT:
+	return FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16;
+      default:
+	gcc_unreachable ();
+    }
+  return FLT_EVAL_METHOD_UNPREDICTABLE;
 }
 
 #undef TARGET_ADDRESS_COST
@@ -14246,6 +14414,9 @@ aarch64_optab_supported_p (int op, machine_mode mode1, machine_mode,
 #undef TARGET_BUILTIN_RECIPROCAL
 #define TARGET_BUILTIN_RECIPROCAL aarch64_builtin_reciprocal
 
+#undef TARGET_C_EXCESS_PRECISION
+#define TARGET_C_EXCESS_PRECISION aarch64_excess_precision
+
 #undef  TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN aarch64_expand_builtin
 
@@ -14301,6 +14472,10 @@ aarch64_optab_supported_p (int op, machine_mode mode1, machine_mode,
 
 #undef TARGET_LIBGCC_CMP_RETURN_MODE
 #define TARGET_LIBGCC_CMP_RETURN_MODE aarch64_libgcc_cmp_return_mode
+
+#undef TARGET_LIBGCC_FLOATING_MODE_SUPPORTED_P
+#define TARGET_LIBGCC_FLOATING_MODE_SUPPORTED_P \
+aarch64_libgcc_floating_mode_supported_p
 
 #undef TARGET_MANGLE_TYPE
 #define TARGET_MANGLE_TYPE aarch64_mangle_type
@@ -14377,6 +14552,9 @@ aarch64_optab_supported_p (int op, machine_mode mode1, machine_mode,
 
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS aarch64_rtx_costs_wrapper
+
+#undef TARGET_SCALAR_MODE_SUPPORTED_P
+#define TARGET_SCALAR_MODE_SUPPORTED_P aarch64_scalar_mode_supported_p
 
 #undef TARGET_SCHED_ISSUE_RATE
 #define TARGET_SCHED_ISSUE_RATE aarch64_sched_issue_rate

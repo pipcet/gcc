@@ -245,14 +245,13 @@ static bool arm_output_addr_const_extra (FILE *, rtx);
 static bool arm_allocate_stack_slots_for_args (void);
 static bool arm_warn_func_return (tree);
 static tree arm_promoted_type (const_tree t);
-static tree arm_convert_to_type (tree type, tree expr);
 static bool arm_scalar_mode_supported_p (machine_mode);
 static bool arm_frame_pointer_required (void);
 static bool arm_can_eliminate (const int, const int);
 static void arm_asm_trampoline_template (FILE *);
 static void arm_trampoline_init (rtx, tree, rtx);
 static rtx arm_trampoline_adjust_address (rtx);
-static rtx arm_pic_static_addr (rtx orig, rtx reg);
+static rtx_insn *arm_pic_static_addr (rtx orig, rtx reg);
 static bool cortex_a9_sched_adjust_cost (rtx_insn *, int, rtx_insn *, int *);
 static bool xscale_sched_adjust_cost (rtx_insn *, int, rtx_insn *, int *);
 static bool fa726te_sched_adjust_cost (rtx_insn *, int, rtx_insn *, int *);
@@ -267,6 +266,7 @@ static bool arm_builtin_support_vector_misalignment (machine_mode mode,
 						     int misalignment,
 						     bool is_packed);
 static void arm_conditional_register_usage (void);
+static enum flt_eval_method arm_excess_precision (enum excess_precision_type);
 static reg_class_t arm_preferred_rename_class (reg_class_t rclass);
 static unsigned int arm_autovectorize_vector_sizes (void);
 static int arm_default_branch_cost (bool, bool);
@@ -300,6 +300,7 @@ static bool arm_asm_elf_flags_numeric (unsigned int flags, unsigned int *num);
 static unsigned int arm_elf_section_type_flags (tree decl, const char *name,
 						int reloc);
 static void arm_expand_divmod_libfunc (rtx, machine_mode, rtx, rtx, rtx *, rtx *);
+static machine_mode arm_floatn_mode (int, bool);
 
 /* Table of machine attributes.  */
 static const struct attribute_spec arm_attribute_table[] =
@@ -444,6 +445,9 @@ static const struct attribute_spec arm_attribute_table[] =
 
 #undef  TARGET_ASM_INTERNAL_LABEL
 #define TARGET_ASM_INTERNAL_LABEL arm_internal_label
+
+#undef TARGET_FLOATN_MODE
+#define TARGET_FLOATN_MODE arm_floatn_mode
 
 #undef  TARGET_FUNCTION_OK_FOR_SIBCALL
 #define TARGET_FUNCTION_OK_FOR_SIBCALL arm_function_ok_for_sibcall
@@ -654,9 +658,6 @@ static const struct attribute_spec arm_attribute_table[] =
 #undef TARGET_PROMOTED_TYPE
 #define TARGET_PROMOTED_TYPE arm_promoted_type
 
-#undef TARGET_CONVERT_TO_TYPE
-#define TARGET_CONVERT_TO_TYPE arm_convert_to_type
-
 #undef TARGET_SCALAR_MODE_SUPPORTED_P
 #define TARGET_SCALAR_MODE_SUPPORTED_P arm_scalar_mode_supported_p
 
@@ -737,6 +738,9 @@ static const struct attribute_spec arm_attribute_table[] =
 
 #undef TARGET_EXPAND_DIVMOD_LIBFUNC
 #define TARGET_EXPAND_DIVMOD_LIBFUNC arm_expand_divmod_libfunc
+
+#undef TARGET_C_EXCESS_PRECISION
+#define TARGET_C_EXCESS_PRECISION arm_excess_precision
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -2535,6 +2539,11 @@ arm_init_libfuncs (void)
 			 ? "__gnu_h2f_ieee"
 			 : "__gnu_h2f_alternative"));
 
+      set_conv_libfunc (trunc_optab, HFmode, DFmode,
+			(arm_fp16_format == ARM_FP16_FORMAT_IEEE
+			 ? "__gnu_d2h_ieee"
+			 : "__gnu_d2h_alternative"));
+
       /* Arithmetic.  */
       set_optab_libfunc (add_optab, HFmode, NULL);
       set_optab_libfunc (sdiv_optab, HFmode, NULL);
@@ -3186,9 +3195,6 @@ arm_option_override (void)
 
   if (TARGET_APCS_REENT)
     warning (0, "APCS reentrant code not supported.  Ignored");
-
-  if (TARGET_APCS_FLOAT)
-    warning (0, "passing floating point arguments in fp regs not yet supported");
 
   /* Initialize boolean versions of the flags, for use in the arm.md file.  */
   arm_arch3m = ARM_FSET_HAS_CPU1 (insn_flags, FL_ARCH3M);
@@ -5262,6 +5268,8 @@ arm_libcall_uses_aapcs_base (const_rtx libcall)
 							SFmode));
       add_libcall (libcall_htab, convert_optab_libfunc (trunc_optab, SFmode,
 							DFmode));
+      add_libcall (libcall_htab,
+		   convert_optab_libfunc (trunc_optab, HFmode, DFmode));
     }
 
   return libcall && libcall_htab->find (libcall) != NULL;
@@ -6903,8 +6911,6 @@ legitimize_pic_address (rtx orig, machine_mode mode, rtx reg)
   if (GET_CODE (orig) == SYMBOL_REF
       || GET_CODE (orig) == LABEL_REF)
     {
-      rtx insn;
-
       if (reg == 0)
 	{
 	  gcc_assert (can_create_pseudo_p ());
@@ -6917,6 +6923,7 @@ legitimize_pic_address (rtx orig, machine_mode mode, rtx reg)
 	 same segment as the GOT.  Unfortunately, the flexibility of linker
 	 scripts means that we can't be sure of that in general, so assume
 	 that GOTOFF is never valid on VxWorks.  */
+      rtx_insn *insn;
       if ((GET_CODE (orig) == LABEL_REF
 	   || (GET_CODE (orig) == SYMBOL_REF &&
 	       SYMBOL_REF_LOCAL_P (orig)))
@@ -7155,10 +7162,10 @@ arm_load_pic_register (unsigned long saved_regs ATTRIBUTE_UNUSED)
 }
 
 /* Generate code to load the address of a static var when flag_pic is set.  */
-static rtx
+static rtx_insn *
 arm_pic_static_addr (rtx orig, rtx reg)
 {
-  rtx l1, labelno, offset_rtx, insn;
+  rtx l1, labelno, offset_rtx;
 
   gcc_assert (flag_pic);
 
@@ -7175,8 +7182,7 @@ arm_pic_static_addr (rtx orig, rtx reg)
                                UNSPEC_SYMBOL_OFFSET);
   offset_rtx = gen_rtx_CONST (Pmode, offset_rtx);
 
-  insn = emit_insn (gen_pic_load_addr_unified (reg, offset_rtx, labelno));
-  return insn;
+  return emit_insn (gen_pic_load_addr_unified (reg, offset_rtx, labelno));
 }
 
 /* Return nonzero if X is valid as an ARM state addressing register.  */
@@ -16928,8 +16934,6 @@ output_mov_long_double_arm_from_arm (rtx *operands)
 void
 arm_emit_movpair (rtx dest, rtx src)
  {
-  rtx insn;
-
   /* If the src is an immediate, simplify it.  */
   if (CONST_INT_P (src))
     {
@@ -16940,14 +16944,14 @@ arm_emit_movpair (rtx dest, rtx src)
 	  emit_set_insn (gen_rtx_ZERO_EXTRACT (SImode, dest, GEN_INT (16),
 					       GEN_INT (16)),
 			 GEN_INT ((val >> 16) & 0x0000ffff));
-	  insn = get_last_insn ();
+	  rtx_insn *insn = get_last_insn ();
 	  set_unique_reg_note (insn, REG_EQUAL, copy_rtx (src));
 	}
       return;
     }
    emit_set_insn (dest, gen_rtx_HIGH (SImode, src));
    emit_set_insn (dest, gen_rtx_LO_SUM (SImode, dest, src));
-   insn = get_last_insn ();
+   rtx_insn *insn = get_last_insn ();
    set_unique_reg_note (insn, REG_EQUAL, copy_rtx (src));
  }
 
@@ -18281,6 +18285,10 @@ thumb1_compute_save_reg_mask (void)
   for (reg = 0; reg < 12; reg ++)
     if (df_regs_ever_live_p (reg) && callee_saved_reg_p (reg))
       mask |= 1 << reg;
+
+  /* Handle the frame pointer as a special case.  */
+  if (frame_pointer_needed)
+    mask |= 1 << HARD_FRAME_POINTER_REGNUM;
 
   if (flag_pic
       && !TARGET_SINGLE_PIC_BASE
@@ -22512,25 +22520,10 @@ arm_debugger_arg_offset (int value, rtx addr)
 static tree
 arm_promoted_type (const_tree t)
 {
-  if (SCALAR_FLOAT_TYPE_P (t) && TYPE_PRECISION (t) == 16)
+  if (SCALAR_FLOAT_TYPE_P (t)
+      && TYPE_PRECISION (t) == 16
+      && TYPE_MAIN_VARIANT (t) == arm_fp16_type_node)
     return float_type_node;
-  return NULL_TREE;
-}
-
-/* Implement TARGET_CONVERT_TO_TYPE.
-   Specifically, this hook implements the peculiarity of the ARM
-   half-precision floating-point C semantics that requires conversions between
-   __fp16 to or from double to do an intermediate conversion to float.  */
-
-static tree
-arm_convert_to_type (tree type, tree expr)
-{
-  tree fromtype = TREE_TYPE (expr);
-  if (!SCALAR_FLOAT_TYPE_P (fromtype) || !SCALAR_FLOAT_TYPE_P (type))
-    return NULL_TREE;
-  if ((TYPE_PRECISION (fromtype) == 16 && TYPE_PRECISION (type) > 32)
-      || (TYPE_PRECISION (type) == 16 && TYPE_PRECISION (fromtype) > 32))
-    return convert (type, convert (float_type_node, expr));
   return NULL_TREE;
 }
 
@@ -22550,6 +22543,61 @@ arm_scalar_mode_supported_p (machine_mode mode)
   else
     return default_scalar_mode_supported_p (mode);
 }
+
+/* Set the value of FLT_EVAL_METHOD.
+   ISO/IEC TS 18661-3 defines two values that we'd like to make use of:
+
+    0: evaluate all operations and constants, whose semantic type has at
+       most the range and precision of type float, to the range and
+       precision of float; evaluate all other operations and constants to
+       the range and precision of the semantic type;
+
+    N, where _FloatN is a supported interchange floating type
+       evaluate all operations and constants, whose semantic type has at
+       most the range and precision of _FloatN type, to the range and
+       precision of the _FloatN type; evaluate all other operations and
+       constants to the range and precision of the semantic type;
+
+   If we have the ARMv8.2-A extensions then we support _Float16 in native
+   precision, so we should set this to 16.  Otherwise, we support the type,
+   but want to evaluate expressions in float precision, so set this to
+   0.  */
+
+static enum flt_eval_method
+arm_excess_precision (enum excess_precision_type type)
+{
+  switch (type)
+    {
+      case EXCESS_PRECISION_TYPE_FAST:
+      case EXCESS_PRECISION_TYPE_STANDARD:
+	/* We can calculate either in 16-bit range and precision or
+	   32-bit range and precision.  Make that decision based on whether
+	   we have native support for the ARMv8.2-A 16-bit floating-point
+	   instructions or not.  */
+	return (TARGET_VFP_FP16INST
+		? FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16
+		: FLT_EVAL_METHOD_PROMOTE_TO_FLOAT);
+      case EXCESS_PRECISION_TYPE_IMPLICIT:
+	return FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16;
+      default:
+	gcc_unreachable ();
+    }
+  return FLT_EVAL_METHOD_UNPREDICTABLE;
+}
+
+
+/* Implement TARGET_FLOATN_MODE.  Make very sure that we don't provide
+   _Float16 if we are using anything other than ieee format for 16-bit
+   floating point.  Otherwise, punt to the default implementation.  */
+static machine_mode
+arm_floatn_mode (int n, bool extended)
+{
+  if (!extended && n == 16)
+    return arm_fp16_format == ARM_FP16_FORMAT_IEEE ? HFmode : VOIDmode;
+
+  return default_floatn_mode (n, extended);
+}
+
 
 /* Set up OPERANDS for a register copy from SRC to DEST, taking care
    not to early-clobber SRC registers in the process.
@@ -23593,6 +23641,7 @@ thumb1_expand_prologue (void)
   unsigned long live_regs_mask;
   unsigned long l_mask;
   unsigned high_regs_pushed = 0;
+  bool lr_needs_saving;
 
   func_type = arm_current_func_type ();
 
@@ -23615,6 +23664,7 @@ thumb1_expand_prologue (void)
 
   offsets = arm_get_frame_offsets ();
   live_regs_mask = offsets->saved_regs_mask;
+  lr_needs_saving = live_regs_mask & (1 << LR_REGNUM);
 
   /* Extract a mask of the ones we can give to the Thumb's push instruction.  */
   l_mask = live_regs_mask & 0x40ff;
@@ -23681,6 +23731,7 @@ thumb1_expand_prologue (void)
 	{
 	  insn = thumb1_emit_multi_reg_push (l_mask, l_mask);
 	  RTX_FRAME_RELATED_P (insn) = 1;
+	  lr_needs_saving = false;
 
 	  offset = bit_count (l_mask) * UNITS_PER_WORD;
 	}
@@ -23745,12 +23796,13 @@ thumb1_expand_prologue (void)
      be a push of LR and we can combine it with the push of the first high
      register.  */
   else if ((l_mask & 0xff) != 0
-	   || (high_regs_pushed == 0 && l_mask))
+	   || (high_regs_pushed == 0 && lr_needs_saving))
     {
       unsigned long mask = l_mask;
       mask |= (1 << thumb1_extra_regs_pushed (offsets, true)) - 1;
       insn = thumb1_emit_multi_reg_push (mask, mask);
       RTX_FRAME_RELATED_P (insn) = 1;
+      lr_needs_saving = false;
     }
 
   if (high_regs_pushed)
@@ -23768,7 +23820,9 @@ thumb1_expand_prologue (void)
       /* Here we need to mask out registers used for passing arguments
 	 even if they can be pushed.  This is to avoid using them to stash the high
 	 registers.  Such kind of stash may clobber the use of arguments.  */
-      pushable_regs = l_mask & (~arg_regs_mask) & 0xff;
+      pushable_regs = l_mask & (~arg_regs_mask);
+      if (lr_needs_saving)
+	pushable_regs &= ~(1 << LR_REGNUM);
 
       if (pushable_regs == 0)
 	pushable_regs = 1 << thumb_find_work_register (live_regs_mask);
@@ -23776,8 +23830,9 @@ thumb1_expand_prologue (void)
       while (high_regs_pushed > 0)
 	{
 	  unsigned long real_regs_mask = 0;
+	  unsigned long push_mask = 0;
 
-	  for (regno = LAST_LO_REGNUM; regno >= 0; regno --)
+	  for (regno = LR_REGNUM; regno >= 0; regno --)
 	    {
 	      if (pushable_regs & (1 << regno))
 		{
@@ -23786,6 +23841,7 @@ thumb1_expand_prologue (void)
 
 		  high_regs_pushed --;
 		  real_regs_mask |= (1 << next_hi_reg);
+		  push_mask |= (1 << regno);
 
 		  if (high_regs_pushed)
 		    {
@@ -23795,23 +23851,20 @@ thumb1_expand_prologue (void)
 			  break;
 		    }
 		  else
-		    {
-		      pushable_regs &= ~((1 << regno) - 1);
-		      break;
-		    }
+		    break;
 		}
 	    }
 
 	  /* If we had to find a work register and we have not yet
 	     saved the LR then add it to the list of regs to push.  */
-	  if (l_mask == (1 << LR_REGNUM))
+	  if (lr_needs_saving)
 	    {
-	      pushable_regs |= l_mask;
-	      real_regs_mask |= l_mask;
-	      l_mask = 0;
+	      push_mask |= 1 << LR_REGNUM;
+	      real_regs_mask |= 1 << LR_REGNUM;
+	      lr_needs_saving = false;
 	    }
 
-	  insn = thumb1_emit_multi_reg_push (pushable_regs, real_regs_mask);
+	  insn = thumb1_emit_multi_reg_push (push_mask, real_regs_mask);
 	  RTX_FRAME_RELATED_P (insn) = 1;
 	}
     }
@@ -26935,8 +26988,8 @@ emit_unlikely_jump (rtx insn)
 {
   int very_unlikely = REG_BR_PROB_BASE / 100 - 1;
 
-  insn = emit_jump_insn (insn);
-  add_int_reg_note (insn, REG_BR_PROB, very_unlikely);
+  rtx_insn *jump = emit_jump_insn (insn);
+  add_int_reg_note (jump, REG_BR_PROB, very_unlikely);
 }
 
 /* Expand a compare and swap pattern.  */

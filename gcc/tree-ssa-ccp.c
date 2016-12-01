@@ -1744,7 +1744,12 @@ evaluate_stmt (gimple *stmt)
     {
       fold_defer_overflow_warnings ();
       simplified = ccp_fold (stmt);
-      if (simplified && TREE_CODE (simplified) == SSA_NAME)
+      if (simplified
+	  && TREE_CODE (simplified) == SSA_NAME
+	  /* We may not use values of something that may be simulated again,
+	     see valueize_op_1.  */
+	  && (SSA_NAME_IS_DEFAULT_DEF (simplified)
+	      || ! prop_simulate_again_p (SSA_NAME_DEF_STMT (simplified))))
 	{
 	  ccp_prop_value_t *val = get_value (simplified);
 	  if (val && val->lattice_val != VARYING)
@@ -2905,7 +2910,7 @@ optimize_atomic_bit_test_and (gimple_stmt_iterator *gsip,
       tree temp = make_node (DEBUG_EXPR_DECL);
       DECL_ARTIFICIAL (temp) = 1;
       TREE_TYPE (temp) = TREE_TYPE (lhs);
-      DECL_MODE (temp) = TYPE_MODE (TREE_TYPE (lhs));
+      SET_DECL_MODE (temp, TYPE_MODE (TREE_TYPE (lhs)));
       tree t = build2 (LSHIFT_EXPR, TREE_TYPE (lhs), new_lhs, bit);
       g = gimple_build_debug_bind (temp, t, g);
       gsi_insert_after (&gsi, g, GSI_NEW_STMT);

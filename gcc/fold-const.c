@@ -450,13 +450,13 @@ negate_expr_p (tree t)
       if (TYPE_UNSIGNED (type))
 	break;
       /* INT_MIN/n * n doesn't overflow while negating one operand it does
-         if n is a power of two.  */
+         if n is a (negative) power of two.  */
       if (INTEGRAL_TYPE_P (TREE_TYPE (t))
 	  && ! TYPE_OVERFLOW_WRAPS (TREE_TYPE (t))
 	  && ! ((TREE_CODE (TREE_OPERAND (t, 0)) == INTEGER_CST
-		 && ! integer_pow2p (TREE_OPERAND (t, 0)))
+		 && wi::popcount (wi::abs (TREE_OPERAND (t, 0))) != 1)
 		|| (TREE_CODE (TREE_OPERAND (t, 1)) == INTEGER_CST
-		    && ! integer_pow2p (TREE_OPERAND (t, 1)))))
+		    && wi::popcount (wi::abs (TREE_OPERAND (t, 1))) != 1)))
 	break;
 
       /* Fall through.  */
@@ -5210,96 +5210,6 @@ fold_cond_expr_with_comparison (location_t loc, tree type,
 	}
     }
 
-  /* If this is A op C1 ? A : C2 with C1 and C2 constant integers,
-     we might still be able to simplify this.  For example,
-     if C1 is one less or one more than C2, this might have started
-     out as a MIN or MAX and been transformed by this function.
-     Only good for INTEGER_TYPEs, because we need TYPE_MAX_VALUE.  */
-
-  if (INTEGRAL_TYPE_P (type)
-      && TREE_CODE (arg01) == INTEGER_CST
-      && TREE_CODE (arg2) == INTEGER_CST)
-    switch (comp_code)
-      {
-      case EQ_EXPR:
-	if (TREE_CODE (arg1) == INTEGER_CST)
-	  break;
-	/* We can replace A with C1 in this case.  */
-	arg1 = fold_convert_loc (loc, type, arg01);
-	return fold_build3_loc (loc, COND_EXPR, type, arg0, arg1, arg2);
-
-      case LT_EXPR:
-	/* If C1 is C2 + 1, this is min(A, C2), but use ARG00's type for
-	   MIN_EXPR, to preserve the signedness of the comparison.  */
-	if (! operand_equal_p (arg2, TYPE_MAX_VALUE (type),
-			       OEP_ONLY_CONST)
-	    && operand_equal_p (arg01,
-				const_binop (PLUS_EXPR, arg2,
-					     build_int_cst (type, 1)),
-				OEP_ONLY_CONST))
-	  {
-	    tem = fold_build2_loc (loc, MIN_EXPR, TREE_TYPE (arg00), arg00,
-				   fold_convert_loc (loc, TREE_TYPE (arg00),
-						     arg2));
-	    return fold_convert_loc (loc, type, tem);
-	  }
-	break;
-
-      case LE_EXPR:
-	/* If C1 is C2 - 1, this is min(A, C2), with the same care
-	   as above.  */
-	if (! operand_equal_p (arg2, TYPE_MIN_VALUE (type),
-			       OEP_ONLY_CONST)
-	    && operand_equal_p (arg01,
-				const_binop (MINUS_EXPR, arg2,
-					     build_int_cst (type, 1)),
-				OEP_ONLY_CONST))
-	  {
-	    tem = fold_build2_loc (loc, MIN_EXPR, TREE_TYPE (arg00), arg00,
-				   fold_convert_loc (loc, TREE_TYPE (arg00),
-						     arg2));
-	    return fold_convert_loc (loc, type, tem);
-	  }
-	break;
-
-      case GT_EXPR:
-	/* If C1 is C2 - 1, this is max(A, C2), but use ARG00's type for
-	   MAX_EXPR, to preserve the signedness of the comparison.  */
-	if (! operand_equal_p (arg2, TYPE_MIN_VALUE (type),
-			       OEP_ONLY_CONST)
-	    && operand_equal_p (arg01,
-				const_binop (MINUS_EXPR, arg2,
-					     build_int_cst (type, 1)),
-				OEP_ONLY_CONST))
-	  {
-	    tem = fold_build2_loc (loc, MAX_EXPR, TREE_TYPE (arg00), arg00,
-				   fold_convert_loc (loc, TREE_TYPE (arg00),
-						     arg2));
-	    return fold_convert_loc (loc, type, tem);
-	  }
-	break;
-
-      case GE_EXPR:
-	/* If C1 is C2 + 1, this is max(A, C2), with the same care as above.  */
-	if (! operand_equal_p (arg2, TYPE_MAX_VALUE (type),
-			       OEP_ONLY_CONST)
-	    && operand_equal_p (arg01,
-				const_binop (PLUS_EXPR, arg2,
-					     build_int_cst (type, 1)),
-				OEP_ONLY_CONST))
-	  {
-	    tem = fold_build2_loc (loc, MAX_EXPR, TREE_TYPE (arg00), arg00,
-				   fold_convert_loc (loc, TREE_TYPE (arg00),
-						     arg2));
-	    return fold_convert_loc (loc, type, tem);
-	  }
-	break;
-      case NE_EXPR:
-	break;
-      default:
-	gcc_unreachable ();
-      }
-
   return NULL_TREE;
 }
 
@@ -8700,8 +8610,7 @@ fold_comparison (location_t loc, enum tree_code code, tree type,
 
   /* We can fold X/C1 op C2 where C1 and C2 are integer constants
      into a single range test.  */
-  if ((TREE_CODE (arg0) == TRUNC_DIV_EXPR
-       || TREE_CODE (arg0) == EXACT_DIV_EXPR)
+  if (TREE_CODE (arg0) == TRUNC_DIV_EXPR
       && TREE_CODE (arg1) == INTEGER_CST
       && TREE_CODE (TREE_OPERAND (arg0, 1)) == INTEGER_CST
       && !integer_zerop (TREE_OPERAND (arg0, 1))
@@ -9015,7 +8924,7 @@ tree_expr_nonzero_warnv_p (tree t, bool *strict_overflow_p)
 /* Return true when T is an address and is known to be nonzero.
    Handle warnings about undefined signed overflow.  */
 
-static bool
+bool
 tree_expr_nonzero_p (tree t)
 {
   bool ret, strict_overflow_p;

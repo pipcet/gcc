@@ -1,3 +1,29 @@
+2016-11-30  Georg-Johann Lay  <avr@gjlay.de>
+
+	PR lto/78562
+	* lto-symtab.c (lto_symtab_merge_decls_2): Don't diagnose type
+	mismatch if the two types are built-in.
+
+2016-11-26  Prathamesh Kulkarni  <prathamesh.kulkarni@linaro.org>
+
+	* lto-lang.c (lto_init): Remove initialization of ptrdiff_type_node.
+
+2016-11-23  Richard Biener  <rguenther@suse.de>
+
+	PR lto/78472
+	* lto.c (hash_canonical_type): Ignore zero-sized fields.
+
+2016-11-21  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	PR c++/71973
+	* lto-lang.c (lto_init): Assert const_tm_ptr_type_node is sane.
+
+2016-11-18  Richard Sandiford  <richard.sandiford@arm.com>
+	    Alan Hayward  <alan.hayward@arm.com>
+	    David Sherwood  <david.sherwood@arm.com>
+
+	* lto.c (offload_handle_link_vars): Use SET_DECL_MODE.
+
 2016-10-31  Richard Biener  <rguenther@suse.de>
 
 	PR lto/78129

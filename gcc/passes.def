@@ -56,6 +56,7 @@ along with GCC; see the file COPYING3.  If not see
   NEXT_PASS (pass_build_ssa_passes);
   PUSH_INSERT_PASSES_WITHIN (pass_build_ssa_passes)
       NEXT_PASS (pass_fixup_cfg);
+      NEXT_PASS (pass_rebuild_cgraph_edges);
       NEXT_PASS (pass_build_ssa);
       NEXT_PASS (pass_warn_nonnull_compare);
       NEXT_PASS (pass_ubsan);
@@ -183,6 +184,7 @@ along with GCC; see the file COPYING3.  If not see
   NEXT_PASS (pass_fixup_cfg);
   NEXT_PASS (pass_lower_eh_dispatch);
   NEXT_PASS (pass_oacc_device_lower);
+  NEXT_PASS (pass_omp_device_lower);
   NEXT_PASS (pass_omp_target_link);
   NEXT_PASS (pass_all_optimizations);
   PUSH_INSERT_PASSES_WITHIN (pass_all_optimizations)
@@ -270,6 +272,9 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_tree_unswitch);
 	  NEXT_PASS (pass_scev_cprop);
 	  NEXT_PASS (pass_loop_split);
+	  /* All unswitching, final value replacement and splitting can expose
+	     empty loops.  Remove them now.  */
+	  NEXT_PASS (pass_cd_dce);
 	  NEXT_PASS (pass_record_bounds);
 	  NEXT_PASS (pass_loop_distribution);
 	  NEXT_PASS (pass_copy_prop);

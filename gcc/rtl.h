@@ -2178,6 +2178,24 @@ extern void get_full_rtx_cost (rtx, machine_mode, enum rtx_code, int,
 extern unsigned int subreg_lsb (const_rtx);
 extern unsigned int subreg_lsb_1 (machine_mode, machine_mode,
 				  unsigned int);
+extern unsigned int subreg_size_offset_from_lsb (unsigned int, unsigned int,
+						 unsigned int);
+
+/* Return the subreg byte offset for a subreg whose outer mode is
+   OUTER_MODE, whose inner mode is INNER_MODE, and where there are
+   LSB_SHIFT *bits* between the lsb of the outer value and the lsb of
+   the inner value.  This is the inverse of subreg_lsb_1 (which converts
+   byte offsets to bit shifts).  */
+
+inline unsigned int
+subreg_offset_from_lsb (machine_mode outer_mode,
+			machine_mode inner_mode,
+			unsigned int lsb_shift)
+{
+  return subreg_size_offset_from_lsb (GET_MODE_SIZE (outer_mode),
+				      GET_MODE_SIZE (inner_mode), lsb_shift);
+}
+
 extern unsigned int subreg_regno_offset	(unsigned int, machine_mode,
 					 unsigned int, machine_mode);
 extern bool subreg_offset_representable_p (unsigned int, machine_mode,
@@ -2764,10 +2782,28 @@ extern rtx operand_subword (rtx, unsigned int, int, machine_mode);
 extern rtx operand_subword_force (rtx, unsigned int, machine_mode);
 extern bool paradoxical_subreg_p (const_rtx);
 extern int subreg_lowpart_p (const_rtx);
-extern unsigned int subreg_lowpart_offset (machine_mode,
-					   machine_mode);
-extern unsigned int subreg_highpart_offset (machine_mode,
-					    machine_mode);
+extern unsigned int subreg_size_lowpart_offset (unsigned int, unsigned int);
+
+/* Return the SUBREG_BYTE for an OUTERMODE lowpart of an INNERMODE value.  */
+
+inline unsigned int
+subreg_lowpart_offset (machine_mode outermode, machine_mode innermode)
+{
+  return subreg_size_lowpart_offset (GET_MODE_SIZE (outermode),
+				     GET_MODE_SIZE (innermode));
+}
+
+extern unsigned int subreg_size_highpart_offset (unsigned int, unsigned int);
+
+/* Return the SUBREG_BYTE for an OUTERMODE highpart of an INNERMODE value.  */
+
+inline unsigned int
+subreg_highpart_offset (machine_mode outermode, machine_mode innermode)
+{
+  return subreg_size_highpart_offset (GET_MODE_SIZE (outermode),
+				      GET_MODE_SIZE (innermode));
+}
+
 extern int byte_lowpart_offset (machine_mode, machine_mode);
 extern rtx make_safe_from (rtx, rtx);
 extern rtx convert_memory_address_addr_space_1 (machine_mode, rtx,
@@ -2954,7 +2990,6 @@ extern void set_insn_deleted (rtx);
 
 /* Functions in rtlanal.c */
 
-extern rtx_code load_extend_op (machine_mode);
 extern rtx single_set_2 (const rtx_insn *, const_rtx);
 extern bool contains_symbol_ref_p (const_rtx);
 extern bool contains_symbolic_reference_p (const_rtx);
@@ -3008,8 +3043,8 @@ extern void find_all_hard_regs (const_rtx, HARD_REG_SET *);
 extern void find_all_hard_reg_sets (const rtx_insn *, HARD_REG_SET *, bool);
 extern void note_stores (const_rtx, void (*) (rtx, const_rtx, void *), void *);
 extern void note_uses (rtx *, void (*) (rtx *, void *), void *);
-extern int dead_or_set_p (const_rtx, const_rtx);
-extern int dead_or_set_regno_p (const_rtx, unsigned int);
+extern int dead_or_set_p (const rtx_insn *, const_rtx);
+extern int dead_or_set_regno_p (const rtx_insn *, unsigned int);
 extern rtx find_reg_note (const_rtx, enum reg_note, const_rtx);
 extern rtx find_regno_note (const_rtx, enum reg_note, unsigned int);
 extern rtx find_reg_equal_equiv_note (const_rtx);
@@ -3018,11 +3053,11 @@ extern int find_reg_fusage (const_rtx, enum rtx_code, const_rtx);
 extern int find_regno_fusage (const_rtx, enum rtx_code, unsigned int);
 extern rtx alloc_reg_note (enum reg_note, rtx, rtx);
 extern void add_reg_note (rtx, enum reg_note, rtx);
-extern void add_int_reg_note (rtx, enum reg_note, int);
+extern void add_int_reg_note (rtx_insn *, enum reg_note, int);
 extern void add_shallow_copy_of_reg_note (rtx_insn *, rtx);
 extern rtx duplicate_reg_note (rtx);
 extern void remove_note (rtx_insn *, const_rtx);
-extern void remove_reg_equal_equiv_notes (rtx_insn *);
+extern bool remove_reg_equal_equiv_notes (rtx_insn *);
 extern void remove_reg_equal_equiv_notes_for_regno (unsigned int);
 extern int side_effects_p (const_rtx);
 extern int volatile_refs_p (const_rtx);
@@ -3040,7 +3075,7 @@ extern void copy_reg_eh_region_note_backward (rtx, rtx_insn *, rtx);
 extern int inequality_comparisons_p (const_rtx);
 extern rtx replace_rtx (rtx, rtx, rtx, bool = false);
 extern void replace_label (rtx *, rtx, rtx, bool);
-extern void replace_label_in_insn (rtx_insn *, rtx, rtx, bool);
+extern void replace_label_in_insn (rtx_insn *, rtx_insn *, rtx_insn *, bool);
 extern bool rtx_referenced_p (const_rtx, const_rtx);
 extern bool tablejump_p (const rtx_insn *, rtx_insn **, rtx_jump_table_data **);
 extern int computed_jump_p (const rtx_insn *);
@@ -3771,5 +3806,22 @@ struct GTY(()) cgraph_rtl_info {
   unsigned function_used_regs_valid: 1;
 };
 
+/* If loads from memories of mode MODE always sign or zero extend,
+   return SIGN_EXTEND or ZERO_EXTEND as appropriate.  Return UNKNOWN
+   otherwise.  */
+
+inline rtx_code
+load_extend_op (machine_mode mode)
+{
+  if (SCALAR_INT_MODE_P (mode)
+      && GET_MODE_PRECISION (mode) < BITS_PER_WORD)
+    return LOAD_EXTEND_OP (mode);
+  return UNKNOWN;
+}
+
+/* gtype-desc.c.  */
+extern void gt_ggc_mx (rtx &);
+extern void gt_pch_nx (rtx &);
+extern void gt_pch_nx (rtx &, gt_pointer_operator, void *);
 
 #endif /* ! GCC_RTL_H */

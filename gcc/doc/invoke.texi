@@ -178,6 +178,7 @@ in the following sections.
 @item C Language Options
 @xref{C Dialect Options,,Options Controlling C Dialect}.
 @gccoptlist{-ansi  -std=@var{standard}  -fgnu89-inline @gol
+-fpermitted-flt-eval-methods=@var{standard} @gol
 -aux-info @var{filename} -fallow-parameterless-variadic-functions @gol
 -fno-asm  -fno-builtin  -fno-builtin-@var{function} -fgimple@gol
 -fhosted  -ffreestanding -fopenacc -fopenmp -fopenmp-simd @gol
@@ -259,6 +260,7 @@ Objective-C and Objective-C++ Dialects}.
 -Walloca -Walloca-larger-than=@var{n} @gol
 -Wno-aggressive-loop-optimizations -Warray-bounds -Warray-bounds=@var{n} @gol
 -Wno-attributes -Wbool-compare -Wbool-operation @gol
+-Wno-builtin-declaration-mismatch @gol
 -Wno-builtin-macro-redefined -Wc90-c99-compat -Wc99-c11-compat @gol
 -Wc++-compat -Wc++11-compat -Wc++14-compat -Wcast-align  -Wcast-qual  @gol
 -Wchar-subscripts -Wclobbered  -Wcomment -Wconditionally-supported  @gol
@@ -371,7 +373,7 @@ Objective-C and Objective-C++ Dialects}.
 -fno-ira-share-spill-slots @gol
 -fisolate-erroneous-paths-dereference -fisolate-erroneous-paths-attribute @gol
 -fivopts -fkeep-inline-functions -fkeep-static-functions @gol
--fkeep-static-consts -flive-range-shrinkage @gol
+-fkeep-static-consts -flimit-function-alignment -flive-range-shrinkage @gol
 -floop-block -floop-interchange -floop-strip-mine @gol
 -floop-unroll-and-jam -floop-nest-optimize @gol
 -floop-parallelize-all -flra-remat -flto -flto-compression-level @gol
@@ -380,11 +382,12 @@ Objective-C and Objective-C++ Dialects}.
 -fmove-loop-invariants -fno-branch-count-reg @gol
 -fno-defer-pop -fno-fp-int-builtin-inexact -fno-function-cse @gol
 -fno-guess-branch-probability -fno-inline -fno-math-errno -fno-peephole @gol
--fno-peephole2 -fno-sched-interblock -fno-sched-spec -fno-signed-zeros @gol
+-fno-peephole2 -fno-printf-return-value -fno-sched-interblock @gol
+-fno-sched-spec -fno-signed-zeros @gol
 -fno-toplevel-reorder -fno-trapping-math -fno-zero-initialized-in-bss @gol
 -fomit-frame-pointer -foptimize-sibling-calls @gol
 -fpartial-inlining -fpeel-loops -fpredictive-commoning @gol
--fprefetch-loop-arrays -fprintf-return-value @gol
+-fprefetch-loop-arrays @gol
 -fprofile-correction @gol
 -fprofile-use -fprofile-use=@var{path} -fprofile-values @gol
 -fprofile-reorder-functions @gol
@@ -412,7 +415,7 @@ Objective-C and Objective-C++ Dialects}.
 -ftree-builtin-call-dce -ftree-ccp -ftree-ch @gol
 -ftree-coalesce-vars -ftree-copy-prop -ftree-dce -ftree-dominator-opts @gol
 -ftree-dse -ftree-forwprop -ftree-fre -fcode-hoisting -ftree-loop-if-convert @gol
--ftree-loop-if-convert-stores -ftree-loop-im @gol
+-ftree-loop-im @gol
 -ftree-phiprop -ftree-loop-distribution -ftree-loop-distribute-patterns @gol
 -ftree-loop-ivcanon -ftree-loop-linear -ftree-loop-optimize @gol
 -ftree-loop-vectorize @gol
@@ -620,7 +623,6 @@ Objective-C and Objective-C++ Dialects}.
 @gccoptlist{-mapcs-frame  -mno-apcs-frame @gol
 -mabi=@var{name} @gol
 -mapcs-stack-check  -mno-apcs-stack-check @gol
--mapcs-float  -mno-apcs-float @gol
 -mapcs-reentrant  -mno-apcs-reentrant @gol
 -msched-prolog  -mno-sched-prolog @gol
 -mlittle-endian  -mbig-endian @gol
@@ -1316,12 +1318,6 @@ traditional preprocessor).
 @item @var{file}.go
 Go source code.
 
-@c FIXME: Descriptions of Java file types.
-@c @var{file}.java
-@c @var{file}.class
-@c @var{file}.zip
-@c @var{file}.jar
-
 @item @var{file}.ads
 Ada source code file that contains a library unit declaration (a
 declaration of a package, subprogram, or generic, or a generic
@@ -1370,7 +1366,6 @@ assembler  assembler-with-cpp
 ada
 f77  f77-cpp-input f95  f95-cpp-input
 go
-java
 @end smallexample
 
 @item -x none
@@ -1872,6 +1867,30 @@ The preprocessor macros @code{__GNUC_GNU_INLINE__} and
 @code{__GNUC_STDC_INLINE__} may be used to check which semantics are
 in effect for @code{inline} functions.  @xref{Common Predefined
 Macros,,,cpp,The C Preprocessor}.
+
+@item -fpermitted-flt-eval-methods=@var{style}
+@opindex fpermitted-flt-eval-methods
+@opindex fpermitted-flt-eval-methods=c11
+@opindex fpermitted-flt-eval-methods=ts-18661-3
+ISO/IEC TS 18661-3 defines new permissible values for
+@code{FLT_EVAL_METHOD} that indicate that operations and constants with
+a semantic type that is an interchange or extended format should be
+evaluated to the precision and range of that type.  These new values are
+a superset of those permitted under C99/C11, which does not specify the
+meaning of other positive values of @code{FLT_EVAL_METHOD}.  As such, code
+conforming to C11 may not have been written expecting the possibility of
+the new values.
+
+@option{-fpermitted-flt-eval-methods} specifies whether the compiler
+should allow only the values of @code{FLT_EVAL_METHOD} specified in C99/C11,
+or the extended set of values specified in ISO/IEC TS 18661-3.
+
+@var{style} is either @code{c11} or @code{ts-18661-3} as appropriate.
+
+The default when in a standards compliant mode (@option{-std=c11} or similar)
+is @option{-fpermitted-flt-eval-methods=c11}.  The default when in a GNU
+dialect (@option{-std=gnu11} or similar) is
+@option{-fpermitted-flt-eval-methods=ts-18661-3}.
 
 @item -aux-info @var{filename}
 @opindex aux-info
@@ -3174,7 +3193,7 @@ accomplished via the comm page.
 @item -fobjc-exceptions
 @opindex fobjc-exceptions
 Enable syntactic support for structured exception handling in
-Objective-C, similar to what is offered by C++ and Java.  This option
+Objective-C, similar to what is offered by C++.  This option
 is required to use the Objective-C keywords @code{@@try},
 @code{@@throw}, @code{@@catch}, @code{@@finally} and
 @code{@@synchronized}.  This option is available with both the GNU
@@ -5326,6 +5345,11 @@ Warn when a declaration is found after a statement in a block.  This
 construct, known from C++, was introduced with ISO C99 and is by default
 allowed in GCC@.  It is not supported by ISO C90.  @xref{Mixed Declarations}.
 
+@item -Wexpansion-to-defined
+@opindex Wexpansion-to-defined
+Warn whenever @samp{defined} is encountered in the expansion of a macro.
+This warning is also enabled by @option{-Wpedantic} and @option{-Wextra}.
+
 @item -Wundef
 @opindex Wundef
 @opindex Wno-undef
@@ -5931,6 +5955,12 @@ Do not warn if an unexpected @code{__attribute__} is used, such as
 unrecognized attributes, function attributes applied to variables,
 etc.  This does not stop errors for incorrect use of supported
 attributes.
+
+@item -Wno-builtin-declaration-mismatch
+@opindex Wno-builtin-declaration-mismatch
+@opindex Wbuiltin-declaration-mismatch
+Warn if a built-in function is declared with the wrong signature.
+This warning is enabled by default.
 
 @item -Wno-builtin-macro-redefined
 @opindex Wno-builtin-macro-redefined
@@ -8068,24 +8098,6 @@ the innermost loops in order to improve the ability of the
 vectorization pass to handle these loops.  This is enabled by default
 if vectorization is enabled.
 
-@item -ftree-loop-if-convert-stores
-@opindex ftree-loop-if-convert-stores
-Attempt to also if-convert conditional jumps containing memory writes.
-This transformation can be unsafe for multi-threaded programs as it
-transforms conditional memory writes into unconditional memory writes.
-For example,
-@smallexample
-for (i = 0; i < N; i++)
-  if (cond)
-    A[i] = expr;
-@end smallexample
-is transformed to
-@smallexample
-for (i = 0; i < N; i++)
-  A[i] = cond ? expr : A[i];
-@end smallexample
-potentially producing data races.
-
 @item -ftree-loop-distribution
 @opindex ftree-loop-distribution
 Perform loop distribution.  This flag can improve cache performance on
@@ -8293,18 +8305,19 @@ dependent on the structure of loops within the source code.
 
 Disabled at level @option{-Os}.
 
-@item -fprintf-return-value
-@opindex fprintf-return-value
-Substitute constants for known return value of formatted output functions
-such as @code{sprintf}, @code{snprintf}, @code{vsprintf}, and @code{vsnprintf}
-(but not @code{printf} of @code{fprintf}).  This transformation allows GCC
-to optimize or even eliminate branches based on the known return value of
-these functions called with arguments that are either constant, or whose
-values are known to be in a range that makes determining the exact return
-value possible.  For example, both the branch and the body of the @code{if}
-statement (but not the call to @code{snprint}) can be optimized away when
-@code{i} is a 32-bit or smaller integer because the return value is guaranteed
-to be at most 8.
+@item -fno-printf-return-value
+@opindex fno-printf-return-value
+Do not substitute constants for known return value of formatted output
+functions such as @code{sprintf}, @code{snprintf}, @code{vsprintf}, and
+@code{vsnprintf} (but not @code{printf} of @code{fprintf}).  This
+transformation allows GCC to optimize or even eliminate branches based
+on the known return value of these functions called with arguments that
+are either constant, or whose values are known to be in a range that
+makes determining the exact return value possible.  For example, when
+@option{-fprintf-return-value} is in effect, both the branch and the
+body of the @code{if} statement (but not the call to @code{snprint})
+can be optimized away when @code{i} is a 32-bit or smaller integer
+because the return value is guaranteed to be at most 8.
 
 @smallexample
 char buf[9];
@@ -8315,7 +8328,7 @@ if (snprintf (buf, "%08x", i) >= sizeof buf)
 The @option{-fprintf-return-value} option relies on other optimizations
 and yields best results with @option{-O2}.  It works in tandem with the
 @option{-Wformat-length} option.  The @option{-fprintf-return-value}
-option is disabled by default.
+option is enabled by default.
 
 @item -fno-peephole
 @itemx -fno-peephole2
@@ -8499,6 +8512,12 @@ in that case, it is rounded up.
 If @var{n} is not specified or is zero, use a machine-dependent default.
 
 Enabled at levels @option{-O2}, @option{-O3}.
+
+@item -flimit-function-alignment
+If this option is enabled, the compiler tries to avoid unnecessarily
+overaligning functions. It attempts to instruct the assembler to align
+by the amount specified by @option{-falign-functions}, but not to
+skip more bytes than the size of the function.
 
 @item -falign-labels
 @itemx -falign-labels=@var{n}
@@ -8902,8 +8921,8 @@ which are generally profitable only with profile feedback available:
 @option{-ftree-vectorize}, and @option{ftree-loop-distribute-patterns}.
 
 Before you can use this option, you must first generate profiling information.
-@xref{Optimize Options}, for information about the @option{-fprofile-generate}
-option.
+@xref{Instrumentation Options}, for information about the
+@option{-fprofile-generate} option.
 
 By default, GCC emits an error message if the feedback profiles do not
 match the source code.  This error can be turned into a warning by using
@@ -8974,15 +8993,14 @@ them to store all pertinent intermediate computations into variables.
 @item -fexcess-precision=@var{style}
 @opindex fexcess-precision
 This option allows further control over excess precision on machines
-where floating-point registers have more precision than the IEEE
-@code{float} and @code{double} types and the processor does not
-support operations rounding to those types.  By default,
-@option{-fexcess-precision=fast} is in effect; this means that
-operations are carried out in the precision of the registers and that
-it is unpredictable when rounding to the types specified in the source
-code takes place.  When compiling C, if
-@option{-fexcess-precision=standard} is specified then excess
-precision follows the rules specified in ISO C99; in particular,
+where floating-point operations occur in a format with more precision or
+range than the IEEE standard and interchange floating-point types.  By
+default, @option{-fexcess-precision=fast} is in effect; this means that
+operations may be carried out in a wider precision than the types specified
+in the source if that would result in faster code, and it is unpredictable
+when rounding to the types specified in the source code takes place.
+When compiling C, if @option{-fexcess-precision=standard} is specified then
+excess precision follows the rules specified in ISO C99; in particular,
 both casts and assignments cause values to be rounded to their
 semantic types (whereas @option{-ffloat-store} only affects
 assignments).  This option is enabled by default for C if a strict
@@ -10800,8 +10818,8 @@ Inserts a call to @code{__sanitizer_cov_trace_pc} into every basic block.
 @opindex fbounds-check
 For front ends that support it, generate additional code to check that
 indices used to access arrays are within the declared range.  This is
-currently only supported by the Java and Fortran front ends, where
-this option defaults to true and false respectively.
+currently only supported by the Fortran front end, where this option
+defaults to false.
 
 @item -fcheck-pointer-bounds
 @opindex fcheck-pointer-bounds
@@ -11861,8 +11879,7 @@ results in @option{-ftrapv} being effective.
 This option instructs the compiler to assume that signed arithmetic
 overflow of addition, subtraction and multiplication wraps around
 using twos-complement representation.  This flag enables some optimizations
-and disables others.  This option is enabled by default for the Java
-front end, as required by the Java language specification.
+and disables others.
 The options @option{-ftrapv} and @option{-fwrapv} override each other, so using
 @option{-ftrapv} @option{-fwrapv} on the command-line results in
 @option{-fwrapv} being effective.  Note that only active options override, so
@@ -14911,16 +14928,6 @@ system is required to provide these functions.  The default is
 @option{-mno-apcs-stack-check}, since this produces smaller code.
 
 @c not currently implemented
-@item -mapcs-float
-@opindex mapcs-float
-Pass floating-point arguments using the floating-point registers.  This is
-one of the variants of the APCS@.  This option is recommended if the
-target hardware has a floating-point unit or if a lot of floating-point
-arithmetic is going to be performed by the code.  The default is
-@option{-mno-apcs-float}, since the size of integer-only code is 
-slightly increased if @option{-mapcs-float} is used.
-
-@c not currently implemented
 @item -mapcs-reentrant
 @opindex mapcs-reentrant
 Generate reentrant, position-independent code.  The default is
@@ -15111,12 +15118,14 @@ is unsuccessful the option has no effect.
 @item -mfpu=@var{name}
 @opindex mfpu
 This specifies what floating-point hardware (or hardware emulation) is
-available on the target.  Permissible names are: @samp{vfp}, @samp{vfpv3},
+available on the target.  Permissible names are: @samp{vfpv2}, @samp{vfpv3},
 @samp{vfpv3-fp16}, @samp{vfpv3-d16}, @samp{vfpv3-d16-fp16}, @samp{vfpv3xd},
-@samp{vfpv3xd-fp16}, @samp{neon}, @samp{neon-fp16}, @samp{vfpv4},
+@samp{vfpv3xd-fp16}, @samp{neon-vfpv3}, @samp{neon-fp16}, @samp{vfpv4},
 @samp{vfpv4-d16}, @samp{fpv4-sp-d16}, @samp{neon-vfpv4},
 @samp{fpv5-d16}, @samp{fpv5-sp-d16},
 @samp{fp-armv8}, @samp{neon-fp-armv8} and @samp{crypto-neon-fp-armv8}.
+Note that @samp{neon} is an alias for @samp{neon-vfpv3} and @samp{vfp}
+is an alias for @samp{vfpv2}.
 
 If @option{-msoft-float} is specified this specifies the format of
 floating-point values.
@@ -20575,6 +20584,37 @@ offloading execution.
 @opindex moptimize
 Apply partitioned execution optimizations.  This is the default when any
 level of optimization is selected.
+
+@item -msoft-stack
+@opindex msoft-stack
+Generate code that does not use @code{.local} memory
+directly for stack storage. Instead, a per-warp stack pointer is
+maintained explicitly. This enables variable-length stack allocation (with
+variable-length arrays or @code{alloca}), and when global memory is used for
+underlying storage, makes it possible to access automatic variables from other
+threads, or with atomic instructions. This code generation variant is used
+for OpenMP offloading, but the option is exposed on its own for the purpose
+of testing the compiler; to generate code suitable for linking into programs
+using OpenMP offloading, use option @option{-mgomp}.
+
+@item -muniform-simt
+@opindex muniform-simt
+Switch to code generation variant that allows to execute all threads in each
+warp, while maintaining memory state and side effects as if only one thread
+in each warp was active outside of OpenMP SIMD regions.  All atomic operations
+and calls to runtime (malloc, free, vprintf) are conditionally executed (iff
+current lane index equals the master lane index), and the register being
+assigned is copied via a shuffle instruction from the master lane.  Outside of
+SIMD regions lane 0 is the master; inside, each thread sees itself as the
+master.  Shared memory array @code{int __nvptx_uni[]} stores all-zeros or
+all-ones bitmasks for each warp, indicating current mode (0 outside of SIMD
+regions).  Each thread can bitwise-and the bitmask at position @code{tid.y}
+with current lane index to compute the master lane index.
+
+@item -mgomp
+@opindex mgomp
+Generate code for use in OpenMP offloading: enables @option{-msoft-stack} and
+@option{-muniform-simt} options, and selects corresponding multilib variant.
 
 @end table
 

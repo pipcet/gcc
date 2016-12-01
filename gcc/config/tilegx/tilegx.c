@@ -988,7 +988,7 @@ tilegx_legitimize_tls_address (rtx addr)
       case TLS_MODEL_GLOBAL_DYNAMIC:
       case TLS_MODEL_LOCAL_DYNAMIC:
 	{
-	  rtx r0, temp, temp2, temp3, got, last;
+	  rtx r0, temp, temp2, temp3, got;
 
 	  ret = gen_reg_rtx (Pmode);
 	  r0 = gen_rtx_REG (Pmode, 0);
@@ -1023,6 +1023,7 @@ tilegx_legitimize_tls_address (rtx addr)
 
 	  emit_move_insn (temp3, r0);
 
+	  rtx_insn *last;
 	  if (TARGET_32BIT)
 	    last = emit_insn (gen_tls_gd_add_32bit (ret, temp3, addr));
 	  else
@@ -3881,8 +3882,8 @@ bool
 tilegx_can_use_return_insn_p (void)
 {
   return (reload_completed
-	  && cfun->static_chain_decl == 0
-	  && compute_total_frame_size () == 0
+	  && !cfun->static_chain_decl
+	  && !compute_total_frame_size ()
 	  && tilegx_current_function_is_leaf ()
 	  && !crtl->profile && !df_regs_ever_live_p (TILEGX_LINK_REGNUM));
 }
@@ -4469,8 +4470,7 @@ tilegx_gen_bundles (void)
       rtx_insn *end = NEXT_INSN (BB_END (bb));
 
       prev = NULL;
-      for (insn = next_insn_to_bundle (BB_HEAD (bb), end); insn;
-	   prev = insn, insn = next)
+      for (insn = next_insn_to_bundle (BB_HEAD (bb), end); insn; insn = next)
 	{
 	  next = next_insn_to_bundle (NEXT_INSN (insn), end);
 
@@ -4506,7 +4506,11 @@ tilegx_gen_bundles (void)
 		PUT_MODE (prev, QImode);
 	      }
 	    delete_insn (insn);
+
+            // Note: prev remains the same for next iteration.
 	  }
+          else
+            prev = insn;
 	}
     }
 }
@@ -5508,6 +5512,15 @@ tilegx_function_profiler (FILE *file, int labelno ATTRIBUTE_UNUSED)
       fprintf (file, "\t}\n");
     }
 
+  if (cfun->static_chain_decl)
+    {
+      fprintf (file,
+	       "\t{\n"
+	       "\taddi\tsp, sp, -16\n"
+	       "\tst\tsp, r10\n"
+	       "\t}\n");
+    }
+
   if (flag_pic)
     {
       fprintf (file,
@@ -5523,6 +5536,13 @@ tilegx_function_profiler (FILE *file, int labelno ATTRIBUTE_UNUSED)
 	       "\tmove\tr10, lr\n"
 	       "\tjal\t%s\n"
 	       "\t}\n", MCOUNT_NAME);
+    }
+
+  if (cfun->static_chain_decl)
+    {
+      fprintf (file,
+	       "\taddi\tsp, sp, 16\n"
+	       "\tld\tr10, sp\n");
     }
 
   tilegx_in_bundle = false;

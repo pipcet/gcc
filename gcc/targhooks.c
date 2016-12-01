@@ -514,10 +514,12 @@ default_floatn_mode (int n, bool extended)
       switch (n)
 	{
 	case 16:
-	  /* We do not use HFmode for _Float16 by default because the
-	     required excess precision support is not present and the
-	     interactions with promotion of the older __fp16 need to
-	     be worked out.  */
+	  /* Always enable _Float16 if we have basic support for the mode.
+	     Targets can control the range and precision of operations on
+	     the _Float16 type using TARGET_C_EXCESS_PRECISION.  */
+#ifdef HAVE_HFmode
+	  cand = HFmode;
+#endif
 	  break;
 
 	case 32:
@@ -1510,36 +1512,6 @@ no_c99_libc_has_function (enum function_class fn_class ATTRIBUTE_UNUSED)
   return false;
 }
 
-/* Return the format string to which "%p" corresponds.  By default,
-   assume it corresponds to the C99 "%zx" format and set *FLAGS to
-   the empty string to indicate that format flags have no effect.
-   An example of an implementation that matches this description
-   is AIX.  */
-
-const char*
-default_printf_pointer_format (tree, const char **flags)
-{
-  *flags = "";
-
-  return "%zx";
-}
-
-/* For Glibc and uClibc targets also define the hook here because
-   otherwise it would have to be duplicated in each target's .c file
-   (such as in bfin/bfin.c and c6x/c6x.c, etc.)
-   Glibc and uClibc format pointers as if by "%zx" except for the null
-   pointer which outputs "(nil)".  It ignores the pound ('#') format
-   flag but interprets the space and plus flags the same as in the integer
-   directive.  */
-
-const char*
-linux_printf_pointer_format (tree arg, const char **flags)
-{
-  *flags = " +";
-
-  return arg && integer_zerop (arg) ? "(nil)" : "%#zx";
-}
-
 tree
 default_builtin_tm_load_store (tree ARG_UNUSED (type))
 {
@@ -2133,6 +2105,14 @@ unsigned int
 default_min_arithmetic_precision (void)
 {
   return WORD_REGISTER_OPERATIONS ? BITS_PER_WORD : BITS_PER_UNIT;
+}
+
+/* Default implementation of TARGET_C_EXCESS_PRECISION.  */
+
+enum flt_eval_method
+default_excess_precision (enum excess_precision_type ATTRIBUTE_UNUSED)
+{
+  return FLT_EVAL_METHOD_PROMOTE_TO_FLOAT;
 }
 
 #include "gt-targhooks.h"

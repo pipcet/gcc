@@ -1463,7 +1463,7 @@ shorten_branches (rtx_insn *first)
       if (!increasing)
 	break;
     }
-
+  crtl->max_insn_address = insn_current_address;
   free (varying_length);
 }
 
@@ -4483,8 +4483,6 @@ rest_of_handle_final (void)
   output_function_exception_table (fnname);
 
   assemble_end_function (current_function_decl, fnname);
-
-  user_defined_section_attribute = false;
 
   /* Free up reg info memory.  */
   free_reg_info ();

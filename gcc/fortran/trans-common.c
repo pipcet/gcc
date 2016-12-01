@@ -408,7 +408,7 @@ build_common_decl (gfc_common_head *com, tree union_type, bool is_init)
 	{
 	  DECL_SIZE (decl) = TYPE_SIZE (union_type);
 	  DECL_SIZE_UNIT (decl) = size;
-	  DECL_MODE (decl) = TYPE_MODE (union_type);
+	  SET_DECL_MODE (decl, TYPE_MODE (union_type));
 	  TREE_TYPE (decl) = union_type;
 	  layout_decl (decl, 0);
 	}
@@ -1246,8 +1246,12 @@ finish_equivalences (gfc_namespace *ns)
 	  {
 	    c = gfc_get_common_head ();
 	    /* We've lost the real location, so use the location of the
-	       enclosing procedure.  */
-	    c->where = ns->proc_name->declared_at;
+	       enclosing procedure.  If we're in a BLOCK DATA block, then
+	       use the location in the sym_root.  */
+	    if (ns->proc_name)
+	      c->where = ns->proc_name->declared_at;
+	    else if (ns->is_block_data)
+	      c->where = ns->sym_root->n.sym->declared_at;
 	    strcpy (c->name, z->module);
 	  }
 	else

@@ -163,15 +163,6 @@ import "runtime/internal/sys"
 // suspend the current goroutine, so execution resumes automatically.
 func Gosched()
 
-// Goexit terminates the goroutine that calls it.  No other goroutine is affected.
-// Goexit runs all deferred calls before terminating the goroutine.
-//
-// Calling Goexit from the main goroutine terminates that goroutine
-// without func main returning. Since func main has not returned,
-// the program continues execution of other goroutines.
-// If all other goroutines exit, the program crashes.
-func Goexit()
-
 // Caller reports file and line number information about function invocations on
 // the calling goroutine's stack. The argument skip is the number of stack frames
 // to ascend, with 0 identifying the caller of Caller.  (For historical reasons the
@@ -274,13 +265,11 @@ func SetFinalizer(obj interface{}, finalizer interface{})
 // the actual system call.
 func KeepAlive(interface{})
 
-func getgoroot() string
-
 // GOROOT returns the root of the Go tree.
 // It uses the GOROOT environment variable, if set,
 // or else the root used during the Go build.
 func GOROOT() string {
-	s := getgoroot()
+	s := gogetenv("GOROOT")
 	if s != "" {
 		return s
 	}

@@ -630,8 +630,9 @@ simd_clone_adjust_argument_types (struct cgraph_node *node)
 
 	  if (node->definition)
 	    sc->args[i].simd_array
-	      = create_tmp_simd_array (IDENTIFIER_POINTER (DECL_NAME (parm)),
-				       parm_type, sc->simdlen);
+	      = create_tmp_simd_array (DECL_NAME (parm)
+				       ? IDENTIFIER_POINTER (DECL_NAME (parm))
+				       : NULL, parm_type, sc->simdlen);
 	}
       adjustments.safe_push (adj);
     }
@@ -868,7 +869,7 @@ ipa_simd_modify_stmt_ops (tree *tp, int *walk_subtrees, void *data)
 	  stmt = gimple_build_debug_source_bind (vexpr, repl, NULL);
 	  DECL_ARTIFICIAL (vexpr) = 1;
 	  TREE_TYPE (vexpr) = TREE_TYPE (repl);
-	  DECL_MODE (vexpr) = TYPE_MODE (TREE_TYPE (repl));
+	  SET_DECL_MODE (vexpr, TYPE_MODE (TREE_TYPE (repl)));
 	  repl = vexpr;
 	}
       else

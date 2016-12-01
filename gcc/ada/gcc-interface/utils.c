@@ -3111,7 +3111,7 @@ create_label_decl (tree name, Node_Id gnat_node)
   tree label_decl
     = build_decl (input_location, LABEL_DECL, name, void_type_node);
 
-  DECL_MODE (label_decl) = VOIDmode;
+  SET_DECL_MODE (label_decl, VOIDmode);
 
   /* Add this decl to the current binding level.  */
   gnat_pushdecl (label_decl, gnat_node);
@@ -3548,7 +3548,9 @@ max_size (tree exp, bool max_p)
 	{
 	  tree val_type = TREE_TYPE (TREE_OPERAND (exp, 1));
 	  tree val = (max_p ? TYPE_MAX_VALUE (type) : TYPE_MIN_VALUE (type));
-	  return max_size (convert (get_base_type (val_type), val), true);
+	  return
+	    convert (type,
+		     max_size (convert (get_base_type (val_type), val), true));
 	}
 
       return exp;

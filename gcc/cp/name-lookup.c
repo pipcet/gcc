@@ -3382,6 +3382,7 @@ do_class_using_decl (tree scope, tree name)
     {
       maybe_warn_cpp0x (CPP0X_INHERITING_CTORS);
       name = ctor_identifier;
+      CLASSTYPE_NON_AGGREGATE (current_class_type) = true;
     }
   if (constructor_name_p (name, current_class_type))
     {
@@ -4811,6 +4812,12 @@ lookup_name_fuzzy (tree name, enum lookup_name_fuzzy_kind kind)
       if (!resword_identifier)
 	continue;
       gcc_assert (TREE_CODE (resword_identifier) == IDENTIFIER_NODE);
+
+      /* Only consider reserved words that survived the
+	 filtering in init_reswords (e.g. for -std).  */
+      if (!C_IS_RESERVED_WORD (resword_identifier))
+	continue;
+
       bm.consider (resword_identifier);
     }
 

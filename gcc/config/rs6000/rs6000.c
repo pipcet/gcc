@@ -3441,28 +3441,28 @@ rs6000_init_hard_regno_mode_ok (bool global_init_p)
 
       static const struct fuse_insns addis_insns[] = {
 	{ SFmode, DImode, RELOAD_REG_FPR,
-	  CODE_FOR_fusion_fpr_di_sf_load,
-	  CODE_FOR_fusion_fpr_di_sf_store },
+	  CODE_FOR_fusion_vsx_di_sf_load,
+	  CODE_FOR_fusion_vsx_di_sf_store },
 
 	{ SFmode, SImode, RELOAD_REG_FPR,
-	  CODE_FOR_fusion_fpr_si_sf_load,
-	  CODE_FOR_fusion_fpr_si_sf_store },
+	  CODE_FOR_fusion_vsx_si_sf_load,
+	  CODE_FOR_fusion_vsx_si_sf_store },
 
 	{ DFmode, DImode, RELOAD_REG_FPR,
-	  CODE_FOR_fusion_fpr_di_df_load,
-	  CODE_FOR_fusion_fpr_di_df_store },
+	  CODE_FOR_fusion_vsx_di_df_load,
+	  CODE_FOR_fusion_vsx_di_df_store },
 
 	{ DFmode, SImode, RELOAD_REG_FPR,
-	  CODE_FOR_fusion_fpr_si_df_load,
-	  CODE_FOR_fusion_fpr_si_df_store },
+	  CODE_FOR_fusion_vsx_si_df_load,
+	  CODE_FOR_fusion_vsx_si_df_store },
 
 	{ DImode, DImode, RELOAD_REG_FPR,
-	  CODE_FOR_fusion_fpr_di_di_load,
-	  CODE_FOR_fusion_fpr_di_di_store },
+	  CODE_FOR_fusion_vsx_di_di_load,
+	  CODE_FOR_fusion_vsx_di_di_store },
 
 	{ DImode, SImode, RELOAD_REG_FPR,
-	  CODE_FOR_fusion_fpr_si_di_load,
-	  CODE_FOR_fusion_fpr_si_di_store },
+	  CODE_FOR_fusion_vsx_si_di_load,
+	  CODE_FOR_fusion_vsx_si_di_store },
 
 	{ QImode, DImode, RELOAD_REG_GPR,
 	  CODE_FOR_fusion_gpr_di_qi_load,
@@ -3522,6 +3522,14 @@ rs6000_init_hard_regno_mode_ok (bool global_init_p)
 
 	  reg_addr[xmode].fusion_addis_ld[rtype] = addis_insns[i].load;
 	  reg_addr[xmode].fusion_addis_st[rtype] = addis_insns[i].store;
+
+	  if (rtype == RELOAD_REG_FPR && TARGET_P9_DFORM_SCALAR)
+	    {
+	      reg_addr[xmode].fusion_addis_ld[RELOAD_REG_VMX]
+		= addis_insns[i].load;
+	      reg_addr[xmode].fusion_addis_st[RELOAD_REG_VMX]
+		= addis_insns[i].store;
+	    }
 	}
     }
 
@@ -6206,7 +6214,9 @@ vspltis_constant (rtx op, unsigned step, unsigned copies)
       bitsize /= 2;
       small_val = splat_val >> bitsize;
       mask >>= bitsize;
-      if (splat_val != ((small_val << bitsize) | (small_val & mask)))
+      if (splat_val != ((HOST_WIDE_INT)
+          ((unsigned HOST_WIDE_INT) small_val << bitsize)
+          | (small_val & mask)))
 	return false;
       splat_val = small_val;
     }
@@ -7095,6 +7105,8 @@ rs6000_expand_vector_set (rtx target, rtx val, int elt)
   int width = GET_MODE_SIZE (inner_mode);
   int i;
 
+  val = force_reg (GET_MODE (val), val);
+
   if (VECTOR_MEM_VSX_P (mode))
     {
       rtx insn = NULL_RTX;
@@ -7247,6 +7259,8 @@ rs6000_expand_vector_extract (rtx target, rtx vec, rtx elt)
 	  convert_move (tmp, elt, 0);
 	  elt = tmp;
 	}
+      else if (!REG_P (elt))
+	elt = force_reg (DImode, elt);
 
       switch (mode)
 	{
@@ -8435,14 +8449,13 @@ rs6000_legitimate_offset_address_p (machine_mode mode, rtx x,
     case TFmode:
     case IFmode:
     case KFmode:
-      if (TARGET_E500_DOUBLE)
-	return (SPE_CONST_OFFSET_OK (offset)
-		&& SPE_CONST_OFFSET_OK (offset + 8));
-      /* fall through */
-
     case TDmode:
     case TImode:
     case PTImode:
+      if (TARGET_E500_DOUBLE)
+	return (SPE_CONST_OFFSET_OK (offset)
+		&& SPE_CONST_OFFSET_OK (offset + 8));
+
       extra = 8;
       if (!worst_case)
 	break;
@@ -9120,7 +9133,7 @@ rs6000_legitimize_tls_address (rtx addr, enum tls_model model)
 		rs6000_emit_move (got, gsym, Pmode);
 	      else
 		{
-		  rtx mem, lab, last;
+		  rtx mem, lab;
 
 		  tmp1 = gen_reg_rtx (Pmode);
 		  tmp2 = gen_reg_rtx (Pmode);
@@ -9131,7 +9144,7 @@ rs6000_legitimize_tls_address (rtx addr, enum tls_model model)
 		  if (TARGET_LINK_STACK)
 		    emit_insn (gen_addsi3 (tmp1, tmp1, GEN_INT (4)));
 		  emit_move_insn (tmp2, mem);
-		  last = emit_insn (gen_addsi3 (got, tmp1, tmp2));
+		  rtx_insn *last = emit_insn (gen_addsi3 (got, tmp1, tmp2));
 		  set_unique_reg_note (last, REG_EQUAL, gsym);
 		}
 	    }
@@ -16785,8 +16798,8 @@ rs6000_init_builtins (void)
     {
       ibm128_float_type_node = make_node (REAL_TYPE);
       TYPE_PRECISION (ibm128_float_type_node) = 128;
-      layout_type (ibm128_float_type_node);
       SET_TYPE_MODE (ibm128_float_type_node, IFmode);
+      layout_type (ibm128_float_type_node);
 
       lang_hooks.types.register_builtin_type (ibm128_float_type_node,
 					      "__ibm128");
@@ -16805,8 +16818,8 @@ rs6000_init_builtins (void)
     {
       ieee128_float_type_node = make_node (REAL_TYPE);
       TYPE_PRECISION (ibm128_float_type_node) = 128;
-      layout_type (ieee128_float_type_node);
       SET_TYPE_MODE (ieee128_float_type_node, KFmode);
+      layout_type (ieee128_float_type_node);
 
       /* If we are not exporting the __float128/_Float128 keywords, we need a
 	 keyword to get the types created.  Use __ieee128 as the dummy
@@ -24662,11 +24675,9 @@ static void
 emit_unlikely_jump (rtx cond, rtx label)
 {
   int very_unlikely = REG_BR_PROB_BASE / 100 - 1;
-  rtx x;
-
-  x = gen_rtx_IF_THEN_ELSE (VOIDmode, cond, label, pc_rtx);
-  x = emit_jump_insn (gen_rtx_SET (pc_rtx, x));
-  add_int_reg_note (x, REG_BR_PROB, very_unlikely);
+  rtx x = gen_rtx_IF_THEN_ELSE (VOIDmode, cond, label, pc_rtx);
+  rtx_insn *insn = emit_jump_insn (gen_rtx_SET (pc_rtx, x));
+  add_int_reg_note (insn, REG_BR_PROB, very_unlikely);
 }
 
 /* A subroutine of the atomic operation splitters.  Emit a load-locked
@@ -25890,7 +25901,7 @@ rs6000_savres_strategy (rs6000_stack_t *info,
 		+---------------------------------------+
 		| saved TOC pointer			| 20      40
 		+---------------------------------------+
-		| Parameter save area (P)		| 24      48
+		| Parameter save area (+padding*) (P)	| 24      48
 		+---------------------------------------+
 		| Alloca space (A)			| 24+P    etc.
 		+---------------------------------------+
@@ -25911,6 +25922,9 @@ rs6000_savres_strategy (rs6000_stack_t *info,
 	old SP->| back chain to caller's caller		|
 		+---------------------------------------+
 
+     * If the alloca area is present, the parameter save area is
+       padded so that the former starts 16-byte aligned.
+
    The required alignment for AIX configurations is two words (i.e., 8
    or 16 bytes).
 
@@ -25925,7 +25939,7 @@ rs6000_savres_strategy (rs6000_stack_t *info,
 		+---------------------------------------+
 		| Saved TOC pointer			|  24
 		+---------------------------------------+
-		| Parameter save area (P)		|  32
+		| Parameter save area (+padding*) (P)	|  32
 		+---------------------------------------+
 		| Alloca space (A)			|  32+P
 		+---------------------------------------+
@@ -25942,6 +25956,8 @@ rs6000_savres_strategy (rs6000_stack_t *info,
 	old SP->| back chain to caller's caller		|  32+P+A+L+W+Y+G+F
 		+---------------------------------------+
 
+     * If the alloca area is present, the parameter save area is
+       padded so that the former starts 16-byte aligned.
 
    V.4 stack frames look like:
 
@@ -25950,7 +25966,7 @@ rs6000_savres_strategy (rs6000_stack_t *info,
 		+---------------------------------------+
 		| caller's saved LR			| 4
 		+---------------------------------------+
-		| Parameter save area (P)		| 8
+		| Parameter save area (+padding*) (P)	| 8
 		+---------------------------------------+
 		| Alloca space (A)			| 8+P
 		+---------------------------------------+
@@ -25978,6 +25994,10 @@ rs6000_savres_strategy (rs6000_stack_t *info,
 		+---------------------------------------+
 	old SP->| back chain to caller's caller		|
 		+---------------------------------------+
+
+     * If the alloca area is present and the required alignment is
+       16 bytes, the parameter save area is padded so that the
+       alloca area starts 16-byte aligned.
 
    The required alignment for V.4 is 16 bytes, or 8 bytes if -meabi is
    given.  (But note below and in sysv4.h that we require only 8 and
@@ -26113,8 +26133,13 @@ rs6000_stack_info (void)
   info->reg_size     = reg_size;
   info->fixed_size   = RS6000_SAVE_AREA;
   info->vars_size    = RS6000_ALIGN (get_frame_size (), 8);
-  info->parm_size    = RS6000_ALIGN (crtl->outgoing_args_size,
-					 TARGET_ALTIVEC ? 16 : 8);
+  if (cfun->calls_alloca)
+    info->parm_size  =
+      RS6000_ALIGN (crtl->outgoing_args_size + info->fixed_size,
+		    STACK_BOUNDARY / BITS_PER_UNIT) - info->fixed_size;
+  else
+    info->parm_size  = RS6000_ALIGN (crtl->outgoing_args_size,
+				     TARGET_ALTIVEC ? 16 : 8);
   if (FRAME_GROWS_DOWNWARD)
     info->vars_size
       += RS6000_ALIGN (info->fixed_size + info->vars_size + info->parm_size,
@@ -27513,7 +27538,11 @@ rs6000_emit_stack_reset (rs6000_stack_t *info,
 			 rtx frame_reg_rtx, HOST_WIDE_INT frame_off,
 			 unsigned updt_regno)
 {
-  rtx updt_reg_rtx;
+  /* If there is nothing to do, don't do anything.  */
+  if (frame_off == 0 && REGNO (frame_reg_rtx) == updt_regno)
+    return NULL_RTX;
+
+  rtx updt_reg_rtx = gen_rtx_REG (Pmode, updt_regno);
 
   /* This blockage is needed so that sched doesn't decide to move
      the sp change before the register restores.  */
@@ -27521,18 +27550,17 @@ rs6000_emit_stack_reset (rs6000_stack_t *info,
       || (TARGET_SPE_ABI
 	  && info->spe_64bit_regs_used != 0
 	  && info->first_gp_reg_save != 32))
-    rs6000_emit_stack_tie (frame_reg_rtx, frame_pointer_needed);
+    return emit_insn (gen_stack_restore_tie (updt_reg_rtx, frame_reg_rtx,
+					     GEN_INT (frame_off)));
 
   /* If we are restoring registers out-of-line, we will be using the
      "exit" variants of the restore routines, which will reset the
      stack for us.  But we do need to point updt_reg into the
      right place for those routines.  */
-  updt_reg_rtx = gen_rtx_REG (Pmode, updt_regno);
-
   if (frame_off != 0)
     return emit_insn (gen_add3_insn (updt_reg_rtx,
 				     frame_reg_rtx, GEN_INT (frame_off)));
-  else if (REGNO (frame_reg_rtx) != updt_regno)
+  else
     return emit_move_insn (updt_reg_rtx, frame_reg_rtx);
 
   return NULL_RTX;
@@ -27823,7 +27851,8 @@ rs6000_components_for_bb (basic_block bb)
       bitmap_set_bit (components, regno);
 
   /* LR needs to be saved around a bb if it is killed in that bb.  */
-  if (bitmap_bit_p (gen, LR_REGNO)
+  if (bitmap_bit_p (in, LR_REGNO)
+      || bitmap_bit_p (gen, LR_REGNO)
       || bitmap_bit_p (kill, LR_REGNO))
     bitmap_set_bit (components, 0);
 
@@ -30214,11 +30243,15 @@ rs6000_output_function_epilogue (FILE *file,
 {
 #if TARGET_MACHO
   macho_branch_islands ();
-  /* Mach-O doesn't support labels at the end of objects, so if
-     it looks like we might want one, insert a NOP.  */
+
   {
     rtx_insn *insn = get_last_insn ();
     rtx_insn *deleted_debug_label = NULL;
+
+    /* Mach-O doesn't support labels at the end of objects, so if
+       it looks like we might want one, take special action.
+
+       First, collect any sequence of deleted debug labels.  */
     while (insn
 	   && NOTE_P (insn)
 	   && NOTE_KIND (insn) != NOTE_INSN_DELETED_LABEL)
@@ -30231,11 +30264,40 @@ rs6000_output_function_epilogue (FILE *file,
 	  deleted_debug_label = insn;
 	insn = PREV_INSN (insn);
       }
-    if (insn
-	&& (LABEL_P (insn)
+
+    /* Second, if we have:
+       label:
+	 barrier
+       then this needs to be detected, so skip past the barrier.  */
+
+    if (insn && BARRIER_P (insn))
+      insn = PREV_INSN (insn);
+
+    /* Up to now we've only seen notes or barriers.  */
+    if (insn)
+      {
+	if (LABEL_P (insn)
 	    || (NOTE_P (insn)
-		&& NOTE_KIND (insn) == NOTE_INSN_DELETED_LABEL)))
-      fputs ("\tnop\n", file);
+		&& NOTE_KIND (insn) == NOTE_INSN_DELETED_LABEL))
+	  /* Trailing label: <barrier>.  */
+	  fputs ("\tnop\n", file);
+	else
+	  {
+	    /* Lastly, see if we have a completely empty function body.  */
+	    while (insn && ! INSN_P (insn))
+	      insn = PREV_INSN (insn);
+	    /* If we don't find any insns, we've got an empty function body;
+	       I.e. completely empty - without a return or branch.  This is
+	       taken as the case where a function body has been removed
+	       because it contains an inline __builtin_unreachable().  GCC
+	       states that reaching __builtin_unreachable() means UB so we're
+	       not obliged to do anything special; however, we want
+	       non-zero-sized function bodies.  To meet this, and help the
+	       user out, let's trap the case.  */
+	    if (insn == NULL)
+	      fputs ("\ttrap\n", file);
+	  }
+      }
     else if (deleted_debug_label)
       for (insn = deleted_debug_label; insn; insn = NEXT_INSN (insn))
 	if (NOTE_KIND (insn) == NOTE_INSN_DELETED_DEBUG_LABEL)
@@ -30576,10 +30638,10 @@ rs6000_expand_split_stack_prologue (void)
 			       gen_rtx_GEU (VOIDmode, compare, const0_rtx),
 			       gen_rtx_LABEL_REF (VOIDmode, ok_label),
 			       pc_rtx);
-  jump = emit_jump_insn (gen_rtx_SET (pc_rtx, jump));
-  JUMP_LABEL (jump) = ok_label;
+  insn = emit_jump_insn (gen_rtx_SET (pc_rtx, jump));
+  JUMP_LABEL (insn) = ok_label;
   /* Mark the jump as very likely to be taken.  */
-  add_int_reg_note (jump, REG_BR_PROB,
+  add_int_reg_note (insn, REG_BR_PROB,
 		    REG_BR_PROB_BASE - REG_BR_PROB_BASE / 100);
 
   lr = gen_rtx_REG (Pmode, LR_REGNO);
@@ -39817,6 +39879,15 @@ emit_fusion_p9_load (rtx reg, rtx mem, rtx tmp_reg)
       else
 	gcc_unreachable ();
     }
+  else if (ALTIVEC_REGNO_P (r) && TARGET_P9_DFORM_SCALAR)
+    {
+      if (mode == SFmode)
+	load_string = "lxssp";
+      else if (mode == DFmode || mode == DImode)
+	load_string = "lxsd";
+      else
+	gcc_unreachable ();
+    }
   else if (INT_REGNO_P (r))
     {
       switch (mode)
@@ -39892,6 +39963,15 @@ emit_fusion_p9_store (rtx mem, rtx reg, rtx tmp_reg)
 	store_string = "stfs";
       else if (mode == DFmode)
 	store_string = "stfd";
+      else
+	gcc_unreachable ();
+    }
+  else if (ALTIVEC_REGNO_P (r) && TARGET_P9_DFORM_SCALAR)
+    {
+      if (mode == SFmode)
+	store_string = "stxssp";
+      else if (mode == DFmode || mode == DImode)
+	store_string = "stxsd";
       else
 	gcc_unreachable ();
     }

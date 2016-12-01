@@ -1,3 +1,46 @@
+2016-11-30  David Malcolm  <dmalcolm@redhat.com>
+
+	PR c/78498
+	* strndup.c (strlen): Delete decl.
+	(strnlen): Add decl.
+	(strndup): Call strnlen rather than strlen.
+	* xstrndup.c (xstrndup): Likewise.
+
+2016-11-29  Nathan Sidwell  <nathan@acm.org>
+
+	* cp-demangle.c (d_print_comp_inner): Fix parameter indentation.
+
+2016-11-03  David Tolnay <dtolnay@gmail.com>
+	    Mark Wielaard  <mark@klomp.org>
+
+	* Makefile.in (CFILES): Add rust-demangle.c.
+	(REQUIRED_OFILES): Add rust-demangle.o.
+	* cplus-dem.c (libiberty_demanglers): Add rust_demangling case.
+	(cplus_demangle): Handle RUST_DEMANGLING.
+	(rust_demangle): New function.
+	* rust-demangle.c: New file.
+	* testsuite/Makefile.in (really-check): Add check-rust-demangle.
+	(check-rust-demangle): New rule.
+	* testsuite/rust-demangle-expected: New file.
+
+2016-11-15  Mark Wielaard  <mark@klomp.org>
+
+	* cp-demangle.c (d_expression_1): Make sure third expression
+	exists for ?: and fold expressions.
+	* testsuite/demangle-expected: Add examples of strings that could
+	crash the demangler because of missing expression.
+
+2016-11-14  Mark Wielaard  <mark@klomp.org>
+
+	* cplus-dem.c (demangle_signature): After 'H', template function,
+	no success and don't advance position if end of string reached.
+	(demangle_template): After 'z', template name, return zero on
+	premature end of string.
+	(gnu_special): Guard strchr against searching for zero characters.
+	(do_type): If member, only advance mangled string when 'F' found.
+	* testsuite/demangle-expected: Add examples of strings that could
+	crash the demangler by reading past end of input.
+
 2016-11-06  Mark Wielaard  <mark@klomp.org>
 
 	* configure.ac (ac_libiberty_warn_cflags): Add -Wshadow=local.

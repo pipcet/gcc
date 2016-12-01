@@ -337,6 +337,10 @@ Wframe-address
 C ObjC C++ ObjC++ Var(warn_frame_address) Warning LangEnabledBy(C ObjC C++ ObjC++,Wall)
 Warn when __builtin_frame_address or __builtin_return_address is used unsafely.
 
+Wbuiltin-declaration-mismatch
+C ObjC C++ ObjC++ Var(warn_builtin_declaraion_mismatch) Init(1) Warning
+Warn when a built-in function is declared with the wrong signature.
+
 Wbuiltin-macro-redefined
 C ObjC C++ ObjC++ CPP(warn_builtin_macro_redefined) CppReason(CPP_W_BUILTIN_MACRO_REDEFINED) Var(cpp_warn_builtin_macro_redefined) Init(1) Warning
 Warn when a built-in preprocessor macro is undefined or redefined.
@@ -568,6 +572,10 @@ LangEnabledBy(C ObjC C++ ObjC++,Wextra,3,0)
 Wdouble-promotion
 C ObjC C++ ObjC++ Var(warn_double_promotion) Warning
 Warn about implicit conversions from \"float\" to \"double\".
+
+Wexpansion-to-defined
+C ObjC C++ ObjC++ CPP(warn_expansion_to_defined) CppReason(CPP_W_EXPANSION_TO_DEFINED) Var(cpp_warn_expansion_to_defined) Init(0) Warning EnabledBy(Wextra || Wpedantic)
+Warn if \"defined\" is used outside #if.
 
 Wimplicit-function-declaration
 C ObjC Var(warn_implicit_function_declaration) Init(-1) Warning LangEnabledBy(C ObjC,Wimplicit)
@@ -1550,7 +1558,7 @@ C++ ObjC++ Var(flag_pretty_templates) Init(1)
 -fno-pretty-templates Do not pretty-print template specializations as the template signature followed by the arguments.
 
 fprintf-return-value
-C ObjC C++ ObjC++ LTO Optimization Var(flag_printf_return_value) Init(0)
+C ObjC C++ ObjC++ LTO Optimization Var(flag_printf_return_value) Init(1)
 Treat known sprintf return values as constants.
 
 freplace-objc-classes

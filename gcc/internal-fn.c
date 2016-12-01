@@ -42,6 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "ubsan.h"
 #include "recog.h"
 #include "builtins.h"
+#include "optabs-tree.h"
 
 /* The names of each internal function, indexed by function number.  */
 const char *const internal_fn_name_array[] = {
@@ -155,6 +156,140 @@ static void
 expand_ANNOTATE (internal_fn, gcall *)
 {
   gcc_unreachable ();
+}
+
+/* This should get expanded in omp_device_lower pass.  */
+
+static void
+expand_GOMP_USE_SIMT (internal_fn, gcall *)
+{
+  gcc_unreachable ();
+}
+
+/* Lane index on SIMT targets: thread index in the warp on NVPTX.  On targets
+   without SIMT execution this should be expanded in omp_device_lower pass.  */
+
+static void
+expand_GOMP_SIMT_LANE (internal_fn, gcall *stmt)
+{
+  tree lhs = gimple_call_lhs (stmt);
+  if (!lhs)
+    return;
+
+  rtx target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+  gcc_assert (targetm.have_omp_simt_lane ());
+  emit_insn (targetm.gen_omp_simt_lane (target));
+}
+
+/* This should get expanded in omp_device_lower pass.  */
+
+static void
+expand_GOMP_SIMT_VF (internal_fn, gcall *)
+{
+  gcc_unreachable ();
+}
+
+/* Lane index of the first SIMT lane that supplies a non-zero argument.
+   This is a SIMT counterpart to GOMP_SIMD_LAST_LANE, used to represent the
+   lane that executed the last iteration for handling OpenMP lastprivate.  */
+
+static void
+expand_GOMP_SIMT_LAST_LANE (internal_fn, gcall *stmt)
+{
+  tree lhs = gimple_call_lhs (stmt);
+  if (!lhs)
+    return;
+
+  rtx target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+  rtx cond = expand_normal (gimple_call_arg (stmt, 0));
+  machine_mode mode = TYPE_MODE (TREE_TYPE (lhs));
+  struct expand_operand ops[2];
+  create_output_operand (&ops[0], target, mode);
+  create_input_operand (&ops[1], cond, mode);
+  gcc_assert (targetm.have_omp_simt_last_lane ());
+  expand_insn (targetm.code_for_omp_simt_last_lane, 2, ops);
+}
+
+/* Non-transparent predicate used in SIMT lowering of OpenMP "ordered".  */
+
+static void
+expand_GOMP_SIMT_ORDERED_PRED (internal_fn, gcall *stmt)
+{
+  tree lhs = gimple_call_lhs (stmt);
+  if (!lhs)
+    return;
+
+  rtx target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+  rtx ctr = expand_normal (gimple_call_arg (stmt, 0));
+  machine_mode mode = TYPE_MODE (TREE_TYPE (lhs));
+  struct expand_operand ops[2];
+  create_output_operand (&ops[0], target, mode);
+  create_input_operand (&ops[1], ctr, mode);
+  gcc_assert (targetm.have_omp_simt_ordered ());
+  expand_insn (targetm.code_for_omp_simt_ordered, 2, ops);
+}
+
+/* "Or" boolean reduction across SIMT lanes: return non-zero in all lanes if
+   any lane supplies a non-zero argument.  */
+
+static void
+expand_GOMP_SIMT_VOTE_ANY (internal_fn, gcall *stmt)
+{
+  tree lhs = gimple_call_lhs (stmt);
+  if (!lhs)
+    return;
+
+  rtx target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+  rtx cond = expand_normal (gimple_call_arg (stmt, 0));
+  machine_mode mode = TYPE_MODE (TREE_TYPE (lhs));
+  struct expand_operand ops[2];
+  create_output_operand (&ops[0], target, mode);
+  create_input_operand (&ops[1], cond, mode);
+  gcc_assert (targetm.have_omp_simt_vote_any ());
+  expand_insn (targetm.code_for_omp_simt_vote_any, 2, ops);
+}
+
+/* Exchange between SIMT lanes with a "butterfly" pattern: source lane index
+   is destination lane index XOR given offset.  */
+
+static void
+expand_GOMP_SIMT_XCHG_BFLY (internal_fn, gcall *stmt)
+{
+  tree lhs = gimple_call_lhs (stmt);
+  if (!lhs)
+    return;
+
+  rtx target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+  rtx src = expand_normal (gimple_call_arg (stmt, 0));
+  rtx idx = expand_normal (gimple_call_arg (stmt, 1));
+  machine_mode mode = TYPE_MODE (TREE_TYPE (lhs));
+  struct expand_operand ops[3];
+  create_output_operand (&ops[0], target, mode);
+  create_input_operand (&ops[1], src, mode);
+  create_input_operand (&ops[2], idx, SImode);
+  gcc_assert (targetm.have_omp_simt_xchg_bfly ());
+  expand_insn (targetm.code_for_omp_simt_xchg_bfly, 3, ops);
+}
+
+/* Exchange between SIMT lanes according to given source lane index.  */
+
+static void
+expand_GOMP_SIMT_XCHG_IDX (internal_fn, gcall *stmt)
+{
+  tree lhs = gimple_call_lhs (stmt);
+  if (!lhs)
+    return;
+
+  rtx target = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+  rtx src = expand_normal (gimple_call_arg (stmt, 0));
+  rtx idx = expand_normal (gimple_call_arg (stmt, 1));
+  machine_mode mode = TYPE_MODE (TREE_TYPE (lhs));
+  struct expand_operand ops[3];
+  create_output_operand (&ops[0], target, mode);
+  create_input_operand (&ops[1], src, mode);
+  create_input_operand (&ops[2], idx, SImode);
+  gcc_assert (targetm.have_omp_simt_xchg_idx ());
+  expand_insn (targetm.code_for_omp_simt_xchg_idx, 3, ops);
 }
 
 /* This should get expanded in adjust_simduid_builtins.  */
@@ -513,7 +648,7 @@ expand_ubsan_result_store (rtx target, rtx res)
 static void
 expand_addsub_overflow (location_t loc, tree_code code, tree lhs,
 			tree arg0, tree arg1, bool unsr_p, bool uns0_p,
-			bool uns1_p, bool is_ubsan)
+			bool uns1_p, bool is_ubsan, tree *datap)
 {
   rtx res, target = NULL_RTX;
   tree fn;
@@ -929,7 +1064,7 @@ expand_addsub_overflow (location_t loc, tree_code code, tree lhs,
       /* Expand the ubsan builtin call.  */
       push_temp_slots ();
       fn = ubsan_build_overflow_builtin (code, loc, TREE_TYPE (arg0),
-					 arg0, arg1);
+					 arg0, arg1, datap);
       expand_normal (fn);
       pop_temp_slots ();
       do_pending_stack_adjust ();
@@ -958,7 +1093,8 @@ expand_addsub_overflow (location_t loc, tree_code code, tree lhs,
 /* Add negate overflow checking to the statement STMT.  */
 
 static void
-expand_neg_overflow (location_t loc, tree lhs, tree arg1, bool is_ubsan)
+expand_neg_overflow (location_t loc, tree lhs, tree arg1, bool is_ubsan,
+		     tree *datap)
 {
   rtx res, op1;
   tree fn;
@@ -1024,7 +1160,7 @@ expand_neg_overflow (location_t loc, tree lhs, tree arg1, bool is_ubsan)
       /* Expand the ubsan builtin call.  */
       push_temp_slots ();
       fn = ubsan_build_overflow_builtin (NEGATE_EXPR, loc, TREE_TYPE (arg1),
-					 arg1, NULL_TREE);
+					 arg1, NULL_TREE, datap);
       expand_normal (fn);
       pop_temp_slots ();
       do_pending_stack_adjust ();
@@ -1048,7 +1184,8 @@ expand_neg_overflow (location_t loc, tree lhs, tree arg1, bool is_ubsan)
 
 static void
 expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
-		     bool unsr_p, bool uns0_p, bool uns1_p, bool is_ubsan)
+		     bool unsr_p, bool uns0_p, bool uns1_p, bool is_ubsan,
+		     tree *datap)
 {
   rtx res, op0, op1;
   tree fn, type;
@@ -1685,7 +1822,7 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
       /* Expand the ubsan builtin call.  */
       push_temp_slots ();
       fn = ubsan_build_overflow_builtin (MULT_EXPR, loc, TREE_TYPE (arg0),
-					 arg0, arg1);
+					 arg0, arg1, datap);
       expand_normal (fn);
       pop_temp_slots ();
       do_pending_stack_adjust ();
@@ -1734,6 +1871,145 @@ expand_mul_overflow (location_t loc, tree lhs, tree arg0, tree arg1,
     }
 }
 
+/* Expand UBSAN_CHECK_* internal function if it has vector operands.  */
+
+static void
+expand_vector_ubsan_overflow (location_t loc, enum tree_code code, tree lhs,
+			      tree arg0, tree arg1)
+{
+  int cnt = TYPE_VECTOR_SUBPARTS (TREE_TYPE (arg0));
+  rtx_code_label *loop_lab = NULL;
+  rtx cntvar = NULL_RTX;
+  tree cntv = NULL_TREE;
+  tree eltype = TREE_TYPE (TREE_TYPE (arg0));
+  tree sz = TYPE_SIZE (eltype);
+  tree data = NULL_TREE;
+  tree resv = NULL_TREE;
+  rtx lhsr = NULL_RTX;
+  rtx resvr = NULL_RTX;
+
+  if (lhs)
+    {
+      optab op;
+      lhsr = expand_expr (lhs, NULL_RTX, VOIDmode, EXPAND_WRITE);
+      if (GET_MODE (lhsr) == BLKmode
+	  || (op = optab_for_tree_code (code, TREE_TYPE (arg0),
+					optab_default)) == unknown_optab
+	  || (optab_handler (op, TYPE_MODE (TREE_TYPE (arg0)))
+	      == CODE_FOR_nothing))
+	{
+	  if (MEM_P (lhsr))
+	    resv = make_tree (TREE_TYPE (lhs), lhsr);
+	  else
+	    {
+	      resvr = assign_temp (TREE_TYPE (lhs), 1, 1);
+	      resv = make_tree (TREE_TYPE (lhs), resvr);
+	    }
+	}
+    }
+  if (cnt > 4)
+    {
+      do_pending_stack_adjust ();
+      loop_lab = gen_label_rtx ();
+      cntvar = gen_reg_rtx (TYPE_MODE (sizetype));
+      cntv = make_tree (sizetype, cntvar);
+      emit_move_insn (cntvar, const0_rtx);
+      emit_label (loop_lab);
+    }
+  if (TREE_CODE (arg0) != VECTOR_CST)
+    {
+      rtx arg0r = expand_normal (arg0);
+      arg0 = make_tree (TREE_TYPE (arg0), arg0r);
+    }
+  if (TREE_CODE (arg1) != VECTOR_CST)
+    {
+      rtx arg1r = expand_normal (arg1);
+      arg1 = make_tree (TREE_TYPE (arg1), arg1r);
+    }
+  for (int i = 0; i < (cnt > 4 ? 1 : cnt); i++)
+    {
+      tree op0, op1, res = NULL_TREE;
+      if (cnt > 4)
+	{
+	  tree atype = build_array_type_nelts (eltype, cnt);
+	  op0 = fold_build1_loc (loc, VIEW_CONVERT_EXPR, atype, arg0);
+	  op0 = build4_loc (loc, ARRAY_REF, eltype, op0, cntv,
+			    NULL_TREE, NULL_TREE);
+	  op1 = fold_build1_loc (loc, VIEW_CONVERT_EXPR, atype, arg1);
+	  op1 = build4_loc (loc, ARRAY_REF, eltype, op1, cntv,
+			    NULL_TREE, NULL_TREE);
+	  if (resv)
+	    {
+	      res = fold_build1_loc (loc, VIEW_CONVERT_EXPR, atype, resv);
+	      res = build4_loc (loc, ARRAY_REF, eltype, res, cntv,
+				NULL_TREE, NULL_TREE);
+	    }
+	}
+      else
+	{
+	  tree bitpos = bitsize_int (tree_to_uhwi (sz) * i);
+	  op0 = fold_build3_loc (loc, BIT_FIELD_REF, eltype, arg0, sz, bitpos);
+	  op1 = fold_build3_loc (loc, BIT_FIELD_REF, eltype, arg1, sz, bitpos);
+	  if (resv)
+	    res = fold_build3_loc (loc, BIT_FIELD_REF, eltype, resv, sz,
+				   bitpos);
+	}
+      switch (code)
+	{
+	case PLUS_EXPR:
+	  expand_addsub_overflow (loc, PLUS_EXPR, res, op0, op1,
+				  false, false, false, true, &data);
+	  break;
+	case MINUS_EXPR:
+	  if (cnt > 4 ? integer_zerop (arg0) : integer_zerop (op0))
+	    expand_neg_overflow (loc, res, op1, true, &data);
+	  else
+	    expand_addsub_overflow (loc, MINUS_EXPR, res, op0, op1,
+				    false, false, false, true, &data);
+	  break;
+	case MULT_EXPR:
+	  expand_mul_overflow (loc, res, op0, op1, false, false, false,
+			       true, &data);
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+    }
+  if (cnt > 4)
+    {
+      struct separate_ops ops;
+      ops.code = PLUS_EXPR;
+      ops.type = TREE_TYPE (cntv);
+      ops.op0 = cntv;
+      ops.op1 = build_int_cst (TREE_TYPE (cntv), 1);
+      ops.op2 = NULL_TREE;
+      ops.location = loc;
+      rtx ret = expand_expr_real_2 (&ops, cntvar, TYPE_MODE (sizetype),
+				    EXPAND_NORMAL);
+      if (ret != cntvar)
+	emit_move_insn (cntvar, ret);
+      do_compare_rtx_and_jump (cntvar, GEN_INT (cnt), NE, false,
+			       TYPE_MODE (sizetype), NULL_RTX, NULL, loop_lab,
+			       PROB_VERY_LIKELY);
+    }
+  if (lhs && resv == NULL_TREE)
+    {
+      struct separate_ops ops;
+      ops.code = code;
+      ops.type = TREE_TYPE (arg0);
+      ops.op0 = arg0;
+      ops.op1 = arg1;
+      ops.op2 = NULL_TREE;
+      ops.location = loc;
+      rtx ret = expand_expr_real_2 (&ops, lhsr, TYPE_MODE (TREE_TYPE (arg0)),
+				    EXPAND_NORMAL);
+      if (ret != lhsr)
+	emit_move_insn (lhsr, ret);
+    }
+  else if (resvr)
+    emit_move_insn (lhsr, resvr);
+}
+
 /* Expand UBSAN_CHECK_ADD call STMT.  */
 
 static void
@@ -1743,8 +2019,11 @@ expand_UBSAN_CHECK_ADD (internal_fn, gcall *stmt)
   tree lhs = gimple_call_lhs (stmt);
   tree arg0 = gimple_call_arg (stmt, 0);
   tree arg1 = gimple_call_arg (stmt, 1);
-  expand_addsub_overflow (loc, PLUS_EXPR, lhs, arg0, arg1,
-			  false, false, false, true);
+  if (VECTOR_TYPE_P (TREE_TYPE (arg0)))
+    expand_vector_ubsan_overflow (loc, PLUS_EXPR, lhs, arg0, arg1);
+  else
+    expand_addsub_overflow (loc, PLUS_EXPR, lhs, arg0, arg1,
+			    false, false, false, true, NULL);
 }
 
 /* Expand UBSAN_CHECK_SUB call STMT.  */
@@ -1756,11 +2035,13 @@ expand_UBSAN_CHECK_SUB (internal_fn, gcall *stmt)
   tree lhs = gimple_call_lhs (stmt);
   tree arg0 = gimple_call_arg (stmt, 0);
   tree arg1 = gimple_call_arg (stmt, 1);
-  if (integer_zerop (arg0))
-    expand_neg_overflow (loc, lhs, arg1, true);
+  if (VECTOR_TYPE_P (TREE_TYPE (arg0)))
+    expand_vector_ubsan_overflow (loc, MINUS_EXPR, lhs, arg0, arg1);
+  else if (integer_zerop (arg0))
+    expand_neg_overflow (loc, lhs, arg1, true, NULL);
   else
     expand_addsub_overflow (loc, MINUS_EXPR, lhs, arg0, arg1,
-			    false, false, false, true);
+			    false, false, false, true, NULL);
 }
 
 /* Expand UBSAN_CHECK_MUL call STMT.  */
@@ -1772,7 +2053,11 @@ expand_UBSAN_CHECK_MUL (internal_fn, gcall *stmt)
   tree lhs = gimple_call_lhs (stmt);
   tree arg0 = gimple_call_arg (stmt, 0);
   tree arg1 = gimple_call_arg (stmt, 1);
-  expand_mul_overflow (loc, lhs, arg0, arg1, false, false, false, true);
+  if (VECTOR_TYPE_P (TREE_TYPE (arg0)))
+    expand_vector_ubsan_overflow (loc, MULT_EXPR, lhs, arg0, arg1);
+  else
+    expand_mul_overflow (loc, lhs, arg0, arg1, false, false, false, true,
+			 NULL);
 }
 
 /* Helper function for {ADD,SUB,MUL}_OVERFLOW call stmt expansion.  */
@@ -1864,17 +2149,17 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	    case MINUS_EXPR:
 	      if (integer_zerop (arg0) && !unsr_p)
 		{
-		  expand_neg_overflow (loc, lhs, arg1, false);
+		  expand_neg_overflow (loc, lhs, arg1, false, NULL);
 		  return;
 		}
 	      /* FALLTHRU */
 	    case PLUS_EXPR:
-	      expand_addsub_overflow (loc, code, lhs, arg0, arg1,
-				      unsr_p, unsr_p, unsr_p, false);
+	      expand_addsub_overflow (loc, code, lhs, arg0, arg1, unsr_p,
+				      unsr_p, unsr_p, false, NULL);
 	      return;
 	    case MULT_EXPR:
-	      expand_mul_overflow (loc, lhs, arg0, arg1,
-				   unsr_p, unsr_p, unsr_p, false);
+	      expand_mul_overflow (loc, lhs, arg0, arg1, unsr_p,
+				   unsr_p, unsr_p, false, NULL);
 	      return;
 	    default:
 	      gcc_unreachable ();
@@ -1916,10 +2201,10 @@ expand_arith_overflow (enum tree_code code, gimple *stmt)
 	  arg1 = fold_convert_loc (loc, types[uns1_p], arg1);
 	  if (code != MULT_EXPR)
 	    expand_addsub_overflow (loc, code, lhs, arg0, arg1, unsr_p,
-				    uns0_p, uns1_p, false);
+				    uns0_p, uns1_p, false, NULL);
 	  else
 	    expand_mul_overflow (loc, lhs, arg0, arg1, unsr_p,
-				 uns0_p, uns1_p, false);
+				 uns0_p, uns1_p, false, NULL);
 	  return;
 	}
 

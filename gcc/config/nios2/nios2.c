@@ -3604,12 +3604,10 @@ nios2_expand_builtin (tree exp, rtx target, rtx subtarget ATTRIBUTE_UNUSED,
 }
 
 /* Implement TARGET_INIT_LIBFUNCS.  */
-static void
+static void ATTRIBUTE_UNUSED
 nios2_init_libfuncs (void)
 {
-  /* For Linux, we have access to kernel support for atomic operations.  */
-  if (TARGET_LINUX_ABI)
-    init_sync_libfuncs (UNITS_PER_WORD);
+  init_sync_libfuncs (UNITS_PER_WORD);
 }
 
 
@@ -4985,9 +4983,6 @@ nios2_adjust_reg_alloc_order (void)
 #define TARGET_EXPAND_BUILTIN nios2_expand_builtin
 #undef TARGET_BUILTIN_DECL
 #define TARGET_BUILTIN_DECL nios2_builtin_decl
-
-#undef TARGET_INIT_LIBFUNCS
-#define TARGET_INIT_LIBFUNCS nios2_init_libfuncs
 
 #undef TARGET_FUNCTION_OK_FOR_SIBCALL
 #define TARGET_FUNCTION_OK_FOR_SIBCALL hook_bool_tree_tree_true

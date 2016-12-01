@@ -3415,6 +3415,8 @@ d_expression_1 (struct d_info *di)
 		first = d_expression_1 (di);
 		second = d_expression_1 (di);
 		third = d_expression_1 (di);
+		if (third == NULL)
+		  return NULL;
 	      }
 	    else if (code[0] == 'f')
 	      {
@@ -3422,6 +3424,8 @@ d_expression_1 (struct d_info *di)
 		first = d_operator_name (di);
 		second = d_expression_1 (di);
 		third = d_expression_1 (di);
+		if (third == NULL)
+		  return NULL;
 	      }
 	    else if (code[0] == 'n')
 	      {
@@ -4560,7 +4564,7 @@ d_maybe_print_fold_expression (struct d_print_info *dpi, int options,
 
 static void
 d_print_comp_inner (struct d_print_info *dpi, int options,
-		  const struct demangle_component *dc)
+		    const struct demangle_component *dc)
 {
   /* Magic variable to let reference smashing skip over the next modifier
      without needing to modify *dc.  */

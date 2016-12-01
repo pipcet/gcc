@@ -98,8 +98,7 @@ plus_constant (machine_mode mode, rtx x, HOST_WIDE_INT c,
   switch (code)
     {
     CASE_CONST_SCALAR_INT:
-      return immed_wide_int_const (wi::add (std::make_pair (x, mode), c),
-				   mode);
+      return immed_wide_int_const (wi::add (rtx_mode_t (x, mode), c), mode);
     case MEM:
       /* If this is a reference to the constant pool, try replacing it with
 	 a reference to a new constant.  If the resulting address isn't
@@ -1234,9 +1233,15 @@ get_dynamic_stack_size (rtx *psize, unsigned size_align,
      example), so we must preventively align the value.  We leave space
      in SIZE for the hole that might result from the alignment operation.  */
 
-  extra = (required_align - BITS_PER_UNIT) / BITS_PER_UNIT;
-  size = plus_constant (Pmode, size, extra);
-  size = force_operand (size, NULL_RTX);
+  unsigned known_align = REGNO_POINTER_ALIGN (VIRTUAL_STACK_DYNAMIC_REGNUM);
+  if (known_align == 0)
+    known_align = BITS_PER_UNIT;
+  if (required_align > known_align)
+    {
+      extra = (required_align - known_align) / BITS_PER_UNIT;
+      size = plus_constant (Pmode, size, extra);
+      size = force_operand (size, NULL_RTX);
+    }
 
   if (flag_stack_usage_info && pstack_usage_size)
     *pstack_usage_size += extra;

@@ -794,7 +794,7 @@ store_init_value (tree decl, tree init, vec<tree, va_gc>** cleanups, int flags)
     value = init;
   else
     /* Digest the specified initializer into an expression.  */
-    value = digest_init_flags (type, init, flags);
+    value = digest_init_flags (type, init, flags, tf_warning_or_error);
 
   value = extend_ref_init_temps (decl, value, cleanups);
 
@@ -824,7 +824,9 @@ store_init_value (tree decl, tree init, vec<tree, va_gc>** cleanups, int flags)
       const_init = (reduced_constant_expression_p (value)
 		    || error_operand_p (value));
       DECL_INITIALIZED_BY_CONSTANT_EXPRESSION_P (decl) = const_init;
-      TREE_CONSTANT (decl) = const_init && decl_maybe_constant_var_p (decl);
+      /* FIXME setting TREE_CONSTANT on refs breaks the back end.  */
+      if (TREE_CODE (type) != REFERENCE_TYPE)
+	TREE_CONSTANT (decl) = const_init && decl_maybe_constant_var_p (decl);
     }
   value = cp_fully_fold (value);
 
@@ -1163,9 +1165,9 @@ digest_init (tree type, tree init, tsubst_flags_t complain)
 }
 
 tree
-digest_init_flags (tree type, tree init, int flags)
+digest_init_flags (tree type, tree init, int flags, tsubst_flags_t complain)
 {
-  return digest_init_r (type, init, false, flags, tf_warning_or_error);
+  return digest_init_r (type, init, false, flags, complain);
 }
 
 /* Process the initializer INIT for an NSDMI DECL (a FIELD_DECL).  */
@@ -1181,7 +1183,7 @@ digest_nsdmi_init (tree decl, tree init)
   if (BRACE_ENCLOSED_INITIALIZER_P (init)
       && CP_AGGREGATE_TYPE_P (type))
     init = reshape_init (type, init, tf_warning_or_error);
-  init = digest_init_flags (type, init, flags);
+  init = digest_init_flags (type, init, flags, tf_warning_or_error);
   if (TREE_CODE (init) == TARGET_EXPR)
     /* This represents the whole initialization.  */
     TARGET_EXPR_DIRECT_INIT_P (init) = true;

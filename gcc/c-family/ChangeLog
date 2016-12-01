@@ -1,3 +1,58 @@
+2016-11-26  Prathamesh Kulkarni  <prathamesh.kulkarni@linaro.org>
+
+	* c-common.c (c_common_nodes_and_builtins): Remove initialization of
+	ptrdiff_type_node;
+
+2016-11-23  James Greenhalgh  <james.greenhalgh@arm.com>
+
+	* c-common.c (excess_precision_mode_join): New.
+	(c_ts18661_flt_eval_method): New.
+	(c_c11_flt_eval_method): Likewise.
+	(c_flt_eval_method): Likewise.
+	* c-common.h (excess_precision_mode_join): New.
+	(c_flt_eval_method): Likewise.
+	* c-cppbuiltin.c (c_cpp_flt_eval_method_iec_559): New.
+	(cpp_iec_559_value): Call it.
+	(c_cpp_builtins): Modify logic for __LIBGCC_*_EXCESS_PRECISION__,
+	call c_flt_eval_method to set __FLT_EVAL_METHOD__ and
+	__FLT_EVAL_METHOD_TS_18661_3__.
+
+2016-11-23  James Greenhalgh  <james.greenhalgh@arm.com>
+
+	* c-opts.c (c_common_post_options): Add logic to handle the default
+	case for -fpermitted-flt-eval-methods.
+
+2016-11-23  Paolo Bonzini  <bonzini@gnu.org>
+
+	* c.opt (Wexpansion-to-defined): New.
+
+2016-11-23  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/78451
+	* c-pragma.c (handle_pragma_target): Don't replace
+	current_target_pragma, but chainon the new args to the current one.
+
+2016-11-22  Nathan Sidwell  <nathan@acm.org>
+
+	* array-notation-common.c (cilkplus_extract_an_trplets): Fix
+	indentation and formatting.
+
+2016-11-21  Martin Sebor  <msebor@redhat.com>
+
+	* c.opt (-fprintf-return-value): Enable by default.
+
+2016-11-21  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	PR c++/71973
+	* c.opt (-Wbuiltin-declaration-mismatch): New warning.
+	* c-common.c (c_common_nodes_and_builtins): Initialize
+	const_tm_ptr_type_node.
+
+2016-11-16  Marek Polacek  <polacek@redhat.com>
+
+	PR c/78285
+	* c-common.c (c_add_case_label): Turn error_at calls into inform.
+
 2016-11-14  Jakub Jelinek  <jakub@redhat.com>
 
 	* c-cppbuiltin.c (c_cpp_builtins): Define __cpp_structured_bindings.

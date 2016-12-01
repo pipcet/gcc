@@ -82,6 +82,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "target.h"
 #include "rtl.h"
 #include "tree.h"
+#include "cfghooks.h"
 #include "predict.h"
 #include "df.h"
 #include "memmodel.h"
@@ -2870,8 +2871,8 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 	  rtx outer = SET_SRC (temp_expr);
 
 	  wide_int o
-	    = wi::insert (std::make_pair (outer, GET_MODE (SET_DEST (temp_expr))),
-			  std::make_pair (inner, GET_MODE (dest)),
+	    = wi::insert (rtx_mode_t (outer, GET_MODE (SET_DEST (temp_expr))),
+			  rtx_mode_t (inner, GET_MODE (dest)),
 			  offset, width);
 
 	  combine_merges++;
@@ -4620,6 +4621,25 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
       update_cfg_for_uncondjump (undobuf.other_insn);
     }
 
+  if (GET_CODE (PATTERN (i3)) == TRAP_IF
+      && XEXP (PATTERN (i3), 0) == const1_rtx)
+    {
+      basic_block bb = BLOCK_FOR_INSN (i3);
+      gcc_assert (bb);
+      remove_edge (split_block (bb, i3));
+      *new_direct_jump_p = 1;
+    }
+
+  if (undobuf.other_insn
+      && GET_CODE (PATTERN (undobuf.other_insn)) == TRAP_IF
+      && XEXP (PATTERN (undobuf.other_insn), 0) == const1_rtx)
+    {
+      basic_block bb = BLOCK_FOR_INSN (undobuf.other_insn);
+      gcc_assert (bb);
+      remove_edge (split_block (bb, undobuf.other_insn));
+      *new_direct_jump_p = 1;
+    }
+
   /* A noop might also need cleaning up of CFG, if it comes from the
      simplification of a jump.  */
   if (JUMP_P (i3)
@@ -5479,6 +5499,21 @@ subst (rtx x, rtx from, rtx to, int in_dest, int in_cond, int unique_copy)
   return x;
 }
 
+/* If X is a commutative operation whose operands are not in the canonical
+   order, use substitutions to swap them.  */
+
+static void
+maybe_swap_commutative_operands (rtx x)
+{
+  if (COMMUTATIVE_ARITH_P (x)
+      && swap_commutative_operands_p (XEXP (x, 0), XEXP (x, 1)))
+    {
+      rtx temp = XEXP (x, 0);
+      SUBST (XEXP (x, 0), XEXP (x, 1));
+      SUBST (XEXP (x, 1), temp);
+    }
+}
+
 /* Simplify X, a piece of RTL.  We just operate on the expression at the
    outer level; call `subst' to simplify recursively.  Return the new
    expression.
@@ -5498,13 +5533,7 @@ combine_simplify_rtx (rtx x, machine_mode op0_mode, int in_dest,
 
   /* If this is a commutative operation, put a constant last and a complex
      expression first.  We don't need to do this for comparisons here.  */
-  if (COMMUTATIVE_ARITH_P (x)
-      && swap_commutative_operands_p (XEXP (x, 0), XEXP (x, 1)))
-    {
-      temp = XEXP (x, 0);
-      SUBST (XEXP (x, 0), XEXP (x, 1));
-      SUBST (XEXP (x, 1), temp);
-    }
+  maybe_swap_commutative_operands (x);
 
   /* Try to fold this expression in case we have constants that weren't
      present before.  */
@@ -6513,14 +6542,22 @@ simplify_if_then_else (rtx x)
       simplify_shift_const (NULL_RTX, ASHIFT, mode,
 			    gen_lowpart (mode, XEXP (cond, 0)), i);
 
-  /* (IF_THEN_ELSE (NE REG 0) (0) (8)) is REG for nonzero_bits (REG) == 8.  */
+  /* (IF_THEN_ELSE (NE A 0) C1 0) is A or a zero-extend of A if the only
+     non-zero bit in A is C1.  */
   if (true_code == NE && XEXP (cond, 1) == const0_rtx
       && false_rtx == const0_rtx && CONST_INT_P (true_rtx)
-      && GET_MODE (XEXP (cond, 0)) == mode
+      && INTEGRAL_MODE_P (GET_MODE (XEXP (cond, 0)))
       && (UINTVAL (true_rtx) & GET_MODE_MASK (mode))
-	  == nonzero_bits (XEXP (cond, 0), mode)
+	  == nonzero_bits (XEXP (cond, 0), GET_MODE (XEXP (cond, 0)))
       && (i = exact_log2 (UINTVAL (true_rtx) & GET_MODE_MASK (mode))) >= 0)
-    return XEXP (cond, 0);
+    {
+      rtx val = XEXP (cond, 0);
+      enum machine_mode val_mode = GET_MODE (val);
+      if (val_mode == mode)
+        return val;
+      else if (GET_MODE_PRECISION (val_mode) < GET_MODE_PRECISION (mode))
+        return simplify_gen_unary (ZERO_EXTEND, mode, val, val_mode);
+    }
 
   return x;
 }
@@ -7373,6 +7410,7 @@ make_extraction (machine_mode mode, rtx inner, HOST_WIDE_INT pos,
   if (tmode != BLKmode
       && ((pos_rtx == 0 && (pos % BITS_PER_WORD) == 0
 	   && !MEM_P (inner)
+	   && (pos == 0 || REG_P (inner))
 	   && (inner_mode == tmode
 	       || !REG_P (inner)
 	       || TRULY_NOOP_TRUNCATION_MODES_P (tmode, inner_mode)
@@ -7449,10 +7487,9 @@ make_extraction (machine_mode mode, rtx inner, HOST_WIDE_INT pos,
 	}
       else
 	new_rtx = force_to_mode (inner, tmode,
-			     len >= HOST_BITS_PER_WIDE_INT
-			     ? HOST_WIDE_INT_M1U
-			     : (HOST_WIDE_INT_1U << len) - 1,
-			     0);
+				 len >= HOST_BITS_PER_WIDE_INT
+				 ? HOST_WIDE_INT_M1U
+				 : (HOST_WIDE_INT_1U << len) - 1, 0);
 
       /* If this extraction is going into the destination of a SET,
 	 make a STRICT_LOW_PART unless we made a MEM.  */
@@ -7744,55 +7781,38 @@ extract_left_shift (rtx x, int count)
   return 0;
 }
 
-/* Look at the expression rooted at X.  Look for expressions
-   equivalent to ZERO_EXTRACT, SIGN_EXTRACT, ZERO_EXTEND, SIGN_EXTEND.
-   Form these expressions.
+/* Subroutine of make_compound_operation.  *X_PTR is the rtx at the current
+   level of the expression and MODE is its mode.  IN_CODE is as for
+   make_compound_operation.  *NEXT_CODE_PTR is the value of IN_CODE
+   that should be used when recursing on operands of *X_PTR.
 
-   Return the new rtx, usually just X.
+   There are two possible actions:
 
-   Also, for machines like the VAX that don't have logical shift insns,
-   try to convert logical to arithmetic shift operations in cases where
-   they are equivalent.  This undoes the canonicalizations to logical
-   shifts done elsewhere.
+   - Return null.  This tells the caller to recurse on *X_PTR with IN_CODE
+     equal to *NEXT_CODE_PTR, after which *X_PTR holds the final value.
 
-   We try, as much as possible, to re-use rtl expressions to save memory.
+   - Return a new rtx, which the caller returns directly.  */
 
-   IN_CODE says what kind of expression we are processing.  Normally, it is
-   SET.  In a memory address it is MEM.  When processing the arguments of
-   a comparison or a COMPARE against zero, it is COMPARE, or EQ if more
-   precisely it is an equality comparison against zero.  */
-
-rtx
-make_compound_operation (rtx x, enum rtx_code in_code)
+static rtx
+make_compound_operation_int (machine_mode mode, rtx *x_ptr,
+			     enum rtx_code in_code,
+			     enum rtx_code *next_code_ptr)
 {
+  rtx x = *x_ptr;
+  enum rtx_code next_code = *next_code_ptr;
   enum rtx_code code = GET_CODE (x);
-  machine_mode mode = GET_MODE (x);
   int mode_width = GET_MODE_PRECISION (mode);
   rtx rhs, lhs;
-  enum rtx_code next_code;
-  int i, j;
   rtx new_rtx = 0;
+  int i;
   rtx tem;
-  const char *fmt;
   bool equality_comparison = false;
-
-  /* PR rtl-optimization/70944.  */
-  if (VECTOR_MODE_P (mode))
-    return x;
-
-  /* Select the code to be used in recursive calls.  Once we are inside an
-     address, we stay there.  If we have a comparison, set to COMPARE,
-     but once inside, go back to our default of SET.  */
 
   if (in_code == EQ)
     {
       equality_comparison = true;
       in_code = COMPARE;
     }
-  next_code = (code == MEM ? MEM
-	       : ((code == COMPARE || COMPARISON_P (x))
-		  && XEXP (x, 1) == const0_rtx) ? COMPARE
-	       : in_code == COMPARE ? SET : in_code);
 
   /* Process depending on the code of this operation.  If NEW is set
      nonzero, it will be returned.  */
@@ -7804,8 +7824,7 @@ make_compound_operation (rtx x, enum rtx_code in_code)
 	 an address.  */
       if (in_code == MEM && CONST_INT_P (XEXP (x, 1))
 	  && INTVAL (XEXP (x, 1)) < HOST_BITS_PER_WIDE_INT
-	  && INTVAL (XEXP (x, 1)) >= 0
-	  && SCALAR_INT_MODE_P (mode))
+	  && INTVAL (XEXP (x, 1)) >= 0)
 	{
 	  HOST_WIDE_INT count = INTVAL (XEXP (x, 1));
 	  HOST_WIDE_INT multval = HOST_WIDE_INT_1 << count;
@@ -7826,8 +7845,7 @@ make_compound_operation (rtx x, enum rtx_code in_code)
       rhs = XEXP (x, 1);
       lhs = make_compound_operation (lhs, next_code);
       rhs = make_compound_operation (rhs, next_code);
-      if (GET_CODE (lhs) == MULT && GET_CODE (XEXP (lhs, 0)) == NEG
-	  && SCALAR_INT_MODE_P (mode))
+      if (GET_CODE (lhs) == MULT && GET_CODE (XEXP (lhs, 0)) == NEG)
 	{
 	  tem = simplify_gen_binary (MULT, mode, XEXP (XEXP (lhs, 0), 0),
 				     XEXP (lhs, 1));
@@ -7846,22 +7864,20 @@ make_compound_operation (rtx x, enum rtx_code in_code)
 	{
 	  SUBST (XEXP (x, 0), lhs);
 	  SUBST (XEXP (x, 1), rhs);
-	  goto maybe_swap;
 	}
-      x = gen_lowpart (mode, new_rtx);
-      goto maybe_swap;
+      maybe_swap_commutative_operands (x);
+      return x;
 
     case MINUS:
       lhs = XEXP (x, 0);
       rhs = XEXP (x, 1);
       lhs = make_compound_operation (lhs, next_code);
       rhs = make_compound_operation (rhs, next_code);
-      if (GET_CODE (rhs) == MULT && GET_CODE (XEXP (rhs, 0)) == NEG
-	  && SCALAR_INT_MODE_P (mode))
+      if (GET_CODE (rhs) == MULT && GET_CODE (XEXP (rhs, 0)) == NEG)
 	{
 	  tem = simplify_gen_binary (MULT, mode, XEXP (XEXP (rhs, 0), 0),
 				     XEXP (rhs, 1));
-	  new_rtx = simplify_gen_binary (PLUS, mode, tem, lhs);
+	  return simplify_gen_binary (PLUS, mode, tem, lhs);
 	}
       else if (GET_CODE (rhs) == MULT
 	       && (CONST_INT_P (XEXP (rhs, 1)) && INTVAL (XEXP (rhs, 1)) < 0))
@@ -7870,7 +7886,7 @@ make_compound_operation (rtx x, enum rtx_code in_code)
 				     simplify_gen_unary (NEG, mode,
 							 XEXP (rhs, 1),
 							 mode));
-	  new_rtx = simplify_gen_binary (PLUS, mode, tem, lhs);
+	  return simplify_gen_binary (PLUS, mode, tem, lhs);
 	}
       else
 	{
@@ -7878,7 +7894,6 @@ make_compound_operation (rtx x, enum rtx_code in_code)
 	  SUBST (XEXP (x, 1), rhs);
 	  return x;
 	}
-      return gen_lowpart (mode, new_rtx);
 
     case AND:
       /* If the second operand is not a constant, we can't do anything
@@ -8102,12 +8117,19 @@ make_compound_operation (rtx x, enum rtx_code in_code)
 	/* If the SUBREG is masking of a logical right shift,
 	   make an extraction.  */
 	if (GET_CODE (inner) == LSHIFTRT
+	    && CONST_INT_P (XEXP (inner, 1))
 	    && GET_MODE_SIZE (mode) < GET_MODE_SIZE (GET_MODE (inner))
+	    && (UINTVAL (XEXP (inner, 1))
+		< GET_MODE_PRECISION (GET_MODE (inner)))
 	    && subreg_lowpart_p (x))
 	  {
 	    new_rtx = make_compound_operation (XEXP (inner, 0), next_code);
+	    int width = GET_MODE_PRECISION (GET_MODE (inner))
+			- INTVAL (XEXP (inner, 1));
+	    if (width > mode_width)
+	      width = mode_width;
 	    new_rtx = make_extraction (mode, new_rtx, 0, XEXP (inner, 1),
-				       mode_width, 1, 0, in_code == COMPARE);
+				       width, 1, 0, in_code == COMPARE);
 	    break;
 	  }
 
@@ -8171,15 +8193,60 @@ make_compound_operation (rtx x, enum rtx_code in_code)
     }
 
   if (new_rtx)
+    *x_ptr = gen_lowpart (mode, new_rtx);
+  *next_code_ptr = next_code;
+  return NULL_RTX;
+}
+
+/* Look at the expression rooted at X.  Look for expressions
+   equivalent to ZERO_EXTRACT, SIGN_EXTRACT, ZERO_EXTEND, SIGN_EXTEND.
+   Form these expressions.
+
+   Return the new rtx, usually just X.
+
+   Also, for machines like the VAX that don't have logical shift insns,
+   try to convert logical to arithmetic shift operations in cases where
+   they are equivalent.  This undoes the canonicalizations to logical
+   shifts done elsewhere.
+
+   We try, as much as possible, to re-use rtl expressions to save memory.
+
+   IN_CODE says what kind of expression we are processing.  Normally, it is
+   SET.  In a memory address it is MEM.  When processing the arguments of
+   a comparison or a COMPARE against zero, it is COMPARE, or EQ if more
+   precisely it is an equality comparison against zero.  */
+
+rtx
+make_compound_operation (rtx x, enum rtx_code in_code)
+{
+  enum rtx_code code = GET_CODE (x);
+  const char *fmt;
+  int i, j;
+  enum rtx_code next_code;
+  rtx new_rtx, tem;
+
+  /* Select the code to be used in recursive calls.  Once we are inside an
+     address, we stay there.  If we have a comparison, set to COMPARE,
+     but once inside, go back to our default of SET.  */
+
+  next_code = (code == MEM ? MEM
+	       : ((code == COMPARE || COMPARISON_P (x))
+		  && XEXP (x, 1) == const0_rtx) ? COMPARE
+	       : in_code == COMPARE || in_code == EQ ? SET : in_code);
+
+  if (SCALAR_INT_MODE_P (GET_MODE (x)))
     {
-      x = gen_lowpart (mode, new_rtx);
+      rtx new_rtx = make_compound_operation_int (GET_MODE (x), &x,
+						 in_code, &next_code);
+      if (new_rtx)
+	return new_rtx;
       code = GET_CODE (x);
     }
 
   /* Now recursively process each operand of this operation.  We need to
      handle ZERO_EXTEND specially so that we don't lose track of the
      inner mode.  */
-  if (GET_CODE (x) == ZERO_EXTEND)
+  if (code == ZERO_EXTEND)
     {
       new_rtx = make_compound_operation (XEXP (x, 0), next_code);
       tem = simplify_const_unary_operation (ZERO_EXTEND, GET_MODE (x),
@@ -8204,17 +8271,7 @@ make_compound_operation (rtx x, enum rtx_code in_code)
 	  SUBST (XVECEXP (x, i, j), new_rtx);
 	}
 
- maybe_swap:
-  /* If this is a commutative operation, the changes to the operands
-     may have made it noncanonical.  */
-  if (COMMUTATIVE_ARITH_P (x)
-      && swap_commutative_operands_p (XEXP (x, 0), XEXP (x, 1)))
-    {
-      tem = XEXP (x, 0);
-      SUBST (XEXP (x, 0), XEXP (x, 1));
-      SUBST (XEXP (x, 1), tem);
-    }
-
+  maybe_swap_commutative_operands (x);
   return x;
 }
 
@@ -9119,7 +9176,7 @@ if_then_else_cond (rtx x, rtx *ptrue, rtx *pfalse)
   /* If X is known to be either 0 or -1, those are the true and
      false values when testing X.  */
   else if (x == constm1_rtx || x == const0_rtx
-	   || (mode != VOIDmode
+	   || (mode != VOIDmode && mode != BLKmode
 	       && num_sign_bit_copies (x, mode) == GET_MODE_PRECISION (mode)))
     {
       *ptrue = constm1_rtx, *pfalse = const0_rtx;
@@ -11194,16 +11251,20 @@ change_zero_ext (rtx pat)
       else if (GET_CODE (x) == ZERO_EXTEND
 	       && SCALAR_INT_MODE_P (mode)
 	       && GET_CODE (XEXP (x, 0)) == SUBREG
-	       && GET_MODE (SUBREG_REG (XEXP (x, 0))) == mode
+	       && SCALAR_INT_MODE_P (GET_MODE (SUBREG_REG (XEXP (x, 0))))
+	       && !paradoxical_subreg_p (XEXP (x, 0))
 	       && subreg_lowpart_p (XEXP (x, 0)))
 	{
 	  size = GET_MODE_PRECISION (GET_MODE (XEXP (x, 0)));
 	  x = SUBREG_REG (XEXP (x, 0));
+	  if (GET_MODE (x) != mode)
+	    x = gen_lowpart_SUBREG (mode, x);
 	}
       else if (GET_CODE (x) == ZERO_EXTEND
 	       && SCALAR_INT_MODE_P (mode)
 	       && REG_P (XEXP (x, 0))
-	       && HARD_REGISTER_P (XEXP (x, 0)))
+	       && HARD_REGISTER_P (XEXP (x, 0))
+	       && can_change_dest_mode (XEXP (x, 0), 0, mode))
 	{
 	  size = GET_MODE_PRECISION (GET_MODE (XEXP (x, 0)));
 	  x = gen_rtx_REG (mode, REGNO (XEXP (x, 0)));
@@ -11220,16 +11281,7 @@ change_zero_ext (rtx pat)
 
   if (changed)
     FOR_EACH_SUBRTX_PTR (iter, array, src, NONCONST)
-      {
-	rtx x = **iter;
-	if (COMMUTATIVE_ARITH_P (x)
-	    && swap_commutative_operands_p (XEXP (x, 0), XEXP (x, 1)))
-	  {
-	    rtx tem = XEXP (x, 0);
-	    SUBST (XEXP (x, 0), XEXP (x, 1));
-	    SUBST (XEXP (x, 1), tem);
-	  }
-      }
+      maybe_swap_commutative_operands (**iter);
 
   rtx *dst = &SET_DEST (pat);
   if (GET_CODE (*dst) == ZERO_EXTRACT

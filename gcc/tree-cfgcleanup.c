@@ -42,6 +42,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-scalar-evolution.h"
 #include "gimple-match.h"
 #include "gimple-fold.h"
+#include "tree-ssa-loop-niter.h"
 
 
 /* The set of blocks in that at least one of the following changes happened:
@@ -230,6 +231,8 @@ cleanup_control_flow_bb (basic_block bb, bool first_p)
 	 edges which do not go to the right block.  For the one
 	 edge which goes to the right block, fix up its flags.  */
       label = TREE_OPERAND (gimple_goto_dest (stmt), 0);
+      if (DECL_CONTEXT (label) != cfun->decl)
+	return retval;
       target_block = label_to_block (label);
       for (ei = ei_start (bb->succs); (e = ei_safe_edge (ei)); )
 	{
@@ -882,6 +885,19 @@ remove_forwarder_block_with_phi (basic_block bb)
 	     splitting E so that we can merge PHI arguments on E to
 	     DEST.  */
 	  e = single_succ_edge (split_edge (e));
+	}
+      else
+	{
+	  /* If we merge the forwarder into a loop header verify if we
+	     are creating another loop latch edge.  If so, reset
+	     number of iteration information of the loop.  */
+	  if (dest->loop_father->header == dest
+	      && dominated_by_p (CDI_DOMINATORS, e->src, dest))
+	    {
+	      dest->loop_father->any_upper_bound = false;
+	      dest->loop_father->any_likely_upper_bound = false;
+	      free_numbers_of_iterations_estimates_loop (dest->loop_father);
+	    }
 	}
 
       s = redirect_edge_and_branch (e, dest);

@@ -744,6 +744,14 @@ finish_options (struct gcc_options *opts, struct gcc_options *opts_set,
       opts->x_flag_toplevel_reorder = 0;
     }
 
+  /* -fself-test depends on the state of the compiler prior to
+     compiling anything.  Ideally it should be run on an empty source
+     file.  However, in case we get run with actual source, assume
+     -fsyntax-only which will inhibit any compiler initialization
+     which may confuse the self tests.  */
+  if (opts->x_flag_self_test)
+    opts->x_flag_syntax_only = 1;
+
   if (opts->x_flag_tm && opts->x_flag_non_call_exceptions)
     sorry ("transactional memory is not supported with non-call exceptions");
 
@@ -1550,7 +1558,8 @@ parse_sanitizer_options (const char *p, location_t loc, int scode,
 		/* Do not enable -fsanitize-recover=unreachable and
 		   -fsanitize-recover=return if -fsanitize-recover=undefined
 		   is selected.  */
-		if (sanitizer_opts[i].flag == SANITIZE_UNDEFINED)
+		if (code == OPT_fsanitize_recover_
+		    && sanitizer_opts[i].flag == SANITIZE_UNDEFINED)
 		  flags |= (SANITIZE_UNDEFINED
 			    & ~(SANITIZE_UNREACHABLE | SANITIZE_RETURN));
 		else

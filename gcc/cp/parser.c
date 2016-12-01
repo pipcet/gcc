@@ -3028,8 +3028,9 @@ cp_parser_non_integral_constant_expression (cp_parser  *parser,
 	  switch (thing)
 	    {
   	      case NIC_FLOAT:
-		error ("floating-point literal "
-		       "cannot appear in a constant-expression");
+		pedwarn (input_location, OPT_Wpedantic,
+			 "ISO C++ forbids using a floating-point literal "
+			 "in a constant-expression");
 		return true;
 	      case NIC_CAST:
 		error ("a cast to a type other than an integral or "
@@ -4679,7 +4680,9 @@ cp_parser_fold_expression (cp_parser *parser, tree expr1)
   /* The operands of a fold-expression are cast-expressions, so binary or
      conditional expressions are not allowed.  We check this here to avoid
      tentative parsing.  */
-  if (is_binary_op (TREE_CODE (expr1)))
+  if (EXPR_P (expr1) && TREE_NO_WARNING (expr1))
+    /* OK, the expression was parenthesized.  */;
+  else if (is_binary_op (TREE_CODE (expr1)))
     error_at (location_of (expr1),
 	      "binary expression in operand of fold-expression");
   else if (TREE_CODE (expr1) == COND_EXPR)
@@ -11500,8 +11503,8 @@ cp_parser_range_for (cp_parser *parser, tree scope, tree init, tree range_decl,
 	      for (unsigned int i = 0; i < decomp_cnt; i++, d = DECL_CHAIN (d))
 		{
 		  tree name = DECL_NAME (d);
-		  names.quick_push (name);
-		  bindings.quick_push (IDENTIFIER_BINDING (name));
+		  names.safe_push (name);
+		  bindings.safe_push (IDENTIFIER_BINDING (name));
 		  IDENTIFIER_BINDING (name)
 		    = IDENTIFIER_BINDING (name)->previous;
 		}
@@ -11510,8 +11513,8 @@ cp_parser_range_for (cp_parser *parser, tree scope, tree init, tree range_decl,
       if (names.is_empty ())
 	{
 	  tree name = DECL_NAME (range_decl);
-	  names.quick_push (name);
-	  bindings.quick_push (IDENTIFIER_BINDING (name));
+	  names.safe_push (name);
+	  bindings.safe_push (IDENTIFIER_BINDING (name));
 	  IDENTIFIER_BINDING (name) = IDENTIFIER_BINDING (name)->previous;
 	}
     }

@@ -4293,9 +4293,13 @@ c_common_nodes_and_builtins (void)
 	}
 
   if (c_dialect_cxx ())
-    /* For C++, make fileptr_type_node a distinct void * type until
-       FILE type is defined.  */
-    fileptr_type_node = build_variant_type_copy (ptr_type_node);
+    {
+      /* For C++, make fileptr_type_node a distinct void * type until
+	 FILE type is defined.  */
+      fileptr_type_node = build_variant_type_copy (ptr_type_node);
+      /* Likewise for const struct tm*.  */
+      const_tm_ptr_type_node = build_variant_type_copy (const_ptr_type_node);
+    }
 
   record_builtin_type (RID_VOID, NULL, void_type_node);
 
@@ -4471,8 +4475,6 @@ c_common_nodes_and_builtins (void)
 
   default_function_type
     = build_varargs_function_type_list (integer_type_node, NULL_TREE);
-  ptrdiff_type_node
-    = TREE_TYPE (identifier_global_value (get_identifier (PTRDIFF_TYPE)));
   unsigned_ptrdiff_type_node = c_common_unsigned_type (ptrdiff_type_node);
 
   lang_hooks.decls.pushdecl
@@ -4968,19 +4970,19 @@ c_add_case_label (location_t loc, splay_tree cases, tree cond, tree orig_type,
       if (high_value)
 	{
 	  error_at (loc, "duplicate (or overlapping) case value");
-	  error_at (DECL_SOURCE_LOCATION (duplicate),
-		    "this is the first entry overlapping that value");
+	  inform (DECL_SOURCE_LOCATION (duplicate),
+		  "this is the first entry overlapping that value");
 	}
       else if (low_value)
 	{
 	  error_at (loc, "duplicate case value") ;
-	  error_at (DECL_SOURCE_LOCATION (duplicate), "previously used here");
+	  inform (DECL_SOURCE_LOCATION (duplicate), "previously used here");
 	}
       else
 	{
 	  error_at (loc, "multiple default labels in one switch");
-	  error_at (DECL_SOURCE_LOCATION (duplicate),
-		    "this is the first default label");
+	  inform (DECL_SOURCE_LOCATION (duplicate),
+		  "this is the first default label");
 	}
       goto error_out;
     }
@@ -7944,6 +7946,88 @@ cb_get_suggestion (cpp_reader *, const char *goal,
   while (*candidates)
     bm.consider (*candidates++);
   return bm.get_best_meaningful_candidate ();
+}
+
+/* Return the latice point which is the wider of the two FLT_EVAL_METHOD
+   modes X, Y.  This isn't just  >, as the FLT_EVAL_METHOD values added
+   by C TS 18661-3 for interchange  types that are computed in their
+   native precision are larger than the C11 values for evaluating in the
+   precision of float/double/long double.  If either mode is
+   FLT_EVAL_METHOD_UNPREDICTABLE, return that.  */
+
+enum flt_eval_method
+excess_precision_mode_join (enum flt_eval_method x,
+			    enum flt_eval_method y)
+{
+  if (x == FLT_EVAL_METHOD_UNPREDICTABLE
+      || y == FLT_EVAL_METHOD_UNPREDICTABLE)
+    return FLT_EVAL_METHOD_UNPREDICTABLE;
+
+  /* GCC only supports one interchange type right now, _Float16.  If
+     we're evaluating _Float16 in 16-bit precision, then flt_eval_method
+     will be FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16.  */
+  if (x == FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16)
+    return y;
+  if (y == FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16)
+    return x;
+
+  /* Other values for flt_eval_method are directly comparable, and we want
+     the maximum.  */
+  return MAX (x, y);
+}
+
+/* Return the value that should be set for FLT_EVAL_METHOD in the
+   context of ISO/IEC TS 18861-3.
+
+   This relates to the effective excess precision seen by the user,
+   which is the join point of the precision the target requests for
+   -fexcess-precision={standard,fast} and the implicit excess precision
+   the target uses.  */
+
+static enum flt_eval_method
+c_ts18661_flt_eval_method (void)
+{
+  enum flt_eval_method implicit
+    = targetm.c.excess_precision (EXCESS_PRECISION_TYPE_IMPLICIT);
+
+  enum excess_precision_type flag_type
+    = (flag_excess_precision_cmdline == EXCESS_PRECISION_STANDARD
+       ? EXCESS_PRECISION_TYPE_STANDARD
+       : EXCESS_PRECISION_TYPE_FAST);
+
+  enum flt_eval_method requested
+    = targetm.c.excess_precision (flag_type);
+
+  return excess_precision_mode_join (implicit, requested);
+}
+
+/* As c_cpp_ts18661_flt_eval_method, but clamps the expected values to
+   those that were permitted by C11.  That is to say, eliminates
+   FLT_EVAL_METHOD_PROMOTE_TO_FLOAT16.  */
+
+static enum flt_eval_method
+c_c11_flt_eval_method (void)
+{
+  return excess_precision_mode_join (c_ts18661_flt_eval_method (),
+				     FLT_EVAL_METHOD_PROMOTE_TO_FLOAT);
+}
+
+/* Return the value that should be set for FLT_EVAL_METHOD.
+   MAYBE_C11_ONLY_P is TRUE if we should check
+   FLAG_PERMITTED_EVAL_METHODS as to whether we should limit the possible
+   values we can return to those from C99/C11, and FALSE otherwise.
+   See the comments on c_ts18661_flt_eval_method for what value we choose
+   to set here.  */
+
+int
+c_flt_eval_method (bool maybe_c11_only_p)
+{
+  if (maybe_c11_only_p
+      && flag_permitted_flt_eval_methods
+	  == PERMITTED_FLT_EVAL_METHODS_C11)
+    return c_c11_flt_eval_method ();
+  else
+    return c_ts18661_flt_eval_method ();
 }
 
 #include "gt-c-family-c-common.h"

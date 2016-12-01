@@ -2647,7 +2647,7 @@ ira_update_equiv_info_by_shuffle_insn (int to_regno, int from_regno, rtx_insn *i
 	}
       if (find_reg_note (insn, REG_EQUIV, x) == NULL_RTX)
 	{
-	  note = set_unique_reg_note (insn, REG_EQUIV, x);
+	  note = set_unique_reg_note (insn, REG_EQUIV, copy_rtx (x));
 	  gcc_assert (note != NULL_RTX);
 	  if (internal_flag_ira_verbose > 3 && ira_dump_file != NULL)
 	    {
@@ -3669,6 +3669,11 @@ combine_and_move_insns (void)
       if (JUMP_P (use_insn))
 	continue;
 
+      /* Also don't substitute into a conditional trap insn -- it can become
+	 an unconditional trap, and that is a flow control insn.  */
+      if (GET_CODE (PATTERN (use_insn)) == TRAP_IF)
+	continue;
+
       df_ref def = DF_REG_DEF_CHAIN (regno);
       gcc_assert (DF_REG_DEF_COUNT (regno) == 1 && DF_REF_INSN_INFO (def));
       rtx_insn *def_insn = DF_REF_INSN (def);
@@ -3747,7 +3752,7 @@ combine_and_move_insns (void)
 	     use_insn, when regno was seen as non-local.  Now that
 	     regno is local to this block, and dies, such an
 	     equivalence is invalid.  */
-	  if (find_reg_note (use_insn, REG_EQUIV, NULL_RTX))
+	  if (find_reg_note (use_insn, REG_EQUIV, regno_reg_rtx[regno]))
 	    {
 	      rtx set = single_set (use_insn);
 	      if (set && REG_P (SET_DEST (set)))

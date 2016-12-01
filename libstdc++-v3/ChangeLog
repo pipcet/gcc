@@ -1,7 +1,181 @@
+2016-11-30  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Fix testsuite failures caused by the patch implementing LWG 2534.
+	* include/std/istream (__is_convertible_to_basic_istream):
+	Change the return types of __check, introduce istream_type.
+	(operator>>(_Istream&&, _Tp&&)):
+	Use __is_convertible_to_basic_istream::istream_type as the return type.
+	* include/std/ostream (__is_convertible_to_basic_ostream):
+	Change the return types of __check, introduce ostream_type.
+	(operator>>(_Ostream&&, _Tp&&)):
+	Use __is_convertible_to_basic_ostream::ostream_type as the return type.
+
+2016-11-30  Tim Shen  <timshen@google.com>
+
+	* include/bits/shared_ptr_base.h
+	(__shared_ptr_access<T, L, true, false>::operator*()): Fix assertion.
+
+2016-11-30  David Edelsohn  <dje.gcc@gmail.com>
+
+	* testsuite/18_support/50594.cc: XFAIL on AIX.
+	* testsuite/ext/mt_allocator/check_new.cc: Same.
+	* testsuite/ext/pool_allocator/check_new.cc: Same.
+	* testsuite/27_io/ios_base/storage/11584.cc: Same.
+
+2016-11-30  Ville Voutilainen  <ville.voutilainen@gmail.com>
+
+	Implement LWG 2534, Constrain rvalue stream operators.
+	* include/std/istream (__is_convertible_to_basic_istream): New.
+	(__is_extractable): Likewise.
+	(operator>>(basic_istream<_CharT, _Traits>&&, _Tp&&)):
+	Turn the stream parameter into a template parameter
+	and constrain.
+	* include/std/ostream (__is_convertible_to_basic_ostream): New.
+	(__is_insertable): Likewise.
+	(operator<<(basic_ostream<_CharT, _Traits>&&, const _Tp&)):
+	Turn the stream parameter into a template parameter
+	and constrain.
+	* testsuite/27_io/basic_istream/extractors_other/char/4.cc: New.
+	* testsuite/27_io/basic_istream/extractors_other/wchar_t/4.cc:
+	Likewise.
+	* testsuite/27_io/basic_ostream/inserters_other/char/6.cc: Likewise.
+	* testsuite/27_io/basic_ostream/inserters_other/wchar_t/6.cc: Likewise.
+
+2016-11-30  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* testsuite/experimental/type_erased_allocator/2.cc: Add
+	dg-require-thread-fence.
+
+2016-11-29  David Edelsohn  <dje.gcc@gmail.com>
+
+	PR libstdc++/68838
+	* testsuite/lib/libstdc++.exp (DEFAULT_CXXFLAGS): Add -Wl,-bmaxdata on
+	AIX.
+	* testsuite/23_containers/vector/profile/vector.cc: Remove
+	dg-additional-options.
+
+2016-11-26  Tim Shen  <timshen@google.com>
+
+	PR libstdc++/78441
+	* include/std/variant: Propagate cv qualifications to types returned
+	by variant_alternative.
+	* testsuite/20_util/variant/compile.cc: Tests.
+
+2016-11-23  Felix Morgner  <felix.morgner@gmail.com>
+	    Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/78490
+	* include/experimental/propagate_const (propagate_const::operator=):
+	Add missing return statements.
+	* testsuite/experimental/propagate_const/assignment/move_neg.cc:
+	Adjust dg-error line numbers.
+	* testsuite/experimental/propagate_const/requirements2.cc: Likewise.
+
+2016-11-22  Uros Bizjak  <ubizjak@gmail.com>
+
+	* testsuite/Makefile.am
+	(check-DEJAGNU $(check_DEJAGNU_normal_targets)): Fix detection
+	of -j argument.
+	* testsuite/Makefile.in: Regenereate.
+
+2016-11-22  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/78465
+	* testsuite/29_atomics/headers/atomic/macros.cc: Replace runtime tests
+	with preprocessor conditions.
+
+2016-11-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* acinclude.m4 (GLIBCXX_CHECK_MATH11_PROTO): Update comments.
+	(__CORRECT_ISO_CPP11_MATH_H_PROTO): Rename to ...
+	(__CORRECT_ISO_CPP11_MATH_H_PROTO_FP): ... this.
+	Add test for C++11 <math.h> integral overloads.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+
+	* include/c_global/cmath [__cplusplus >= 201103L]: Reflect
+	__CORRECT_ISO_CPP11_MATH_H_PROTO to
+	__CORRECT_ISO_CPP11_MATH_H_PROTO_FP rename.
+	* include/c_global/cmath [_GLIBCXX_USE_C99_MATH &&
+	!_GLIBCXX_USE_C99_FP_MACROS_DYNAMIC && __cplusplus >= 201103L]
+	(std::fpclassify): Wrap in !__CORRECT_ISO_CPP11_MATH_H_PROTO_INT.
+	(std::isfinite): Likewise.
+	(std::isinf): Likewise.
+	(std::isnan): Likewise.
+	(std::isnormal): Likewise.
+	(std::signbit): Likewise.
+	(std::isgreater): Likewise.
+	(std::isgreaterequal): Likewise.
+	(std::isless): Likewise.
+	(std::islessequal): Likewise.
+	(std::islessgreater): Likewise.
+	(std::isunordered): Likewise.
+	[__cplusplus >= 201103L && _GLIBCXX_USE_C99_MATH_TR1]
+	(std::acosh): Likewise.
+	(std::asinh): Likewise.
+	(std::atanh): Likewise.
+	(std::cbrt): Likewise.
+	(std::copysign): Likewise.
+	(std::erf): Likewise.
+	(std::erfc): Likewise.
+	(std::exp2): Likewise.
+	(std::expm1): Likewise.
+	(std::fdim): Likewise.
+	(std::fma): Likewise.
+	(std::fmax): Likewise.
+	(std::fmin): Likewise.
+	(std::hypot): Likewise.
+	(std::ilogb): Likewise.
+	(std::lgamma): Likewise.
+	(std::llrint): Likewise.
+	(std::llround): Likewise.
+	(std::log1p): Likewise.
+	(std::log2): Likewise.
+	(std::logb): Likewise.
+	(std::lrint): Likewise.
+	(std::lround): Likewise.
+	(std::nearbyint): Likewise.
+	(std::nextafter): Likewise.
+	(std::nexttoward): Likewise.
+	(std::remainder): Likewise.
+	(std::remquo): Likewise.
+	(std::rint): Likewise.
+	(std::round): Likewise.
+	(std::scalbln): Likewise.
+	(std::scalbn): Likewise.
+	(std::tgamma): Likewise.
+	(std::trunc): Likewise.
+	* include/tr1/cmath [_GLIBCXX_USE_C99_MATH_TR1 && __cplusplus >=
+	201103L]: Reflect __CORRECT_ISO_CPP11_MATH_H_PROTO to
+	__CORRECT_ISO_CPP11_MATH_H_PROTO_FP rename.
+
+2016-11-15  Jonathan Wakely  <jwakely@redhat.com>
+
+	PR libstdc++/59406
+	* include/bits/functional_hash.h: Add comment noting difference from
+	FNV-1a.
+	* include/tr1/functional_hash.h: Likewise.
+	* libsupc++/hash_bytes.cc: Likewise.
+
+	* include/bits/basic_string.h: Reuse _If_sv alias template for new
+	constructor.
+
+	* doc/xml/manual/intro.xml: Document LWG 2770 status. Remove entries
+	for 2742 and 2748.
+	* doc/html/*: Regenerate.
+	* include/std/utility (__tuple_size_cv_impl): New helper to safely
+	detect tuple_size<T>::value, as per LWG 2770.
+	(tuple_size<cv T>): Adjust partial specializations to derive from
+	__tuple_size_cv_impl.
+	* testsuite/20_util/tuple/cv_tuple_size.cc: Test SFINAE-friendliness.
+
+	* testsuite/libstdc++-prettyprinters/cxx17.cc: Adjust test for
+	variant<T&>.
+
 2016-11-15  Tim Shen  <timshen@google.com>
 
-	* include/std/variant: Remove variant<T&>, variant<void>, variant<> support
-	to rebase on the post-Issaquah design.
+	* include/std/variant: Remove variant<T&>, variant<void>, variant<>
+	support to rebase on the post-Issaquah design.
 	* testsuite/20_util/variant/compile.cc: Likewise.
 
 2016-11-15  Matthias Klose  <doko@ubuntu.com>
@@ -7282,7 +7456,7 @@
 	(is_assignable_v, is_copy_assignable_v, is_move_assignable_v)
 	(is_destructible_v, is_trivially_constructible_v)
 	(is_trivially_default_constructible_v)
- 	(is_trivially_copy_constructible_v, is_trivially_move_constructible_v)
+	(is_trivially_copy_constructible_v, is_trivially_move_constructible_v)
 	(is_trivially_assignable_v, is_trivially_copy_assignable_v)
 	(is_trivially_move_assignable_v, is_trivially_destructible_v)
 	(is_nothrow_constructible_v, is_nothrow_default_constructible_v)

@@ -871,11 +871,13 @@ arc_override_options (void)
     optimize_size = 1;
 
   /* Compact casesi is not a valid option for ARCv2 family.  */
-  if (TARGET_V2
-      && TARGET_COMPACT_CASESI)
+  if (TARGET_V2)
     {
-      warning (0, "compact-casesi is not applicable to ARCv2");
-      TARGET_COMPACT_CASESI = 0;
+      if (TARGET_COMPACT_CASESI)
+	{
+	  warning (0, "compact-casesi is not applicable to ARCv2");
+	  TARGET_COMPACT_CASESI = 0;
+	}
     }
   else if (optimize_size == 1
 	   && !global_options_set.x_TARGET_COMPACT_CASESI)
@@ -1725,6 +1727,26 @@ gen_compare_reg (rtx comparison, machine_mode omode)
 				gen_rtx_COMPARE (mode,
 						 gen_rtx_REG (CC_FPXmode, 61),
 						 const0_rtx)));
+    }
+  else if (TARGET_FPX_QUARK && (cmode == SFmode))
+    {
+      switch (code)
+	{
+	case NE: case EQ: case GT: case UNLE: case GE: case UNLT:
+	case UNEQ: case LTGT: case ORDERED: case UNORDERED:
+	  break;
+	case LT: case UNGE: case LE: case UNGT:
+	  code = swap_condition (code);
+	  tmp = x;
+	  x = y;
+	  y = tmp;
+	  break;
+	default:
+	  gcc_unreachable ();
+	}
+
+      emit_insn (gen_cmp_quark (cc_reg,
+				gen_rtx_COMPARE (mode, x, y)));
     }
   else if (TARGET_HARD_FLOAT
 	   && ((cmode == SFmode && TARGET_FP_SP_BASE)
@@ -4100,9 +4122,8 @@ arc_ccfsm_post_advance (rtx_insn *insn, struct arc_ccfsm *state)
 	   && GET_CODE (PATTERN (insn)) != ADDR_VEC
 	   && GET_CODE (PATTERN (insn)) != ADDR_DIFF_VEC
 	   && ((type = get_attr_type (insn)) == TYPE_BRANCH
-	       || (type == TYPE_UNCOND_BRANCH
-		   /* ??? Maybe should also handle TYPE_RETURN here,
-		      but we don't have a testcase for that.  */
+	       || ((type == TYPE_UNCOND_BRANCH
+		    || type == TYPE_RETURN)
 		   && ARC_CCFSM_BRANCH_DELETED_P (state))))
     {
       if (ARC_CCFSM_BRANCH_DELETED_P (state))
@@ -6483,6 +6504,58 @@ arc_invalid_within_doloop (const rtx_insn *insn)
   return NULL;
 }
 
+/* Return true if a load instruction (CONSUMER) uses the same address as a
+   store instruction (PRODUCER).  This function is used to avoid st/ld
+   address hazard in ARC700 cores.  */
+bool
+arc_store_addr_hazard_p (rtx_insn* producer, rtx_insn* consumer)
+{
+  rtx in_set, out_set;
+  rtx out_addr, in_addr;
+
+  if (!producer)
+    return false;
+
+  if (!consumer)
+    return false;
+
+  /* Peel the producer and the consumer for the address.  */
+  out_set = single_set (producer);
+  if (out_set)
+    {
+      out_addr = SET_DEST (out_set);
+      if (!out_addr)
+	return false;
+      if (GET_CODE (out_addr) == ZERO_EXTEND
+	  || GET_CODE (out_addr) == SIGN_EXTEND)
+	out_addr = XEXP (out_addr, 0);
+
+      if (!MEM_P (out_addr))
+	return false;
+
+      in_set = single_set (consumer);
+      if (in_set)
+	{
+	  in_addr = SET_SRC (in_set);
+	  if (!in_addr)
+	    return false;
+	  if (GET_CODE (in_addr) == ZERO_EXTEND
+	      || GET_CODE (in_addr) == SIGN_EXTEND)
+	    in_addr = XEXP (in_addr, 0);
+
+	  if (!MEM_P (in_addr))
+	    return false;
+	  /* Get rid of the MEM and check if the addresses are
+	     equivalent.  */
+	  in_addr = XEXP (in_addr, 0);
+	  out_addr = XEXP (out_addr, 0);
+
+	  return exp_equiv_p (in_addr, out_addr, 0, true);
+	}
+    }
+  return false;
+}
+
 /* The same functionality as arc_hazard.  It is called in machine
    reorg before any other optimization.  Hence, the NOP size is taken
    into account when doing branch shortening.  */
@@ -6499,6 +6572,29 @@ workaround_arc_anomaly (void)
       if (arc_hazard (insn, succ0))
 	{
 	  emit_insn_before (gen_nopv (), succ0);
+	}
+    }
+
+  if (TARGET_ARC700)
+    {
+      rtx_insn *succ1;
+
+      for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
+	{
+	  succ0 = next_real_insn (insn);
+	  if (arc_store_addr_hazard_p (insn, succ0))
+	    {
+	      emit_insn_after (gen_nopv (), insn);
+	      emit_insn_after (gen_nopv (), insn);
+	      continue;
+	    }
+
+	  /* Avoid adding nops if the instruction between the ST and LD is
+	     a call or jump.  */
+	  succ1 = next_real_insn (succ0);
+	  if (succ0 && !JUMP_P (succ0) && !CALL_P (succ0)
+	      && arc_store_addr_hazard_p (insn, succ1))
+	    emit_insn_after (gen_nopv (), insn);
 	}
     }
 }
@@ -7281,7 +7377,7 @@ arc_register_move_cost (machine_mode,
     return 8;
 
   /* Force an attempt to 'mov Dy,Dx' to spill.  */
-  if (TARGET_ARC700 && TARGET_DPFP
+  if ((TARGET_ARC700 || TARGET_EM) && TARGET_DPFP
       && from_class == DOUBLE_REGS && to_class == DOUBLE_REGS)
     return 100;
 
@@ -7812,7 +7908,7 @@ arc_loop_hazard (rtx_insn *pred, rtx_insn *succ)
     jump = pred;
   else if (GET_CODE (PATTERN (pred)) == SEQUENCE
 	   && JUMP_P (XVECEXP (PATTERN (pred), 0, 0)))
-    jump = as_a <rtx_insn *> XVECEXP (PATTERN (pred), 0, 0);
+    jump = as_a <rtx_insn *> (XVECEXP (PATTERN (pred), 0, 0));
   else
     return false;
 
@@ -9534,8 +9630,8 @@ emit_unlikely_jump (rtx insn)
 {
   int very_unlikely = REG_BR_PROB_BASE / 100 - 1;
 
-  insn = emit_jump_insn (insn);
-  add_int_reg_note (insn, REG_BR_PROB, very_unlikely);
+  rtx_insn *jump = emit_jump_insn (insn);
+  add_int_reg_note (jump, REG_BR_PROB, very_unlikely);
 }
 
 /* Expand code to perform a 8 or 16-bit compare and swap by doing

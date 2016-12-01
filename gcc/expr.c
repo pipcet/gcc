@@ -109,7 +109,7 @@ static HOST_WIDE_INT int_expr_size (tree);
 void
 init_expr_target (void)
 {
-  rtx insn, pat;
+  rtx pat;
   machine_mode mode;
   int num_clobbers;
   rtx mem, mem1;
@@ -125,7 +125,7 @@ init_expr_target (void)
      useless RTL allocations.  */
   reg = gen_rtx_REG (word_mode, LAST_VIRTUAL_REGISTER + 1);
 
-  insn = rtx_alloc (INSN);
+  rtx_insn *insn = as_a<rtx_insn *> (rtx_alloc (INSN));
   pat = gen_rtx_SET (NULL_RTX, NULL_RTX);
   PATTERN (insn) = pat;
 
@@ -652,7 +652,7 @@ convert_modes (machine_mode mode, machine_mode oldmode, rtx x, int unsignedp)
 	 assume that all the bits are significant.  */
       if (GET_MODE_CLASS (oldmode) != MODE_INT)
 	oldmode = MAX_MODE_INT;
-      wide_int w = wide_int::from (std::make_pair (x, oldmode),
+      wide_int w = wide_int::from (rtx_mode_t (x, oldmode),
 				   GET_MODE_PRECISION (mode),
 				   unsignedp ? UNSIGNED : SIGNED);
       return immed_wide_int_const (w, mode);
@@ -2175,19 +2175,22 @@ emit_group_load_1 (rtx *tmps, rtx dst, rtx orig_src, tree type, int ssize)
 	{
 	  unsigned int slen = GET_MODE_SIZE (GET_MODE (src));
 	  unsigned int slen0 = GET_MODE_SIZE (GET_MODE (XEXP (src, 0)));
+	  unsigned int elt = bytepos / slen0;
+	  unsigned int subpos = bytepos % slen0;
 
-	  if ((bytepos == 0 && bytelen == slen0)
-	      || (bytepos != 0 && bytepos + bytelen <= slen))
+	  if (subpos + bytelen <= slen0)
 	    {
 	      /* The following assumes that the concatenated objects all
 		 have the same size.  In this case, a simple calculation
 		 can be used to determine the object and the bit field
 		 to be extracted.  */
-	      tmps[i] = XEXP (src, bytepos / slen0);
-	      if (! CONSTANT_P (tmps[i])
-		  && (!REG_P (tmps[i]) || GET_MODE (tmps[i]) != mode))
+	      tmps[i] = XEXP (src, elt);
+	      if (subpos != 0
+		  || subpos + bytelen != slen0
+		  || (!CONSTANT_P (tmps[i])
+		      && (!REG_P (tmps[i]) || GET_MODE (tmps[i]) != mode)))
 		tmps[i] = extract_bit_field (tmps[i], bytelen * BITS_PER_UNIT,
-					     (bytepos % slen0) * BITS_PER_UNIT,
+					     subpos * BITS_PER_UNIT,
 					     1, NULL_RTX, mode, mode, false);
 	    }
 	  else

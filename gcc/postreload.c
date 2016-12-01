@@ -290,13 +290,13 @@ reload_cse_simplify_set (rtx set, rtx_insn *insn)
 	      switch (extend_op)
 		{
 		case ZERO_EXTEND:
-		  result = wide_int::from (std::make_pair (this_rtx,
-							   GET_MODE (src)),
+		  result = wide_int::from (rtx_mode_t (this_rtx,
+						       GET_MODE (src)),
 					   BITS_PER_WORD, UNSIGNED);
 		  break;
 		case SIGN_EXTEND:
-		  result = wide_int::from (std::make_pair (this_rtx,
-							   GET_MODE (src)),
+		  result = wide_int::from (rtx_mode_t (this_rtx,
+						       GET_MODE (src)),
 					   BITS_PER_WORD, SIGNED);
 		  break;
 		default:
@@ -1192,10 +1192,11 @@ reload_combine_recognize_pattern (rtx_insn *insn)
 	      /* Delete the reg-reg addition.  */
 	      delete_insn (insn);
 
-	      if (reg_state[regno].offset != const0_rtx)
-		/* Previous REG_EQUIV / REG_EQUAL notes for PREV
-		   are now invalid.  */
-		remove_reg_equal_equiv_notes (prev);
+	      if (reg_state[regno].offset != const0_rtx
+		  /* Previous REG_EQUIV / REG_EQUAL notes for PREV
+		     are now invalid.  */
+		  && remove_reg_equal_equiv_notes (prev))
+		df_notes_rescan (prev);
 
 	      reg_state[regno].use_index = RELOAD_COMBINE_MAX_USES;
 	      return true;

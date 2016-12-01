@@ -1279,9 +1279,11 @@ enum data_align { align_abi, align_opt, align_both };
    enough space to account for vectors in FP regs.  However, TFmode/TDmode
    should not use VSX instructions to do a caller save. */
 #define HARD_REGNO_CALLER_SAVE_MODE(REGNO, NREGS, MODE)			\
-  (TARGET_VSX								\
-   && ((MODE) == VOIDmode || ALTIVEC_OR_VSX_VECTOR_MODE (MODE))		\
-   && FP_REGNO_P (REGNO)						\
+  ((NREGS) <= rs6000_hard_regno_nregs[MODE][REGNO]			\
+   ? (MODE)								\
+   : TARGET_VSX								\
+     && ((MODE) == VOIDmode || ALTIVEC_OR_VSX_VECTOR_MODE (MODE))	\
+     && FP_REGNO_P (REGNO)						\
    ? V2DFmode								\
    : TARGET_E500_DOUBLE && (MODE) == SImode				\
    ? SImode								\
@@ -1724,25 +1726,35 @@ extern enum reg_class rs6000_constraints[RS6000_CONSTRAINT_MAX];
 
    On the RS/6000, the frame pointer is the same as the stack pointer,
    except for dynamic allocations.  So we start after the fixed area and
-   outgoing parameter area.  */
+   outgoing parameter area.
+
+   If the function uses dynamic stack space (CALLS_ALLOCA is set), that
+   space needs to be aligned to STACK_BOUNDARY, i.e. the sum of the
+   sizes of the fixed area and the parameter area must be a multiple of
+   STACK_BOUNDARY.  */
 
 #define STARTING_FRAME_OFFSET						\
   (FRAME_GROWS_DOWNWARD							\
    ? 0									\
-   : (RS6000_ALIGN (crtl->outgoing_args_size,				\
-		    (TARGET_ALTIVEC || TARGET_VSX) ? 16 : 8)		\
-      + RS6000_SAVE_AREA))
+   : (cfun->calls_alloca						\
+      ? (RS6000_ALIGN (crtl->outgoing_args_size + RS6000_SAVE_AREA,	\
+		       (TARGET_ALTIVEC || TARGET_VSX) ? 16 : 8 ))	\
+      : (RS6000_ALIGN (crtl->outgoing_args_size,			\
+		       (TARGET_ALTIVEC || TARGET_VSX) ? 16 : 8)		\
+	 + RS6000_SAVE_AREA)))
 
 /* Offset from the stack pointer register to an item dynamically
    allocated on the stack, e.g., by `alloca'.
 
    The default value for this macro is `STACK_POINTER_OFFSET' plus the
    length of the outgoing arguments.  The default is correct for most
-   machines.  See `function.c' for details.  */
+   machines.  See `function.c' for details.
+
+   This value must be a multiple of STACK_BOUNDARY (hard coded in
+   `emit-rtl.c').  */
 #define STACK_DYNAMIC_OFFSET(FUNDECL)					\
-  (RS6000_ALIGN (crtl->outgoing_args_size,				\
-		 (TARGET_ALTIVEC || TARGET_VSX) ? 16 : 8)		\
-   + (STACK_POINTER_OFFSET))
+  RS6000_ALIGN (crtl->outgoing_args_size + STACK_POINTER_OFFSET,	\
+		(TARGET_ALTIVEC || TARGET_VSX) ? 16 : 8)
 
 /* If we generate an insn to push BYTES bytes,
    this says how many the stack pointer really advances by.
