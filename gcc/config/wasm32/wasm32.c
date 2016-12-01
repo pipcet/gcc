@@ -978,6 +978,7 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
   case FLOAT_TRUNCATE:
   case FLOAT_EXTEND:
   case FIX:
+  case UNSIGNED_FIX:
   case NEG:
   case NOT:
     return wasm32_print_op (stream, x);
@@ -1290,6 +1291,11 @@ struct wasm32_operator wasm32_operators[] = {
   {
     FIX, DFmode, SImode,
     NULL, "i32.trunc_s_f64",
+    1
+  },
+  {
+    UNSIGNED_FIX, DFmode, SImode,
+    NULL, "i32.trunc_u_f64",
     1
   },
   {

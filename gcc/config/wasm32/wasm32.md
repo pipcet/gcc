@@ -619,7 +619,7 @@
 ;; XXX
 (define_expand "fixunsdfsi"
   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-        (fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
+        (unsigned_fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
   ""
   "")
 
@@ -632,7 +632,7 @@
 ;; XXX
 (define_expand "fixunsdfsi2"
   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-        (fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
+        (unsigned_fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
   ""
   "")
 
