@@ -7,9 +7,10 @@
         .local $rp, $fp, $sp
         .local $r2, $r3, $r4, $r5, $r6, $r7
         .local $i0, $i1, $i2, $i3, $i4, $i5, $i6, $i7
-        .local $f0, $f1, $f2, $f3, $f4, $f5, $f6
+        .local $f0, $f1, $f2, $f3, $f4, $f5, $f6, $f7
         .local $rv, $a0, $a1, $a2, $a3, $tp
         .set __wasm_counter, 0
+        ;; local/"register" names. The first six are arguments.
         .set $dpc, 0
         .set $sp1, 1
         .set $r0, 2
@@ -40,15 +41,17 @@
         .set $f4, 27
         .set $f5, 28
         .set $f6, 29
-        .eqv $f7, 30
-
+        .set $f7, 30
+        ;; in-memory per-thread globals
         .set $rv, 4096
         .set $a0, 4104
         .set $a1, 4112
         .set $a2, 4120
         .set $a3, 4128
         .set $tp, 8192
-
+        ;; per-instance get_global/set_global globals
+        .set $got, 0
+        .set $plt, 1
         .macro .flush
         i32.const .LFl\@
         set_local $dpc

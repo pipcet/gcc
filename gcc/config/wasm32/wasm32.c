@@ -928,11 +928,27 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
   case SYMBOL_REF: {
     const char *name = XSTR (x, 0);
     if (!SYMBOL_REF_FUNCTION_P (x)) {
-      asm_fprintf (stream, "i32.const ");
-      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      if (flag_pic) {
+	asm_fprintf (stream, "get_global $got\n");
+	asm_fprintf (stream, "\ti32.const ");
+	asm_fprintf (stream, "%s@got\n", name + (name[0] == '*'));
+	asm_fprintf (stream, "\ti32.add\n\t");
+	asm_fprintf (stream, "i32.load a=2 0");
+      } else {
+	asm_fprintf (stream, "i32.const ");
+	asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      }
     } else if (in_section->common.flags & SECTION_CODE) {
-      asm_fprintf (stream, "i32.const ");
-      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      if (flag_pic) {
+	asm_fprintf (stream, "get_global $got\n");
+	asm_fprintf (stream, "i32.const ");
+	asm_fprintf (stream, "%s@got\n", name + (name[0] == '*'));
+	asm_fprintf (stream, "i32.add\n\t");
+	asm_fprintf (stream, "i32.load a=2 0");
+      } else {
+	asm_fprintf (stream, "i32.const ");
+	asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      }
     } else {
       asm_fprintf (stream, "BROKEN");
       asm_fprintf (stream, "i64.const ");
