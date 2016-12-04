@@ -830,4 +830,4 @@
                           ] UNSPECV_THUNK_GOTO))
    ]
   ""
-  "i32.const 0\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti32.add\n\t%0\n\tcall[6] %L0\n\treturn[1]")
+  "i32.const 0\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti32.add\n\t%0\n\tcall[6] %L0\n\treturn")

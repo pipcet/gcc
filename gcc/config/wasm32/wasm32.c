@@ -1663,7 +1663,7 @@ static unsigned wasm32_function_regstore(FILE *stream,
 
   asm_fprintf (stream, "\tnextcase\n");
   asm_fprintf (stream, "\tend\n");
-  asm_fprintf (stream, "\ti32.const 3\n\tget_local $rp\n\ti32.and\n\ti32.const 1\n\ti32.ne\n\tif[1]\n\tget_local $rp\n\treturn\n\tend\n");
+  asm_fprintf (stream, "\ti32.const 3\n\tget_local $rp\n\ti32.and\n\ti32.const 1\n\ti32.ne\n\tif[]\n\tget_local $rp\n\treturn\n\tend\n");
   asm_fprintf (stream, "\tget_local $sp\n\ti32.const -16\n\ti32.add\n\tget_local $fp\n\ti32.store a=2 0\n");
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $fp\n\ti32.const %d\n\ti32.add\n\ti32.store a=2 0\n", size, total_size);
   size += 8;
@@ -1705,7 +1705,7 @@ static unsigned wasm32_function_regstore(FILE *stream,
     }
 
   asm_fprintf (stream, "\tget_local $rp\n");
-  asm_fprintf (stream, "\treturn[1]\n\tend\n");
+  asm_fprintf (stream, "\treturn\n\tend\n");
   return size;
 }
 
@@ -1751,6 +1751,7 @@ static unsigned wasm32_function_regload(FILE *stream,
 	}
     }
 
+  asm_fprintf (stream, "\tget_local $rp\n\tset_local $fp\n");
   asm_fprintf (stream, "\tjump2\n");
 
   if (size != total_size)
@@ -1857,8 +1858,7 @@ void wasm32_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
     cooked_name++;
 
   asm_fprintf (f, "\tnextcase\n");
-  asm_fprintf (f, "\ti32.const -16\n\tget_local $sp1\n\ti32.add\n\ttee_local $rp\n");
-  asm_fprintf (f, "\tset_local $fp\n");
+  asm_fprintf (f, "\tget_local $sp\n\tset_local $rp\n");
   wasm32_function_regload (f, decl);
   wasm32_function_regstore(f, decl);
 
