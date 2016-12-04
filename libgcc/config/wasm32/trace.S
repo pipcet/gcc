@@ -2,7 +2,7 @@
 
         .globl $trace
 
-        createsig FiiiiE
+        createsig FiiiiiiiE
         .pushsection .wasm.chars.import
         .byte 0x00
         .popsection
@@ -10,7 +10,7 @@
         lstring "sys"
         lstring "trace"
         .byte 0x00
-        rleb128 __sigchar_FiiiiE
+        rleb128 __sigchar_FiiiiiiiE
         .popsection
         .pushsection .wasm.chars.function_index.a,"",@nobits
 $trace:
