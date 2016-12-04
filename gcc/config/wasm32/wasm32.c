@@ -664,6 +664,7 @@ bool wasm32_print_operand_address(FILE *stream, rtx x)
     print_rtl(stream, x);
   }
   }
+  return true;
 }
 
 bool wasm32_print_op(FILE *stream, rtx x);
@@ -684,6 +685,39 @@ void wasm32_print_label(FILE *stream, rtx x)
       asm_fprintf (stream, "%s", name + (name[0] == '*'));
       asm_fprintf (stream, "\n\t");
     }
+    break;
+  }
+  case LABEL_REF: {
+    char buf[256];
+    x = label_ref_label (x);
+    ASM_GENERATE_INTERNAL_LABEL (buf, "L", CODE_LABEL_NUMBER (x));
+    ASM_OUTPUT_LABEL_REF (stream, buf);
+    break;
+  }
+  default:
+    gcc_unreachable ();
+  }
+}
+
+void wasm32_print_label_plt(FILE *stream, rtx x)
+{
+  switch (GET_CODE (x)) {
+  case SYMBOL_REF: {
+    const char *name = XSTR (x, 0);
+    if (!SYMBOL_REF_FUNCTION_P (x)) {
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+    } else if (in_section->common.flags & SECTION_CODE) {
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+    } else {
+      asm_fprintf (stream, "BROKEN");
+      asm_fprintf (stream, "i64.const ");
+      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+      asm_fprintf (stream, "\n\t");
+    }
+    if (SYMBOL_REF_FUNCTION_P (x) && !SYMBOL_REF_LOCAL_P (x))
+      {
+	fputs("@plt", stream);
+      }
     break;
   }
   case LABEL_REF: {
@@ -1032,6 +1066,9 @@ bool wasm32_print_operand(FILE *stream, rtx x, int code)
     return true;
   } else if (code == 'L') {
     wasm32_print_label (stream, x);
+    return true;
+  } else if (code == 'P') {
+    wasm32_print_label_plt (stream, x);
     return true;
   }
 
