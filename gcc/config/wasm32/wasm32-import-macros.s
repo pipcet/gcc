@@ -1,19 +1,4 @@
 #NO_APP
-        .macro T a
-        i32.const \a
-        get_local $sp
-        get_local $fp
-        get_local $rp
-        get_local $dpc
-        .ifdef __wasm_blocks
-        i32.const __wasm_blocks
-        .else
-        i32.const -1
-        .endif
-        call $trace
-        drop
-        .endm
-
         .macro .import3 module extname name
         .pushsection .str.lib,"ams",1
         .data
@@ -30,27 +15,141 @@ __str_\module:
         .text
         .global \name
 	defun \name, FiiiiiiiE
-	i32.const -16
-	get_local $sp1
+	get_local $sp
+	i32.const -56
 	i32.add
 	set_local $sp
 	get_local $sp
 	set_local $fp
-        i32.const __str_\module
+	.labeldef_internal .L2
+	i32.const __str_\module
 	set_local $r0
-        i32.const __str_\name
+	i32.const __str_\name
 	set_local $r1
-        get_local $pc0
-        get_local $dpc
-        get_local $sp
+	get_local $pc0
+	.dpc .LLimp
+	tee_local $dpc
+	get_local $sp
+        i32.const 56
+        i32.add
+	get_local $r0
+	get_local $r1
+	i32.const 3
+	call $syscall
+	set_local $r0
+	.labeldef_internal .LLimp
         get_local $r0
-        get_local $r1
+        tee_local $rp
         i32.const 3
-        call $syscall
-        set_local $r0
-        get_local $fp
-        return
+        i32.and
+        if[]
+        throw1
         end
+	get_local $r0
+	i32.const 3
+	i32.and
+	set_local $r0
+	get_local $r0
+	i32.const 0
+	i32.ne
+	if[]
+	.dpc .L2
+	set_local $dpc
+	jump1
+	end
+	i32.const 8288
+	get_local $r0
+	i32.store a=2 0
+	i32.const 56
+	get_local $fp
+	i32.add
+	return
+	nextcase
+	get_local $sp
+	set_local $rp
+	i32.const 8
+	get_local $rp
+	i32.add
+	i32.load a=2 0
+	set_local $pc0
+	i32.const 16
+	get_local $rp
+	i32.add
+	i32.load a=2 0
+	set_local $dpc
+	i32.const 24
+	get_local $rp
+	i32.add
+	i32.load a=2 0
+	set_local $rpc
+	i32.const 32
+	get_local $rp
+	i32.add
+	i32.load a=2 0
+	set_local $sp
+	i32.const 48
+	get_local $rp
+	i32.add
+	i32.load a=2 0
+	set_local $r0
+	get_local $rp
+	set_local $fp
+	jump2
+	nextcase
+	end
+	i32.const 3
+	get_local $rp
+	i32.and
+	i32.const 1
+	i32.ne
+	if[]
+	get_local $rp
+	return
+	end
+	get_local $sp
+	i32.const -16
+	i32.add
+	get_local $fp
+	i32.store a=2 0
+	i32.const 0
+	get_local $fp
+	i32.add
+	get_local $fp
+	i32.const 56
+	i32.add
+	i32.store a=2 0
+	i32.const 8
+	get_local $fp
+	i32.add
+	get_local $pc0
+	i32.store a=2 0
+	i32.const 16
+	get_local $fp
+	i32.add
+	get_local $dpc
+	i32.store a=2 0
+	i32.const 24
+	get_local $fp
+	i32.add
+	get_local $rpc
+	i32.store a=2 0
+	i32.const 32
+	get_local $fp
+	i32.add
+	get_local $sp
+	i32.store a=2 0
+	i32.const 40
+	get_local $fp
+	i32.add
+	i32.const 16
+	i32.store a=2 0
+	i32.const 48
+	get_local $fp
+	i32.add
+	get_local $r0
+	i32.store a=2 0
+	get_local $rp
+	return
+	end
 	endefun \name
-        .popsection
         .endm
