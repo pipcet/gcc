@@ -151,7 +151,7 @@ __sigchar_\sig:
         .macro defun name, sig:vararg
         createsig \sig
         .local __wasm_blocks_\name\()_sym
-        .local __name_\name, __name_\name\()_end
+        .local __name_\name
         .set __wasm_depth, __wasm_blocks_\name\()_sym
         .pushsection .wasm.chars.function
         .byte 0
@@ -283,10 +283,8 @@ __wasm_code_\name\():
 
         .macro endefun name
         .local __wasm_locals_\name\()
-        .local __wasm_locals_\name\()_end
         .local __wasm_ast_\name\()
         .local __wasm_blocks_\name\()
-        .local __wasm_blocks_\name\()_end
         .local __wasm_blocks_\name\()_sym
 2:
         .pushsection .wasm.dummy
@@ -301,7 +299,6 @@ __wasm_locals_\name\():
         .byte 0x7f
         .byte 8
         .byte 0x7c
-__wasm_locals_\name\()_end:
         i32.const -16
         get_local $sp1
         i32.add
@@ -314,7 +311,6 @@ __wasm_blocks_\name:
         .rept __wasm_blocks
         block[]
         .endr
-__wasm_blocks_\name\()_end:
         .pushsection .wasm.dummy
         .offset __wasm_blocks
 __wasm_blocks_\name\()_sym:
