@@ -27,7 +27,7 @@ __str_\module:
 	i32.const __str_\name
 	set_local $r1
 	get_local $pc0
-	.dpc .LLimp
+	.dpc .LLimp\@
 	tee_local $dpc
 	get_local $sp
         i32.const 56
@@ -37,7 +37,7 @@ __str_\module:
 	i32.const 3
 	call $syscall
 	set_local $r0
-	.labeldef_internal .LLimp
+	.labeldef_internal .LLimp\()\@
         get_local $r0
         tee_local $rp
         i32.const 3
