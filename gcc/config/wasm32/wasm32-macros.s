@@ -151,7 +151,6 @@ __sigchar_\sig:
         .macro defun name, sig:vararg
         createsig \sig
         .local __wasm_blocks_\name\()_sym
-        .local __name_\name
         .set __wasm_depth, __wasm_blocks_\name\()_sym
         .pushsection .wasm.chars.function
         .byte 0
