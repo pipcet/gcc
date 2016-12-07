@@ -15,19 +15,20 @@ __str_\module:
         .text
         .global \name
 	defun \name, FiiiiiiiE
+        nextcase
 	get_local $sp
 	i32.const -56
 	i32.add
 	set_local $sp
 	get_local $sp
 	set_local $fp
-	.labeldef_internal .L2
+	.labeldef_internal .LL2\()\@
 	i32.const __str_\module
 	set_local $r0
 	i32.const __str_\name
 	set_local $r1
 	get_local $pc0
-	.dpc .LLimp\@
+	.dpc .LLimp\()\@
 	tee_local $dpc
 	get_local $sp
         i32.const 56
@@ -43,6 +44,8 @@ __str_\module:
         i32.const 3
         i32.and
         if[]
+        .dpc .LL2\()\@
+        set_local $dpc
         throw1
         end
 	get_local $r0
@@ -53,7 +56,7 @@ __str_\module:
 	i32.const 0
 	i32.ne
 	if[]
-	.dpc .L2
+	.dpc .LL2\()\@
 	set_local $dpc
 	jump1
 	end
