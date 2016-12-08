@@ -132,6 +132,51 @@ wasm32_output_def (FILE *stream, const char *alias, const char *name)
   asm_fprintf (stream, "\t.set %s, %s\n", alias + (alias[0] == '*'), name + (name[0] == '*'));
 }
 
+bool
+wasm32_assemble_integer (rtx x, unsigned int size, int aligned_p)
+{
+  bool is_fpointer = false;
+  const char *op = NULL;
+
+  if (SYMBOL_REF_P (x) && SYMBOL_REF_FUNCTION_P (x))
+    is_fpointer = true;
+
+  switch (size) {
+  case 1:
+    op = ".byte";
+    break;
+  case 2:
+    op = ".short";
+    break;
+  case 4:
+    op = ".long";
+    break;
+  case 8:
+    op = ".quad";
+    break;
+  }
+
+  if (op) {
+    fputc ('\t', asm_out_file);
+    if (is_fpointer) {
+      fputs (".reloc .,R_ASMJS_ABS32_CODE,", asm_out_file);
+      output_addr_const (asm_out_file, x);
+      fputc ('\n', asm_out_file);
+      fputc ('\t', asm_out_file);
+      fputs (op, asm_out_file);
+      fputs (" 0\n", asm_out_file);
+    } else {
+      fputs (op, asm_out_file);
+      fputc (' ', asm_out_file);
+      output_addr_const (asm_out_file, x);
+      fputc ('\n', asm_out_file);
+    }
+    return true;
+  }
+
+  return false;
+}
+
 enum reg_class wasm32_regno_reg_class(int regno)
 {
   if (regno < 3)

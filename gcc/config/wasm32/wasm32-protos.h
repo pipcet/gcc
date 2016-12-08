@@ -130,3 +130,5 @@ struct wasm32_jsexport_decl {
 extern void wasm32_jsexport (tree, struct wasm32_jsexport_opts *,
 			    vec<struct wasm32_jsexport_decl> *);
 
+extern bool
+wasm32_assemble_integer (rtx x, unsigned int size, int aligned_p);

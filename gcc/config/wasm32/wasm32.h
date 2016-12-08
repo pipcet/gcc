@@ -245,6 +245,8 @@ typedef struct {
 #define READONLY_DATA_SECTION_ASM_OP "\t.section .rodata"
 #define BSS_SECTION_ASM_OP "\t.data"
 #define TLS_COMMON_ASM_OP "\t.data" /* XXX */
+#define TYPE_ASM_OP	"\t.type\t"
+#define SIZE_ASM_OP	"\t.size\t"
 #define INIT_ARRAY_SECTION_ASM_OP
 #define FINI_ARRAY_SECTION_ASM_OP
 
@@ -429,6 +431,60 @@ enum reg_class
 #define ASM_DECLARE_FUNCTION_SIZE(FILE,NAME,DECL) \
   wasm32_end_function(FILE,NAME,DECL)
 
+#ifdef HAVE_GAS_GNU_UNIQUE_OBJECT
+#define USE_GNU_UNIQUE_OBJECT flag_gnu_unique
+#else
+#define USE_GNU_UNIQUE_OBJECT 0
+#endif
+
+#define ASM_DECLARE_OBJECT_NAME(FILE, NAME, DECL)			\
+  do									\
+    {									\
+      HOST_WIDE_INT size;						\
+									\
+      /* For template static data member instantiations or		\
+	 inline fn local statics and their guard variables, use		\
+	 gnu_unique_object so that they will be combined even under	\
+	 RTLD_LOCAL.  Don't use gnu_unique_object for typeinfo,		\
+	 vtables and other read-only artificial decls.  */		\
+      if (USE_GNU_UNIQUE_OBJECT && DECL_ONE_ONLY (DECL)			\
+	  && (!DECL_ARTIFICIAL (DECL) || !TREE_READONLY (DECL)))	\
+	ASM_OUTPUT_TYPE_DIRECTIVE (FILE, NAME, "gnu_unique_object");	\
+      else								\
+	ASM_OUTPUT_TYPE_DIRECTIVE (FILE, NAME, "object");		\
+									\
+      size_directive_output = 0;					\
+      if (!flag_inhibit_size_directive					\
+	  && (DECL) && DECL_SIZE (DECL))				\
+	{								\
+	  size_directive_output = 1;					\
+	  size = tree_to_uhwi (DECL_SIZE_UNIT (DECL));			\
+	  ASM_OUTPUT_SIZE_DIRECTIVE (FILE, NAME, size);			\
+	}								\
+									\
+      ASM_OUTPUT_LABEL (FILE, NAME);					\
+    }									\
+  while (0)
+
+#define ASM_FINISH_DECLARE_OBJECT(FILE, DECL, TOP_LEVEL, AT_END)	\
+  do								\
+    {								\
+      const char *name = XSTR (XEXP (DECL_RTL (DECL), 0), 0);	\
+      HOST_WIDE_INT size;					\
+								\
+      if (!flag_inhibit_size_directive				\
+	  && DECL_SIZE (DECL)					\
+	  && ! AT_END && TOP_LEVEL				\
+	  && DECL_INITIAL (DECL) == error_mark_node		\
+	  && !size_directive_output)				\
+	{							\
+	  size_directive_output = 1;				\
+	  size = tree_to_uhwi (DECL_SIZE_UNIT (DECL));		\
+	  ASM_OUTPUT_SIZE_DIRECTIVE (FILE, name, size);		\
+	}							\
+    }								\
+  while (0)
+
 #define TARGET_UNWIND_TABLES_DEFAULT 1
 
 #define THREAD_MODEL_SPEC "single"
@@ -454,3 +510,8 @@ struct GTY(()) machine_function
 #define TARGET_ASM_DESTRUCTOR default_elf_fini_array_asm_out_destructor
 #define TARGET_ASM_NAMED_SECTION wasm32_asm_named_section
 
+#define TARGET_ASM_INTEGER wasm32_assemble_integer
+
+#define TYPE_OPERAND_FMT	"@%s"
+#define TYPE_ASM_OP	"\t.type\t"
+#define SIZE_ASM_OP	"\t.size\t"
