@@ -1700,7 +1700,8 @@ static unsigned wasm32_function_regsize(tree decl ATTRIBUTE_UNUSED)
 }
 
 static unsigned wasm32_function_regstore(FILE *stream,
-					tree decl ATTRIBUTE_UNUSED)
+					 tree decl ATTRIBUTE_UNUSED,
+					 const char *cooked_name)
 {
   unsigned mask = wasm32_function_regmask (decl);
   unsigned size = 0;
@@ -1713,7 +1714,7 @@ static unsigned wasm32_function_regstore(FILE *stream,
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $fp\n\ti32.const %d\n\ti32.add\n\ti32.store a=2 0\n", size, total_size);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $pc0\n\ti32.store a=2 0\n", size);
+  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_global $plt\n\ti32.const %s\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
   size += 8;
 
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $dpc\n\ti32.store a=2 0\n", size);
@@ -1763,7 +1764,7 @@ static unsigned wasm32_function_regload(FILE *stream,
 
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $pc0\n", size);
+  //asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $pc0\n", size);
   size += 8;
 
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $dpc\n", size);
@@ -1905,7 +1906,7 @@ void wasm32_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   asm_fprintf (f, "\tnextcase\n");
   asm_fprintf (f, "\tget_local $sp\n\tset_local $rp\n");
   wasm32_function_regload (f, decl);
-  wasm32_function_regstore(f, decl);
+  wasm32_function_regstore(f, decl, cooked_name);
 
   asm_fprintf(f, "\tendefun %s\n",
               cooked_name);
