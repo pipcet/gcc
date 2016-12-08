@@ -60,9 +60,6 @@ __str_\module:
 	set_local $dpc
 	jump1
 	end
-	i32.const 8288
-	get_local $r0
-	i32.store a=2 0
 	i32.const 56
 	get_local $fp
 	i32.add
