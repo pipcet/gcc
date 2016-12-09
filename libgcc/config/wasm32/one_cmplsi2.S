@@ -5,6 +5,7 @@
         defun __one_cmplsi2 FiiiiiiiE
         nextcase
         nextcase
+        end
         i32.const 8288
         get_local $r0
         i32.const -1
