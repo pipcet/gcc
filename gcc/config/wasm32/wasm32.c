@@ -1711,6 +1711,7 @@ static unsigned wasm32_function_regstore(FILE *stream,
   asm_fprintf (stream, "\tend\n");
   asm_fprintf (stream, "\ti32.const 3\n\tget_local $rp\n\ti32.and\n\ti32.const 1\n\ti32.ne\n\tif[]\n\tget_local $rp\n\treturn\n\tend\n");
   asm_fprintf (stream, "\tget_local $sp\n\ti32.const -16\n\ti32.add\n\tget_local $fp\n\ti32.store a=2 0\n");
+  asm_fprintf (stream, "\tget_local $sp\n\ti32.const -8\n\ti32.add\n\tget_global $gpo\n\tget_local $dpc\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.add\n\ti32.store a=2 0\n", cooked_name);
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $fp\n\ti32.const %d\n\ti32.add\n\ti32.store a=2 0\n", size, total_size);
   size += 8;
 
@@ -1720,7 +1721,7 @@ static unsigned wasm32_function_regstore(FILE *stream,
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $dpc\n\ti32.store a=2 0\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $rpc\n\ti32.store a=2 0\n", size);
+  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_global $gpo\n\tget_local $dpc\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
   size += 8;
 
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $sp\n\ti32.store a=2 0\n", size);
@@ -1770,7 +1771,7 @@ static unsigned wasm32_function_regload(FILE *stream,
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $dpc\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $rpc\n", size);
+  //asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $rpc\n", size);
   size += 8;
 
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $sp\n", size);
@@ -2190,20 +2191,32 @@ rtx wasm32_dynamic_chain_address(rtx frameaddr)
   return gen_rtx_MEM (SImode, frameaddr);
 }
 
+static int last_regsize;
+
 rtx wasm32_incoming_return_addr_rtx(void)
 {
-  return gen_rtx_REG (SImode, RPC_REG);
-  //return gen_rtx_MEM (SImode, plus_constant (SImode, gen_rtx_MEM (SImode, frame_pointer_rtx), 8));
+  return
+    gen_rtx_MEM
+    (Pmode,
+     plus_constant
+     (Pmode,
+      gen_rtx_REG (Pmode, SP_REG),
+      8));
 }
 
 rtx wasm32_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
 {
-  if (count == 0)
-    return gen_rtx_REG (SImode, RPC_REG);
-  else
-    {
-      return gen_rtx_MEM (SImode, gen_rtx_PLUS (SImode, gen_rtx_MEM (SImode, wasm32_dynamic_chain_address(frameaddr)), gen_rtx_CONST_INT (SImode, 16)));
-    }
+  if (count == 0) {
+    crtl->calls_eh_return = 1;
+    return
+      gen_rtx_MEM
+      (Pmode,
+       plus_constant
+       (Pmode,
+	gen_rtx_REG (Pmode, FP_REG),
+	wasm32_function_regsize (NULL) + 8));
+  } else
+    return const0_rtx;
 }
 
 int wasm32_first_parm_offset(const_tree fntype ATTRIBUTE_UNUSED)
@@ -2281,6 +2294,7 @@ rtx wasm32_expand_prologue()
   rtx sp = gen_rtx_REG (SImode, SP_REG);
   size = (size + 7) & -8;
   int regsize = wasm32_function_regsize (NULL_TREE);
+  last_regsize = regsize;
   rtx insn;
 
   RTX_FRAME_RELATED_P (insn = emit_move_insn (sp, plus_constant (Pmode, sp, -regsize))) = 0;

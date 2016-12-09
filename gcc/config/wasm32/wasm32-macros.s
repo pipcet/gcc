@@ -52,8 +52,10 @@
         ;; per-instance get_global/set_global globals
         .set $got, 0
         .set $plt, 1
+        .set $gpo, 2
+
         .macro .flush
-        i32.const .LFl\@
+        .dpc .LFl\@
         set_local $dpc
         get_local $fp
         i32.const 1
@@ -70,7 +72,9 @@
 
         .macro .wasmtextlabeldpcdef label
         nextcase
-        .set \label, __wasm_blocks
+        .pushsection .wasm.space.pc
+\label:
+        .popsection
         .endm
 
         .macro .ndatatextlabel label
@@ -82,12 +86,14 @@
         .endm
 
         .macro .dpc label
-        i32.const \label
+        i32.const \label - __wasm_pc_base
         .endm
 
         .macro .labeldef_internal label
         nextcase
-        .set \label, __wasm_blocks
+        .pushsection .wasm.space.pc
+\label:
+        .popsection
         .endm
 
         .macro rleb128 expr:vararg
@@ -159,6 +165,10 @@ __sigchar_\sig:
 \name\():
         .byte 0x5a
         .set __wasm_function_index, \name\()
+        .popsection
+        .pushsection .wasm.space.pc,""
+        .set __wasm_pc_base, .
+        .set __wasm_pc_base_\()\name, .
         .popsection
         .ifeqs "\name","main"
         .pushsection .wasm.chars.export
@@ -340,6 +350,9 @@ __wasm_blocks_\name\()_sym:
         .error "nextcase outside of defun"
         .endif
         .set __wasm_blocks, __wasm_blocks + 1
+        .pushsection .wasm.space.pc
+        .byte 0x00
+        .popsection
         .endm
 
         .ifne 1
@@ -353,7 +366,9 @@ __wasm_blocks_\name\()_sym:
         .ifndef __wasm_blocks
         .set __wasm_blocks, 0
         .endif
-        .set \label, __wasm_blocks + 1
+        .pushsection .wasm.space.pc
+\label:
+        .popsection
         .endm
         .else
         .macro .labeldef_debug label

@@ -772,7 +772,7 @@ expand_builtin_return_addr (enum built_in_function fndecl_code, int count)
 	}
     }
 
-  if (count > 0)
+  if (count >= 0)
     SETUP_FRAME_ADDRESSES ();
 
   /* On the SPARC, the return address is not in the frame, it is in a
