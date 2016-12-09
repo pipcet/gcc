@@ -162,8 +162,10 @@ __sigchar_\sig:
         .byte 0
         .popsection
         .pushsection .wasm.chars.function_index.b,""
+        .type \name, @function
+        .size \name, 1
 \name\():
-        .byte 0x5a
+        .byte 0x00
         .set __wasm_function_index, \name\()
         .popsection
         .pushsection .wasm.space.pc,""
