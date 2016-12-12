@@ -12,7 +12,9 @@
         .byte 0x00
         rleb128 __sigchar_FiiiiE
         .popsection
-        .pushsection .wasm.chars.function_index.a,"",@nobits
+        .pushsection .wasm.chars.function_index.a,""
+        .type $eh_return, @function
+        .size $eh_return, 1
 $eh_return:
         .byte 0x00
         .popsection

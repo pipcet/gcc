@@ -13,6 +13,8 @@
         rleb128 __sigchar_FiiiiiiiE
         .popsection
         .pushsection .wasm.chars.function_index.a,""
+        .type $syscall, @function
+        .size $syscall, 1
 $syscall:
         .byte 0xff
         .popsection
