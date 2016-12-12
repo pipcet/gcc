@@ -1092,6 +1092,8 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
 
 static unsigned wasm32_function_regsize(tree decl ATTRIBUTE_UNUSED);
 
+static const char *wasm32_function_name;
+
 bool wasm32_print_operand(FILE *stream, rtx x, int code)
 {
   //print_rtl (stderr, x);
@@ -1108,6 +1110,9 @@ bool wasm32_print_operand(FILE *stream, rtx x, int code)
     return wasm32_print_operation (stream, x, true, true);
   } else if (code == '/') {
     asm_fprintf (stream, "%d", wasm32_function_regsize (NULL_TREE));
+    return true;
+  } else if (code == '@') {
+    asm_fprintf (stream, "%s", wasm32_function_name);
     return true;
   } else if (code == 'L') {
     wasm32_print_label (stream, x);
@@ -1138,6 +1143,8 @@ bool wasm32_print_operand_punct_valid_p(int code)
   case ';':
     return true;
   case '/':
+    return true;
+  case '@':
     return true;
   default:
     return false;
@@ -1840,6 +1847,8 @@ void wasm32_start_function(FILE *f, const char *name, tree decl)
 
   while (cooked_name[0] == '*')
     cooked_name++;
+
+  wasm32_function_name = ggc_strdup(cooked_name);
 
   asm_fprintf(f, "\tdefun %s, FiiiiiiiE\n",
               cooked_name);

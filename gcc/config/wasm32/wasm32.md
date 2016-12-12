@@ -301,7 +301,7 @@
 (define_insn "*jump"
   [(set (pc) (match_operand:SI 0 "general_operand" "rmi"))]
   ""
-  "%O0\n\tset_local $dpc\n\tjump")
+  "%O0\n\ti32.const __wasm_pc_base_%@\n\ti32.sub\n\tset_local $dpc\n\tjump")
 
 (define_expand "jump"
   [
