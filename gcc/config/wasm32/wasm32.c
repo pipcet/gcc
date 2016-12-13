@@ -1008,9 +1008,9 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
     const char *name = XSTR (x, 0);
     if (!SYMBOL_REF_FUNCTION_P (x)) {
       if (flag_pic) {
-	asm_fprintf (stream, "get_global $got\n");
+	asm_fprintf (stream, "get_global $got\n\t");
 	asm_fprintf (stream, "\ti32.const ");
-	asm_fprintf (stream, "%s@got\n", name + (name[0] == '*'));
+	asm_fprintf (stream, "%s@got\n\t", name + (name[0] == '*'));
 	asm_fprintf (stream, "\ti32.add\n\t");
 	asm_fprintf (stream, "i32.load a=2 0");
       } else {
@@ -1019,11 +1019,10 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
       }
     } else if (in_section->common.flags & SECTION_CODE) {
       if (flag_pic) {
-	asm_fprintf (stream, "get_global $got\n");
+	asm_fprintf (stream, "get_global $plt\n\t");
 	asm_fprintf (stream, "i32.const ");
-	asm_fprintf (stream, "%s@got\n", name + (name[0] == '*'));
-	asm_fprintf (stream, "i32.add\n\t");
-	asm_fprintf (stream, "i32.load a=2 0");
+	asm_fprintf (stream, "%s\n\t", name + (name[0] == '*'));
+	asm_fprintf (stream, "i32.add");
       } else {
 	asm_fprintf (stream, "i32.const ");
 	asm_fprintf (stream, "%s", name + (name[0] == '*'));
