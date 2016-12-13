@@ -1316,10 +1316,6 @@ asmjs-*)
         tmake_file="$tmake_file asmjs/t-asmjs"
 	extra_parts="crtbegin.o crtend.o crtbeginT.o crtbeginS.o"
         ;;
-wasm-*)
-        tmake_file="$tmake_file asmjs/t-asmjs"
-	extra_parts="crtbegin.o crtend.o crtbeginT.o crtbeginS.o"
-        ;;
 wasm32-*)
         tmake_file="$tmake_file wasm32/t-wasm32"
 	extra_parts="crtbegin.o crtend.o crtbeginT.o crtbeginS.o"
