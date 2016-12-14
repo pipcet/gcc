@@ -1076,6 +1076,9 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
   case UNSIGNED_FIX:
   case NEG:
   case NOT:
+  case CLZ:
+  case CTZ:
+  case POPCOUNT:
     return wasm32_print_op (stream, x);
   case CONST: {
     wasm32_print_operation (stream, XEXP (x, 0), false);
@@ -1383,9 +1386,26 @@ struct wasm32_operator wasm32_operators[] = {
     NULL, "f64.ge",
     2
   },
+#if 0
   {
     NEG, SImode, SImode,
     "i32.const 0", "i32.sub",
+    1
+  },
+#endif
+  {
+    CLZ, SImode, SImode,
+    NULL, "i32.clz",
+    1
+  },
+  {
+    CTZ, SImode, SImode,
+    NULL, "i32.ctz",
+    1
+  },
+  {
+    POPCOUNT, SImode, SImode,
+    NULL, "i32.popcount",
     1
   },
   {

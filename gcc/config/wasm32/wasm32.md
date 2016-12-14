@@ -121,11 +121,19 @@
 
 (define_insn "*assignsi_unop"
   [(match_operator 2 "set_operator"
+    [(match_operand:SI 0 "nonimmediate_operand" "=rm")
+     (fix:SI
+        (match_operand:DF 1 "general_operand" "rmi"))])]
+  ""
+  "%O2")
+
+(define_insn "*assignsi_unop2"
+  [(match_operator 3 "set_operator"
      [(match_operand:SI 0 "nonimmediate_operand" "=rm")
-      (fix:SI
-         (match_operand 1 "general_operand" "rmi"))])]
+      (match_operator 1 "unary_operator"
+         [(match_operand:SI 2 "general_operand" "rmi")])])]
    ""
-   "%O2")
+   "%O3")
 
 (define_insn "*assigndf_unop"
   [(match_operator 3 "set_operator"
@@ -241,8 +249,8 @@
           (match_operand:SI 1 "general_operand" "rmi,rmi"))]
       "flag_pic"
       "@
-      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\ti32.const 0\n\tcall %L0@plt\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
-      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\ti32.const 0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %L0@plt\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\t.dpc .LI%=\n\tset_local $dpc\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\t.dpc .LI%=\n\tset_local $dpc\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
@@ -250,16 +258,16 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       "flag_pic"
       "@
-      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\ti32.const 0\n\tcall %L0@plt\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
-      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\ti32.const 0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %L0@plt\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\t.dpc .LI%=\n\tset_local $dpc\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\t.dpc .LI%=\n\tset_local $dpc\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
 
 (define_insn "*call"
    [(call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
           (match_operand:SI 1 "general_operand" "rmi,rmi"))]
       "!flag_pic"
       "@
-      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\ti32.const 0\n\tcall %L0@plt\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
-      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\ti32.const 0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %L0@plt\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\t.dpc .LI%=\n\tset_local $dpc\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\t.dpc .LI%=\n\tset_local $dpc\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
@@ -267,8 +275,8 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       "!flag_pic"
       "@
-      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\ti32.const 0\n\tcall %L0@plt\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
-      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\t.dpc .LI%=\n\ttee_local $dpc\n\ti32.const 0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %L0@plt\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\t.dpc .LI%=\n\tset_local $dpc\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=
+      i32.const -1\n\tget_local $sp\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\t%0\n\tcall_indirect __sigchar_FiiiiiiiE 0\n\ttee_local $rp\n\ti32.const 3\n\ti32.and\n\tif[]\n\t.dpc .LI%=\n\tset_local $dpc\n\tthrow1\n\tend\n\t.wasmtextlabeldpcdef .LI%=")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
@@ -335,10 +343,10 @@
        (match_code "lshiftrt")))
 
 (define_predicate "unary_operator"
-  (ior (match_code "not")
-       (match_code "neg")
-       (match_code "float")
-       (match_code "fix")))
+  (ior (match_code "float")
+       (match_code "clz")
+       (match_code "ctz")
+       (match_code "popcount")))
 
 (define_insn "*cbranchsi4"
   [(match_operator 4 "set_operator"
@@ -450,12 +458,6 @@
   "")
 
 ;; (define_expand "notsi2"
-;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-;;         (not:SI (match_operand:SI 1 "general_operand" "rmi")))]
-;;   ""
-;;   "")
-
-;; (define_expand "one_cmplsi2"
 ;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
 ;;         (not:SI (match_operand:SI 1 "general_operand" "rmi")))]
 ;;   ""
@@ -681,6 +683,43 @@
 (define_expand "fix_truncdfsi2"
   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
         (fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
+  ""
+  "")
+
+;; optional
+(define_expand "one_cmplsi2"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (xor:SI (const_int -1) (match_operand:SI 1 "general_operand" "rmi")))]
+  ""
+  "")
+
+;;optional
+(define_expand "clzsi2"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (clz:SI (match_operand:SI 1 "general_operand" "rmi")))]
+  ""
+  "")
+
+;;optional
+(define_expand "ctzsi2"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (ctz:SI (match_operand:SI 1 "general_operand" "rmi")))]
+  ""
+  "")
+
+;;optional
+(define_expand "popcount2"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (popcount:SI (match_operand:SI 1 "general_operand" "rmi")))]
+  ""
+  "")
+
+;;optional
+(define_expand "cstoresi4"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (match_operator 1 "binary_operator"
+           [(match_operand:SI 2 "general_operand" "rmi")
+            (match_operand:SI 3 "general_operand" "rmi")]))]
   ""
   "")
 
