@@ -946,7 +946,7 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
       machine_mode outmode = GET_MODE (x);
       if (outmode == QImode || outmode == HImode || outmode == SImode)
 	outmode = SImode;
-      asm_fprintf (stream, "\n\t%s", wasm32_store (outmode, GET_MODE (x)));
+      asm_fprintf (stream, "%s", wasm32_store (outmode, GET_MODE (x)));
     } else {
       wasm32_print_operation (stream, addr, false);
       machine_mode outmode = GET_MODE (x);
@@ -1018,7 +1018,7 @@ bool wasm32_print_operation(FILE *stream, rtx x, bool want_lval, bool lval_l = f
 	asm_fprintf (stream, "%s", name + (name[0] == '*'));
       }
     } else if (in_section->common.flags & SECTION_CODE) {
-      if (flag_pic) {
+      if (flag_pic || !SYMBOL_REF_LOCAL_P (x)) {
 	asm_fprintf (stream, "get_global $got\n");
 	asm_fprintf (stream, "\ti32.const ");
 	asm_fprintf (stream, "%s@gotcode\n", name + (name[0] == '*'));
