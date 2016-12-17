@@ -282,7 +282,9 @@ __str_\module:
 	i32.const 8
 	get_local $fp
 	i32.add
-	get_local $pc0
+        get_global $plt
+        i32.const \name
+        i32.add
 	i32.store a=2 0
 	i32.const 16
 	get_local $fp
