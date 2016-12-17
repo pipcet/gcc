@@ -1,5 +1,5 @@
 /* GCC backend for the asm.js target
-   Copyright (C) 1995-2015 Free Software Foundation, Inc.
+   Copyright (C) 1995-2016 Free Software Foundation, Inc.
    Copyright (C) 2016 Pip Cet <pipcet@gmail.com>
    based on the ARM port, which was:
    Contributed by Richard Earnshaw (rearnsha@armltd.co.uk).
@@ -29,6 +29,11 @@
 /* #define STARTFILE_SPEC "crti%O%s crtbegin%O%s --whole-archive gdbstub%O%s --no-whole-archive" */
 #define STARTFILE_SPEC "crti%O%s %{!shared:crtbegin%O%s} %{shared:crtbegin%O%s}"
 #define ENDFILE_SPEC "%{!shared:crtend%O%s} %{shared:crtend%O%s} crtn%O%s"
+
+#define WASM32_LINK_SPEC "%{shared:-shared} %{!static: %{rdynamic:-export-dynamic}} %{static:-static}"
+
+#undef LINK_SPEC
+#define LINK_SPEC WASM32_LINK_SPEC
 
 #define TARGET_CPU_CPP_BUILTINS() wasm32_cpu_cpp_builtins(pfile)
 
