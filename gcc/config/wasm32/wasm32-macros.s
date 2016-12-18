@@ -206,6 +206,12 @@ __sigchar_\sig:
         .pushsection .wasm.chars.code
         .byte 0
         .popsection
+        .pushsection .wasm.chars.element
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.element
+        rleb128_32 \name
+        .popsection
         .if 1
         .pushsection .wasm.chars.name.b
         .byte 0
