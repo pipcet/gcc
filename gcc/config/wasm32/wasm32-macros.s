@@ -332,6 +332,26 @@ __wasm_blocks_\name:
         .offset __wasm_blocks
 __wasm_blocks_\name\()_sym:
         .popsection
+        .if 0
+        i32.const 0
+        i32.load a=2 0
+        if[]
+        i32.const -1
+        get_local $dpc
+        i32.ne
+        i32.const 0
+        get_local $dpc
+        i32.ne
+        i32.and
+        if[]
+        i32.const 1
+        get_local $sp
+        i32.or
+        set_local $rp
+        br __wasm_blocks+3
+        end
+        end
+        .endif
         get_local $dpc
         .byte 0x0e
         rleb128_32 __wasm_blocks-1
