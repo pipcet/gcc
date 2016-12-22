@@ -18,6 +18,12 @@
 $eh_return:
         .byte 0x00
         .popsection
+        .pushsection .wasm.chars.element.a
+        .byte 0x00
+        .popsection
+        .pushsection .wasm.payload.element.a
+        rleb128_32 $eh_return
+        .popsection
         .pushsection .wasm.chars.name.a
         .byte 0x00
         .popsection
