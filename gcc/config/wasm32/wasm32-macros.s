@@ -172,6 +172,7 @@ __sigchar_\sig:
         .set __wasm_pc_base, .
         .set __wasm_pc_base_\()\name, .
         .popsection
+        .if 0
         .ifeqs "\name","main"
         .pushsection .wasm.chars.export
         .byte 0
@@ -182,16 +183,27 @@ __sigchar_\sig:
         rleb128_32 \name
         .popsection
         .endif
+        .endif
         .ifeqs "\name","_start"
+        .pushsection .wasm.chars.global
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.global
+        .byte 0x7f
+        .byte 0
+        .byte 0x41
+        rleb128_32 \name
+        .byte 0x0b
         .pushsection .wasm.chars.export
         .byte 0
         .popsection
         .pushsection .wasm.payload.export
-        lstring \name
-        .byte 0
-        rleb128_32 \name
+        lstring "entry"
+        .byte 3
+        .byte 3
         .popsection
         .endif
+        .if 0
         .pushsection .wasm.chars.export
         .byte 0
         .popsection
@@ -203,6 +215,7 @@ __sigchar_\sig:
         .byte 0
         rleb128_32 \name
         .popsection
+        .endif
         .pushsection .wasm.chars.code
         .byte 0
         .popsection
