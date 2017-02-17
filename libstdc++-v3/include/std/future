@@ -1,6 +1,6 @@
 // <future> -*- C++ -*-
 
-// Copyright (C) 2009-2016 Free Software Foundation, Inc.
+// Copyright (C) 2009-2017 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -192,8 +192,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     future<__async_result_of<_Fn, _Args...>>
     async(_Fn&& __fn, _Args&&... __args);
 
-#if defined(_GLIBCXX_HAS_GTHREADS) && defined(_GLIBCXX_USE_C99_STDINT_TR1) \
-  && (ATOMIC_INT_LOCK_FREE > 1)
+#if defined(_GLIBCXX_HAS_GTHREADS) && defined(_GLIBCXX_USE_C99_STDINT_TR1)
 
   /// Base class and enclosing scope.
   struct __future_base
@@ -1417,7 +1416,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       virtual void
       _M_run(_Args&&... __args)
       {
-	auto __boundfn = [&] () -> typename result_of<_Fn(_Args&&...)>::type {
+	auto __boundfn = [&] () -> typename result_of<_Fn&(_Args&&...)>::type {
 	    return std::__invoke(_M_impl._M_fn, std::forward<_Args>(__args)...);
 	};
 	this->_M_set_result(_S_task_setter(this->_M_result, __boundfn));
@@ -1426,7 +1425,7 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       virtual void
       _M_run_delayed(_Args&&... __args, weak_ptr<_State_base> __self)
       {
-	auto __boundfn = [&] () -> typename result_of<_Fn(_Args&&...)>::type {
+	auto __boundfn = [&] () -> typename result_of<_Fn&(_Args&&...)>::type {
 	    return std::__invoke(_M_impl._M_fn, std::forward<_Args>(__args)...);
 	};
 	this->_M_set_delayed_result(_S_task_setter(this->_M_result, __boundfn),
@@ -1751,7 +1750,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
 #endif // _GLIBCXX_ASYNC_ABI_COMPAT
 #endif // _GLIBCXX_HAS_GTHREADS && _GLIBCXX_USE_C99_STDINT_TR1
-       // && ATOMIC_INT_LOCK_FREE
 
   // @} group futures
 _GLIBCXX_END_NAMESPACE_VERSION

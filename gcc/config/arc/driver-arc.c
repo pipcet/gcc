@@ -1,5 +1,5 @@
 /* Subroutines for the gcc driver.
-   Copyright (C) 2016 Free Software Foundation, Inc.
+   Copyright (C) 2016-2017 Free Software Foundation, Inc.
    Contributed by Claudiu Zissulescu <claziss@synopsys.com>
 
    This file is part of GCC.
@@ -47,7 +47,7 @@ arc_cpu_to_as (int argc, const char **argv)
 	}
     }
 
-  switch (arc_selected_cpu->arch)
+  switch (arc_selected_cpu->arch_info->arch_id)
     {
     case BASE_ARCH_em:
       if (arc_selected_cpu->flags & FL_CD)

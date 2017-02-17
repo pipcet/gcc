@@ -29,7 +29,6 @@ m4_include([ltsugar.m4])
 m4_include([ltversion.m4])
 m4_include([lt~obsolete.m4])
 m4_include([config/isl.m4])
-m4_include([config/pkg.m4])
 
 AC_INIT(move-if-change)
 AC_PREREQ(2.64)
@@ -153,6 +152,7 @@ target_libraries="target-libgcc \
 		target-libgomp \
 		target-libcilkrts \
 		target-liboffloadmic \
+		target-libhsail-rt \
 		target-libatomic \
 		target-libitm \
 		target-libstdc++-v3 \
@@ -634,6 +634,23 @@ if test -d ${srcdir}/libmpx; then
     fi
 fi
 
+# Disable libhsail-rt on unsupported systems.
+if test -d ${srcdir}/libhsail-rt; then
+    if test x$enable_libhsail_rt = x; then
+        AC_MSG_CHECKING([for libhsail-rt support])
+        if (srcdir=${srcdir}/libhsail-rt; \
+                . ${srcdir}/configure.tgt; \
+                test -n "$UNSUPPORTED")
+        then
+            AC_MSG_RESULT([no])
+            unsupported_languages="$unsupported_languages brig"
+            # This implicitly disables also target-libhsail-rt as it won't
+            # get added to the build without BRIG FE.
+        else
+            AC_MSG_RESULT([yes])
+        fi
+    fi
+fi
 
 
 # Disable libquadmath for some systems.
@@ -2081,10 +2098,8 @@ AC_ARG_WITH([target-bdw-gc-lib],
 case ,${enable_languages},:${enable_objc_gc} in *,objc,*:yes|*,objc,*:auto)
   AC_MSG_CHECKING([for bdw garbage collector])
   if test "x$with_target_bdw_gc$with_target_bdw_gc_include$with_target_bdw_gc_lib" = x; then
-    dnl no bdw-gw options, fall back to the bdw-gc pkg-config module
-    PKG_CHECK_EXISTS(bdw-gc,
-      AC_MSG_RESULT([using bdw-gc pkg-config module]),
-      AC_MSG_ERROR([no --with-target-bdw-gc options and no bdw-gc pkg-config module found]))
+    dnl no bdw-gw options, assume default locations
+    AC_MSG_RESULT([using bdw-gc in default locations])
   else
     dnl bdw-gw options, first error checking, complete checking in libobjc
     if test "x$with_target_bdw_gc_include" = x && test "x$with_target_bdw_gc_lib" != x; then
@@ -2651,9 +2666,14 @@ if echo " ${target_configdirs} " | grep " libvtv " > /dev/null 2>&1 &&
   bootstrap_target_libs=${bootstrap_target_libs}target-libvtv,
 fi
 
-# If we are building libmpx, bootstrap it.
+# If we are building libmpx and $BUILD_CONFIG contains bootstrap-mpx,
+# bootstrap it.
 if echo " ${target_configdirs} " | grep " libmpx " > /dev/null 2>&1; then
-  bootstrap_target_libs=${bootstrap_target_libs}target-libmpx,
+  case "$BUILD_CONFIG" in
+    *bootstrap-mpx* )
+      bootstrap_target_libs=${bootstrap_target_libs}target-libmpx,
+      ;;
+  esac
 fi
 
 # Determine whether gdb needs tk/tcl or not.
@@ -3494,7 +3514,7 @@ fi
 compare_exclusions="gcc/cc*-checksum\$(objext) | gcc/ada/*tools/*"
 case "$target" in
   hppa*64*-*-hpux*) ;;
-  hppa*-*-hpux*) compare_exclusions="gcc/cc*-checksum\$(objext) | */libgcc/lib2funcs* | gcc/ada/*tools/*" ;;
+  hppa*-*-hpux*) compare_exclusions="gcc/cc*-checksum\$(objext) | */libgcc/lib2funcs* | gcc/ada/*tools/* | gcc/function-tests.o" ;;
   powerpc*-ibm-aix*) compare_exclusions="gcc/cc*-checksum\$(objext) | gcc/ada/*tools/* | *libgomp*\$(objext)" ;;
 esac
 AC_SUBST(compare_exclusions)

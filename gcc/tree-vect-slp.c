@@ -1,5 +1,5 @@
 /* SLP - Basic Block Vectorization
-   Copyright (C) 2007-2016 Free Software Foundation, Inc.
+   Copyright (C) 2007-2017 Free Software Foundation, Inc.
    Contributed by Dorit Naishlos <dorit@il.ibm.com>
    and Ira Rosen <irar@il.ibm.com>
 
@@ -2897,9 +2897,8 @@ vect_mask_constant_operand_p (gimple *stmt, int opnum)
       tree cond = gimple_assign_rhs1 (stmt);
 
       if (TREE_CODE (cond) == SSA_NAME)
-	return false;
-
-      if (opnum)
+	op = cond;
+      else if (opnum)
 	op = TREE_OPERAND (cond, 1);
       else
 	op = TREE_OPERAND (cond, 0);
@@ -2950,7 +2949,7 @@ vect_get_constant_vectors (tree op, slp_tree slp_node,
   gimple_seq ctor_seq = NULL;
 
   /* Check if vector type is a boolean vector.  */
-  if (TREE_CODE (TREE_TYPE (op)) == BOOLEAN_TYPE
+  if (VECT_SCALAR_BOOLEAN_TYPE_P (TREE_TYPE (op))
       && vect_mask_constant_operand_p (stmt, op_num))
     vector_type
       = build_same_sized_truth_vector_type (STMT_VINFO_VECTYPE (stmt_vinfo));

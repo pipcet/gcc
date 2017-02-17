@@ -1,5 +1,5 @@
 /* Check functions
-   Copyright (C) 2002-2016 Free Software Foundation, Inc.
+   Copyright (C) 2002-2017 Free Software Foundation, Inc.
    Contributed by Andy Vaught & Katherine Holcomb
 
 This file is part of GCC.
@@ -177,7 +177,7 @@ kind_check (gfc_expr *k, int n, bt type)
       return false;
     }
 
-  if (gfc_extract_int (k, &kind) != NULL
+  if (gfc_extract_int (k, &kind)
       || gfc_validate_kind (type, kind, true) < 0)
     {
       gfc_error ("Invalid kind for %s at %L", gfc_basic_typename (type),
@@ -3667,7 +3667,7 @@ gfc_check_range (gfc_expr *x)
 
 
 bool
-gfc_check_rank (gfc_expr *a ATTRIBUTE_UNUSED)
+gfc_check_rank (gfc_expr *a)
 {
   /* Any data object is allowed; a "data object" is a "constant (4.1.3),
      variable (6), or subobject of a constant (2.4.3.2.3)" (F2008, 1.3.45).  */

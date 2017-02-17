@@ -1,5 +1,5 @@
 /* RTL simplification functions for GNU compiler.
-   Copyright (C) 1987-2016 Free Software Foundation, Inc.
+   Copyright (C) 1987-2017 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -752,7 +752,7 @@ simplify_truncation (machine_mode mode, rtx op,
      changing len.  */
   if ((GET_CODE (op) == ZERO_EXTRACT || GET_CODE (op) == SIGN_EXTRACT)
       && REG_P (XEXP (op, 0))
-      && GET_MODE (XEXP (op, 0)) == mode
+      && GET_MODE (XEXP (op, 0)) == GET_MODE (op)
       && CONST_INT_P (XEXP (op, 1))
       && CONST_INT_P (XEXP (op, 2)))
     {

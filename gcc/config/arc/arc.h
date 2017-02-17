@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, Synopsys DesignWare ARC cpu.
-   Copyright (C) 1994-2016 Free Software Foundation, Inc.
+   Copyright (C) 1994-2017 Free Software Foundation, Inc.
 
    Sources derived from work done by Sankhya Technologies (www.sankhya.com) on
    behalf of Synopsys Inc.
@@ -92,8 +92,7 @@ along with GCC; see the file COPYING3.  If not see
 %{mmac-d16:-D__Xxmac_d16} %{mmac-24:-D__Xxmac_24} \
 %{mdsp-packa:-D__Xdsp_packa} %{mcrc:-D__Xcrc} %{mdvbf:-D__Xdvbf} \
 %{mtelephony:-D__Xtelephony} %{mxy:-D__Xxy} %{mmul64: -D__Xmult32} \
-%{mlock:-D__Xlock} %{mswape:-D__Xswape} %{mrtsc:-D__Xrtsc} \
-%{mcpu=nps400:-D__NPS400__}"
+%{mlock:-D__Xlock} %{mswape:-D__Xswape} %{mrtsc:-D__Xrtsc}"
 
 #define CC1_SPEC "\
 %{EB:%{EL:%emay not use both -EB and -EL}} \
@@ -121,12 +120,11 @@ extern const char *arc_cpu_to_as (int argc, const char **argv);
 		   -X %{mbig-endian:-EB} \
 		   %{EB} %{EL} \
 		   %{marclinux*} \
-		   %{!marclinux*: %{pg|p|profile:-marclinux_prof;: -marclinux}} \
+		   %{!marclinux*: %{mcpu=nps400:-marclinux_nps; :-marclinux}} \
 		   %{!z:-z max-page-size=0x2000 -z common-page-size=0x2000} \
 		   %{shared:-shared}"
 #else
-#define LINK_SPEC "%{mbig-endian:-EB} %{EB} %{EL}\
-  %{pg|p:-marcelf_prof;mA7|mARC700|mcpu=arc700|mcpu=ARC700: -marcelf}"
+#define LINK_SPEC "%{mbig-endian:-EB} %{EB} %{EL}"
 #endif
 
 #if DEFAULT_LIBC != LIBC_UCLIBC
@@ -135,20 +133,18 @@ extern const char *arc_cpu_to_as (int argc, const char **argv);
 #define EXTRA_SPECS \
   { "arc_tls_extra_start_spec", ARC_TLS_EXTRA_START_SPEC }, \
 
-#define STARTFILE_SPEC "%{!shared:crt0.o%s} crti%O%s %{pg|p:crtg.o%s} " \
+#define STARTFILE_SPEC "%{pg|p:gcrt0.o%s}%{!pg:%{!p:crt0.o%s}} crti%O%s " \
   "%(arc_tls_extra_start_spec) crtbegin.o%s"
 #else
-#define STARTFILE_SPEC   "%{!shared:%{!mkernel:crt1.o%s}} crti.o%s \
-  %{!shared:%{pg|p|profile:crtg.o%s} crtbegin.o%s} %{shared:crtbeginS.o%s}"
-
+#define STARTFILE_SPEC							\
+  LINUX_OR_ANDROID_LD (GNU_USER_TARGET_STARTFILE_SPEC, ANDROID_STARTFILE_SPEC)
 #endif
 
 #if DEFAULT_LIBC != LIBC_UCLIBC
-#define ENDFILE_SPEC "%{pg|p:crtgend.o%s} crtend.o%s crtn%O%s"
+#define ENDFILE_SPEC "crtend.o%s crtn%O%s"
 #else
-#define ENDFILE_SPEC "%{!shared:%{pg|p|profile:crtgend.o%s} crtend.o%s} \
-  %{shared:crtendS.o%s} crtn.o%s"
-
+#define ENDFILE_SPEC							\
+  LINUX_OR_ANDROID_LD (GNU_USER_TARGET_ENDFILE_SPEC, ANDROID_ENDFILE_SPEC)
 #endif
 
 #if DEFAULT_LIBC == LIBC_UCLIBC
@@ -156,12 +152,11 @@ extern const char *arc_cpu_to_as (int argc, const char **argv);
 #define LIB_SPEC  \
   "%{pthread:-lpthread} \
    %{shared:-lc} \
-   %{!shared:%{pg|p|profile:-lgmon -u profil --defsym __profil=profil} -lc}"
+   %{!shared:%{profile:-lc_p}%{!profile:-lc}}"
 #define TARGET_ASM_FILE_END file_end_indicate_exec_stack
 #else
 #undef LIB_SPEC
-/* -lc_p not present for arc-elf32-* : ashwin */
-#define LIB_SPEC "%{!shared:%{g*:-lg} %{pg|p:-lgmon} -lc}"
+#define LIB_SPEC "%{!shared:%{g*:-lg} -lc}"
 #endif
 
 #ifndef DRIVER_ENDIAN_SELF_SPECS
@@ -219,15 +214,22 @@ extern const char *arc_cpu_to_as (int argc, const char **argv);
    use conditional execution?  */
 #define TARGET_AT_DBR_CONDEXEC  (!TARGET_ARC700 && !TARGET_V2)
 
-extern enum base_architecture arc_base_cpu;
-
-#define TARGET_ARC600 ((arc_base_cpu == BASE_ARCH_6xx)	\
+#define TARGET_ARC600 ((arc_selected_cpu->arch_info->arch_id	\
+			== BASE_ARCH_6xx)			\
 		       && (TARGET_BARREL_SHIFTER))
-#define TARGET_ARC601 ((arc_base_cpu == BASE_ARCH_6xx)	\
+#define TARGET_ARC601 ((arc_selected_cpu->arch_info->arch_id	\
+			== BASE_ARCH_6xx)			\
 		       && (!TARGET_BARREL_SHIFTER))
-#define TARGET_ARC700 (arc_base_cpu == BASE_ARCH_700)
-#define TARGET_EM (arc_base_cpu == BASE_ARCH_em)
-#define TARGET_HS (arc_base_cpu == BASE_ARCH_hs)
+#define TARGET_ARC700 (arc_selected_cpu->arch_info->arch_id	\
+		       == BASE_ARCH_700)
+/* An NPS400 is a specialisation of ARC700, so it is correct for NPS400
+   TARGET_ARC700 is true, and TARGET_NPS400 is true.  */
+#define TARGET_NPS400 ((arc_selected_cpu->arch_info->arch_id	\
+			== BASE_ARCH_700)			\
+		       && (arc_selected_cpu->processor		\
+			   == PROCESSOR_nps400))
+#define TARGET_EM (arc_selected_cpu->arch_info->arch_id == BASE_ARCH_em)
+#define TARGET_HS (arc_selected_cpu->arch_info->arch_id == BASE_ARCH_hs)
 #define TARGET_V2 (TARGET_EM || TARGET_HS)
 
 #ifdef ARC_MULTILIB_CPU_DEFAULT
@@ -321,8 +323,8 @@ if (GET_MODE_CLASS (MODE) == MODE_INT		\
    construct.
 */
 
-#define ADJUST_FIELD_ALIGN(FIELD, COMPUTED) \
-(TYPE_MODE (strip_array_types (TREE_TYPE (FIELD))) == DFmode \
+#define ADJUST_FIELD_ALIGN(FIELD, TYPE, COMPUTED) \
+(TYPE_MODE (strip_array_types (TYPE)) == DFmode \
  ? MIN ((COMPUTED), 32) : (COMPUTED))
 
 
@@ -918,12 +920,14 @@ extern int arc_initial_elimination_offset(int from, int to);
   (OFFSET) = arc_initial_elimination_offset ((FROM), (TO))
 
 /* Output assembler code to FILE to increment profiler label # LABELNO
-   for profiling a function entry.
-   We actually emit the profiler code at the call site, so leave this one
-   empty.  */
-#define FUNCTION_PROFILER(FILE, LABELNO) \
-  if (TARGET_UCB_MCOUNT) \
-    fprintf (FILE, "\t%s\n", arc_output_libcall ("__mcount"))
+   for profiling a function entry.  */
+#define FUNCTION_PROFILER(FILE, LABELNO)			\
+  do {								\
+  if (flag_pic)							\
+    fprintf (FILE, "\tbl\t__mcount@plt\n");			\
+  else								\
+    fprintf (FILE, "\tbl\t__mcount\n");				\
+  } while (0);
 
 #define NO_PROFILE_COUNTERS  1
 
@@ -1612,7 +1616,7 @@ extern enum arc_function_type arc_compute_function_type (struct function *);
    && (get_attr_type (X) == TYPE_CALL || get_attr_type (X) == TYPE_SFUNC))
 
 #define INSN_REFERENCES_ARE_DELAYED(insn)				\
-  (INSN_SETS_ARE_DELAYED (insn) && !insn_is_tls_gd_dispatch (insn))
+  (INSN_SETS_ARE_DELAYED (insn))
 
 #define CALL_ATTR(X, NAME) \
   ((CALL_P (X) || NONJUMP_INSN_P (X)) \

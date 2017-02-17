@@ -1,5 +1,5 @@
 /* Language-level data type conversion for GNU C++.
-   Copyright (C) 1987-2016 Free Software Foundation, Inc.
+   Copyright (C) 1987-2017 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -798,7 +798,15 @@ ocp_convert (tree type, tree expr, int convtype, int flags,
 	     to the underlying type first.  */
 	  if (SCOPED_ENUM_P (intype) && (convtype & CONV_STATIC))
 	    e = build_nop (ENUM_UNDERLYING_TYPE (intype), e);
-	  return cp_truthvalue_conversion (e);
+	  if (complain & tf_warning)
+	    return cp_truthvalue_conversion (e);
+	  else
+	    {
+	      /* Prevent bogus -Wint-in-bool-context warnings coming
+		 from c_common_truthvalue_conversion down the line.  */
+	      warning_sentinel w (warn_int_in_bool_context);
+	      return cp_truthvalue_conversion (e);
+	    }
 	}
 
       converted = convert_to_integer_maybe_fold (type, e, dofold);

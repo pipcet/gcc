@@ -1,4 +1,4 @@
-/* Copyright (C) 1997-2016 Free Software Foundation, Inc.
+/* Copyright (C) 1997-2017 Free Software Foundation, Inc.
    Contributed by Red Hat, Inc.
 
 This file is part of GCC.
@@ -6482,7 +6482,8 @@ int
 frv_adjust_field_align (tree field, int computed)
 {
   /* Make sure that the bitfield is not wider than the type.  */
-  if (DECL_BIT_FIELD (field)
+  if (field
+      && DECL_BIT_FIELD (field)
       && !DECL_ARTIFICIAL (field))
     {
       tree parent = DECL_CONTEXT (field);

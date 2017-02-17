@@ -1,5 +1,5 @@
 /* C-compiler utilities for types and variables storage layout
-   Copyright (C) 1987-2016 Free Software Foundation, Inc.
+   Copyright (C) 1987-2017 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -718,7 +718,8 @@ layout_decl (tree decl, unsigned int known_align)
 				     (unsigned) BIGGEST_FIELD_ALIGNMENT));
 #endif
 #ifdef ADJUST_FIELD_ALIGN
-	  SET_DECL_ALIGN (decl, ADJUST_FIELD_ALIGN (decl, DECL_ALIGN (decl)));
+	  SET_DECL_ALIGN (decl, ADJUST_FIELD_ALIGN (decl, TREE_TYPE (decl),
+						    DECL_ALIGN (decl)));
 #endif
 	}
 
@@ -1032,7 +1033,7 @@ update_alignment_for_field (record_layout_info rli, tree field,
 
 #ifdef ADJUST_FIELD_ALIGN
 	  if (! TYPE_USER_ALIGN (type))
-	    type_align = ADJUST_FIELD_ALIGN (field, type_align);
+	    type_align = ADJUST_FIELD_ALIGN (field, type, type_align);
 #endif
 
 	  /* Targets might chose to handle unnamed and hence possibly
@@ -1260,7 +1261,7 @@ place_field (record_layout_info rli, tree field)
 
 #ifdef ADJUST_FIELD_ALIGN
       if (! TYPE_USER_ALIGN (type))
-	type_align = ADJUST_FIELD_ALIGN (field, type_align);
+	type_align = ADJUST_FIELD_ALIGN (field, type, type_align);
 #endif
 
       /* A bit field may not span more units of alignment of its type
@@ -1303,7 +1304,7 @@ place_field (record_layout_info rli, tree field)
 
 #ifdef ADJUST_FIELD_ALIGN
       if (! TYPE_USER_ALIGN (type))
-	type_align = ADJUST_FIELD_ALIGN (field, type_align);
+	type_align = ADJUST_FIELD_ALIGN (field, type, type_align);
 #endif
 
       if (maximum_field_alignment != 0)
@@ -1864,13 +1865,14 @@ finish_bitfield_representative (tree repr, tree field)
     }
   else
     {
-      /* ???  If you consider that tail-padding of this struct might be
-         re-used when deriving from it we cannot really do the following
-	 and thus need to set maxsize to bitsize?  Also we cannot
-	 generally rely on maxsize to fold to an integer constant, so
-	 use bitsize as fallback for this case.  */
-      tree maxsize = size_diffop (TYPE_SIZE_UNIT (DECL_CONTEXT (field)),
-				  DECL_FIELD_OFFSET (repr));
+      /* Note that if the C++ FE sets up tail-padding to be re-used it
+         creates a as-base variant of the type with TYPE_SIZE adjusted
+	 accordingly.  So it is safe to include tail-padding here.  */
+      tree aggsize = lang_hooks.types.unit_size_without_reusable_padding
+							(DECL_CONTEXT (field));
+      tree maxsize = size_diffop (aggsize, DECL_FIELD_OFFSET (repr));
+      /* We cannot generally rely on maxsize to fold to an integer constant,
+	 so use bitsize as fallback for this case.  */
       if (tree_fits_uhwi_p (maxsize))
 	maxbitsize = (tree_to_uhwi (maxsize) * BITS_PER_UNIT
 		      - tree_to_uhwi (DECL_FIELD_BIT_OFFSET (repr)));
@@ -2410,9 +2412,7 @@ min_align_of_type (tree type)
 #endif
       unsigned int field_align = align;
 #ifdef ADJUST_FIELD_ALIGN
-      tree field = build_decl (UNKNOWN_LOCATION, FIELD_DECL, NULL_TREE, type);
-      field_align = ADJUST_FIELD_ALIGN (field, field_align);
-      ggc_free (field);
+      field_align = ADJUST_FIELD_ALIGN (NULL_TREE, type, field_align);
 #endif
       align = MIN (align, field_align);
     }

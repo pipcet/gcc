@@ -1,5 +1,5 @@
 /* Target macros for the FRV port of GCC.
-   Copyright (C) 1999-2016 Free Software Foundation, Inc.
+   Copyright (C) 1999-2017 Free Software Foundation, Inc.
    Contributed by Red Hat Inc.
 
    This file is part of GCC.
@@ -331,7 +331,7 @@
    alignment computed in the usual way is COMPUTED.  GCC uses this
    value instead of the value in `BIGGEST_ALIGNMENT' or
    `BIGGEST_FIELD_ALIGNMENT', if defined, for structure fields only.  */
-#define ADJUST_FIELD_ALIGN(FIELD, COMPUTED) 				\
+#define ADJUST_FIELD_ALIGN(FIELD, TYPE, COMPUTED) 			\
   frv_adjust_field_align (FIELD, COMPUTED)
 #endif
 

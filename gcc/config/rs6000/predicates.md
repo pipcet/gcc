@@ -1,5 +1,5 @@
 ;; Predicate definitions for POWER and PowerPC.
-;; Copyright (C) 2005-2016 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2017 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -31,12 +31,47 @@
        (match_test "REGNO (op) == CTR_REGNO
 		    || REGNO (op) > LAST_VIRTUAL_REGISTER")))
 
+;; Return 1 if op is a SUBREG that is used to look at a SFmode value as
+;; and integer or vice versa.
+;;
+;; In the normal case where SFmode is in a floating point/vector register, it
+;; is stored as a DFmode and has a different format.  If we don't transform the
+;; value, things that use logical operations on the values will get the wrong
+;; value.
+;;
+;; If we don't have 64-bit and direct move, this conversion will be done by
+;; store and load, instead of by fiddling with the bits within the register.
+(define_predicate "sf_subreg_operand"
+  (match_code "subreg")
+{
+  rtx inner_reg = SUBREG_REG (op);
+  machine_mode inner_mode = GET_MODE (inner_reg);
+
+  if (TARGET_ALLOW_SF_SUBREG || !REG_P (inner_reg))
+    return 0;
+
+  if ((mode == SFmode && GET_MODE_CLASS (inner_mode) == MODE_INT)
+       || (GET_MODE_CLASS (mode) == MODE_INT && inner_mode == SFmode))
+    {
+      if (INT_REGNO_P (REGNO (inner_reg)))
+	return 0;
+
+      return 1;
+    }
+  return 0;
+})
+
 ;; Return 1 if op is an Altivec register.
 (define_predicate "altivec_register_operand"
   (match_operand 0 "register_operand")
 {
   if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
@@ -49,6 +84,27 @@
 
 ;; Return 1 if op is a VSX register.
 (define_predicate "vsx_register_operand"
+  (match_operand 0 "register_operand")
+{
+  if (GET_CODE (op) == SUBREG)
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
+
+  if (!REG_P (op))
+    return 0;
+
+  if (REGNO (op) >= FIRST_PSEUDO_REGISTER)
+    return 1;
+
+  return VSX_REGNO_P (REGNO (op));
+})
+
+;; Like vsx_register_operand, but allow SF SUBREGS
+(define_predicate "vsx_reg_sfsubreg_ok"
   (match_operand 0 "register_operand")
 {
   if (GET_CODE (op) == SUBREG)
@@ -69,7 +125,12 @@
   (match_operand 0 "register_operand")
 {
   if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
@@ -86,7 +147,12 @@
   (match_operand 0 "register_operand")
 {
   if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
@@ -103,7 +169,13 @@
   (match_operand 0 "register_operand")
 {
   if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
+
 
   if (!REG_P (op))
     return 0;
@@ -210,12 +282,20 @@
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 0, 7)")))
 
+;; Match op = 0..11
+(define_predicate "const_0_to_12_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 0, 12)")))
+
 ;; Match op = 0..15
 (define_predicate "const_0_to_15_operand"
   (and (match_code "const_int")
        (match_test "IN_RANGE (INTVAL (op), 0, 15)")))
 
 ;; Return 1 if op is a register that is not special.
+;; Disallow (SUBREG:SF (REG:SI)) and (SUBREG:SI (REG:SF)) on VSX systems where
+;; you need to be careful in moving a SFmode to SImode and vice versa due to
+;; the fact that SFmode is represented as DFmode in the VSX registers.
 (define_predicate "gpc_reg_operand"
   (match_operand 0 "register_operand")
 {
@@ -223,7 +303,12 @@
     return 0;
 
   if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
@@ -241,7 +326,8 @@
 })
 
 ;; Return 1 if op is a general purpose register.  Unlike gpc_reg_operand, don't
-;; allow floating point or vector registers.
+;; allow floating point or vector registers.  Since vector registers are not
+;; allowed, we don't have to reject SFmode/SImode subregs.
 (define_predicate "int_reg_operand"
   (match_operand 0 "register_operand")
 {
@@ -249,7 +335,12 @@
     return 0;
 
   if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+    {
+      if (TARGET_NO_SF_SUBREG && sf_subreg_operand (op, mode))
+	return 0;
+
+      op = SUBREG_REG (op);
+    }
 
   if (!REG_P (op))
     return 0;
@@ -261,6 +352,8 @@
 })
 
 ;; Like int_reg_operand, but don't return true for pseudo registers
+;; We don't have to check for SF SUBREGS because pseudo registers
+;; are not allowed, and SF SUBREGs are ok within GPR registers.
 (define_predicate "int_reg_operand_not_pseudo"
   (match_operand 0 "register_operand")
 {
@@ -715,6 +808,21 @@
   (and (match_code "const_int,const_double,const_wide_int,const_vector")
        (match_test "op == CONSTM1_RTX (mode) && !FLOAT_MODE_P (mode)")))
 
+;; Return 1 if operand is a vector int register or is either a vector constant
+;; of all 0 bits of a vector constant of all 1 bits.
+(define_predicate "vector_int_reg_or_same_bit"
+  (match_code "reg,subreg,const_vector")
+{
+  if (GET_MODE_CLASS (mode) != MODE_VECTOR_INT)
+    return 0;
+
+  else if (REG_P (op) || SUBREG_P (op))
+    return vint_operand (op, mode);
+
+  else
+    return op == CONST0_RTX (mode) || op == CONSTM1_RTX (mode);
+})
+
 ;; Return 1 if operand is 0.0.
 (define_predicate "zero_fp_constant"
   (and (match_code "const_double")
@@ -1167,8 +1275,8 @@
   (and (match_operand 0 "branch_comparison_operator")
        (match_code "ne,le,ge,leu,geu,ordered")))
 
-;; Return 1 if OP is a comparison operator suitable for vector/scalar
-;; comparisons that generate a -1/0 mask.
+;; Return 1 if OP is a comparison operator suitable for floating point
+;; vector/scalar comparisons that generate a -1/0 mask.
 (define_predicate "fpmask_comparison_operator"
   (match_code "eq,gt,ge"))
 
@@ -1177,6 +1285,11 @@
 ;; fpmask_comparison_operator).
 (define_predicate "invert_fpmask_comparison_operator"
   (match_code "ne,unlt,unle"))
+
+;; Return 1 if OP is a comparison operation suitable for integer vector/scalar
+;; comparisons that generate a -1/0 mask.
+(define_predicate "vecint_comparison_operator"
+  (match_code "eq,gt,gtu"))
 
 ;; Return 1 if OP is a comparison operation that is valid for a branch
 ;; insn, which is true if the corresponding bit in the CC register is set.

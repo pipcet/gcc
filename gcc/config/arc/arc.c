@@ -1,5 +1,5 @@
 /* Subroutines used for code generation on the Synopsys DesignWare ARC cpu.
-   Copyright (C) 1994-2016 Free Software Foundation, Inc.
+   Copyright (C) 1994-2017 Free Software Foundation, Inc.
 
    Sources derived from work done by Sankhya Technologies (www.sankhya.com) on
    behalf of Synopsys Inc.
@@ -243,11 +243,8 @@ static bool arc_use_by_pieces_infrastructure_p (unsigned HOST_WIDE_INT,
 						enum by_pieces_operation op,
 						bool);
 
-static const arc_cpu_t *arc_selected_cpu;
-static const arc_arch_t *arc_selected_arch;
-
-/* Global var which sets the current compilation architecture.  */
-enum base_architecture arc_base_cpu;
+/* Globally visible information about currently selected cpu.  */
+const arc_cpu_t *arc_selected_cpu;
 
 /* Implements target hook vector_mode_supported_p.  */
 
@@ -787,11 +784,9 @@ arc_override_options (void)
 
   /* Set the default cpu options.  */
   arc_selected_cpu = &arc_cpu_types[(int) arc_cpu];
-  arc_selected_arch = &arc_arch_types[(int) arc_selected_cpu->arch];
-  arc_base_cpu = arc_selected_arch->arch;
 
   /* Set the architectures.  */
-  switch (arc_selected_arch->arch)
+  switch (arc_selected_cpu->arch_info->arch_id)
     {
     case BASE_ARCH_em:
       arc_cpu_string = "EM";
@@ -822,16 +817,16 @@ arc_override_options (void)
     if ((arc_selected_cpu->flags & CODE)		\
 	&& ((target_flags_explicit & MASK) == 0))	\
       target_flags |= MASK;				\
-    if (arc_selected_arch->dflags & CODE)		\
+    if (arc_selected_cpu->arch_info->dflags & CODE)	\
       target_flags |= MASK;				\
   } while (0);
-#define ARC_OPTX(NAME, CODE, VAR, VAL, DOC)	\
-  do {						\
-    if ((arc_selected_cpu->flags & CODE)	\
-	&& (VAR == DEFAULT_##VAR))		\
-      VAR = VAL;				\
-    if (arc_selected_arch->dflags & CODE)	\
-      VAR = VAL;				\
+#define ARC_OPTX(NAME, CODE, VAR, VAL, DOC)		\
+  do {							\
+    if ((arc_selected_cpu->flags & CODE)		\
+	&& (VAR == DEFAULT_##VAR))			\
+      VAR = VAL;					\
+    if (arc_selected_cpu->arch_info->dflags & CODE)	\
+      VAR = VAL;					\
   } while (0);
 
 #include "arc-options.def"
@@ -844,18 +839,18 @@ arc_override_options (void)
 #define ARC_OPTX(NAME, CODE, VAR, VAL, DOC)			\
   do {								\
     if ((VAR == VAL)						\
-	&& (!(arc_selected_arch->flags & CODE)))		\
+	&& (!(arc_selected_cpu->arch_info->flags & CODE)))	\
       {								\
 	error ("%s is not available for %s architecture",	\
-	       DOC, arc_selected_arch->name);			\
+	       DOC, arc_selected_cpu->arch_info->name);		\
       }								\
   } while (0);
 #define ARC_OPT(NAME, CODE, MASK, DOC)				\
   do {								\
     if ((target_flags & MASK)					\
-	&& (!(arc_selected_arch->flags & CODE)))		\
+	&& (!(arc_selected_cpu->arch_info->flags & CODE)))	\
       error ("%s is not available for %s architecture",		\
-	     DOC, arc_selected_arch->name);			\
+	     DOC, arc_selected_cpu->arch_info->name);		\
   } while (0);
 
 #include "arc-options.def"
@@ -2771,6 +2766,15 @@ arc_return_slot_offset ()
 
 /* PIC */
 
+/* Helper to generate unspec constant.  */
+
+static rtx
+arc_unspec_offset (rtx loc, int unspec)
+{
+  return gen_rtx_CONST (Pmode, gen_rtx_UNSPEC (Pmode, gen_rtvec (1, loc),
+					       unspec));
+}
+
 /* Emit special PIC prologues and epilogues.  */
 /* If the function has any GOTOFF relocations, then the GOTBASE
    register has to be setup in the prologue
@@ -2796,9 +2800,7 @@ arc_finalize_pic (void)
   gcc_assert (flag_pic != 0);
 
   pat = gen_rtx_SYMBOL_REF (Pmode, "_DYNAMIC");
-  pat = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, pat), ARC_UNSPEC_GOT);
-  pat = gen_rtx_CONST (Pmode, pat);
-
+  pat = arc_unspec_offset (pat, ARC_UNSPEC_GOT);
   pat = gen_rtx_SET (baseptr_rtx, pat);
 
   emit_insn (pat);
@@ -3601,97 +3603,6 @@ arc_print_operand_address (FILE *file , rtx addr)
 	output_addr_const (file, addr);
       break;
     }
-}
-
-/* Called via walk_stores.  DATA points to a hash table we can use to
-   establish a unique SYMBOL_REF for each counter, which corresponds to
-   a caller-callee pair.
-   X is a store which we want to examine for an UNSPEC_PROF, which
-   would be an address loaded into a register, or directly used in a MEM.
-   If we found an UNSPEC_PROF, if we encounter a new counter the first time,
-   write out a description and a data allocation for a 32 bit counter.
-   Also, fill in the appropriate symbol_ref into each UNSPEC_PROF instance.  */
-
-static void
-write_profile_sections (rtx dest ATTRIBUTE_UNUSED, rtx x, void *data)
-{
-  rtx *srcp, src;
-  htab_t htab = (htab_t) data;
-  rtx *slot;
-
-  if (GET_CODE (x) != SET)
-    return;
-  srcp = &SET_SRC (x);
-  if (MEM_P (*srcp))
-    srcp = &XEXP (*srcp, 0);
-  else if (MEM_P (SET_DEST (x)))
-    srcp = &XEXP (SET_DEST (x), 0);
-  src = *srcp;
-  if (GET_CODE (src) != CONST)
-    return;
-  src = XEXP (src, 0);
-  if (GET_CODE (src) != UNSPEC || XINT (src, 1) != UNSPEC_PROF)
-    return;
-
-  gcc_assert (XVECLEN (src, 0) == 3);
-  if (!htab_elements (htab))
-    {
-      output_asm_insn (".section .__arc_profile_desc, \"a\"\n"
-		       "\t.long %0 + 1\n",
-		       &XVECEXP (src, 0, 0));
-    }
-  slot = (rtx *) htab_find_slot (htab, src, INSERT);
-  if (*slot == HTAB_EMPTY_ENTRY)
-    {
-      static int count_nr;
-      char buf[24];
-      rtx count;
-
-      *slot = src;
-      sprintf (buf, "__prof_count%d", count_nr++);
-      count = gen_rtx_SYMBOL_REF (Pmode, xstrdup (buf));
-      XVECEXP (src, 0, 2) = count;
-      output_asm_insn (".section\t.__arc_profile_desc, \"a\"\n"
-		       "\t.long\t%1\n"
-		       "\t.section\t.__arc_profile_counters, \"aw\"\n"
-		       "\t.type\t%o2, @object\n"
-		       "\t.size\t%o2, 4\n"
-		       "%o2:\t.zero 4",
-		       &XVECEXP (src, 0, 0));
-      *srcp = count;
-    }
-  else
-    *srcp = XVECEXP (*slot, 0, 2);
-}
-
-/* Hash function for UNSPEC_PROF htab.  Use both the caller's name and
-   the callee's name (if known).  */
-
-static hashval_t
-unspec_prof_hash (const void *x)
-{
-  const_rtx u = (const_rtx) x;
-  const_rtx s1 = XVECEXP (u, 0, 1);
-
-  return (htab_hash_string (XSTR (XVECEXP (u, 0, 0), 0))
-	  ^ (s1->code == SYMBOL_REF ? htab_hash_string (XSTR (s1, 0)) : 0));
-}
-
-/* Equality function for UNSPEC_PROF htab.  Two pieces of UNSPEC_PROF rtl
-   shall refer to the same counter if both caller name and callee rtl
-   are identical.  */
-
-static int
-unspec_prof_htab_eq (const void *x, const void *y)
-{
-  const_rtx u0 = (const_rtx) x;
-  const_rtx u1 = (const_rtx) y;
-  const_rtx s01 = XVECEXP (u0, 0, 1);
-  const_rtx s11 = XVECEXP (u1, 0, 1);
-
-  return (!strcmp (XSTR (XVECEXP (u0, 0, 0), 0),
-		   XSTR (XVECEXP (u1, 0, 0), 0))
-	  && rtx_equal_p (s01, s11));
 }
 
 /* Conditional execution support.
@@ -4866,8 +4777,7 @@ arc_emit_call_tls_get_addr (rtx sym, int reloc, rtx eqv)
 
   start_sequence ();
 
-  rtx x = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, sym), reloc);
-  x = gen_rtx_CONST (Pmode, x);
+  rtx x = arc_unspec_offset (sym, reloc);
   emit_move_insn (r0, x);
   use_reg (&call_fusage, r0);
 
@@ -4923,17 +4833,18 @@ arc_legitimize_tls_address (rtx addr, enum tls_model model)
       addr = gen_rtx_CONST (Pmode, addr);
       base = arc_legitimize_tls_address (base, TLS_MODEL_GLOBAL_DYNAMIC);
       return gen_rtx_PLUS (Pmode, force_reg (Pmode, base), addr);
+
     case TLS_MODEL_GLOBAL_DYNAMIC:
       return arc_emit_call_tls_get_addr (addr, UNSPEC_TLS_GD, addr);
+
     case TLS_MODEL_INITIAL_EXEC:
-      addr = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, addr), UNSPEC_TLS_IE);
-      addr = gen_rtx_CONST (Pmode, addr);
+      addr = arc_unspec_offset (addr, UNSPEC_TLS_IE);
       addr = copy_to_mode_reg (Pmode, gen_const_mem (Pmode, addr));
       return gen_rtx_PLUS (Pmode, arc_get_tp (), addr);
+
     case TLS_MODEL_LOCAL_EXEC:
     local_exec:
-      addr = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, addr), UNSPEC_TLS_OFF);
-      addr = gen_rtx_CONST (Pmode, addr);
+      addr = arc_unspec_offset (addr, UNSPEC_TLS_OFF);
       return gen_rtx_PLUS (Pmode, arc_get_tp (), addr);
     default:
       gcc_unreachable ();
@@ -4964,14 +4875,11 @@ arc_legitimize_pic_address (rtx orig, rtx oldx)
       else if (!flag_pic)
 	return orig;
       else if (CONSTANT_POOL_ADDRESS_P (addr) || SYMBOL_REF_LOCAL_P (addr))
-	return gen_rtx_CONST (Pmode,
-			      gen_rtx_UNSPEC (Pmode, gen_rtvec (1, addr),
-			      ARC_UNSPEC_GOTOFFPC));
+	return arc_unspec_offset (addr, ARC_UNSPEC_GOTOFFPC);
 
       /* This symbol must be referenced via a load from the Global
 	 Offset Table (@GOTPC).  */
-      pat = gen_rtx_UNSPEC (Pmode, gen_rtvec (1, addr), ARC_UNSPEC_GOT);
-      pat = gen_rtx_CONST (Pmode, pat);
+      pat = arc_unspec_offset (addr, ARC_UNSPEC_GOT);
       pat = gen_const_mem (Pmode, pat);
 
       if (oldx == NULL)
@@ -5434,7 +5342,6 @@ arc_legitimate_constant_p (machine_mode mode, rtx x)
 	  case UNSPEC_TLS_GD:
 	  case UNSPEC_TLS_IE:
 	  case UNSPEC_TLS_OFF:
-	  case UNSPEC_PROF:
 	    return true;
 
 	  default:
@@ -6355,47 +6262,6 @@ arc_is_shortcall_p (rtx sym_ref)
 
 }
 
-/* Emit profiling code for calling CALLEE.  Return true if a special
-   call pattern needs to be generated.  */
-
-bool
-arc_profile_call (rtx callee)
-{
-  rtx from = XEXP (DECL_RTL (current_function_decl), 0);
-
-  if (TARGET_UCB_MCOUNT)
-    /* Profiling is done by instrumenting the callee.  */
-    return false;
-
-  if (CONSTANT_P (callee))
-    {
-      rtx count_ptr
-	= gen_rtx_CONST (Pmode,
-			 gen_rtx_UNSPEC (Pmode,
-					 gen_rtvec (3, from, callee,
-						    CONST0_RTX (Pmode)),
-					 UNSPEC_PROF));
-      rtx counter = gen_rtx_MEM (SImode, count_ptr);
-      /* ??? The increment would better be done atomically, but as there is
-	 no proper hardware support, that would be too expensive.  */
-      emit_move_insn (counter,
-		      force_reg (SImode, plus_constant (SImode, counter, 1)));
-      return false;
-    }
-  else
-    {
-      rtx count_list_ptr
-	= gen_rtx_CONST (Pmode,
-			 gen_rtx_UNSPEC (Pmode,
-					 gen_rtvec (3, from, CONST0_RTX (Pmode),
-						    CONST0_RTX (Pmode)),
-					 UNSPEC_PROF));
-      emit_move_insn (gen_rtx_REG (Pmode, 8), count_list_ptr);
-      emit_move_insn (gen_rtx_REG (Pmode, 9), callee);
-      return true;
-    }
-}
-
 /* Worker function for TARGET_RETURN_IN_MEMORY.  */
 
 static bool
@@ -6616,25 +6482,6 @@ arc_reorg (void)
 
   cfun->machine->arc_reorg_started = 1;
   arc_reorg_in_progress = 1;
-
-  /* Emit special sections for profiling.  */
-  if (crtl->profile)
-    {
-      section *save_text_section;
-      rtx_insn *insn;
-      int size = get_max_uid () >> 4;
-      htab_t htab = htab_create (size, unspec_prof_hash, unspec_prof_htab_eq,
-				 NULL);
-
-      save_text_section = in_section;
-      for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
-	if (NONJUMP_INSN_P (insn))
-	  walk_stores (PATTERN (insn), write_profile_sections, htab);
-      if (htab_elements (htab))
-	in_section = 0;
-      switch_to_section (save_text_section);
-      htab_delete (htab);
-    }
 
   /* Link up loop ends with their loop start.  */
   {
@@ -9983,15 +9830,6 @@ arc_dwarf_register_span (rtx rtl)
    XVECEXP (p, 0, 1) = gen_rtx_REG (SImode, regno + 1);
 
    return p;
-}
-
-/* We can't inline this in INSN_REFERENCES_ARE_DELAYED because
-   resource.h doesn't include the required header files.  */
-
-bool
-insn_is_tls_gd_dispatch (rtx_insn *insn)
-{
-  return recog_memoized (insn) == CODE_FOR_tls_gd_dispatch;
 }
 
 /* Return true if OP is an acceptable memory operand for ARCompact

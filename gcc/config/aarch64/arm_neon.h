@@ -1,6 +1,6 @@
 /* ARM NEON intrinsics include file.
 
-   Copyright (C) 2011-2016 Free Software Foundation, Inc.
+   Copyright (C) 2011-2017 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -3506,6 +3506,13 @@ vreinterpretq_p8_p64 (poly64x2_t __a)
   return (poly8x16_t) __a;
 }
 
+__extension__ extern __inline poly8x16_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p8_p128 (poly128_t __a)
+{
+  return (poly8x16_t)__a;
+}
+
 __extension__ extern __inline poly16x4_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpret_p16_f16 (float16x4_t __a)
@@ -3688,6 +3695,13 @@ vreinterpretq_p16_p64 (poly64x2_t __a)
   return (poly16x8_t) __a;
 }
 
+__extension__ extern __inline poly16x8_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p16_p128 (poly128_t __a)
+{
+  return (poly16x8_t)__a;
+}
+
 __extension__ extern __inline poly64x1_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpret_p64_f16 (float16x4_t __a)
@@ -3772,6 +3786,13 @@ vreinterpret_p64_p8 (poly8x8_t __a)
   return (poly64x1_t) __a;
 }
 
+__extension__ extern __inline poly64x1_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpret_p64_p16 (poly16x4_t __a)
+{
+  return (poly64x1_t)__a;
+}
+
 __extension__ extern __inline poly64x2_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_p64_f64 (float64x2_t __a)
@@ -3823,6 +3844,13 @@ vreinterpretq_p64_f32 (float32x4_t __a)
 
 __extension__ extern __inline poly64x2_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p64_p128 (poly128_t __a)
+{
+  return (poly64x2_t)__a;
+}
+
+__extension__ extern __inline poly64x2_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_p64_u8 (uint8x16_t __a)
 {
   return (poly64x2_t) __a;
@@ -3833,6 +3861,13 @@ __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_p64_u16 (uint16x8_t __a)
 {
   return (poly64x2_t) __a;
+}
+
+__extension__ extern __inline poly64x2_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p64_p16 (poly16x8_t __a)
+{
+  return (poly64x2_t)__a;
 }
 
 __extension__ extern __inline poly64x2_t
@@ -3854,6 +3889,97 @@ __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_p64_p8 (poly8x16_t __a)
 {
   return (poly64x2_t) __a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_p8 (poly8x16_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_p16 (poly16x8_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_f16 (float16x8_t __a)
+{
+  return (poly128_t) __a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_f32 (float32x4_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_p64 (poly64x2_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_s64 (int64x2_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_u64 (uint64x2_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_s8 (int8x16_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_s16 (int16x8_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_s32 (int32x4_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_u8 (uint8x16_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_u16 (uint16x8_t __a)
+{
+  return (poly128_t)__a;
+}
+
+__extension__ extern __inline poly128_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_p128_u32 (uint32x4_t __a)
+{
+  return (poly128_t)__a;
 }
 
 __extension__ extern __inline float16x4_t
@@ -4020,6 +4146,13 @@ vreinterpretq_f16_u64 (uint64x2_t __a)
 __extension__ extern __inline float16x8_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_f16_p8 (poly8x16_t __a)
+{
+  return (float16x8_t) __a;
+}
+
+__extension__ extern __inline float16x8_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_f16_p128 (poly128_t __a)
 {
   return (float16x8_t) __a;
 }
@@ -4219,6 +4352,14 @@ vreinterpretq_f32_p64 (poly64x2_t __a)
 {
   return (float32x4_t) __a;
 }
+
+__extension__ extern __inline float32x4_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_f32_p128 (poly128_t __a)
+{
+  return (float32x4_t)__a;
+}
+
 
 __extension__ extern __inline float64x1_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
@@ -4584,6 +4725,13 @@ vreinterpretq_s64_p64 (poly64x2_t __a)
   return (int64x2_t) __a;
 }
 
+__extension__ extern __inline int64x2_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_s64_p128 (poly128_t __a)
+{
+  return (int64x2_t)__a;
+}
+
 __extension__ extern __inline uint64x1_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpret_u64_f16 (float16x4_t __a)
@@ -4764,6 +4912,13 @@ __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_u64_p64 (poly64x2_t __a)
 {
   return (uint64x2_t) __a;
+}
+
+__extension__ extern __inline uint64x2_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_u64_p128 (poly128_t __a)
+{
+  return (uint64x2_t)__a;
 }
 
 __extension__ extern __inline int8x8_t
@@ -4948,6 +5103,13 @@ vreinterpretq_s8_p64 (poly64x2_t __a)
   return (int8x16_t) __a;
 }
 
+__extension__ extern __inline int8x16_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_s8_p128 (poly128_t __a)
+{
+  return (int8x16_t)__a;
+}
+
 __extension__ extern __inline int16x4_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpret_s16_f16 (float16x4_t __a)
@@ -5128,6 +5290,13 @@ __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_s16_p64 (poly64x2_t __a)
 {
   return (int16x8_t) __a;
+}
+
+__extension__ extern __inline int16x8_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_s16_p128 (poly128_t __a)
+{
+  return (int16x8_t)__a;
 }
 
 __extension__ extern __inline int32x2_t
@@ -5312,6 +5481,13 @@ vreinterpretq_s32_p64 (poly64x2_t __a)
   return (int32x4_t) __a;
 }
 
+__extension__ extern __inline int32x4_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_s32_p128 (poly128_t __a)
+{
+  return (int32x4_t)__a;
+}
+
 __extension__ extern __inline uint8x8_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpret_u8_f16 (float16x4_t __a)
@@ -5492,6 +5668,13 @@ __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_u8_p64 (poly64x2_t __a)
 {
   return (uint8x16_t) __a;
+}
+
+__extension__ extern __inline uint8x16_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_u8_p128 (poly128_t __a)
+{
+  return (uint8x16_t)__a;
 }
 
 __extension__ extern __inline uint16x4_t
@@ -5676,6 +5859,13 @@ vreinterpretq_u16_p64 (poly64x2_t __a)
   return (uint16x8_t) __a;
 }
 
+__extension__ extern __inline uint16x8_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_u16_p128 (poly128_t __a)
+{
+  return (uint16x8_t)__a;
+}
+
 __extension__ extern __inline uint32x2_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpret_u32_f16 (float16x4_t __a)
@@ -5856,6 +6046,13 @@ __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vreinterpretq_u32_p64 (poly64x2_t __a)
 {
   return (uint32x4_t) __a;
+}
+
+__extension__ extern __inline uint32x4_t
+__attribute__  ((__always_inline__, __gnu_inline__, __artificial__))
+vreinterpretq_u32_p128 (poly128_t __a)
+{
+  return (uint32x4_t)__a;
 }
 
 /* vset_lane  */
@@ -10665,48 +10862,47 @@ __extension__ extern __inline uint8x8_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vtst_p8 (poly8x8_t a, poly8x8_t b)
 {
-  uint8x8_t result;
-  __asm__ ("cmtst %0.8b, %1.8b, %2.8b"
-           : "=w"(result)
-           : "w"(a), "w"(b)
-           : /* No clobbers */);
-  return result;
+  return (uint8x8_t) ((((uint8x8_t) a) & ((uint8x8_t) b))
+		       != 0);
 }
 
 __extension__ extern __inline uint16x4_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vtst_p16 (poly16x4_t a, poly16x4_t b)
 {
-  uint16x4_t result;
-  __asm__ ("cmtst %0.4h, %1.4h, %2.4h"
-           : "=w"(result)
-           : "w"(a), "w"(b)
-           : /* No clobbers */);
-  return result;
+  return (uint16x4_t) ((((uint16x4_t) a) & ((uint16x4_t) b))
+		       != 0);
+}
+
+__extension__ extern __inline uint64x1_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vtst_p64 (poly64x1_t a, poly64x1_t b)
+{
+  return (uint64x1_t) ((a & b) != __AARCH64_INT64_C (0));
 }
 
 __extension__ extern __inline uint8x16_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vtstq_p8 (poly8x16_t a, poly8x16_t b)
 {
-  uint8x16_t result;
-  __asm__ ("cmtst %0.16b, %1.16b, %2.16b"
-           : "=w"(result)
-           : "w"(a), "w"(b)
-           : /* No clobbers */);
-  return result;
+  return (uint8x16_t) ((((uint8x16_t) a) & ((uint8x16_t) b))
+		       != 0);
 }
 
 __extension__ extern __inline uint16x8_t
 __attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
 vtstq_p16 (poly16x8_t a, poly16x8_t b)
 {
-  uint16x8_t result;
-  __asm__ ("cmtst %0.8h, %1.8h, %2.8h"
-           : "=w"(result)
-           : "w"(a), "w"(b)
-           : /* No clobbers */);
-  return result;
+  return (uint16x8_t) ((((uint16x8_t) a) & ((uint16x8_t) b))
+		       != 0);
+}
+
+__extension__ extern __inline uint64x2_t
+__attribute__ ((__always_inline__, __gnu_inline__, __artificial__))
+vtstq_p64 (poly64x2_t a, poly64x2_t b)
+{
+  return (uint64x2_t) ((((uint64x2_t) a) & ((uint64x2_t) b))
+		       != __AARCH64_INT64_C (0));
 }
 
 /* End of temporary inline asm implementations.  */

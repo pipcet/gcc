@@ -1,5 +1,5 @@
 /* FMA steering optimization pass for Cortex-A57.
-   Copyright (C) 2015-2016 Free Software Foundation, Inc.
+   Copyright (C) 2015-2017 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -923,10 +923,10 @@ func_fma_steering::analyze ()
       FOR_BB_INSNS (bb, insn)
 	{
 	  operand_rr_info *dest_op_info;
-	  struct du_chain *chain;
+	  struct du_chain *chain = NULL;
 	  unsigned dest_regno;
-	  fma_forest *forest;
-	  du_head_p head;
+	  fma_forest *forest = NULL;
+	  du_head_p head = NULL;
 	  int i;
 
 	  if (!is_fmul_fmac_insn (insn, true))

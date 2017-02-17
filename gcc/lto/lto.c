@@ -1,5 +1,5 @@
 /* Top-level LTO routines.
-   Copyright (C) 2009-2016 Free Software Foundation, Inc.
+   Copyright (C) 2009-2017 Free Software Foundation, Inc.
    Contributed by CodeSourcery, Inc.
 
 This file is part of GCC.
@@ -2287,6 +2287,8 @@ do_stream_out (char *temp_filename, lto_symtab_encoder_t encoder)
   lto_set_current_out_file (file);
 
   ipa_write_optimization_summaries (encoder);
+
+  free (CONST_CAST (char *, file->filename));
 
   lto_set_current_out_file (NULL);
   lto_obj_file_close (file);

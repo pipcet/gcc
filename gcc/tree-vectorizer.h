@@ -1,5 +1,5 @@
 /* Vectorizer
-   Copyright (C) 2003-2016 Free Software Foundation, Inc.
+   Copyright (C) 2003-2017 Free Software Foundation, Inc.
    Contributed by Dorit Naishlos <dorit@il.ibm.com>
 
 This file is part of GCC.
@@ -783,6 +783,18 @@ struct dataref_aux {
 
 /* The maximum vectorization factor supported by any target (V64QI).  */
 #define MAX_VECTORIZATION_FACTOR 64
+
+/* Nonzero if TYPE represents a (scalar) boolean type or type
+   in the middle-end compatible with it (unsigned precision 1 integral
+   types).  Used to determine which types should be vectorized as
+   VECTOR_BOOLEAN_TYPE_P.  */
+
+#define VECT_SCALAR_BOOLEAN_TYPE_P(TYPE) \
+  (TREE_CODE (TYPE) == BOOLEAN_TYPE		\
+   || ((TREE_CODE (TYPE) == INTEGER_TYPE	\
+	|| TREE_CODE (TYPE) == ENUMERAL_TYPE)	\
+       && TYPE_PRECISION (TYPE) == 1		\
+       && TYPE_UNSIGNED (TYPE)))
 
 extern vec<stmt_vec_info> stmt_vec_info_vec;
 

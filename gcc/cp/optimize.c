@@ -1,5 +1,5 @@
 /* Perform optimizations on tree structure.
-   Copyright (C) 1998-2016 Free Software Foundation, Inc.
+   Copyright (C) 1998-2017 Free Software Foundation, Inc.
    Written by Mark Michell (mark@codesourcery.com).
 
 This file is part of GCC.
@@ -621,9 +621,21 @@ maybe_clone_body (tree fn)
                  function.  */
               else
                 {
-                  decl_map->put (parm, clone_parm);
+		  tree replacement;
 		  if (clone_parm)
-		    clone_parm = DECL_CHAIN (clone_parm);
+		    {
+		      replacement = clone_parm;
+		      clone_parm = DECL_CHAIN (clone_parm);
+		    }
+		  else
+		    {
+		      /* Inheriting ctors can omit parameters from the base
+			 clone.  Replace them with null lvalues.  */
+		      tree reftype = build_reference_type (TREE_TYPE (parm));
+		      replacement = fold_convert (reftype, null_pointer_node);
+		      replacement = convert_from_reference (replacement);
+		    }
+                  decl_map->put (parm, replacement);
                 }
             }
 

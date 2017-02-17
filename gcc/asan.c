@@ -1,5 +1,5 @@
 /* AddressSanitizer, a fast memory error detector.
-   Copyright (C) 2012-2016 Free Software Foundation, Inc.
+   Copyright (C) 2012-2017 Free Software Foundation, Inc.
    Contributed by Kostya Serebryany <kcc@google.com>
 
 This file is part of GCC.
@@ -32,8 +32,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-pass.h"
 #include "memmodel.h"
 #include "tm_p.h"
+#include "ssa.h"
 #include "stringpool.h"
-#include "tree-vrp.h"
 #include "tree-ssanames.h"
 #include "optabs.h"
 #include "emit-rtl.h"
@@ -59,6 +59,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "builtins.h"
 #include "fnmatch.h"
+#include "tree-inline.h"
 
 /* AddressSanitizer finds out-of-bounds and use-after-free bugs
    with <2x slowdown on average.
@@ -245,15 +246,6 @@ static unsigned HOST_WIDE_INT asan_shadow_offset_value;
 static bool asan_shadow_offset_computed;
 static vec<char *> sanitized_sections;
 
-/* Return true if STMT is ASAN_MARK poisoning internal function call.  */
-static inline bool
-asan_mark_poison_p (gimple *stmt)
-{
-  return (gimple_call_internal_p (stmt, IFN_ASAN_MARK)
-	  && tree_to_uhwi (gimple_call_arg (stmt, 0)) == ASAN_MARK_CLOBBER);
-
-}
-
 /* Set of variable declarations that are going to be guarded by
    use-after-scope sanitizer.  */
 
@@ -301,6 +293,13 @@ set_sanitized_sections (const char *sections)
       sanitized_sections.safe_push (xstrndup (s, len));
       s = *end ? end + 1 : end;
     }
+}
+
+bool
+asan_mark_p (gimple *stmt, enum asan_mark_flags flag)
+{
+  return (gimple_call_internal_p (stmt, IFN_ASAN_MARK)
+	  && tree_to_uhwi (gimple_call_arg (stmt, 0)) == flag);
 }
 
 bool
@@ -1070,7 +1069,7 @@ asan_emit_stack_protection (rtx base, rtx pbase, unsigned int alignb,
   rtx shadow_base, shadow_mem, ret, mem, orig_base;
   rtx_code_label *lab;
   rtx_insn *insns;
-  char buf[30];
+  char buf[32];
   unsigned char shadow_bytes[4];
   HOST_WIDE_INT base_offset = offsets[length - 1];
   HOST_WIDE_INT base_align_bias = 0, offset, prev_offset;
@@ -1388,6 +1387,16 @@ asan_needs_local_alias (tree decl)
   return DECL_WEAK (decl) || !targetm.binds_local_p (decl);
 }
 
+/* Return true if DECL, a global var, is an artificial ODR indicator symbol
+   therefore doesn't need protection.  */
+
+static bool
+is_odr_indicator (tree decl)
+{
+  return (DECL_ARTIFICIAL (decl)
+	  && lookup_attribute ("asan odr indicator", DECL_ATTRIBUTES (decl)));
+}
+
 /* Return true if DECL is a VAR_DECL that should be protected
    by Address Sanitizer, by appending a red zone with protected
    shadow memory after it and aligning it to at least
@@ -1436,7 +1445,8 @@ asan_protect_global (tree decl)
       || ASAN_RED_ZONE_SIZE * BITS_PER_UNIT > MAX_OFILE_ALIGNMENT
       || !valid_constant_size_p (DECL_SIZE_UNIT (decl))
       || DECL_ALIGN_UNIT (decl) > 2 * ASAN_RED_ZONE_SIZE
-      || TREE_TYPE (decl) == ubsan_get_source_location_type ())
+      || TREE_TYPE (decl) == ubsan_get_source_location_type ()
+      || is_odr_indicator (decl))
     return false;
 
   rtl = DECL_RTL (decl);
@@ -2211,7 +2221,8 @@ transform_statements (void)
 		 miss some instrumentation opportunities.  Do the same
 		 for a ASAN_MARK poisoning internal function.  */
 	      if (is_gimple_call (s)
-		  && (!nonfreeing_call_p (s) || asan_mark_poison_p (s)))
+		  && (!nonfreeing_call_p (s)
+		      || asan_mark_p (s, ASAN_MARK_POISON)))
 		empty_mem_ref_hash_table ();
 
 	      gsi_next (&i);
@@ -2266,14 +2277,15 @@ asan_dynamic_init_call (bool after_p)
 static tree
 asan_global_struct (void)
 {
-  static const char *field_names[8]
+  static const char *field_names[]
     = { "__beg", "__size", "__size_with_redzone",
-	"__name", "__module_name", "__has_dynamic_init", "__location", "__odr_indicator"};
-  tree fields[8], ret;
-  int i;
+	"__name", "__module_name", "__has_dynamic_init", "__location",
+	"__odr_indicator" };
+  tree fields[ARRAY_SIZE (field_names)], ret;
+  unsigned i;
 
   ret = make_node (RECORD_TYPE);
-  for (i = 0; i < 8; i++)
+  for (i = 0; i < ARRAY_SIZE (field_names); i++)
     {
       fields[i]
 	= build_decl (UNKNOWN_LOCATION, FIELD_DECL,
@@ -2293,6 +2305,72 @@ asan_global_struct (void)
   TYPE_STUB_DECL (ret) = type_decl;
   layout_type (ret);
   return ret;
+}
+
+/* Create and return odr indicator symbol for DECL.
+   TYPE is __asan_global struct type as returned by asan_global_struct.  */
+
+static tree
+create_odr_indicator (tree decl, tree type)
+{
+  char *name;
+  tree uptr = TREE_TYPE (DECL_CHAIN (TYPE_FIELDS (type)));
+  tree decl_name
+    = (HAS_DECL_ASSEMBLER_NAME_P (decl) ? DECL_ASSEMBLER_NAME (decl)
+					: DECL_NAME (decl));
+  /* DECL_NAME theoretically might be NULL.  Bail out with 0 in this case.  */
+  if (decl_name == NULL_TREE)
+    return build_int_cst (uptr, 0);
+  size_t len = strlen (IDENTIFIER_POINTER (decl_name)) + sizeof ("__odr_asan_");
+  name = XALLOCAVEC (char, len);
+  snprintf (name, len, "__odr_asan_%s", IDENTIFIER_POINTER (decl_name));
+#ifndef NO_DOT_IN_LABEL
+  name[sizeof ("__odr_asan") - 1] = '.';
+#elif !defined(NO_DOLLAR_IN_LABEL)
+  name[sizeof ("__odr_asan") - 1] = '$';
+#endif
+  tree var = build_decl (UNKNOWN_LOCATION, VAR_DECL, get_identifier (name),
+			 char_type_node);
+  TREE_ADDRESSABLE (var) = 1;
+  TREE_READONLY (var) = 0;
+  TREE_THIS_VOLATILE (var) = 1;
+  DECL_GIMPLE_REG_P (var) = 0;
+  DECL_ARTIFICIAL (var) = 1;
+  DECL_IGNORED_P (var) = 1;
+  TREE_STATIC (var) = 1;
+  TREE_PUBLIC (var) = 1;
+  DECL_VISIBILITY (var) = DECL_VISIBILITY (decl);
+  DECL_VISIBILITY_SPECIFIED (var) = DECL_VISIBILITY_SPECIFIED (decl);
+
+  TREE_USED (var) = 1;
+  tree ctor = build_constructor_va (TREE_TYPE (var), 1, NULL_TREE,
+				    build_int_cst (unsigned_type_node, 0));
+  TREE_CONSTANT (ctor) = 1;
+  TREE_STATIC (ctor) = 1;
+  DECL_INITIAL (var) = ctor;
+  DECL_ATTRIBUTES (var) = tree_cons (get_identifier ("asan odr indicator"),
+				     NULL, DECL_ATTRIBUTES (var));
+  make_decl_rtl (var);
+  varpool_node::finalize_decl (var);
+  return fold_convert (uptr, build_fold_addr_expr (var));
+}
+
+/* Return true if DECL, a global var, might be overridden and needs
+   an additional odr indicator symbol.  */
+
+static bool
+asan_needs_odr_indicator_p (tree decl)
+{
+  /* Don't emit ODR indicators for kernel because:
+     a) Kernel is written in C thus doesn't need ODR indicators.
+     b) Some kernel code may have assumptions about symbols containing specific
+        patterns in their names.  Since ODR indicators contain original names
+        of symbols they are emitted for, these assumptions would be broken for
+        ODR indicator symbols.  */
+  return (!(flag_sanitize & SANITIZE_KERNEL_ADDRESS)
+	  && !DECL_ARTIFICIAL (decl)
+	  && !DECL_WEAK (decl)
+	  && TREE_PUBLIC (decl));
 }
 
 /* Append description of a single global DECL into vector V.
@@ -2335,6 +2413,9 @@ asan_add_global (tree decl, tree type, vec<constructor_elt, va_gc> *v)
       assemble_alias (refdecl, DECL_ASSEMBLER_NAME (decl));
     }
 
+  tree odr_indicator_ptr
+    = (asan_needs_odr_indicator_p (decl) ? create_odr_indicator (decl, type)
+					 : build_int_cst (uptr, 0));
   CONSTRUCTOR_APPEND_ELT (vinner, NULL_TREE,
 			  fold_convert (const_ptr_type_node,
 					build_fold_addr_expr (refdecl)));
@@ -2347,7 +2428,11 @@ asan_add_global (tree decl, tree type, vec<constructor_elt, va_gc> *v)
   CONSTRUCTOR_APPEND_ELT (vinner, NULL_TREE,
 			  fold_convert (const_ptr_type_node, module_name_cst));
   varpool_node *vnode = varpool_node::get (decl);
-  int has_dynamic_init = vnode ? vnode->dynamically_initialized : 0;
+  int has_dynamic_init = 0;
+  /* FIXME: Enable initialization order fiasco detection in LTO mode once
+     proper fix for PR 79061 will be applied.  */
+  if (!in_lto_p)
+    has_dynamic_init = vnode ? vnode->dynamically_initialized : 0;
   CONSTRUCTOR_APPEND_ELT (vinner, NULL_TREE,
 			  build_int_cst (uptr, has_dynamic_init));
   tree locptr = NULL_TREE;
@@ -2382,8 +2467,7 @@ asan_add_global (tree decl, tree type, vec<constructor_elt, va_gc> *v)
   else
     locptr = build_int_cst (uptr, 0);
   CONSTRUCTOR_APPEND_ELT (vinner, NULL_TREE, locptr);
-  /* TODO: support ODR indicators.  */
-  CONSTRUCTOR_APPEND_ELT (vinner, NULL_TREE, build_int_cst (uptr, 0));
+  CONSTRUCTOR_APPEND_ELT (vinner, NULL_TREE, odr_indicator_ptr);
   init = build_constructor (type, vinner);
   CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, init);
 }
@@ -2706,9 +2790,8 @@ asan_expand_mark_ifn (gimple_stmt_iterator *iter)
 {
   gimple *g = gsi_stmt (*iter);
   location_t loc = gimple_location (g);
-  HOST_WIDE_INT flags = tree_to_shwi (gimple_call_arg (g, 0));
-  gcc_assert (flags < ASAN_MARK_LAST);
-  bool is_clobber = (flags & ASAN_MARK_CLOBBER) != 0;
+  HOST_WIDE_INT flag = tree_to_shwi (gimple_call_arg (g, 0));
+  bool is_poison = ((asan_mark_flags)flag) == ASAN_MARK_POISON;
 
   tree base = gimple_call_arg (g, 1);
   gcc_checking_assert (TREE_CODE (base) == ADDR_EXPR);
@@ -2756,7 +2839,7 @@ asan_expand_mark_ifn (gimple_stmt_iterator *iter)
 	  if (s > size_in_bytes)
 	    last_chunk_size = ASAN_SHADOW_GRANULARITY - (s - size_in_bytes);
 
-	  asan_store_shadow_bytes (iter, loc, shadow, offset, is_clobber,
+	  asan_store_shadow_bytes (iter, loc, shadow, offset, is_poison,
 				   size, last_chunk_size);
 	  offset += size;
 	}
@@ -2769,8 +2852,9 @@ asan_expand_mark_ifn (gimple_stmt_iterator *iter)
       gsi_insert_before (iter, g, GSI_SAME_STMT);
       tree sz_arg = gimple_assign_lhs (g);
 
-      tree fun = builtin_decl_implicit (is_clobber ? BUILT_IN_ASAN_CLOBBER_N
-					: BUILT_IN_ASAN_UNCLOBBER_N);
+      tree fun
+	= builtin_decl_implicit (is_poison ? BUILT_IN_ASAN_POISON_STACK_MEMORY
+				 : BUILT_IN_ASAN_UNPOISON_STACK_MEMORY);
       g = gimple_build_call (fun, 2, base_addr, sz_arg);
       gimple_set_location (g, loc);
       gsi_insert_after (iter, g, GSI_NEW_STMT);
@@ -2981,6 +3065,117 @@ asan_expand_check_ifn (gimple_stmt_iterator *iter, bool use_calls)
 
   gsi_remove (iter, true);
   *iter = gsi_start_bb (else_bb);
+
+  return true;
+}
+
+/* Create ASAN shadow variable for a VAR_DECL which has been rewritten
+   into SSA.  Already seen VAR_DECLs are stored in SHADOW_VARS_MAPPING.  */
+
+static tree
+create_asan_shadow_var (tree var_decl,
+			hash_map<tree, tree> &shadow_vars_mapping)
+{
+  tree *slot = shadow_vars_mapping.get (var_decl);
+  if (slot == NULL)
+    {
+      tree shadow_var = copy_node (var_decl);
+
+      copy_body_data id;
+      memset (&id, 0, sizeof (copy_body_data));
+      id.src_fn = id.dst_fn = current_function_decl;
+      copy_decl_for_dup_finish (&id, var_decl, shadow_var);
+
+      DECL_ARTIFICIAL (shadow_var) = 1;
+      DECL_IGNORED_P (shadow_var) = 1;
+      DECL_SEEN_IN_BIND_EXPR_P (shadow_var) = 0;
+      gimple_add_tmp_var (shadow_var);
+
+      shadow_vars_mapping.put (var_decl, shadow_var);
+      return shadow_var;
+    }
+  else
+    return *slot;
+}
+
+/* Expand ASAN_POISON ifn.  */
+
+bool
+asan_expand_poison_ifn (gimple_stmt_iterator *iter,
+			bool *need_commit_edge_insert,
+			hash_map<tree, tree> &shadow_vars_mapping)
+{
+  gimple *g = gsi_stmt (*iter);
+  tree poisoned_var = gimple_call_lhs (g);
+  if (!poisoned_var)
+    {
+      gsi_remove (iter, true);
+      return true;
+    }
+
+  tree shadow_var = create_asan_shadow_var (SSA_NAME_VAR (poisoned_var),
+					    shadow_vars_mapping);
+
+  bool recover_p;
+  if (flag_sanitize & SANITIZE_USER_ADDRESS)
+    recover_p = (flag_sanitize_recover & SANITIZE_USER_ADDRESS) != 0;
+  else
+    recover_p = (flag_sanitize_recover & SANITIZE_KERNEL_ADDRESS) != 0;
+  tree size = DECL_SIZE_UNIT (shadow_var);
+  gimple *poison_call
+    = gimple_build_call_internal (IFN_ASAN_MARK, 3,
+				  build_int_cst (integer_type_node,
+						 ASAN_MARK_POISON),
+				  build_fold_addr_expr (shadow_var), size);
+
+  gimple *use;
+  imm_use_iterator imm_iter;
+  FOR_EACH_IMM_USE_STMT (use, imm_iter, poisoned_var)
+    {
+      if (is_gimple_debug (use))
+	continue;
+
+      int nargs;
+      bool store_p = gimple_call_internal_p (use, IFN_ASAN_POISON_USE);
+      tree fun = report_error_func (store_p, recover_p, tree_to_uhwi (size),
+				    &nargs);
+
+      gcall *call = gimple_build_call (fun, 1,
+				       build_fold_addr_expr (shadow_var));
+      gimple_set_location (call, gimple_location (use));
+      gimple *call_to_insert = call;
+
+      /* The USE can be a gimple PHI node.  If so, insert the call on
+	 all edges leading to the PHI node.  */
+      if (is_a <gphi *> (use))
+	{
+	  gphi *phi = dyn_cast<gphi *> (use);
+	  for (unsigned i = 0; i < gimple_phi_num_args (phi); ++i)
+	    if (gimple_phi_arg_def (phi, i) == poisoned_var)
+	      {
+		edge e = gimple_phi_arg_edge (phi, i);
+
+		if (call_to_insert == NULL)
+		  call_to_insert = gimple_copy (call);
+
+		gsi_insert_seq_on_edge (e, call_to_insert);
+		*need_commit_edge_insert = true;
+		call_to_insert = NULL;
+	      }
+	}
+      else
+	{
+	  gimple_stmt_iterator gsi = gsi_for_stmt (use);
+	  if (store_p)
+	    gsi_replace (&gsi, call, true);
+	  else
+	    gsi_insert_before (&gsi, call, GSI_NEW_STMT);
+	}
+    }
+
+  SSA_NAME_IS_DEFAULT_DEF (poisoned_var) = true;
+  SSA_NAME_DEF_STMT (poisoned_var) = gimple_build_nop ();
+  gsi_replace (iter, poison_call, false);
 
   return true;
 }

@@ -1,5 +1,5 @@
 /* IR-agnostic target query functions relating to optabs
-   Copyright (C) 2001-2016 Free Software Foundation, Inc.
+   Copyright (C) 2001-2017 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -176,6 +176,7 @@ int can_mult_highpart_p (machine_mode, bool);
 bool can_vec_mask_load_store_p (machine_mode, machine_mode, bool);
 bool can_compare_and_swap_p (machine_mode, bool);
 bool can_atomic_exchange_p (machine_mode, bool);
+bool can_atomic_load_p (machine_mode);
 bool lshift_cheap_p (bool);
 
 #endif

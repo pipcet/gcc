@@ -1,6 +1,6 @@
 /* Breadth-first and depth-first routines for
    searching multiple-inheritance lattice for GNU C++.
-   Copyright (C) 1987-2016 Free Software Foundation, Inc.
+   Copyright (C) 1987-2017 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -781,6 +781,9 @@ friend_accessible_p (tree scope, tree decl, tree type, tree otype)
 
   if (!scope)
     return 0;
+
+  if (is_global_friend (scope))
+    return 1;
 
   /* Is SCOPE itself a suitable P?  */
   if (TYPE_P (scope) && protected_accessible_p (decl, scope, type, otype))
@@ -1664,7 +1667,7 @@ lookup_fnfields_1 (tree type, tree name)
 	  if (CLASSTYPE_LAZY_MOVE_CTOR (type))
 	    lazily_declare_fn (sfk_move_constructor, type);
 	}
-      else if (name == ansi_assopname (NOP_EXPR))
+      else if (name == cp_assignment_operator_id (NOP_EXPR))
 	{
 	  if (CLASSTYPE_LAZY_COPY_ASSIGN (type))
 	    lazily_declare_fn (sfk_copy_assignment, type);

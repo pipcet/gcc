@@ -1,5 +1,5 @@
 /* Definitions for C++ parsing and type checking.
-   Copyright (C) 1987-2016 Free Software Foundation, Inc.
+   Copyright (C) 1987-2017 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -146,6 +146,7 @@ operator == (const cp_expr &lhs, tree rhs)
       BLOCK_OUTER_CURLY_BRACE_P (in BLOCK)
       FOLD_EXPR_MODOP_P (*_FOLD_EXPR)
       IF_STMT_CONSTEXPR_P (IF_STMT)
+      TEMPLATE_TYPE_PARM_FOR_CLASS (TEMPLATE_TYPE_PARM)
    1: IDENTIFIER_VIRTUAL_P (in IDENTIFIER_NODE)
       TI_PENDING_TEMPLATE_FLAG.
       TEMPLATE_PARMS_FOR_INLINE.
@@ -181,6 +182,7 @@ operator == (const cp_expr &lhs, tree rhs)
       BIND_EXPR_BODY_BLOCK (in BIND_EXPR)
       DECL_NON_TRIVIALLY_INITIALIZED_P (in VAR_DECL)
       CALL_EXPR_ORDERED_ARGS (in CALL_EXPR, AGGR_INIT_EXPR)
+      DECLTYPE_FOR_REF_CAPTURE (in DECLTYPE_TYPE)
    4: TREE_HAS_CONSTRUCTOR (in INDIRECT_REF, SAVE_EXPR, CONSTRUCTOR,
 	  CALL_EXPR, or FIELD_DECL).
       IDENTIFIER_TYPENAME_P (in IDENTIFIER_NODE)
@@ -330,6 +332,7 @@ struct GTY(()) lang_identifier {
   cxx_binding *bindings;
   tree class_template_info;
   tree label_value;
+  bool oracle_looked_up;
 };
 
 /* Return a typed pointer version of T if it designates a
@@ -1117,6 +1120,8 @@ enum cp_tree_index
     CPTI_PFN_IDENTIFIER,
     CPTI_VPTR_IDENTIFIER,
     CPTI_STD_IDENTIFIER,
+    CPTI_AUTO_IDENTIFIER,
+    CPTI_DECLTYPE_AUTO_IDENTIFIER,
 
     CPTI_LANG_NAME_C,
     CPTI_LANG_NAME_CPLUSPLUS,
@@ -1137,6 +1142,8 @@ enum cp_tree_index
     CPTI_NULLPTR_TYPE,
 
     CPTI_ALIGN_TYPE,
+
+    CPTI_ANY_TARG,
 
     CPTI_MAX
 };
@@ -1200,11 +1207,15 @@ extern GTY(()) tree cp_global_trees[CPTI_MAX];
 #define vptr_identifier			cp_global_trees[CPTI_VPTR_IDENTIFIER]
 /* The name of the std namespace.  */
 #define std_identifier			cp_global_trees[CPTI_STD_IDENTIFIER]
+/* auto and declspec(auto) identifiers.  */
+#define auto_identifier			cp_global_trees[CPTI_AUTO_IDENTIFIER]
+#define decltype_auto_identifier	cp_global_trees[CPTI_DECLTYPE_AUTO_IDENTIFIER]
 /* The name of a C++17 deduction guide.  */
 #define lang_name_c			cp_global_trees[CPTI_LANG_NAME_C]
 #define lang_name_cplusplus		cp_global_trees[CPTI_LANG_NAME_CPLUSPLUS]
 
-/* Exception specifier used for throw().  */
+/* Exception specifiers used for throw(), noexcept(true) and
+   noexcept(false).  We rely on these being uncloned.  */
 #define empty_except_spec		cp_global_trees[CPTI_EMPTY_EXCEPT_SPEC]
 #define noexcept_true_spec		cp_global_trees[CPTI_NOEXCEPT_TRUE_SPEC]
 #define noexcept_false_spec		cp_global_trees[CPTI_NOEXCEPT_FALSE_SPEC]
@@ -1240,6 +1251,9 @@ extern GTY(()) tree cp_global_trees[CPTI_MAX];
 
 #define keyed_classes			cp_global_trees[CPTI_KEYED_CLASSES]
 
+/* A node which matches any template argument.  */
+#define any_targ_node			cp_global_trees[CPTI_ANY_TARG]
+
 /* Node to indicate default access. This must be distinct from the
    access nodes in tree.h.  */
 
@@ -1269,6 +1283,10 @@ struct GTY(()) saved_scope {
   int x_processing_specialization;
   BOOL_BITFIELD x_processing_explicit_instantiation : 1;
   BOOL_BITFIELD need_pop_function_context : 1;
+
+/* Nonzero if we are parsing the discarded statement of a constexpr
+   if-statement.  */
+  BOOL_BITFIELD discarded_stmt : 1;
 
   int unevaluated_operand;
   int inhibit_evaluation_warnings;
@@ -1329,6 +1347,8 @@ extern GTY(()) struct saved_scope *scope_chain;
 #define processing_template_decl scope_chain->x_processing_template_decl
 #define processing_specialization scope_chain->x_processing_specialization
 #define processing_explicit_instantiation scope_chain->x_processing_explicit_instantiation
+
+#define in_discarded_stmt scope_chain->discarded_stmt
 
 /* RAII sentinel to handle clearing processing_template_decl and restoring
    it when done.  */
@@ -1511,15 +1531,17 @@ struct GTY(()) language_function {
 /* True if NAME is the IDENTIFIER_NODE for an overloaded "operator
    new" or "operator delete".  */
 #define NEW_DELETE_OPNAME_P(NAME)		\
-  ((NAME) == ansi_opname (NEW_EXPR)		\
-   || (NAME) == ansi_opname (VEC_NEW_EXPR)	\
-   || (NAME) == ansi_opname (DELETE_EXPR)	\
-   || (NAME) == ansi_opname (VEC_DELETE_EXPR))
+  ((NAME) == cp_operator_id (NEW_EXPR)		\
+   || (NAME) == cp_operator_id (VEC_NEW_EXPR)	\
+   || (NAME) == cp_operator_id (DELETE_EXPR)	\
+   || (NAME) == cp_operator_id (VEC_DELETE_EXPR))
 
-#define ansi_opname(CODE) \
+#define cp_operator_id(CODE) \
   (operator_name_info[(int) (CODE)].identifier)
-#define ansi_assopname(CODE) \
+#define cp_assignment_operator_id(CODE) \
   (assignment_operator_name_info[(int) (CODE)].identifier)
+/* In parser.c.  */
+extern tree cp_literal_operator_id (const char *);
 
 /* TRUE if a tree code represents a statement.  */
 extern bool statement_code_p[MAX_TREE_CODES];
@@ -3033,23 +3055,30 @@ extern void decl_shadowed_for_var_insert (tree, tree);
    ->template_info)
 
 /* Template information for an ENUMERAL_, RECORD_, UNION_TYPE, or
-   BOUND_TEMPLATE_TEMPLATE_PARM type.  Note that if NODE is a
-   specialization of an alias template, this accessor returns the
-   template info for the alias template, not the one (if any) for the
-   template of the underlying type.  */
+   BOUND_TEMPLATE_TEMPLATE_PARM type.  This ignores any alias
+   templateness of NODE.  */
 #define TYPE_TEMPLATE_INFO(NODE)					\
-  ((TYPE_ALIAS_P (NODE) && DECL_LANG_SPECIFIC (TYPE_NAME (NODE)))	\
-   ? (DECL_LANG_SPECIFIC (TYPE_NAME (NODE))				\
-      ? DECL_TEMPLATE_INFO (TYPE_NAME (NODE))				\
-      : NULL_TREE)							\
-   : ((TREE_CODE (NODE) == ENUMERAL_TYPE)				\
-      ? ENUM_TEMPLATE_INFO (NODE)					\
-      : ((TREE_CODE (NODE) == BOUND_TEMPLATE_TEMPLATE_PARM)		\
-	 ? TEMPLATE_TEMPLATE_PARM_TEMPLATE_INFO (NODE)			\
-	 : (CLASS_TYPE_P (NODE)						\
-	    ? CLASSTYPE_TEMPLATE_INFO (NODE)				\
-	    : NULL_TREE))))
+  (TREE_CODE (NODE) == ENUMERAL_TYPE					\
+   ? ENUM_TEMPLATE_INFO (NODE)						\
+   : (TREE_CODE (NODE) == BOUND_TEMPLATE_TEMPLATE_PARM			\
+      ? TEMPLATE_TEMPLATE_PARM_TEMPLATE_INFO (NODE)			\
+      : (CLASS_TYPE_P (NODE)						\
+	 ? CLASSTYPE_TEMPLATE_INFO (NODE)				\
+	 : NULL_TREE)))
 
+/* Template information (if any) for an alias type.  */
+#define TYPE_ALIAS_TEMPLATE_INFO(NODE)					\
+  (DECL_LANG_SPECIFIC (TYPE_NAME (NODE))				\
+   ? DECL_TEMPLATE_INFO (TYPE_NAME (NODE))				\
+   : NULL_TREE)
+
+/* If NODE is a type alias, this accessor returns the template info
+   for the alias template (if any).  Otherwise behave as
+   TYPE_TEMPLATE_INFO.  */
+#define TYPE_TEMPLATE_INFO_MAYBE_ALIAS(NODE)				\
+  (TYPE_ALIAS_P (NODE)							\
+   ? TYPE_ALIAS_TEMPLATE_INFO (NODE)					\
+   : TYPE_TEMPLATE_INFO (NODE))
 
 /* Set the template information for an ENUMERAL_, RECORD_, or
    UNION_TYPE to VAL.  */
@@ -4086,6 +4115,8 @@ more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
   TREE_LANG_FLAG_1 (DECLTYPE_TYPE_CHECK (NODE))
 #define DECLTYPE_FOR_LAMBDA_PROXY(NODE) \
   TREE_LANG_FLAG_2 (DECLTYPE_TYPE_CHECK (NODE))
+#define DECLTYPE_FOR_REF_CAPTURE(NODE) \
+  TREE_LANG_FLAG_3 (DECLTYPE_TYPE_CHECK (NODE))
 
 /* Nonzero for VAR_DECL and FUNCTION_DECL node means that `extern' was
    specified in its declaration.  This can also be set for an
@@ -4702,6 +4733,7 @@ enum special_function_kind {
 			      deletes the object after it has been
 			      destroyed.  */
   sfk_conversion,	   /* A conversion operator.  */
+  sfk_deduction_guide,	   /* A class template deduction guide.  */
   sfk_inheriting_constructor /* An inheriting constructor */
 };
 
@@ -4758,6 +4790,8 @@ enum tsubst_flags {
 				    substitution in fn_type_unification.  */
   tf_fndecl_type = 1 << 9,   /* Substituting the type of a function
 				declaration.  */
+  tf_no_cleanup = 1 << 10,   /* Do not build a cleanup
+				(build_target_expr and friends) */
   /* Convenient substitution flags combinations.  */
   tf_warning_or_error = tf_warning | tf_error
 };
@@ -5179,6 +5213,11 @@ enum auto_deduction_context
   adc_requirement,   /* Argument deduction constraint */
   adc_decomp_type    /* Decomposition declaration initializer deduction */
 };
+
+/* True if this type-parameter belongs to a class template, used by C++17
+   class template argument deduction.  */
+#define TEMPLATE_TYPE_PARM_FOR_CLASS(NODE) \
+  (TREE_LANG_FLAG_0 (TEMPLATE_TYPE_PARM_CHECK (NODE)))
 
 /* True iff this TEMPLATE_TYPE_PARM represents decltype(auto).  */
 #define AUTO_IS_DECLTYPE(NODE) \
@@ -5870,7 +5909,7 @@ extern tree reshape_init                        (tree, tree, tsubst_flags_t);
 extern tree next_initializable_field (tree);
 extern tree fndecl_declared_return_type		(tree);
 extern bool undeduced_auto_decl			(tree);
-extern void require_deduced_type		(tree);
+extern bool require_deduced_type		(tree, tsubst_flags_t = tf_warning_or_error);
 
 extern tree finish_case_label			(location_t, tree, tree);
 extern tree cxx_maybe_build_cleanup		(tree, tsubst_flags_t);
@@ -5992,6 +6031,9 @@ extern void make_friend_class			(tree, tree, bool);
 extern void add_friend				(tree, tree, bool);
 extern tree do_friend				(tree, tree, tree, tree, enum overload_flags, bool);
 
+extern void set_global_friend			(tree);
+extern bool is_global_friend			(tree);
+
 /* in init.c */
 extern tree expand_member_init			(tree);
 extern void emit_mem_initializers		(tree);
@@ -6083,6 +6125,7 @@ extern bool maybe_clone_body			(tree);
 /* In parser.c */
 extern tree cp_convert_range_for (tree, tree, tree, tree, unsigned int, bool);
 extern bool parsing_nsdmi (void);
+extern bool parsing_default_capturing_generic_lambda_in_template (void);
 extern void inject_this_parameter (tree, cp_cv_quals);
 
 /* in pt.c */
@@ -6108,7 +6151,8 @@ extern tree do_auto_deduction                   (tree, tree, tree);
 extern tree do_auto_deduction                   (tree, tree, tree,
                                                  tsubst_flags_t,
                                                  auto_deduction_context,
-						 tree = NULL_TREE);
+						 tree = NULL_TREE,
+						 int = LOOKUP_NORMAL);
 extern tree type_uses_auto			(tree);
 extern tree type_uses_auto_or_concept		(tree);
 extern void append_type_to_template_for_access_check (tree, tree, tree,
@@ -6147,7 +6191,7 @@ extern void do_decl_instantiation		(tree, tree);
 extern void do_type_instantiation		(tree, tree, tsubst_flags_t);
 extern bool always_instantiate_p		(tree);
 extern void maybe_instantiate_noexcept		(tree);
-extern tree instantiate_decl			(tree, int, bool);
+extern tree instantiate_decl			(tree, bool, bool);
 extern int comp_template_parms			(const_tree, const_tree);
 extern bool uses_parameter_packs                (tree);
 extern bool template_parameter_pack_p           (const_tree);
@@ -6238,7 +6282,7 @@ extern tree extract_fnparm_pack                 (tree, tree *);
 extern tree template_parm_to_arg                (tree);
 extern tree dguide_name				(tree);
 extern bool dguide_name_p			(tree);
-extern bool deduction_guide_p			(tree);
+extern bool deduction_guide_p			(const_tree);
 
 /* in repo.c */
 extern void init_repo				(void);
@@ -6422,6 +6466,7 @@ extern cp_expr perform_koenig_lookup		(cp_expr, vec<tree, va_gc> *,
 						 tsubst_flags_t);
 extern tree finish_call_expr			(tree, vec<tree, va_gc> **, bool,
 						 bool, tsubst_flags_t);
+extern tree lookup_and_finish_template_variable (tree, tree, tsubst_flags_t = tf_warning_or_error);
 extern tree finish_template_variable		(tree, tsubst_flags_t = tf_warning_or_error);
 extern cp_expr finish_increment_expr		(cp_expr, enum tree_code);
 extern tree finish_this_expr			(void);
@@ -6451,7 +6496,7 @@ extern tree finish_underlying_type	        (tree);
 extern tree calculate_bases                     (tree);
 extern tree finish_bases                        (tree, bool);
 extern tree calculate_direct_bases              (tree);
-extern tree finish_offsetof			(tree, location_t);
+extern tree finish_offsetof			(tree, tree, location_t);
 extern void finish_decl_cleanup			(tree, tree);
 extern void finish_eh_cleanup			(tree);
 extern void emit_associated_thunks		(tree);
@@ -6511,7 +6556,7 @@ extern tree finish_trait_expr			(enum cp_trait_kind, tree, tree);
 extern tree build_lambda_expr                   (void);
 extern tree build_lambda_object			(tree);
 extern tree begin_lambda_type                   (tree);
-extern tree lambda_capture_field_type		(tree, bool);
+extern tree lambda_capture_field_type		(tree, bool, bool);
 extern tree lambda_return_type			(tree);
 extern tree lambda_proxy_type			(tree);
 extern tree lambda_function			(tree);
@@ -6525,6 +6570,7 @@ extern bool is_capture_proxy			(tree);
 extern bool is_normal_capture_proxy             (tree);
 extern void register_capture_members		(tree);
 extern tree lambda_expr_this_capture            (tree, bool);
+extern void maybe_generic_this_capture		(tree, tree);
 extern tree maybe_resolve_dummy			(tree, bool);
 extern tree current_nonlambda_function		(void);
 extern tree nonlambda_method_basetype		(void);
@@ -6612,7 +6658,7 @@ extern tree array_type_nelts_total		(tree);
 extern tree array_type_nelts_top		(tree);
 extern tree break_out_target_exprs		(tree);
 extern tree build_ctor_subob_ref		(tree, tree, tree);
-extern tree replace_placeholders		(tree, tree);
+extern tree replace_placeholders		(tree, tree, bool * = NULL);
 extern tree get_type_decl			(tree);
 extern tree decl_namespace_context		(tree);
 extern bool decl_anon_ns_mem_p			(const_tree);
@@ -6902,8 +6948,28 @@ extern tree cp_fully_fold			(tree);
 extern void clear_fold_cache			(void);
 
 /* in name-lookup.c */
-extern void suggest_alternatives_for            (location_t, tree);
+extern void suggest_alternatives_for            (location_t, tree, bool);
+extern bool suggest_alternative_in_explicit_scope (location_t, tree, tree);
 extern tree strip_using_decl                    (tree);
+
+/* Tell the binding oracle what kind of binding we are looking for.  */
+
+enum cp_oracle_request
+{
+  CP_ORACLE_IDENTIFIER
+};
+
+/* If this is non-NULL, then it is a "binding oracle" which can lazily
+   create bindings when needed by the C compiler.  The oracle is told
+   the name and type of the binding to create.  It can call pushdecl
+   or the like to ensure the binding is visible; or do nothing,
+   leaving the binding untouched.  c-decl.c takes note of when the
+   oracle has been called and will not call it again if it fails to
+   create a given binding.  */
+
+typedef void cp_binding_oracle_function (enum cp_oracle_request, tree identifier);
+
+extern cp_binding_oracle_function *cp_binding_oracle;
 
 /* in constraint.cc */
 extern void init_constraint_processing          ();
@@ -6969,6 +7035,9 @@ extern void diagnose_constraints                (location_t, tree, tree);
 /* in logic.cc */
 extern tree decompose_conclusions               (tree);
 extern bool subsumes                            (tree, tree);
+
+/* In class.c */
+extern void cp_finish_injected_record_type (tree);
 
 /* in vtable-class-hierarchy.c */
 extern void vtv_compute_class_hierarchy_transitive_closure (void);

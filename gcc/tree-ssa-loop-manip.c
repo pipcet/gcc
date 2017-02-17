@@ -1,5 +1,5 @@
 /* High-level loop manipulation functions.
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1202,7 +1202,8 @@ tree_transform_and_unroll_loop (struct loop *loop, unsigned factor,
   scale_rest = REG_BR_PROB_BASE;
 
   new_loop = loop_version (loop, enter_main_cond, NULL,
-			   prob_entry, scale_unrolled, scale_rest, true);
+			   prob_entry, REG_BR_PROB_BASE - prob_entry,
+			   scale_unrolled, scale_rest, true);
   gcc_assert (new_loop != NULL);
   update_ssa (TODO_update_ssa);
 

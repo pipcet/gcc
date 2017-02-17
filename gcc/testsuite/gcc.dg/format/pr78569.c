@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-Wformat-length" } */
+/* { dg-options "-Wformat-truncation" } */
 
 /* A run of blank lines, so that we would fail the assertion in input.c:1388:
    gcc_assert (line_width >= (start.column - 1 + literal_length));  */
@@ -20,5 +20,5 @@ void test (void)
 		      "channel uplink (see section 7.6.1).");
 
   /* { dg-warning "output truncated" "" { target *-*-* } 7 } */
-  /* { dg-message "format output" "" { target *-*-* } 6 } */
+  /* { dg-message "output" "" { target *-*-* } 6 } */
 }

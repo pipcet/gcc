@@ -1,5 +1,5 @@
 /* go-backend.c -- Go frontend interface to gcc backend.
-   Copyright (C) 2010-2016 Free Software Foundation, Inc.
+   Copyright (C) 2010-2017 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -71,11 +71,7 @@ go_field_alignment (tree t)
 #endif
 
 #ifdef ADJUST_FIELD_ALIGN
-  {
-    tree field ATTRIBUTE_UNUSED;
-    field = build_decl (UNKNOWN_LOCATION, FIELD_DECL, NULL, t);
-    v = ADJUST_FIELD_ALIGN (field, v);
-  }
+  v = ADJUST_FIELD_ALIGN (NULL_TREE, t, v);
 #endif
 
   return v / BITS_PER_UNIT;

@@ -1,5 +1,5 @@
 /* Find near-matches for strings.
-   Copyright (C) 2015-2016 Free Software Foundation, Inc.
+   Copyright (C) 2015-2017 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -221,7 +221,7 @@ test_find_closest_string ()
 
 static const char * const test_data[] = {
   "",
-  "foo"
+  "foo",
   "food",
   "boo",
   "1234567890123456789012345678901234567890123456789012345678901234567890"

@@ -99,13 +99,6 @@ extern size_t strlen(const char *);
     fprintf(stderr, "CHECKED %s %s\n", STR(VECT_TYPE(T, W, N)), MSG);	\
   }
 
-#if defined (__ARM_FEATURE_CRYPTO)
-#define CHECK_CRYPTO(MSG,T,W,N,FMT,EXPECTED,COMMENT) \
-	       CHECK(MSG,T,W,N,FMT,EXPECTED,COMMENT)
-#else
-#define CHECK_CRYPTO(MSG,T,W,N,FMT,EXPECTED,COMMENT)
-#endif
-
 /* Floating-point variant.  */
 #define CHECK_FP(MSG,T,W,N,FMT,EXPECTED,COMMENT)			\
   {									\
@@ -118,6 +111,35 @@ extern size_t strlen(const char *);
 	} tmp_res, tmp_exp;						\
 	tmp_res.f = VECT_VAR(result, T, W, N)[i];			\
 	tmp_exp.i = VECT_VAR(EXPECTED, h##T, W, N)[i];			\
+	if (tmp_res.i != tmp_exp.i) {					\
+	  fprintf(stderr,						\
+		  "ERROR in %s (%s line %d in buffer '%s') at type %s "	\
+		  "index %d: got 0x%" FMT " != 0x%" FMT " %s\n",	\
+		  MSG, __FILE__, __LINE__,				\
+		  STR(EXPECTED),					\
+		  STR(VECT_NAME(T, W, N)),				\
+		  i,							\
+		  tmp_res.i,						\
+		  tmp_exp.i,						\
+		  strlen(COMMENT) > 0 ? COMMENT : "");			\
+	  abort();							\
+	}								\
+      }									\
+    fprintf(stderr, "CHECKED %s %s\n", STR(VECT_TYPE(T, W, N)), MSG);	\
+  }
+
+/* poly variant.  */
+#define CHECK_POLY(MSG,T,W,N,FMT,EXPECTED,COMMENT)			\
+  {									\
+    int i;								\
+    for(i=0; i<N ; i++)							\
+      {									\
+	union poly_operand {						\
+	  uint##W##_t i;						\
+	  poly##W##_t p;						\
+	} tmp_res, tmp_exp;						\
+	tmp_res.p = VECT_VAR(result, T, W, N)[i];			\
+	tmp_exp.i = VECT_VAR(EXPECTED, T, W, N)[i];			\
 	if (tmp_res.i != tmp_exp.i) {					\
 	  fprintf(stderr,						\
 		  "ERROR in %s (%s line %d in buffer '%s') at type %s "	\
@@ -198,9 +220,6 @@ extern ARRAY(expected, uint, 32, 2);
 extern ARRAY(expected, uint, 64, 1);
 extern ARRAY(expected, poly, 8, 8);
 extern ARRAY(expected, poly, 16, 4);
-#if defined (__ARM_FEATURE_CRYPTO)
-extern ARRAY(expected, poly, 64, 1);
-#endif
 extern ARRAY(expected, hfloat, 16, 4);
 extern ARRAY(expected, hfloat, 32, 2);
 extern ARRAY(expected, hfloat, 64, 1);
@@ -214,9 +233,6 @@ extern ARRAY(expected, uint, 32, 4);
 extern ARRAY(expected, uint, 64, 2);
 extern ARRAY(expected, poly, 8, 16);
 extern ARRAY(expected, poly, 16, 8);
-#if defined (__ARM_FEATURE_CRYPTO)
-extern ARRAY(expected, poly, 64, 2);
-#endif
 extern ARRAY(expected, hfloat, 16, 8);
 extern ARRAY(expected, hfloat, 32, 4);
 extern ARRAY(expected, hfloat, 64, 2);
@@ -231,9 +247,8 @@ extern ARRAY(expected, hfloat, 64, 2);
     CHECK(test_name, uint, 16, 4, PRIx16, EXPECTED, comment);		\
     CHECK(test_name, uint, 32, 2, PRIx32, EXPECTED, comment);		\
     CHECK(test_name, uint, 64, 1, PRIx64, EXPECTED, comment);		\
-    CHECK(test_name, poly, 8, 8, PRIx8, EXPECTED, comment);		\
-    CHECK(test_name, poly, 16, 4, PRIx16, EXPECTED, comment);		\
-    CHECK_CRYPTO(test_name, poly, 64, 1, PRIx64, EXPECTED, comment);	\
+    CHECK_POLY(test_name, poly, 8, 8, PRIx8, EXPECTED, comment);	\
+    CHECK_POLY(test_name, poly, 16, 4, PRIx16, EXPECTED, comment);	\
     CHECK_FP(test_name, float, 32, 2, PRIx32, EXPECTED, comment);	\
 									\
     CHECK(test_name, int, 8, 16, PRIx8, EXPECTED, comment);		\
@@ -244,9 +259,8 @@ extern ARRAY(expected, hfloat, 64, 2);
     CHECK(test_name, uint, 16, 8, PRIx16, EXPECTED, comment);		\
     CHECK(test_name, uint, 32, 4, PRIx32, EXPECTED, comment);		\
     CHECK(test_name, uint, 64, 2, PRIx64, EXPECTED, comment);		\
-    CHECK(test_name, poly, 8, 16, PRIx8, EXPECTED, comment);		\
-    CHECK(test_name, poly, 16, 8, PRIx16, EXPECTED, comment);		\
-    CHECK_CRYPTO(test_name, poly, 64, 2, PRIx64, EXPECTED, comment);	\
+    CHECK_POLY(test_name, poly, 8, 16, PRIx8, EXPECTED, comment);	\
+    CHECK_POLY(test_name, poly, 16, 8, PRIx16, EXPECTED, comment);	\
     CHECK_FP(test_name, float, 32, 4, PRIx32, EXPECTED, comment);	\
   }									\
 

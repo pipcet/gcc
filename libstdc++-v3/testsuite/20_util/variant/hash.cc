@@ -1,6 +1,6 @@
 // { dg-options "-std=gnu++17" }
 
-// Copyright (C) 2016 Free Software Foundation, Inc.
+// Copyright (C) 2016-2017 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -29,6 +29,21 @@ template<class T>
 auto f(...) -> decltype(std::false_type());
 
 static_assert(!decltype(f<S>(0))::value, "");
+static_assert(!decltype(f<std::variant<S>>(0))::value, "");
+static_assert(!decltype(f<std::variant<S, S>>(0))::value, "");
+static_assert(decltype(f<std::variant<int>>(0))::value, "");
+static_assert(decltype(f<std::variant<int, int>>(0))::value, "");
+static_assert(!std::is_callable<
+	      std::hash<std::variant<S>>&(std::variant<S> const&)>::value, "");
+static_assert(!std::is_callable<
+	      std::hash<std::variant<S, int>>&
+	      (std::variant<S, int> const&)>::value, "");
+static_assert(std::is_callable<
+	      std::hash<std::variant<int>>&
+	      (std::variant<int> const&)>::value, "");
+static_assert(std::is_callable<
+	      std::hash<std::variant<int, int>>&
+	      (std::variant<int, int> const&)>::value, "");
 
 int main()
 {

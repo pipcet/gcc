@@ -1,6 +1,6 @@
 // 2000-12-19 bkoz
 
-// Copyright (C) 2000-2016 Free Software Foundation, Inc.
+// Copyright (C) 2000-2017 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -28,8 +28,8 @@
 // Radar 6467884: 10.X systems are not robust when paging space is exceeded
 // { dg-skip-if "" { *-*-darwin* && lp64 } { "*" } { "" } } 
 
-// The library still throws the original definition of std::ios::failure
-// { dg-options "-D_GLIBCXX_USE_CXX11_ABI=0" }
+// The library throws the new definition of std::ios::failure
+// { dg-options "-D_GLIBCXX_USE_CXX11_ABI=1" }
 
 #include <sstream>
 #include <iostream>

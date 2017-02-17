@@ -1,5 +1,5 @@
 /* Build expressions with type checking for C++ compiler.
-   Copyright (C) 1987-2016 Free Software Foundation, Inc.
+   Copyright (C) 1987-2017 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -2730,19 +2730,9 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
     {
       bool is_template_id = false;
       tree template_args = NULL_TREE;
-      tree scope;
+      tree scope = NULL_TREE;
 
-      if (TREE_CODE (name) == TEMPLATE_ID_EXPR)
-	{
-	  is_template_id = true;
-	  template_args = TREE_OPERAND (name, 1);
-	  name = TREE_OPERAND (name, 0);
-
-	  if (TREE_CODE (name) == OVERLOAD)
-	    name = DECL_NAME (get_first_fn (name));
-	  else if (DECL_P (name))
-	    name = DECL_NAME (name);
-	}
+      access_path = object_type;
 
       if (TREE_CODE (name) == SCOPE_REF)
 	{
@@ -2761,9 +2751,25 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 		       scope, name, object_type);
 	      return error_mark_node;
 	    }
+	}
+      
+      if (TREE_CODE (name) == TEMPLATE_ID_EXPR)
+	{
+	  is_template_id = true;
+	  template_args = TREE_OPERAND (name, 1);
+	  name = TREE_OPERAND (name, 0);
 
+	  if (TREE_CODE (name) == OVERLOAD)
+	    name = DECL_NAME (get_first_fn (name));
+	  else if (DECL_P (name))
+	    name = DECL_NAME (name);
+	}
+
+      if (scope)
+	{
 	  if (TREE_CODE (scope) == ENUMERAL_TYPE)
 	    {
+	      gcc_assert (!is_template_id);
 	      /* Looking up a member enumerator (c++/56793).  */
 	      if (!TYPE_CLASS_SCOPE_P (scope)
 		  || !DERIVED_FROM_P (TYPE_CONTEXT (scope), object_type))
@@ -2811,11 +2817,6 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 		error ("%qT is not a base of %qT", scope, object_type);
 	      return error_mark_node;
 	    }
-	}
-      else
-	{
-	  scope = NULL_TREE;
-	  access_path = object_type;
 	}
 
       if (TREE_CODE (name) == BIT_NOT_EXPR)
@@ -2875,7 +2876,10 @@ finish_class_member_access_expr (cp_expr object, tree name, bool template_p,
 	  tree templ = member;
 
 	  if (BASELINK_P (templ))
-	    templ = lookup_template_function (templ, template_args);
+	    member = lookup_template_function (templ, template_args);
+	  else if (variable_template_p (templ))
+	    member = (lookup_and_finish_template_variable
+		      (templ, template_args, complain));
 	  else
 	    {
 	      if (complain & tf_error)
@@ -2946,7 +2950,10 @@ build_ptrmemfunc_access_expr (tree ptrmem, tree member_name)
        member = DECL_CHAIN (member))
     if (DECL_NAME (member) == member_name)
       break;
-  return build_simple_component_ref (ptrmem, member);
+  tree res = build_simple_component_ref (ptrmem, member);
+
+  TREE_NO_WARNING (res) = 1;
+  return res;
 }
 
 /* Given an expression PTR for a pointer, return an expression
@@ -3654,9 +3661,17 @@ cp_build_function_call_vec (tree function, vec<tree, va_gc> **params,
 
   /* Check for errors in format strings and inappropriately
      null parameters.  */
-  check_function_arguments (input_location, fntype, nargs, argarray);
+  bool warned_p = check_function_arguments (input_location, fntype,
+					    nargs, argarray);
 
   ret = build_cxx_call (function, nargs, argarray, complain);
+
+  if (warned_p)
+    {
+      tree c = extract_call_expr (ret);
+      if (TREE_CODE (c) == CALL_EXPR)
+	TREE_NO_WARNING (c) = 1;
+    }
 
   if (allocated != NULL)
     release_tree_vector (allocated);
@@ -4596,6 +4611,12 @@ cp_build_binary_op (location_t location,
 	  else
 	    result_type = type0;
 
+	  if (char_type_p (TREE_TYPE (orig_op1))
+	      && warning (OPT_Wpointer_compare,
+			  "comparison between pointer and zero character "
+			  "constant"))
+	    inform (input_location,
+		    "did you mean to dereference the pointer?");
 	  warn_for_null_address (location, op0, complain);
 	}
       else if (((code1 == POINTER_TYPE || TYPE_PTRDATAMEM_P (type1))
@@ -4610,6 +4631,12 @@ cp_build_binary_op (location_t location,
 	  else
 	    result_type = type1;
 
+	  if (char_type_p (TREE_TYPE (orig_op0))
+	      && warning (OPT_Wpointer_compare,
+			  "comparison between pointer and zero character "
+			  "constant"))
+	    inform (input_location,
+		    "did you mean to dereference the pointer?");
 	  warn_for_null_address (location, op1, complain);
 	}
       else if ((code0 == POINTER_TYPE && code1 == POINTER_TYPE)
@@ -5899,6 +5926,8 @@ cp_build_unary_op (enum tree_code code, tree xarg, bool noconvert,
 	    inform (location, "did you mean to use logical not (%<!%>)?");
 	  arg = cp_perform_integral_promotions (arg, complain);
 	}
+      else if (!noconvert && VECTOR_TYPE_P (TREE_TYPE (arg)))
+	arg = mark_rvalue_use (arg);
       break;
 
     case ABS_EXPR:
@@ -7542,15 +7571,25 @@ tree
 cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 		      tree rhs, tsubst_flags_t complain)
 {
-  tree result;
+  tree result = NULL_TREE;
   tree newrhs = rhs;
   tree lhstype = TREE_TYPE (lhs);
+  tree olhs = lhs;
   tree olhstype = lhstype;
   bool plain_assign = (modifycode == NOP_EXPR);
+  bool compound_side_effects_p = false;
+  tree preeval = NULL_TREE;
 
   /* Avoid duplicate error messages from operands that had errors.  */
   if (error_operand_p (lhs) || error_operand_p (rhs))
     return error_mark_node;
+
+  while (TREE_CODE (lhs) == COMPOUND_EXPR)
+    {
+      if (TREE_SIDE_EFFECTS (TREE_OPERAND (lhs, 0)))
+	compound_side_effects_p = true;
+      lhs = TREE_OPERAND (lhs, 1);
+    }
 
   /* Handle control structure constructs used as "lvalues".  Note that we
      leave COMPOUND_EXPR on the LHS because it is sequenced after the RHS.  */
@@ -7559,20 +7598,41 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
       /* Handle --foo = 5; as these are valid constructs in C++.  */
     case PREDECREMENT_EXPR:
     case PREINCREMENT_EXPR:
+      if (compound_side_effects_p)
+	newrhs = rhs = stabilize_expr (rhs, &preeval);
       if (TREE_SIDE_EFFECTS (TREE_OPERAND (lhs, 0)))
 	lhs = build2 (TREE_CODE (lhs), TREE_TYPE (lhs),
 		      cp_stabilize_reference (TREE_OPERAND (lhs, 0)),
 		      TREE_OPERAND (lhs, 1));
       lhs = build2 (COMPOUND_EXPR, lhstype, lhs, TREE_OPERAND (lhs, 0));
+    maybe_add_compound:
+      /* If we had (bar, --foo) = 5; or (bar, (baz, --foo)) = 5;
+	 and looked through the COMPOUND_EXPRs, readd them now around
+	 the resulting lhs.  */
+      if (TREE_CODE (olhs) == COMPOUND_EXPR)
+	{
+	  lhs = build2 (COMPOUND_EXPR, lhstype, TREE_OPERAND (olhs, 0), lhs);
+	  tree *ptr = &TREE_OPERAND (lhs, 1);
+	  for (olhs = TREE_OPERAND (olhs, 1);
+	       TREE_CODE (olhs) == COMPOUND_EXPR;
+	       olhs = TREE_OPERAND (olhs, 1))
+	    {
+	      *ptr = build2 (COMPOUND_EXPR, lhstype,
+			     TREE_OPERAND (olhs, 0), *ptr);
+	      ptr = &TREE_OPERAND (*ptr, 1);
+	    }
+	}
       break;
 
     case MODIFY_EXPR:
+      if (compound_side_effects_p)
+	newrhs = rhs = stabilize_expr (rhs, &preeval);
       if (TREE_SIDE_EFFECTS (TREE_OPERAND (lhs, 0)))
 	lhs = build2 (TREE_CODE (lhs), TREE_TYPE (lhs),
 		      cp_stabilize_reference (TREE_OPERAND (lhs, 0)),
 		      TREE_OPERAND (lhs, 1));
       lhs = build2 (COMPOUND_EXPR, lhstype, lhs, TREE_OPERAND (lhs, 0));
-      break;
+      goto maybe_add_compound;
 
     case MIN_EXPR:
     case MAX_EXPR:
@@ -7600,7 +7660,6 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 	   except that the RHS goes through a save-expr
 	   so the code to compute it is only emitted once.  */
 	tree cond;
-	tree preeval = NULL_TREE;
 
 	if (VOID_TYPE_P (TREE_TYPE (rhs)))
 	  {
@@ -7626,14 +7685,31 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 
 	if (cond == error_mark_node)
 	  return cond;
+	/* If we had (e, (a ? b : c)) = d; or (e, (f, (a ? b : c))) = d;
+	   and looked through the COMPOUND_EXPRs, readd them now around
+	   the resulting cond before adding the preevaluated rhs.  */
+	if (TREE_CODE (olhs) == COMPOUND_EXPR)
+	  {
+	    cond = build2 (COMPOUND_EXPR, TREE_TYPE (cond),
+			   TREE_OPERAND (olhs, 0), cond);
+	    tree *ptr = &TREE_OPERAND (cond, 1);
+	    for (olhs = TREE_OPERAND (olhs, 1);
+		 TREE_CODE (olhs) == COMPOUND_EXPR;
+		 olhs = TREE_OPERAND (olhs, 1))
+	      {
+		*ptr = build2 (COMPOUND_EXPR, TREE_TYPE (cond),
+			       TREE_OPERAND (olhs, 0), *ptr);
+		ptr = &TREE_OPERAND (*ptr, 1);
+	      }
+	  }
 	/* Make sure the code to compute the rhs comes out
 	   before the split.  */
-	if (preeval)
-	  cond = build2 (COMPOUND_EXPR, TREE_TYPE (lhs), preeval, cond);
-	return cond;
+	result = cond;
+	goto ret;
       }
 
     default:
+      lhs = olhs;
       break;
     }
 
@@ -7649,7 +7725,7 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 	    rhs = convert (lhstype, rhs);
 	  result = build2 (INIT_EXPR, lhstype, lhs, rhs);
 	  TREE_SIDE_EFFECTS (result) = 1;
-	  return result;
+	  goto ret;
 	}
       else if (! MAYBE_CLASS_TYPE_P (lhstype))
 	/* Do the default thing.  */;
@@ -7662,7 +7738,7 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 	  release_tree_vector (rhs_vec);
 	  if (result == NULL_TREE)
 	    return error_mark_node;
-	  return result;
+	  goto ret;
 	}
     }
   else
@@ -7677,7 +7753,7 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 	    {
 	      result = objc_maybe_build_modify_expr (lhs, rhs);
 	      if (result)
-		return result;
+		goto ret;
 	    }
 
 	  /* `operator=' is not an inheritable operator.  */
@@ -7691,7 +7767,7 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 				     complain);
 	      if (result == NULL_TREE)
 		return error_mark_node;
-	      return result;
+	      goto ret;
 	    }
 	  lhstype = olhstype;
 	}
@@ -7736,7 +7812,7 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 	    {
 	      result = objc_maybe_build_modify_expr (lhs, newrhs);
 	      if (result)
-		return result;
+		goto ret;
 	    }
 	}
       gcc_assert (TREE_CODE (lhstype) != REFERENCE_TYPE);
@@ -7832,9 +7908,10 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
 
       from_array = TREE_CODE (TREE_TYPE (newrhs)) == ARRAY_TYPE
 		   ? 1 + (modifycode != INIT_EXPR): 0;
-      return build_vec_init (lhs, NULL_TREE, newrhs,
-			     /*explicit_value_init_p=*/false,
-			     from_array, complain);
+      result = build_vec_init (lhs, NULL_TREE, newrhs,
+			       /*explicit_value_init_p=*/false,
+			       from_array, complain);
+      goto ret;
     }
 
   if (modifycode == INIT_EXPR)
@@ -7873,7 +7950,7 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
       result = objc_generate_write_barrier (lhs, modifycode, newrhs);
 
       if (result)
-	return result;
+	goto ret;
     }
 
   result = build2 (modifycode == NOP_EXPR ? MODIFY_EXPR : INIT_EXPR,
@@ -7883,6 +7960,9 @@ cp_build_modify_expr (location_t loc, tree lhs, enum tree_code modifycode,
   if (!plain_assign)
     TREE_NO_WARNING (result) = 1;
 
+ ret:
+  if (preeval)
+    result = build2 (COMPOUND_EXPR, TREE_TYPE (result), preeval, result);
   return result;
 }
 
@@ -8855,7 +8935,7 @@ check_return_expr (tree retval, bool *no_warning)
 
   /* Effective C++ rule 15.  See also start_function.  */
   if (warn_ecpp
-      && DECL_NAME (current_function_decl) == ansi_assopname(NOP_EXPR))
+      && DECL_NAME (current_function_decl) == cp_assignment_operator_id (NOP_EXPR))
     {
       bool warn = true;
 

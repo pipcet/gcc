@@ -1,5 +1,5 @@
 /* Convert a program in SSA form into Normal form.
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
    Contributed by Andrew Macleod <amacleod@redhat.com>
 
 This file is part of GCC.
@@ -242,7 +242,7 @@ insert_partition_copy_on_edge (edge e, int dest, int src, source_location locus)
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
       fprintf (dump_file,
-	       "Inserting a partition copy on edge BB%d->BB%d :"
+	       "Inserting a partition copy on edge BB%d->BB%d : "
 	       "PART.%d = PART.%d",
 	       e->src->index,
 	       e->dest->index, dest, src);

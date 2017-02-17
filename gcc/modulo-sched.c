@@ -1,5 +1,5 @@
 /* Swing Modulo Scheduling implementation.
-   Copyright (C) 2004-2016 Free Software Foundation, Inc.
+   Copyright (C) 2004-2017 Free Software Foundation, Inc.
    Contributed by Ayal Zaks and Mustafa Hagog <zaks,mustafa@il.ibm.com>
 
 This file is part of GCC.
@@ -1713,7 +1713,8 @@ sms_schedule (void)
 			       * REG_BR_PROB_BASE) / 100;
 
 	      loop_version (loop, comp_rtx, &condition_bb,
-	  		    prob, prob, REG_BR_PROB_BASE - prob,
+	  		    prob, REG_BR_PROB_BASE - prob,
+			    prob, REG_BR_PROB_BASE - prob,
 			    true);
 	     }
 

@@ -1,5 +1,5 @@
 # Process this file with autoconf to produce a configure script.
-#   Copyright (C) 1994-2016 Free Software Foundation, Inc.
+#   Copyright (C) 1994-2017 Free Software Foundation, Inc.
 #   Originally contributed by Dave Love (d.love@dl.ac.uk).
 #
 #This file is part of GCC.
@@ -17,8 +17,6 @@
 #You should have received a copy of the GNU General Public License
 #along with GCC; see the file COPYING3.  If not see
 #<http://www.gnu.org/licenses/>.
-
-m4_include([../config/pkg.m4])
 
 AC_PREREQ(2.64)
 AC_INIT(package-unused, version-unused,, libobjc)
@@ -223,12 +221,9 @@ no)
 *)
   AC_MSG_CHECKING([for bdw garbage collector])
   if test "x$with_target_bdw_gc$with_target_bdw_gc_include$with_target_bdw_gc_lib" = x; then
-    dnl no bdw-gw options, fall back to the bdw-gc pkg-config module
-    PKG_CHECK_EXISTS(bdw-gc,
-      [AC_MSG_RESULT([using bdw-gc pkg-config module])
-       BDW_GC_CFLAGS=`$PKG_CONFIG --cflags bdw-gc`
-       BDW_GC_LIBS=`$PKG_CONFIG --libs bdw-gc`],
-      AC_MSG_ERROR([no --with-target-bdw-gc options and no bdw-gc pkg-config module found]))
+    dnl no bdw-gw options, assuming bdw-gc in default locations
+    BDW_GC_CFLAGS=
+    BDW_GC_LIBS="-lgc"
   else
     dnl bdw-gw options passed by configure flags
     if test "x$with_target_bdw_gc_include" = x && test "x$with_target_bdw_gc_lib" != x; then
@@ -261,16 +256,19 @@ no)
       for i in `echo $with_target_bdw_gc_include | tr ',' ' '`; do
         case "$i" in
           *=*) sd=${i%%=*}; d=${i#*=} ;;
-          *) sd=.; d=$i ;;
+          *) sd=.; d=$i; fallback=$i ;;
         esac
         if test "$mldir" = "$sd"; then
           bdw_val=$d
         fi
       done
-      if test "x$bdw_val" = x; then
+      if test "x$bdw_val" = x && test "x$bdw_inc_dir" = x && test "x$fallback" != x; then
+        bdw_inc_dir="$fallback"
+      elif test "x$bdw_val" = x; then
         AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-bdw-gc-include])
+      else
+        bdw_inc_dir="$bdw_val"
       fi
-      bdw_inc_dir="$bdw_val"
     fi
     bdw_val=
     if test "x$with_target_bdw_gc_lib" != x; then
@@ -295,45 +293,55 @@ no)
       AC_MSG_ERROR([no multilib path ($mldir) found in --with-target-bdw-gc-lib])
     fi
     BDW_GC_CFLAGS="-I$bdw_inc_dir"
-    BDW_GC_LIBS="-L$bdw_lib_dir -lgc"
+    if test -f $bdw_lib_dir/libgc.la; then
+      BDW_GC_LIBS="$bdw_lib_dir/libgc.la"
+    else
+      BDW_GC_LIBS="-L$bdw_lib_dir -lgc"
+    fi
     AC_MSG_RESULT([found])
   fi
 
-  AC_MSG_CHECKING([for system boehm-gc])
-  save_CFLAGS=$CFLAGS
-  save_LIBS=$LIBS
-  CFLAGS="$CFLAGS $BDW_GC_CFLAGS"
-  LIBS="$LIBS $BDW_GC_LIBS"
-  dnl the link test is not good enough for ARM32 multilib detection,
-  dnl first check to link, then to run
-  AC_LINK_IFELSE(
-    [AC_LANG_PROGRAM([#include <gc/gc.h>],[GC_init()])],
-    [
-      AC_RUN_IFELSE([AC_LANG_SOURCE([[
-        #include <gc/gc.h>
-        int main() {
-          GC_init();
-          return 0;
-        }
-        ]])],
-        [system_bdw_gc_found=yes],
-        [system_bdw_gc_found=no],
-        dnl assume no system boehm-gc for cross builds ...
-        [system_bdw_gc_found=no]
-      )
-    ],
-    [system_bdw_gc_found=no])
-  CFLAGS=$save_CFLAGS
-  LIBS=$save_LIBS
-  if test x$enable_objc_gc = xauto && test x$system_bdw_gc_found = xno; then
-    AC_MSG_WARN([system bdw-gc not found, not building libobjc_gc])
-    use_bdw_gc=no
-  elif test x$enable_objc_gc = xyes && test x$system_bdw_gc_found = xno; then
-    AC_MSG_ERROR([system bdw-gc required but not found])
-  else
+  case "$BDW_GC_LIBS" in
+  *libgc.la)
     use_bdw_gc=yes
-    AC_MSG_RESULT([found])
-  fi
+    ;;
+  *)
+    AC_MSG_CHECKING([for system boehm-gc])
+    save_CFLAGS=$CFLAGS
+    save_LIBS=$LIBS
+    CFLAGS="$CFLAGS $BDW_GC_CFLAGS"
+    LIBS="$LIBS $BDW_GC_LIBS"
+    dnl the link test is not good enough for ARM32 multilib detection,
+    dnl first check to link, then to run
+    AC_LINK_IFELSE(
+      [AC_LANG_PROGRAM([#include <gc/gc.h>],[GC_init()])],
+      [
+        AC_RUN_IFELSE([AC_LANG_SOURCE([[
+          #include <gc/gc.h>
+          int main() {
+            GC_init();
+            return 0;
+          }
+          ]])],
+          [system_bdw_gc_found=yes],
+          [system_bdw_gc_found=no],
+          dnl assume no system boehm-gc for cross builds ...
+          [system_bdw_gc_found=no]
+        )
+      ],
+      [system_bdw_gc_found=no])
+    CFLAGS=$save_CFLAGS
+    LIBS=$save_LIBS
+    if test x$enable_objc_gc = xauto && test x$system_bdw_gc_found = xno; then
+      AC_MSG_WARN([system bdw-gc not found, not building libobjc_gc])
+      use_bdw_gc=no
+    elif test x$enable_objc_gc = xyes && test x$system_bdw_gc_found = xno; then
+      AC_MSG_ERROR([system bdw-gc required but not found])
+    else
+      use_bdw_gc=yes
+      AC_MSG_RESULT([found])
+    fi
+  esac
 esac
 
 if test "$use_bdw_gc" = no; then
@@ -351,6 +359,9 @@ AC_SUBST(OBJC_GCFLAGS)
 AC_SUBST(OBJC_BOEHM_GC)
 AC_SUBST(OBJC_BOEHM_GC_INCLUDES)
 AC_SUBST(OBJC_BOEHM_GC_LIBS)
+
+# Determine what GCC version number to use in filesystem paths.
+GCC_BASE_VER
 
 # ------
 # Output

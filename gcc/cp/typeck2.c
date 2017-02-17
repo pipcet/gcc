@@ -1,6 +1,6 @@
 /* Report error messages, build initializers, and perform
    some front-end optimizations for C++ compiler.
-   Copyright (C) 1987-2016 Free Software Foundation, Inc.
+   Copyright (C) 1987-2017 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -1510,7 +1510,8 @@ process_init_constructor_union (tree type, tree init,
     {
       for (tree field = TYPE_FIELDS (type); field; field = TREE_CHAIN (field))
 	{
-	  if (DECL_INITIAL (field))
+	  if (TREE_CODE (field) == FIELD_DECL
+	      && DECL_INITIAL (field) != NULL_TREE)
 	    {
 	      CONSTRUCTOR_APPEND_ELT (CONSTRUCTOR_ELTS (init),
 				      field,

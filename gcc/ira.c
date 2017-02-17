@@ -1,5 +1,5 @@
 /* Integrated Register Allocator (IRA) entry point.
-   Copyright (C) 2006-2016 Free Software Foundation, Inc.
+   Copyright (C) 2006-2017 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -2266,6 +2266,10 @@ ira_setup_eliminable_regset (void)
   int i;
   static const struct {const int from, to; } eliminables[] = ELIMINABLE_REGS;
 
+  /* Setup is_leaf as frame_pointer_required may use it.  This function
+     is called by sched_init before ira if scheduling is enabled.  */
+  crtl->is_leaf = leaf_function_p ();
+
   /* FIXME: If EXIT_IGNORE_STACK is set, we will not save and restore
      sp for alloca.  So we can't eliminate the frame pointer in that
      case.  At some point, we should improve this by emitting the
@@ -3296,6 +3300,49 @@ adjust_cleared_regs (rtx loc, const_rtx old_rtx ATTRIBUTE_UNUSED, void *data)
   return NULL_RTX;
 }
 
+/* Given register REGNO is set only once, return true if the defining
+   insn dominates all uses.  */
+
+static bool
+def_dominates_uses (int regno)
+{
+  df_ref def = DF_REG_DEF_CHAIN (regno);
+
+  struct df_insn_info *def_info = DF_REF_INSN_INFO (def);
+  /* If this is an artificial def (eh handler regs, hard frame pointer
+     for non-local goto, regs defined on function entry) then def_info
+     is NULL and the reg is always live before any use.  We might
+     reasonably return true in that case, but since the only call
+     of this function is currently here in ira.c when we are looking
+     at a defining insn we can't have an artificial def as that would
+     bump DF_REG_DEF_COUNT.  */
+  gcc_assert (DF_REG_DEF_COUNT (regno) == 1 && def_info != NULL);
+
+  rtx_insn *def_insn = DF_REF_INSN (def);
+  basic_block def_bb = BLOCK_FOR_INSN (def_insn);
+
+  for (df_ref use = DF_REG_USE_CHAIN (regno);
+       use;
+       use = DF_REF_NEXT_REG (use))
+    {
+      struct df_insn_info *use_info = DF_REF_INSN_INFO (use);
+      /* Only check real uses, not artificial ones.  */
+      if (use_info)
+	{
+	  rtx_insn *use_insn = DF_REF_INSN (use);
+	  if (!DEBUG_INSN_P (use_insn))
+	    {
+	      basic_block use_bb = BLOCK_FOR_INSN (use_insn);
+	      if (use_bb != def_bb
+		  ? !dominated_by_p (CDI_DOMINATORS, use_bb, def_bb)
+		  : DF_INSN_INFO_LUID (use_info) < DF_INSN_INFO_LUID (def_info))
+		return false;
+	    }
+	}
+    }
+  return true;
+}
+
 /* Find registers that are equivalent to a single value throughout the
    compilation (either because they can be referenced in memory or are
    set once from a single constant).  Lower their priority for a
@@ -3494,9 +3541,18 @@ update_equiv_regs (void)
 	    = gen_rtx_INSN_LIST (VOIDmode, insn, reg_equiv[regno].init_insns);
 
 	  /* If this register is known to be equal to a constant, record that
-	     it is always equivalent to the constant.  */
+	     it is always equivalent to the constant.
+	     Note that it is possible to have a register use before
+	     the def in loops (see gcc.c-torture/execute/pr79286.c)
+	     where the reg is undefined on first use.  If the def insn
+	     won't trap we can use it as an equivalence, effectively
+	     choosing the "undefined" value for the reg to be the
+	     same as the value set by the def.  */
 	  if (DF_REG_DEF_COUNT (regno) == 1
-	      && note && ! rtx_varies_p (XEXP (note, 0), 0))
+	      && note
+	      && !rtx_varies_p (XEXP (note, 0), 0)
+	      && (!may_trap_p (XEXP (note, 0))
+		  || def_dominates_uses (regno)))
 	    {
 	      rtx note_value = XEXP (note, 0);
 	      remove_note (insn, note);
@@ -3710,6 +3766,14 @@ combine_and_move_insns (void)
 	  remove_death (regno, use_insn);
 	  SET_REG_N_REFS (regno, 0);
 	  REG_FREQ (regno) = 0;
+	  df_ref use;
+	  FOR_EACH_INSN_USE (use, def_insn)
+	    {
+	      unsigned int use_regno = DF_REF_REGNO (use);
+	      if (!HARD_REGISTER_NUM_P (use_regno))
+		reg_equiv[use_regno].replace = 0;
+	    }
+
 	  delete_insn (def_insn);
 
 	  reg_equiv[regno].init_insns = NULL;
@@ -5079,6 +5143,13 @@ ira (FILE *f)
 
   clear_bb_flags ();
 
+  /* Determine if the current function is a leaf before running IRA
+     since this can impact optimizations done by the prologue and
+     epilogue thus changing register elimination offsets.
+     Other target callbacks may use crtl->is_leaf too, including
+     SHRINK_WRAPPING_ENABLED, so initialize as early as possible.  */
+  crtl->is_leaf = leaf_function_p ();
+
   /* Perform target specific PIC register initialization.  */
   targetm.init_pic_reg ();
 
@@ -5163,11 +5234,6 @@ ira (FILE *f)
      to generate these warnings.  */
   if (warn_clobbered)
     generate_setjmp_warnings ();
-
-  /* Determine if the current function is a leaf before running IRA
-     since this can impact optimizations done by the prologue and
-     epilogue thus changing register elimination offsets.  */
-  crtl->is_leaf = leaf_function_p ();
 
   if (resize_reg_info () && flag_ira_loop_pressure)
     ira_set_pseudo_classes (true, ira_dump_file);

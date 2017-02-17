@@ -1,6 +1,6 @@
 /* Offload image generation tool for PTX.
 
-   Copyright (C) 2014-2016 Free Software Foundation, Inc.
+   Copyright (C) 2014-2017 Free Software Foundation, Inc.
 
    Contributed by Nathan Sidwell <nathan@codesourcery.com> and
    Bernd Schmidt <bernds@codesourcery.com>.
@@ -338,7 +338,7 @@ process (FILE *in, FILE *out)
   fprintf (out, "static __attribute__((constructor)) void init (void)\n"
 	   "{\n"
 	   "  GOMP_offload_register_ver (%#x, __OFFLOAD_TABLE__,"
-	   "%d/*NVIDIA_PTX*/, &target_data);\n"
+	   " %d/*NVIDIA_PTX*/, &target_data);\n"
 	   "};\n",
 	   GOMP_VERSION_PACK (GOMP_VERSION, GOMP_VERSION_NVIDIA_PTX),
 	   GOMP_DEVICE_NVIDIA_PTX);
@@ -346,7 +346,7 @@ process (FILE *in, FILE *out)
   fprintf (out, "static __attribute__((destructor)) void fini (void)\n"
 	   "{\n"
 	   "  GOMP_offload_unregister_ver (%#x, __OFFLOAD_TABLE__,"
-	   "%d/*NVIDIA_PTX*/, &target_data);\n"
+	   " %d/*NVIDIA_PTX*/, &target_data);\n"
 	   "};\n",
 	   GOMP_VERSION_PACK (GOMP_VERSION, GOMP_VERSION_NVIDIA_PTX),
 	   GOMP_DEVICE_NVIDIA_PTX);

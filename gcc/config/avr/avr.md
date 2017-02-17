@@ -1,6 +1,6 @@
 ;;   Machine description for GNU compiler,
 ;;   for ATMEL AVR micro controllers.
-;;   Copyright (C) 1998-2016 Free Software Foundation, Inc.
+;;   Copyright (C) 1998-2017 Free Software Foundation, Inc.
 ;;   Contributed by Denis Chertykov (chertykov@gmail.com)
 
 ;; This file is part of GCC.
@@ -1200,12 +1200,14 @@
 
 
 (define_insn "*addhi3_zero_extend"
-  [(set (match_operand:HI 0 "register_operand"                         "=r")
-        (plus:HI (zero_extend:HI (match_operand:QI 1 "register_operand" "r"))
-                 (match_operand:HI 2 "register_operand"                 "0")))]
+  [(set (match_operand:HI 0 "register_operand"                         "=r,*?r")
+        (plus:HI (zero_extend:HI (match_operand:QI 1 "register_operand" "r  ,0"))
+                 (match_operand:HI 2 "register_operand"                 "0  ,r")))]
   ""
-  "add %A0,%1\;adc %B0,__zero_reg__"
-  [(set_attr "length" "2")
+  "@
+	add %A0,%1\;adc %B0,__zero_reg__
+	add %A0,%A2\;mov %B0,%B2\;adc %B0,__zero_reg__"
+  [(set_attr "length" "2,3")
    (set_attr "cc" "set_n")])
 
 (define_insn "*addhi3_zero_extend1"
@@ -6284,7 +6286,7 @@
   [(set_attr "length" "2")
    (set_attr "cc" "none")])
 
-;; Swap Bytes (change byte-endianess)
+;; Swap Bytes (change byte-endianness)
 
 (define_expand "bswapsi2"
   [(set (reg:SI 22)

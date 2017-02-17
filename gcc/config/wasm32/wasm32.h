@@ -227,7 +227,7 @@ typedef struct {
   do { } while(0)
 
 /* Length in units of the trampoline for entering a nested function. */
-#define TRAMPOLINE_SIZE  (32)
+#define TRAMPOLINE_SIZE 32
 /* Alignment required for a trampoline in bits.  */
 #define TRAMPOLINE_ALIGNMENT 128
 

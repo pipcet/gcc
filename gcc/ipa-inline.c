@@ -1,5 +1,5 @@
 /* Inlining decision heuristics.
-   Copyright (C) 2003-2016 Free Software Foundation, Inc.
+   Copyright (C) 2003-2017 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -2052,7 +2052,7 @@ inline_small_functions (void)
       if (dump_file)
 	{
 	  fprintf (dump_file,
-		   " Inlined into %s which now has time %i and size %i,"
+		   " Inlined into %s which now has time %i and size %i, "
 		   "net change of %+i.\n",
 		   edge->caller->name (),
 		   inline_summaries->get (edge->caller)->time,

@@ -641,17 +641,14 @@ CXXFLAGS_FOR_TARGET
 CFLAGS_FOR_TARGET
 DEBUG_PREFIX_CFLAGS_FOR_TARGET
 SYSROOT_CFLAGS_FOR_TARGET
+get_gcc_base_ver
 extra_host_zlib_configure_flags
 extra_host_libiberty_configure_flags
-PKG_CONFIG_LIBDIR
-PKG_CONFIG_PATH
-PKG_CONFIG
 stage1_languages
 extra_linker_plugin_flags
 extra_linker_plugin_configure_flags
 islinc
 isllibs
-islver
 poststage1_ldflags
 poststage1_libs
 stage1_ldflags
@@ -789,6 +786,7 @@ enable_objc_gc
 with_target_bdw_gc
 with_target_bdw_gc_include
 with_target_bdw_gc_lib
+with_gcc_major_version_only
 with_build_sysroot
 with_debug_prefix_map
 with_build_config
@@ -811,9 +809,6 @@ CPPFLAGS
 CXX
 CXXFLAGS
 CCC
-PKG_CONFIG
-PKG_CONFIG_PATH
-PKG_CONFIG_LIBDIR
 build_configargs
 host_configargs
 target_configargs
@@ -1568,6 +1563,8 @@ Optional Packages:
                           files
   --with-target-bdw-gc-lib=PATHLIST
                           specify directories for installed bdw-gc library
+  --with-gcc-major-version-only
+                          use only GCC major number in filesystem paths
   --with-build-sysroot=SYSROOT
                           use sysroot as the system root during the build
   --with-debug-prefix-map='A=B C=D ...'
@@ -1587,11 +1584,6 @@ Some influential environment variables:
               you have headers in a nonstandard directory <include dir>
   CXX         C++ compiler command
   CXXFLAGS    C++ compiler flags
-  PKG_CONFIG  path to pkg-config utility
-  PKG_CONFIG_PATH
-              directories to add to pkg-config's search path
-  PKG_CONFIG_LIBDIR
-              path overriding pkg-config's built-in search path
   build_configargs
               additional configure arguments for build directories
   host_configargs
@@ -2761,6 +2753,7 @@ target_libraries="target-libgcc \
 		target-libgomp \
 		target-libcilkrts \
 		target-liboffloadmic \
+		target-libhsail-rt \
 		target-libatomic \
 		target-libitm \
 		target-libstdc++-v3 \
@@ -3310,6 +3303,26 @@ $as_echo "yes" >&6; }
     fi
 fi
 
+# Disable libhsail-rt on unsupported systems.
+if test -d ${srcdir}/libhsail-rt; then
+    if test x$enable_libhsail_rt = x; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: checking for libhsail-rt support" >&5
+$as_echo_n "checking for libhsail-rt support... " >&6; }
+        if (srcdir=${srcdir}/libhsail-rt; \
+                . ${srcdir}/configure.tgt; \
+                test -n "$UNSUPPORTED")
+        then
+            { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+            unsupported_languages="$unsupported_languages brig"
+            # This implicitly disables also target-libhsail-rt as it won't
+            # get added to the build without BRIG FE.
+        else
+            { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+        fi
+    fi
+fi
 
 
 # Disable libquadmath for some systems.
@@ -5289,7 +5302,7 @@ if test "${gcc_cv_prog_cmp_skip+set}" = set; then :
 else
    echo abfoo >t1
   echo cdfoo >t2
-  gcc_cv_prog_cmp_skip='tail +16c $$f1 > tmp-foo1; tail +16c $$f2 > tmp-foo2; cmp tmp-foo1 tmp-foo2'
+  gcc_cv_prog_cmp_skip='tail -c +17 $$f1 > tmp-foo1; tail -c +17 $$f2 > tmp-foo2; cmp tmp-foo1 tmp-foo2'
   if cmp t1 t2 2 2 > /dev/null 2>&1; then
     if cmp t1 t2 1 1 > /dev/null 2>&1; then
       :
@@ -5930,15 +5943,15 @@ $as_echo "$as_me: WARNING: using in-tree isl, disabling version check" >&2;}
     LDFLAGS="${_isl_saved_LDFLAGS} ${isllibs} ${gmplibs}"
     LIBS="${_isl_saved_LIBS} -lisl -lgmp"
 
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for isl 0.16, 0.15, or deprecated 0.14" >&5
-$as_echo_n "checking for isl 0.16, 0.15, or deprecated 0.14... " >&6; }
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for isl 0.15 or later" >&5
+$as_echo_n "checking for isl 0.15 or later... " >&6; }
     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
-#include <isl/ctx.h>
+#include <isl/schedule.h>
 int
 main ()
 {
-isl_ctx_get_max_operations (isl_ctx_alloc ());
+isl_options_set_schedule_serialize_sccs (NULL, 0);
   ;
   return 0;
 }
@@ -5954,36 +5967,8 @@ rm -f core conftest.err conftest.$ac_objext \
 $as_echo "$gcc_cv_isl" >&6; }
 
     if test "${gcc_cv_isl}" = no ; then
-      { $as_echo "$as_me:${as_lineno-$LINENO}: result: recommended isl version is 0.16 or 0.15, the minimum required isl version 0.14 is deprecated" >&5
-$as_echo "recommended isl version is 0.16 or 0.15, the minimum required isl version 0.14 is deprecated" >&6; }
-    fi
-
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for isl 0.16 or 0.15" >&5
-$as_echo_n "checking for isl 0.16 or 0.15... " >&6; }
-    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <isl/schedule.h>
-int
-main ()
-{
-isl_options_set_schedule_serialize_sccs (NULL, 0);
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"; then :
-  ac_has_isl_options_set_schedule_serialize_sccs=yes
-else
-  ac_has_isl_options_set_schedule_serialize_sccs=no
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext conftest.$ac_ext
-    { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_has_isl_options_set_schedule_serialize_sccs" >&5
-$as_echo "$ac_has_isl_options_set_schedule_serialize_sccs" >&6; }
-
-    if test x"$ac_has_isl_options_set_schedule_serialize_sccs" = x"yes"; then
-      islver="0.15"
-
+      { $as_echo "$as_me:${as_lineno-$LINENO}: result: required isl version is 0.15 or later" >&5
+$as_echo "required isl version is 0.15 or later" >&6; }
     fi
 
     CFLAGS=$_isl_saved_CFLAGS
@@ -6049,7 +6034,7 @@ target_elf=no
 case $target in
   *-darwin* | *-aix* | *-cygwin* | *-mingw* | *-aout* | *-*coff* | \
   *-msdosdjgpp* | *-vms* | *-wince* | *-*-pe* | \
-  alpha*-dec-osf* | hppa[12]*-*-hpux* | \
+  alpha*-dec-osf* | *-interix* | hppa[12]*-*-hpux* | \
   nvptx-*-none)
     target_elf=no
     ;;
@@ -6446,137 +6431,8 @@ case ,${enable_languages},:${enable_objc_gc} in *,objc,*:yes|*,objc,*:auto)
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for bdw garbage collector" >&5
 $as_echo_n "checking for bdw garbage collector... " >&6; }
   if test "x$with_target_bdw_gc$with_target_bdw_gc_include$with_target_bdw_gc_lib" = x; then
-
-
-
-
-
-
-
-if test "x$ac_cv_env_PKG_CONFIG_set" != "xset"; then
-	if test -n "$ac_tool_prefix"; then
-  # Extract the first word of "${ac_tool_prefix}pkg-config", so it can be a program name with args.
-set dummy ${ac_tool_prefix}pkg-config; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_path_PKG_CONFIG+set}" = set; then :
-  $as_echo_n "(cached) " >&6
-else
-  case $PKG_CONFIG in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_PKG_CONFIG="$PKG_CONFIG" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_PKG_CONFIG="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-PKG_CONFIG=$ac_cv_path_PKG_CONFIG
-if test -n "$PKG_CONFIG"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $PKG_CONFIG" >&5
-$as_echo "$PKG_CONFIG" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-
-fi
-if test -z "$ac_cv_path_PKG_CONFIG"; then
-  ac_pt_PKG_CONFIG=$PKG_CONFIG
-  # Extract the first word of "pkg-config", so it can be a program name with args.
-set dummy pkg-config; ac_word=$2
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
-$as_echo_n "checking for $ac_word... " >&6; }
-if test "${ac_cv_path_ac_pt_PKG_CONFIG+set}" = set; then :
-  $as_echo_n "(cached) " >&6
-else
-  case $ac_pt_PKG_CONFIG in
-  [\\/]* | ?:[\\/]*)
-  ac_cv_path_ac_pt_PKG_CONFIG="$ac_pt_PKG_CONFIG" # Let the user override the test with a path.
-  ;;
-  *)
-  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
-for as_dir in $PATH
-do
-  IFS=$as_save_IFS
-  test -z "$as_dir" && as_dir=.
-    for ac_exec_ext in '' $ac_executable_extensions; do
-  if { test -f "$as_dir/$ac_word$ac_exec_ext" && $as_test_x "$as_dir/$ac_word$ac_exec_ext"; }; then
-    ac_cv_path_ac_pt_PKG_CONFIG="$as_dir/$ac_word$ac_exec_ext"
-    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
-    break 2
-  fi
-done
-  done
-IFS=$as_save_IFS
-
-  ;;
-esac
-fi
-ac_pt_PKG_CONFIG=$ac_cv_path_ac_pt_PKG_CONFIG
-if test -n "$ac_pt_PKG_CONFIG"; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_pt_PKG_CONFIG" >&5
-$as_echo "$ac_pt_PKG_CONFIG" >&6; }
-else
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-fi
-
-  if test "x$ac_pt_PKG_CONFIG" = x; then
-    PKG_CONFIG=""
-  else
-    case $cross_compiling:$ac_tool_warned in
-yes:)
-{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: using cross tools not prefixed with host triplet" >&5
-$as_echo "$as_me: WARNING: using cross tools not prefixed with host triplet" >&2;}
-ac_tool_warned=yes ;;
-esac
-    PKG_CONFIG=$ac_pt_PKG_CONFIG
-  fi
-else
-  PKG_CONFIG="$ac_cv_path_PKG_CONFIG"
-fi
-
-fi
-if test -n "$PKG_CONFIG"; then
-	_pkg_min_version=0.9.0
-	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking pkg-config is at least version $_pkg_min_version" >&5
-$as_echo_n "checking pkg-config is at least version $_pkg_min_version... " >&6; }
-	if $PKG_CONFIG --atleast-pkgconfig-version $_pkg_min_version; then
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; }
-	else
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
-$as_echo "no" >&6; }
-		PKG_CONFIG=""
-	fi
-fi
-if test -n "$PKG_CONFIG" && \
-    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"bdw-gc\""; } >&5
-  ($PKG_CONFIG --exists --print-errors "bdw-gc") 2>&5
-  ac_status=$?
-  $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
-  test $ac_status = 0; }; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: result: using bdw-gc pkg-config module" >&5
-$as_echo "using bdw-gc pkg-config module" >&6; }
-else
-  as_fn_error "no --with-target-bdw-gc options and no bdw-gc pkg-config module found" "$LINENO" 5
-fi
+        { $as_echo "$as_me:${as_lineno-$LINENO}: result: using bdw-gc in default locations" >&5
+$as_echo "using bdw-gc in default locations" >&6; }
   else
         if test "x$with_target_bdw_gc_include" = x && test "x$with_target_bdw_gc_lib" != x; then
       as_fn_error "found --with-target-bdw-gc-lib but --with-target-bdw-gc-include missing" "$LINENO" 5
@@ -6764,6 +6620,20 @@ if test "${PATH_SEPARATOR+set}" != set; then
 fi
 
 
+  get_gcc_base_ver="cat"
+
+# Check whether --with-gcc-major-version-only was given.
+if test "${with_gcc_major_version_only+set}" = set; then :
+  withval=$with_gcc_major_version_only; if test x$with_gcc_major_version_only = xyes ; then
+        get_gcc_base_ver="sed -e 's/^\([0-9]*\).*\$\$/\1/'"
+      fi
+
+fi
+
+
+
+
+
 
 if test "x$exec_prefix" = xNONE; then
         if test "x$prefix" = xNONE; then
@@ -6779,7 +6649,11 @@ fi
 # case, if there is no compiler in the tree nobody should use
 # AS_FOR_TARGET and LD_FOR_TARGET.
 if test x$host = x$build && test -f $srcdir/gcc/BASE-VER; then
-    gcc_version=`cat $srcdir/gcc/BASE-VER`
+    if test x$with_gcc_major_version_only = xyes ; then
+                gcc_version=`sed -e 's/^\([0-9]*\).*$/\1/' $srcdir/gcc/BASE-VER`
+            else
+        gcc_version=`cat $srcdir/gcc/BASE-VER`
+    fi
     gcc_cv_tool_dirs="$gcc_cv_tool_prefix/libexec/gcc/$target_noncanonical/$gcc_version$PATH_SEPARATOR"
     gcc_cv_tool_dirs="$gcc_cv_tool_dirs$gcc_cv_tool_prefix/libexec/gcc/$target_noncanonical$PATH_SEPARATOR"
     gcc_cv_tool_dirs="$gcc_cv_tool_dirs/usr/lib/gcc/$target_noncanonical/$gcc_version$PATH_SEPARATOR"
@@ -7202,9 +7076,14 @@ if echo " ${target_configdirs} " | grep " libvtv " > /dev/null 2>&1 &&
   bootstrap_target_libs=${bootstrap_target_libs}target-libvtv,
 fi
 
-# If we are building libmpx, bootstrap it.
+# If we are building libmpx and $BUILD_CONFIG contains bootstrap-mpx,
+# bootstrap it.
 if echo " ${target_configdirs} " | grep " libmpx " > /dev/null 2>&1; then
-  bootstrap_target_libs=${bootstrap_target_libs}target-libmpx,
+  case "$BUILD_CONFIG" in
+    *bootstrap-mpx* )
+      bootstrap_target_libs=${bootstrap_target_libs}target-libmpx,
+      ;;
+  esac
 fi
 
 # Determine whether gdb needs tk/tcl or not.
@@ -14766,7 +14645,7 @@ fi
 compare_exclusions="gcc/cc*-checksum\$(objext) | gcc/ada/*tools/*"
 case "$target" in
   hppa*64*-*-hpux*) ;;
-  hppa*-*-hpux*) compare_exclusions="gcc/cc*-checksum\$(objext) | */libgcc/lib2funcs* | gcc/ada/*tools/*" ;;
+  hppa*-*-hpux*) compare_exclusions="gcc/cc*-checksum\$(objext) | */libgcc/lib2funcs* | gcc/ada/*tools/* | gcc/function-tests.o" ;;
   powerpc*-ibm-aix*) compare_exclusions="gcc/cc*-checksum\$(objext) | gcc/ada/*tools/* | *libgomp*\$(objext)" ;;
 esac
 

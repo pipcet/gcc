@@ -1,5 +1,5 @@
 /* Loop Vectorization
-   Copyright (C) 2003-2016 Free Software Foundation, Inc.
+   Copyright (C) 2003-2017 Free Software Foundation, Inc.
    Contributed by Dorit Naishlos <dorit@il.ibm.com> and
    Ira Rosen <irar@il.ibm.com>
 
@@ -183,7 +183,7 @@ vect_determine_vectorization_factor (loop_vec_info loop_vinfo)
   basic_block *bbs = LOOP_VINFO_BBS (loop_vinfo);
   unsigned nbbs = loop->num_nodes;
   unsigned int vectorization_factor = 0;
-  tree scalar_type;
+  tree scalar_type = NULL_TREE;
   gphi *phi;
   tree vectype;
   unsigned int nunits;
@@ -433,7 +433,7 @@ vect_determine_vectorization_factor (loop_vec_info loop_vinfo)
 	      /* Bool ops don't participate in vectorization factor
 		 computation.  For comparison use compared types to
 		 compute a factor.  */
-	      if (TREE_CODE (scalar_type) == BOOLEAN_TYPE
+	      if (VECT_SCALAR_BOOLEAN_TYPE_P (scalar_type)
 		  && is_gimple_assign (stmt)
 		  && gimple_assign_rhs_code (stmt) != COND_EXPR)
 		{
@@ -442,11 +442,10 @@ vect_determine_vectorization_factor (loop_vec_info loop_vinfo)
 		    mask_producers.safe_push (stmt_info);
 		  bool_result = true;
 
-		  if (gimple_code (stmt) == GIMPLE_ASSIGN
-		      && TREE_CODE_CLASS (gimple_assign_rhs_code (stmt))
-			 == tcc_comparison
-		      && TREE_CODE (TREE_TYPE (gimple_assign_rhs1 (stmt)))
-			 != BOOLEAN_TYPE)
+		  if (TREE_CODE_CLASS (gimple_assign_rhs_code (stmt))
+		      == tcc_comparison
+		      && !VECT_SCALAR_BOOLEAN_TYPE_P
+			    (TREE_TYPE (gimple_assign_rhs1 (stmt))))
 		    scalar_type = TREE_TYPE (gimple_assign_rhs1 (stmt));
 		  else
 		    {
@@ -585,9 +584,10 @@ vect_determine_vectorization_factor (loop_vec_info loop_vinfo)
 
       stmt = STMT_VINFO_STMT (mask_producers[i]);
 
-      if (gimple_code (stmt) == GIMPLE_ASSIGN
+      if (is_gimple_assign (stmt)
 	  && TREE_CODE_CLASS (gimple_assign_rhs_code (stmt)) == tcc_comparison
-	  && TREE_CODE (TREE_TYPE (gimple_assign_rhs1 (stmt))) != BOOLEAN_TYPE)
+	  && !VECT_SCALAR_BOOLEAN_TYPE_P
+				      (TREE_TYPE (gimple_assign_rhs1 (stmt))))
 	{
 	  scalar_type = TREE_TYPE (gimple_assign_rhs1 (stmt));
 	  mask_type = get_mask_type_for_scalar_type (scalar_type);
@@ -1329,9 +1329,9 @@ vect_compute_single_scalar_iteration_cost (loop_vec_info loop_vinfo)
             continue;
 
 	  vect_cost_for_stmt kind;
-          if (STMT_VINFO_DATA_REF (vinfo_for_stmt (stmt)))
+          if (STMT_VINFO_DATA_REF (stmt_info))
             {
-              if (DR_IS_READ (STMT_VINFO_DATA_REF (vinfo_for_stmt (stmt))))
+              if (DR_IS_READ (STMT_VINFO_DATA_REF (stmt_info)))
                kind = scalar_load;
              else
                kind = scalar_store;
@@ -1341,7 +1341,7 @@ vect_compute_single_scalar_iteration_cost (loop_vec_info loop_vinfo)
 
 	  scalar_single_iter_cost
 	    += record_stmt_cost (&LOOP_VINFO_SCALAR_ITERATION_COST (loop_vinfo),
-				 factor, kind, NULL, 0, vect_prologue);
+				 factor, kind, stmt_info, 0, vect_prologue);
         }
     }
   LOOP_VINFO_SINGLE_SCALAR_ITERATION_COST (loop_vinfo)
@@ -3178,16 +3178,24 @@ vect_get_known_peeling_cost (loop_vec_info loop_vinfo, int peel_iters_prologue,
   int j;
   if (peel_iters_prologue)
     FOR_EACH_VEC_ELT (*scalar_cost_vec, j, si)
-      retval += record_stmt_cost (prologue_cost_vec,
-				  si->count * peel_iters_prologue,
-				  si->kind, NULL, si->misalign,
-				  vect_prologue);
+	{
+	  stmt_vec_info stmt_info
+	    = si->stmt ? vinfo_for_stmt (si->stmt) : NULL;
+	  retval += record_stmt_cost (prologue_cost_vec,
+				      si->count * peel_iters_prologue,
+				      si->kind, stmt_info, si->misalign,
+				      vect_prologue);
+	}
   if (*peel_iters_epilogue)
     FOR_EACH_VEC_ELT (*scalar_cost_vec, j, si)
-      retval += record_stmt_cost (epilogue_cost_vec,
-				  si->count * *peel_iters_epilogue,
-				  si->kind, NULL, si->misalign,
-				  vect_epilogue);
+	{
+	  stmt_vec_info stmt_info
+	    = si->stmt ? vinfo_for_stmt (si->stmt) : NULL;
+	  retval += record_stmt_cost (epilogue_cost_vec,
+				      si->count * *peel_iters_epilogue,
+				      si->kind, stmt_info, si->misalign,
+				      vect_epilogue);
+	}
 
   return retval;
 }
@@ -6164,20 +6172,24 @@ vectorizable_reduction (gimple *stmt, gimple_stmt_iterator *gsi,
 	  if (slp_node)
 	    {
 	      /* Get vec defs for all the operands except the reduction index,
-		ensuring the ordering of the ops in the vector is kept.  */
+		 ensuring the ordering of the ops in the vector is kept.  */
 	      auto_vec<tree, 3> slp_ops;
 	      auto_vec<vec<tree>, 3> vec_defs;
 
-	      slp_ops.quick_push ((reduc_index == 0) ? NULL : ops[0]);
-	      slp_ops.quick_push ((reduc_index == 1) ? NULL : ops[1]);
+	      slp_ops.quick_push (reduc_index == 0 ? NULL : ops[0]);
+	      slp_ops.quick_push (reduc_index == 1 ? NULL : ops[1]);
 	      if (op_type == ternary_op)
-		slp_ops.quick_push ((reduc_index == 2) ? NULL : ops[2]);
+		slp_ops.quick_push (reduc_index == 2 ? NULL : ops[2]);
 
 	      vect_get_slp_defs (slp_ops, slp_node, &vec_defs, -1);
 
-	      vec_oprnds0.safe_splice (vec_defs[(reduc_index == 0) ? 1 : 0]);
+	      vec_oprnds0.safe_splice (vec_defs[reduc_index == 0 ? 1 : 0]);
+	      vec_defs[reduc_index == 0 ? 1 : 0].release ();
 	      if (op_type == ternary_op)
-		vec_oprnds1.safe_splice (vec_defs[(reduc_index == 2) ? 1 : 2]);
+		{
+		  vec_oprnds1.safe_splice (vec_defs[reduc_index == 2 ? 1 : 2]);
+		  vec_defs[reduc_index == 2 ? 1 : 2].release ();
+		}
 	    }
           else
 	    {
@@ -6186,7 +6198,7 @@ vectorizable_reduction (gimple *stmt, gimple_stmt_iterator *gsi,
               vec_oprnds0.quick_push (loop_vec_def0);
               if (op_type == ternary_op)
                {
-		 op1 = (reduc_index == 0) ? ops[2] : ops[1];
+		 op1 = reduc_index == 0 ? ops[2] : ops[1];
                  loop_vec_def1 = vect_get_vec_def_for_operand (op1, stmt);
                  vec_oprnds1.quick_push (loop_vec_def1);
                }
@@ -6601,8 +6613,10 @@ vectorizable_live_operation (gimple *stmt,
   /* Create a new vectorized stmt for the uses of STMT and insert outside the
      loop.  */
   gimple_seq stmts = NULL;
-  tree new_tree = build3 (BIT_FIELD_REF, TREE_TYPE (vectype), vec_lhs, bitsize,
-			  bitstart);
+  tree bftype = TREE_TYPE (vectype);
+  if (VECTOR_BOOLEAN_TYPE_P (vectype))
+    bftype = build_nonstandard_integer_type (tree_to_uhwi (bitsize), 1);
+  tree new_tree = build3 (BIT_FIELD_REF, bftype, vec_lhs, bitsize, bitstart);
   new_tree = force_gimple_operand (fold_convert (lhs_type, new_tree), &stmts,
 				   true, NULL_TREE);
   if (stmts)

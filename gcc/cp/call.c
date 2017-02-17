@@ -1,5 +1,5 @@
 /* Functions related to invoking -*- C++ -*- methods and overloaded functions.
-   Copyright (C) 1987-2016 Free Software Foundation, Inc.
+   Copyright (C) 1987-2017 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com) and
    modified by Brendan Kehoe (brendan@cygnus.com).
 
@@ -2005,7 +2005,11 @@ add_function_candidate (struct z_candidate **candidates,
      considered in overload resolution.  */
   if (DECL_CONSTRUCTOR_P (fn))
     {
-      parmlist = skip_artificial_parms_for (fn, parmlist);
+      if (ctor_omit_inherited_parms (fn))
+	/* Bring back parameters omitted from an inherited ctor.  */
+	parmlist = FUNCTION_FIRST_USER_PARMTYPE (DECL_ORIGIN (fn));
+      else
+	parmlist = skip_artificial_parms_for (fn, parmlist);
       skip = num_artificial_parms_for (fn);
       if (skip > 0 && first_arg != NULL_TREE)
 	{
@@ -2040,6 +2044,24 @@ add_function_candidate (struct z_candidate **candidates,
       int remaining = remaining_arguments (parmnode);
       viable = 0;
       reason = arity_rejection (first_arg, i + remaining, len);
+    }
+
+  /* An inherited constructor (12.6.3 [class.inhctor.init]) that has a first
+     parameter of type "reference to cv C" (including such a constructor
+     instantiated from a template) is excluded from the set of candidate
+     functions when used to construct an object of type D with an argument list
+     containing a single argument if C is reference-related to D.  */
+  if (viable && len == 1 && parmlist && DECL_CONSTRUCTOR_P (fn)
+      && flag_new_inheriting_ctors
+      && DECL_INHERITED_CTOR (fn))
+    {
+      tree ptype = non_reference (TREE_VALUE (parmlist));
+      tree dtype = DECL_CONTEXT (fn);
+      if (reference_related_p (ptype, dtype))
+	{
+	  viable = false;
+	  reason = inherited_ctor_rejection ();
+	}
     }
 
   /* Second, for a function to be viable, its constraints must be
@@ -2140,18 +2162,6 @@ add_function_candidate (struct z_candidate **candidates,
 		  arg = build_this (arg);
 		  argtype = lvalue_type (arg);
 		}
-	    }
-
-	  /* Don't consider inherited constructors for initialization from an
-	     expression of the same or derived type.  */
-	  /* FIXME extend to operator=.  */
-	  if (i == 0 && len == 1
-	      && DECL_INHERITED_CTOR (fn)
-	      && reference_related_p (ctype, argtype))
-	    {
-	      viable = 0;
-	      reason = inherited_ctor_rejection ();
-	      goto out;
 	    }
 
 	  /* Core issue 899: When [copy-]initializing a temporary to be bound
@@ -4420,7 +4430,7 @@ build_op_call_1 (tree obj, vec<tree, va_gc> **args, tsubst_flags_t complain)
 
   if (TYPE_BINFO (type))
     {
-      fns = lookup_fnfields (TYPE_BINFO (type), ansi_opname (CALL_EXPR), 1);
+      fns = lookup_fnfields (TYPE_BINFO (type), cp_operator_id (CALL_EXPR), 1);
       if (fns == error_mark_node)
 	return error_mark_node;
     }
@@ -5130,7 +5140,7 @@ build_conditional_expr_1 (location_t loc, tree arg1, tree arg2, tree arg3,
       add_builtin_candidates (&candidates,
 			      COND_EXPR,
 			      NOP_EXPR,
-			      ansi_opname (COND_EXPR),
+			      cp_operator_id (COND_EXPR),
 			      args,
 			      LOOKUP_NORMAL, complain);
 
@@ -5295,6 +5305,13 @@ build_conditional_expr_1 (location_t loc, tree arg1, tree arg2, tree arg3,
 
  valid_operands:
   result = build3_loc (loc, COND_EXPR, result_type, arg1, arg2, arg3);
+
+  /* If the ARG2 and ARG3 are the same and don't have side-effects,
+     warn here, because the COND_EXPR will be turned into ARG2.  */
+  if (warn_duplicated_branches
+      && (arg2 == arg3 || operand_equal_p (arg2, arg3, 0)))
+    warning_at (EXPR_LOCATION (result), OPT_Wduplicated_branches,
+		"this condition has identical branches");
 
   /* We can't use result_type below, as fold might have returned a
      throw_expr.  */
@@ -5546,10 +5563,10 @@ build_new_op_1 (location_t loc, enum tree_code code, int flags, tree arg1,
     {
       code2 = TREE_CODE (arg3);
       arg3 = NULL_TREE;
-      fnname = ansi_assopname (code2);
+      fnname = cp_assignment_operator_id (code2);
     }
   else
-    fnname = ansi_opname (code);
+    fnname = cp_operator_id (code);
 
   arg1 = prep_operand (arg1);
 
@@ -6154,7 +6171,7 @@ build_op_delete_call (enum tree_code code, tree addr, tree size,
 
   type = strip_array_types (TREE_TYPE (TREE_TYPE (addr)));
 
-  fnname = ansi_opname (code);
+  fnname = cp_operator_id (code);
 
   if (CLASS_TYPE_P (type)
       && COMPLETE_TYPE_P (complete_type (type))
@@ -6407,7 +6424,8 @@ enforce_access (tree basetype_path, tree decl, tree diag_decl,
 	 accessible when used to construct an object of the corresponding base
 	 class.  */
       decl = strip_inheriting_ctors (decl);
-      basetype_path = TYPE_BINFO (DECL_CONTEXT (decl));
+      basetype_path = lookup_base (basetype_path, DECL_CONTEXT (decl),
+				   ba_any, NULL, complain);
     }
 
   if (!accessible_p (basetype_path, decl, true))
@@ -7568,6 +7586,12 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
 	joust (cand, w->loser, 1, complain);
     }
 
+  /* OK, we're actually calling this inherited constructor; set its deletedness
+     appropriately.  We can get away with doing this here because calling is
+     the only way to refer to a constructor.  */
+  if (DECL_INHERITED_CTOR (fn))
+    deduce_inheriting_ctor (fn);
+
   /* Make =delete work with SFINAE.  */
   if (DECL_DELETED_FN (fn) && !(complain & tf_error))
     return error_mark_node;
@@ -7875,6 +7899,7 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
      nonnull are disabled.  Just in case that at least one of them is active
      the check_function_arguments function might warn about something.  */
 
+  bool warned_p = false;
   if (warn_nonnull || warn_format || warn_suggest_attribute_format)
     {
       tree *fargs = (!nargs ? argarray
@@ -7882,7 +7907,8 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
       for (j = 0; j < nargs; j++)
 	fargs[j] = maybe_constant_value (argarray[j]);
 
-      check_function_arguments (input_location, TREE_TYPE (fn), nargs, fargs);
+      warned_p = check_function_arguments (input_location, TREE_TYPE (fn),
+					   nargs, fargs);
     }
 
   if (DECL_INHERITED_CTOR (fn))
@@ -7891,6 +7917,7 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
 	 could handle this by open-coding the inherited constructor rather than
 	 defining it, but let's not bother now.  */
       if (!cp_unevaluated_operand
+	  && cand->num_convs
 	  && cand->convs[cand->num_convs-1]->ellipsis_p)
 	{
 	  if (complain & tf_error)
@@ -8101,6 +8128,12 @@ build_over_call (struct z_candidate *cand, int flags, tsubst_flags_t complain)
       /* build_new_op_1 will clear this when appropriate.  */
       CALL_EXPR_ORDERED_ARGS (c) = true;
     }
+  if (warned_p)
+    {
+      tree c = extract_call_expr (call);
+      if (TREE_CODE (c) == CALL_EXPR)
+	TREE_NO_WARNING (c) = 1;
+    }
   return call;
 }
 
@@ -8255,7 +8288,7 @@ build_special_member_call (tree instance, tree name, vec<tree, va_gc> **args,
 	      || name == complete_dtor_identifier
 	      || name == base_dtor_identifier
 	      || name == deleting_dtor_identifier
-	      || name == ansi_assopname (NOP_EXPR));
+	      || name == cp_assignment_operator_id (NOP_EXPR));
   if (TYPE_P (binfo))
     {
       /* Resolve the name.  */
@@ -8283,7 +8316,7 @@ build_special_member_call (tree instance, tree name, vec<tree, va_gc> **args,
       if (!same_type_ignoring_top_level_qualifiers_p
 	  (TREE_TYPE (instance), BINFO_TYPE (binfo)))
 	{
-	  if (name != ansi_assopname (NOP_EXPR))
+	  if (name != cp_assignment_operator_id (NOP_EXPR))
 	    /* For constructors and destructors, either the base is
 	       non-virtual, or it is virtual but we are doing the
 	       conversion from a constructor or destructor for the
@@ -9616,6 +9649,18 @@ joust (struct z_candidate *cand1, struct z_candidate *cand2, bool warn,
       winner = compare_ics (cand1->second_conv, cand2->second_conv);
       if (winner)
 	return winner;
+    }
+
+  /* F1 is generated from a deduction-guide (13.3.1.8) and F2 is not */
+  if (deduction_guide_p (cand1->fn))
+    {
+      gcc_assert (deduction_guide_p (cand2->fn));
+      /* We distinguish between candidates from an explicit deduction guide and
+	 candidates built from a constructor based on DECL_ARTIFICIAL.  */
+      int art1 = DECL_ARTIFICIAL (cand1->fn);
+      int art2 = DECL_ARTIFICIAL (cand2->fn);
+      if (art1 != art2)
+	return art2 - art1;
     }
 
   /* or, if not that,

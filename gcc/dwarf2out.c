@@ -1,5 +1,5 @@
 /* Output Dwarf2 format symbol table information from GCC.
-   Copyright (C) 1992-2016 Free Software Foundation, Inc.
+   Copyright (C) 1992-2017 Free Software Foundation, Inc.
    Contributed by Gary Funck (gary@intrepid.com).
    Derived from DWARF 1 implementation of Ron Guilmette (rfg@monkeys.com).
    Extensively modified by Jason Merrill (jason@cygnus.com).
@@ -1514,7 +1514,8 @@ loc_descr_plus_const (dw_loc_descr_ref *list_head, HOST_WIDE_INT offset)
 
   else
     {
-      loc->dw_loc_next = int_loc_descriptor (-offset);
+      loc->dw_loc_next
+	= uint_loc_descriptor (-(unsigned HOST_WIDE_INT) offset);
       add_loc_descr (&loc->dw_loc_next, new_loc_descr (DW_OP_minus, 0, 0));
     }
 }
@@ -2995,14 +2996,16 @@ skeleton_chain_node;
 /* Fixed size portion of the DWARF compilation unit header.  */
 #define DWARF_COMPILE_UNIT_HEADER_SIZE \
   (DWARF_INITIAL_LENGTH_SIZE + DWARF_OFFSET_SIZE			\
-   + (dwarf_version >= 5						\
-      ? 4 + DWARF_TYPE_SIGNATURE_SIZE + DWARF_OFFSET_SIZE : 3))
+   + (dwarf_version >= 5 ? 4 : 3))
 
 /* Fixed size portion of the DWARF comdat type unit header.  */
 #define DWARF_COMDAT_TYPE_UNIT_HEADER_SIZE \
   (DWARF_COMPILE_UNIT_HEADER_SIZE					\
-   + (dwarf_version >= 5						\
-      ? 0 : DWARF_TYPE_SIGNATURE_SIZE + DWARF_OFFSET_SIZE))
+   + DWARF_TYPE_SIGNATURE_SIZE + DWARF_OFFSET_SIZE)
+
+/* Fixed size portion of the DWARF skeleton compilation unit header.  */
+#define DWARF_COMPILE_UNIT_SKELETON_HEADER_SIZE \
+  (DWARF_COMPILE_UNIT_HEADER_SIZE + (dwarf_version >= 5 ? 8 : 0))
 
 /* Fixed size portion of public names info.  */
 #define DWARF_PUBNAMES_HEADER_SIZE (2 * DWARF_OFFSET_SIZE + 2)
@@ -3355,6 +3358,7 @@ static int get_AT_flag (dw_die_ref, enum dwarf_attribute);
 static unsigned get_AT_unsigned (dw_die_ref, enum dwarf_attribute);
 static inline dw_die_ref get_AT_ref (dw_die_ref, enum dwarf_attribute);
 static bool is_cxx (void);
+static bool is_cxx (const_tree);
 static bool is_fortran (void);
 static bool is_ada (void);
 static bool remove_AT (dw_die_ref, enum dwarf_attribute);
@@ -3506,6 +3510,7 @@ static void add_bound_info (dw_die_ref, enum dwarf_attribute, tree,
 			    struct loc_descr_context *);
 static void add_subscript_info (dw_die_ref, tree, bool);
 static void add_byte_size_attribute (dw_die_ref, tree);
+static void add_alignment_attribute (dw_die_ref, tree);
 static inline void add_bit_offset_attribute (dw_die_ref, tree,
 					     struct vlr_context *);
 static void add_bit_size_attribute (dw_die_ref, tree);
@@ -4987,6 +4992,27 @@ is_cxx (void)
 
   return (lang == DW_LANG_C_plus_plus || lang == DW_LANG_ObjC_plus_plus
 	  || lang == DW_LANG_C_plus_plus_11 || lang == DW_LANG_C_plus_plus_14);
+}
+
+/* Return TRUE if DECL was created by the C++ frontend.  */
+
+static bool
+is_cxx (const_tree decl)
+{
+  if (in_lto_p)
+    {
+      const_tree context = decl;
+      while (context && TREE_CODE (context) != TRANSLATION_UNIT_DECL)
+	{
+	  if (TREE_CODE (context) == BLOCK)
+	    context = BLOCK_SUPERCONTEXT (context);
+	  else
+	    context = get_containing_scope (context);
+	}
+      if (context && TRANSLATION_UNIT_LANGUAGE (context))
+	return strncmp (TRANSLATION_UNIT_LANGUAGE (context), "GNU C++", 7) == 0;
+    }
+  return is_cxx ();
 }
 
 /* Return TRUE if the language is Java.  */
@@ -7681,6 +7707,7 @@ clone_as_declaration (dw_die_ref die)
           add_dwarf_attr (clone, a);
           break;
         case DW_AT_byte_size:
+	case DW_AT_alignment:
         default:
           break;
         }
@@ -7893,6 +7920,19 @@ generate_skeleton_bottom_up (skeleton_chain_node *parent)
 	    add_child_die (parent->new_die, c);
 	    c = prev;
 	  }
+	else if (c->comdat_type_p)
+	  {
+	    /* This is the skeleton of earlier break_out_comdat_types
+	       type.  Clone the existing DIE, but keep the children
+	       under the original (which is in the main CU).  */
+	    dw_die_ref clone = clone_die (c);
+
+	    replace_child (c, clone, prev);
+	    generate_skeleton_ancestor_tree (parent);
+	    add_child_die (parent->new_die, c);
+	    c = clone;
+	    continue;
+	  }
 	else
 	  {
 	    /* Clone the existing DIE, move the original to the skeleton
@@ -7911,6 +7951,7 @@ generate_skeleton_bottom_up (skeleton_chain_node *parent)
 	    replace_child (c, clone, prev);
 	    generate_skeleton_ancestor_tree (parent);
 	    add_child_die (parent->new_die, c);
+	    node.old_die = clone;
 	    node.new_die = c;
 	    c = clone;
 	  }
@@ -9043,7 +9084,9 @@ calc_die_sizes (dw_die_ref die)
 static void
 calc_base_type_die_sizes (void)
 {
-  unsigned long die_offset = DWARF_COMPILE_UNIT_HEADER_SIZE;
+  unsigned long die_offset = (dwarf_split_debug_info
+			      ? DWARF_COMPILE_UNIT_SKELETON_HEADER_SIZE
+			      : DWARF_COMPILE_UNIT_HEADER_SIZE);
   unsigned int i;
   dw_die_ref base_type;
 #if ENABLE_ASSERT_CHECKING
@@ -9585,7 +9628,7 @@ output_loc_list (dw_loc_list_ref list_head)
 	 perhaps put it into DW_TAG_dwarf_procedure and refer to that
 	 in the expression, but >= 64KB expressions for a single value
 	 in a single range are unlikely very useful.  */
-      if (size > 0xffff)
+      if (dwarf_version < 5 && size > 0xffff)
 	continue;
       if (dwarf_version >= 5)
 	{
@@ -9636,8 +9679,6 @@ output_loc_list (dw_loc_list_ref list_head)
 		    {
 		      if (strcmp (curr2->begin, curr2->end) == 0
 			  && !curr2->force)
-			continue;
-		      if ((unsigned long) size_of_locs (curr2->expr) > 0xffff)
 			continue;
 		      break;
 		    }
@@ -9739,8 +9780,13 @@ output_loc_list (dw_loc_list_ref list_head)
 	}
 
       /* Output the block length for this list of location operations.  */
-      gcc_assert (size <= 0xffff);
-      dw2_asm_output_data (2, size, "%s", "Location expression size");
+      if (dwarf_version >= 5)
+	dw2_asm_output_data_uleb128 (size, "Location expression size");
+      else
+	{
+	  gcc_assert (size <= 0xffff);
+	  dw2_asm_output_data (2, size, "Location expression size");
+	}
 
       output_loc_sequence (curr->expr, -1);
     }
@@ -10256,7 +10302,7 @@ output_compilation_unit_header (enum dwarf_unit_type ut)
 	case DW_UT_split_type: name = "DW_UT_split_type"; break;
 	default: gcc_unreachable ();
 	}
-      dw2_asm_output_data (1, ut, name);
+      dw2_asm_output_data (1, ut, "%s", name);
       dw2_asm_output_data (1, DWARF2_ADDR_SIZE, "Pointer Size (in bytes)");
     }
   dw2_asm_output_offset (DWARF_OFFSET_SIZE, abbrev_section_label,
@@ -10301,7 +10347,9 @@ output_comp_unit (dw_die_ref die, int output_if_empty,
   delete extern_map;
 
   /* Initialize the beginning DIE offset - and calculate sizes/offsets.  */
-  next_die_offset = DWARF_COMPILE_UNIT_HEADER_SIZE;
+  next_die_offset = (dwo_id
+		     ? DWARF_COMPILE_UNIT_SKELETON_HEADER_SIZE
+		     : DWARF_COMPILE_UNIT_HEADER_SIZE);
   calc_die_sizes (die);
 
   oldsym = die->die_id.die_symbol;
@@ -10329,12 +10377,6 @@ output_comp_unit (dw_die_ref die, int output_if_empty,
       if (dwo_id != NULL)
 	for (int i = 0; i < 8; i++)
 	  dw2_asm_output_data (1, dwo_id[i], i == 0 ? "DWO id" : NULL);
-      else
-	/* Hope all the padding will be removed for DWARF 5 final for
-	   DW_AT_compile and DW_AT_partial.  */
-	dw2_asm_output_data (8, 0, "Padding 1");
-
-      dw2_asm_output_data (DWARF_OFFSET_SIZE, 0, "Padding 2");
     }
   output_die (die);
 
@@ -10429,10 +10471,11 @@ output_skeleton_debug_sections (dw_die_ref comp_unit,
      header.  */
   if (DWARF_INITIAL_LENGTH_SIZE - DWARF_OFFSET_SIZE == 4)
     dw2_asm_output_data (4, 0xffffffff,
-      "Initial length escape value indicating 64-bit DWARF extension");
+			 "Initial length escape value indicating 64-bit "
+			 "DWARF extension");
 
   dw2_asm_output_data (DWARF_OFFSET_SIZE,
-                       DWARF_COMPILE_UNIT_HEADER_SIZE
+		       DWARF_COMPILE_UNIT_SKELETON_HEADER_SIZE
                        - DWARF_INITIAL_LENGTH_SIZE
                        + size_of_die (comp_unit),
                       "Length of Compilation Unit Info");
@@ -10448,12 +10491,8 @@ output_skeleton_debug_sections (dw_die_ref comp_unit,
   if (dwarf_version < 5)
     dw2_asm_output_data (1, DWARF2_ADDR_SIZE, "Pointer Size (in bytes)");
   else
-    {
-      for (int i = 0; i < 8; i++)
-	dw2_asm_output_data (1, dwo_id[i], i == 0 ? "DWO id" : NULL);
-
-      dw2_asm_output_data (DWARF_OFFSET_SIZE, 0, "Padding 2");
-    }
+    for (int i = 0; i < 8; i++)
+      dw2_asm_output_data (1, dwo_id[i], i == 0 ? "DWO id" : NULL);
 
   comp_unit->die_abbrev = SKELETON_COMP_DIE_ABBREV;
   output_die (comp_unit);
@@ -11528,7 +11567,8 @@ output_file_names (void)
       if (DWARF5_USE_DEBUG_LINE_STR)
 	str_form = DW_FORM_line_strp;
       dw2_asm_output_data_uleb128 (DW_LNCT_path, "DW_LNCT_path");
-      dw2_asm_output_data_uleb128 (str_form, get_DW_FORM_name (str_form));
+      dw2_asm_output_data_uleb128 (str_form, "%s",
+				   get_DW_FORM_name (str_form));
       dw2_asm_output_data_uleb128 (ndirs + idx_offset, "Directories count");
       if (str_form == DW_FORM_string)
 	{
@@ -11608,10 +11648,12 @@ output_file_names (void)
       dw2_asm_output_data (1, 2, "File name entry format count");
 #endif
       dw2_asm_output_data_uleb128 (DW_LNCT_path, "DW_LNCT_path");
-      dw2_asm_output_data_uleb128 (str_form, get_DW_FORM_name (str_form));
+      dw2_asm_output_data_uleb128 (str_form, "%s",
+				   get_DW_FORM_name (str_form));
       dw2_asm_output_data_uleb128 (DW_LNCT_directory_index,
 				   "DW_LNCT_directory_index");
-      dw2_asm_output_data_uleb128 (idx_form, get_DW_FORM_name (idx_form));
+      dw2_asm_output_data_uleb128 (idx_form, "%s",
+				   get_DW_FORM_name (idx_form));
 #ifdef VMS_DEBUGGING_INFO
       dw2_asm_output_data_uleb128 (DW_LNCT_timestamp, "DW_LNCT_timestamp");
       dw2_asm_output_data_uleb128 (DW_FORM_udata, "DW_FORM_udata");
@@ -12066,6 +12108,8 @@ base_type_die (tree type, bool reverse)
     add_AT_unsigned (base_type_result, DW_AT_endianity,
 		     BYTES_BIG_ENDIAN ? DW_END_little : DW_END_big);
 
+  add_alignment_attribute (base_type_result, type);
+
   if (fpt_used)
     {
       switch (fpt_info.scale_factor_kind)
@@ -12228,6 +12272,8 @@ subrange_type_die (tree type, tree low, tree high, tree bias,
 	 so we need to generate a size attribute for the subrange type.  */
       add_AT_unsigned (subrange_die, DW_AT_byte_size, size_in_bytes);
     }
+
+  add_alignment_attribute (subrange_die, type);
 
   if (low)
     add_bound_info (subrange_die, DW_AT_lower_bound, low, NULL);
@@ -12546,6 +12592,7 @@ modified_type_die (tree type, int cv_quals, bool reverse,
 
       add_AT_unsigned (mod_type_die, DW_AT_byte_size,
 		       simple_type_size_in_bits (type) / BITS_PER_UNIT);
+      add_alignment_attribute (mod_type_die, type);
       item_type = TREE_TYPE (type);
 
       addr_space_t as = TYPE_ADDR_SPACE (item_type);
@@ -13837,7 +13884,7 @@ scompare_loc_descriptor (enum dwarf_location_atom op, rtx rtl,
       if (CONST_INT_P (XEXP (rtl, 1))
 	  && GET_MODE_BITSIZE (op_mode) < HOST_BITS_PER_WIDE_INT
 	  && (size_of_int_loc_descriptor (shift) + 1
-	      + size_of_int_loc_descriptor (INTVAL (XEXP (rtl, 1)) << shift)
+	      + size_of_int_loc_descriptor (UINTVAL (XEXP (rtl, 1)) << shift)
 	      >= size_of_int_loc_descriptor (GET_MODE_MASK (op_mode)) + 1
 		 + size_of_int_loc_descriptor (INTVAL (XEXP (rtl, 1))
 					       & GET_MODE_MASK (op_mode))))
@@ -13852,7 +13899,7 @@ scompare_loc_descriptor (enum dwarf_location_atom op, rtx rtl,
   add_loc_descr (&op0, int_loc_descriptor (shift));
   add_loc_descr (&op0, new_loc_descr (DW_OP_shl, 0, 0));
   if (CONST_INT_P (XEXP (rtl, 1)))
-    op1 = int_loc_descriptor (INTVAL (XEXP (rtl, 1)) << shift);
+    op1 = int_loc_descriptor (UINTVAL (XEXP (rtl, 1)) << shift);
   else
     {
       add_loc_descr (&op1, int_loc_descriptor (shift));
@@ -17957,10 +18004,6 @@ static dw_loc_descr_ref
 field_byte_offset (const_tree decl, struct vlr_context *ctx,
 		   HOST_WIDE_INT *cst_offset)
 {
-  offset_int object_offset_in_bits;
-  offset_int object_offset_in_bytes;
-  offset_int bitpos_int;
-  bool is_byte_offset_cst, is_bit_offset_cst;
   tree tree_result;
   dw_loc_list_ref loc_result;
 
@@ -17971,20 +18014,21 @@ field_byte_offset (const_tree decl, struct vlr_context *ctx,
   else
     gcc_assert (TREE_CODE (decl) == FIELD_DECL);
 
-  is_bit_offset_cst = TREE_CODE (DECL_FIELD_BIT_OFFSET (decl)) != INTEGER_CST;
-  is_byte_offset_cst = TREE_CODE (DECL_FIELD_OFFSET (decl)) != INTEGER_CST;
-
   /* We cannot handle variable bit offsets at the moment, so abort if it's the
      case.  */
-  if (is_bit_offset_cst)
+  if (TREE_CODE (DECL_FIELD_BIT_OFFSET (decl)) != INTEGER_CST)
     return NULL;
 
 #ifdef PCC_BITFIELD_TYPE_MATTERS
   /* We used to handle only constant offsets in all cases.  Now, we handle
      properly dynamic byte offsets only when PCC bitfield type doesn't
      matter.  */
-  if (PCC_BITFIELD_TYPE_MATTERS && is_byte_offset_cst && is_bit_offset_cst)
+  if (PCC_BITFIELD_TYPE_MATTERS
+      && TREE_CODE (DECL_FIELD_OFFSET (decl)) == INTEGER_CST)
     {
+      offset_int object_offset_in_bits;
+      offset_int object_offset_in_bytes;
+      offset_int bitpos_int;
       tree type;
       tree field_size_tree;
       offset_int deepest_bitpos;
@@ -18079,13 +18123,23 @@ field_byte_offset (const_tree decl, struct vlr_context *ctx,
 	  object_offset_in_bits
 	    = round_up_to_align (object_offset_in_bits, decl_align_in_bits);
 	}
-    }
-#endif /* PCC_BITFIELD_TYPE_MATTERS */
 
-  tree_result = byte_position (decl);
+      object_offset_in_bytes
+	= wi::lrshift (object_offset_in_bits, LOG2_BITS_PER_UNIT);
+      if (ctx->variant_part_offset == NULL_TREE)
+	{
+	  *cst_offset = object_offset_in_bytes.to_shwi ();
+	  return NULL;
+	}
+      tree_result = wide_int_to_tree (sizetype, object_offset_in_bytes);
+    }
+  else
+#endif /* PCC_BITFIELD_TYPE_MATTERS */
+    tree_result = byte_position (decl);
+
   if (ctx->variant_part_offset != NULL_TREE)
-    tree_result = fold (build2 (PLUS_EXPR, TREE_TYPE (tree_result),
-				ctx->variant_part_offset, tree_result));
+    tree_result = fold_build2 (PLUS_EXPR, TREE_TYPE (tree_result),
+			       ctx->variant_part_offset, tree_result);
 
   /* If the byte offset is a constant, it's simplier to handle a native
      constant rather than a DWARF expression.  */
@@ -18249,6 +18303,23 @@ add_data_member_location_attribute (dw_die_ref die,
 
   if (! loc_descr)
     {
+      /* While DW_AT_data_bit_offset has been added already in DWARF4,
+	 e.g. GDB only added support to it in November 2016.  For DWARF5
+	 we need newer debug info consumers anyway.  We might change this
+	 to dwarf_version >= 4 once most consumers catched up.  */
+      if (dwarf_version >= 5
+	  && TREE_CODE (decl) == FIELD_DECL
+	  && DECL_BIT_FIELD_TYPE (decl))
+	{
+	  tree off = bit_position (decl);
+	  if (tree_fits_uhwi_p (off) && get_AT (die, DW_AT_bit_size))
+	    {
+	      remove_AT (die, DW_AT_byte_size);
+	      remove_AT (die, DW_AT_bit_offset);
+	      add_AT_unsigned (die, DW_AT_data_bit_offset, tree_to_uhwi (off));
+	      return;
+	    }
+	}
       if (dwarf_version > 2)
 	{
 	  /* Don't need to output a location expression, just the constant. */
@@ -19882,6 +19953,37 @@ add_byte_size_attribute (dw_die_ref die, tree tree_node)
     add_AT_unsigned (die, DW_AT_byte_size, size);
 }
 
+/* Add a DW_AT_alignment attribute to DIE with TREE_NODE's non-default
+   alignment.  */
+
+static void
+add_alignment_attribute (dw_die_ref die, tree tree_node)
+{
+  if (dwarf_version < 5 && dwarf_strict)
+    return;
+
+  unsigned align;
+
+  if (DECL_P (tree_node))
+    {
+      if (!DECL_USER_ALIGN (tree_node))
+	return;
+
+      align = DECL_ALIGN_UNIT (tree_node);
+    }
+  else if (TYPE_P (tree_node))
+    {
+      if (!TYPE_USER_ALIGN (tree_node))
+	return;
+
+      align = TYPE_ALIGN_UNIT (tree_node);
+    }
+  else
+    gcc_unreachable ();
+
+  add_AT_unsigned (die, DW_AT_alignment, align);
+}
+
 /* For a FIELD_DECL node which represents a bit-field, output an attribute
    which specifies the distance in bits from the highest order bit of the
    "containing object" for the bit-field to the highest order bit of the
@@ -20701,6 +20803,8 @@ gen_array_type_die (tree type, dw_die_ref context_die)
 
   if (get_AT (array_die, DW_AT_name))
     add_pubtype (type, array_die);
+
+  add_alignment_attribute (array_die, type);
 }
 
 /* After all arguments are created, adjust any DW_TAG_string_type
@@ -20840,6 +20944,8 @@ gen_descr_array_type_die (tree type, struct array_descr_info *info,
 
   if (get_AT (array_die, DW_AT_name))
     add_pubtype (type, array_die);
+
+  add_alignment_attribute (array_die, type);
 }
 
 #if 0
@@ -20929,6 +21035,11 @@ gen_enumeration_type_die (tree type, dw_die_ref context_die)
 	  if (ENUM_IS_OPAQUE (type))
 	    add_AT_flag (type_die, DW_AT_declaration, 1);
 	}
+      if (!dwarf_strict)
+	add_AT_unsigned (type_die, DW_AT_encoding,
+			 TYPE_UNSIGNED (type)
+			 ? DW_ATE_unsigned
+			 : DW_ATE_signed);
     }
   else if (! TYPE_SIZE (type))
     return type_die;
@@ -20944,6 +21055,7 @@ gen_enumeration_type_die (tree type, dw_die_ref context_die)
 
       TREE_ASM_WRITTEN (type) = 1;
       add_byte_size_attribute (type_die, type);
+      add_alignment_attribute (type_die, type);
       if (dwarf_version >= 3 || !dwarf_strict)
 	{
 	  tree underlying = lang_hooks.types.enum_underlying_base_type (type);
@@ -21001,6 +21113,8 @@ gen_enumeration_type_die (tree type, dw_die_ref context_die)
     }
   else
     add_AT_flag (type_die, DW_AT_declaration, 1);
+
+  add_alignment_attribute (type_die, type);
 
   add_pubtype (type, type_die);
 
@@ -21902,6 +22016,8 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
       if (TREE_THIS_VOLATILE (decl) && (dwarf_version >= 5 || !dwarf_strict))
 	add_AT_flag (subr_die, DW_AT_noreturn, 1);
 
+      add_alignment_attribute (subr_die, decl);
+
       add_accessibility_attribute (subr_die, decl);
     }
 
@@ -22626,6 +22742,7 @@ gen_variable_die (tree decl, tree origin, dw_die_ref context_die)
       add_type_attribute (var_die, TREE_TYPE (decl_or_origin),
 			  decl_quals (decl_or_origin), false,
 			  context_die);
+      add_alignment_attribute (var_die, decl);
       add_AT_flag (var_die, DW_AT_external, 1);
       if (loc)
 	{
@@ -22752,6 +22869,8 @@ gen_variable_die (tree decl, tree origin, dw_die_ref context_die)
 
       if (DECL_ARTIFICIAL (decl))
 	add_AT_flag (var_die, DW_AT_artificial, 1);
+
+      add_alignment_attribute (var_die, decl);
 
       add_accessibility_attribute (var_die, decl);
     }
@@ -23117,6 +23236,8 @@ gen_field_die (tree decl, struct vlr_context *ctx, dw_die_ref context_die)
       add_bit_offset_attribute (decl_die, decl, ctx);
     }
 
+  add_alignment_attribute (decl_die, decl);
+
   /* If we have a variant part offset, then we are supposed to process a member
      of a QUAL_UNION_TYPE, which is how we represent variant parts in
      trees.  */
@@ -23192,6 +23313,7 @@ gen_ptr_to_mbr_type_die (tree type, dw_die_ref context_die)
 		  lookup_type_die (TYPE_OFFSET_BASETYPE (type)));
   add_type_attribute (ptr_die, TREE_TYPE (type), TYPE_UNQUALIFIED, false,
 		      context_die);
+  add_alignment_attribute (ptr_die, type);
 
   if (TREE_CODE (TREE_TYPE (type)) != FUNCTION_TYPE
       && TREE_CODE (TREE_TYPE (type)) != METHOD_TYPE)
@@ -23699,14 +23821,12 @@ analyze_variants_discr (tree variant_part_decl,
 
 	      if (!lower_cst_included)
 		lower_cst
-		  = fold (build2 (PLUS_EXPR, TREE_TYPE (lower_cst),
-				  lower_cst,
-				  build_int_cst (TREE_TYPE (lower_cst), 1)));
+		  = fold_build2 (PLUS_EXPR, TREE_TYPE (lower_cst), lower_cst,
+				 build_int_cst (TREE_TYPE (lower_cst), 1));
 	      if (!upper_cst_included)
 		upper_cst
-		  = fold (build2 (MINUS_EXPR, TREE_TYPE (upper_cst),
-				  upper_cst,
-				  build_int_cst (TREE_TYPE (upper_cst), 1)));
+		  = fold_build2 (MINUS_EXPR, TREE_TYPE (upper_cst), upper_cst,
+				 build_int_cst (TREE_TYPE (upper_cst), 1));
 
 	      if (!get_discr_value (lower_cst,
 				    &new_node->dw_discr_lower_bound)
@@ -23877,8 +23997,8 @@ gen_variant_part (tree variant_part_decl, struct vlr_context *vlr_ctx,
 		 we recurse.  */
 
 	      vlr_sub_ctx.variant_part_offset
-	        = fold (build2 (PLUS_EXPR, TREE_TYPE (variant_part_offset),
-				variant_part_offset, byte_position (member)));
+		= fold_build2 (PLUS_EXPR, TREE_TYPE (variant_part_offset),
+			       variant_part_offset, byte_position (member));
 	      gen_variant_part (member, &vlr_sub_ctx, variant_die);
 	    }
 	  else
@@ -24072,6 +24192,7 @@ gen_struct_or_union_type_die (tree type, dw_die_ref context_die,
 	 this type is expressed in terms of this type itself.  */
       TREE_ASM_WRITTEN (type) = 1;
       add_byte_size_attribute (type_die, type);
+      add_alignment_attribute (type_die, type);
       if (TYPE_STUB_DECL (type) != NULL_TREE)
 	{
 	  add_src_coords_attributes (type_die, TYPE_STUB_DECL (type));
@@ -24129,6 +24250,7 @@ gen_subroutine_type_die (tree type, dw_die_ref context_die)
   add_prototyped_attribute (subr_die, type);
   add_type_attribute (subr_die, return_type, TYPE_UNQUALIFIED, false,
 		      context_die);
+  add_alignment_attribute (subr_die, type);
   gen_formal_types_die (type, subr_die);
 
   if (get_AT (subr_die, DW_AT_name))
@@ -24164,7 +24286,10 @@ gen_typedef_die (tree decl, dw_die_ref context_die)
     add_abstract_origin_attribute (type_die, origin);
   else
     {
-      tree type;
+      tree type = TREE_TYPE (decl);
+
+      if (type == error_mark_node)
+	return;
 
       add_name_and_src_coords_attributes (type_die, decl);
       if (DECL_ORIGINAL_TYPE (decl))
@@ -24179,11 +24304,6 @@ gen_typedef_die (tree decl, dw_die_ref context_die)
 	}
       else
 	{
-	  type = TREE_TYPE (decl);
-
-	  if (type == error_mark_node)
-	    return;
-
 	  if (is_naming_typedef_decl (TYPE_NAME (type)))
 	    {
 	      /* Here, we are in the case of decl being a typedef naming
@@ -24221,6 +24341,10 @@ gen_typedef_die (tree decl, dw_die_ref context_die)
 	   TYPE in argument yield the DW_TAG_typedef we have just
 	   created.  */
 	equate_type_number_to_die (type, type_die);
+
+      type = TREE_TYPE (decl);
+
+      add_alignment_attribute (type_die, type);
 
       add_accessibility_attribute (type_die, decl);
     }
@@ -24386,8 +24510,13 @@ gen_type_die_with_usage (tree type, dw_die_ref context_die,
 	 but try to canonicalize.  */
       tree main = TYPE_MAIN_VARIANT (type);
       for (tree t = main; t; t = TYPE_NEXT_VARIANT (t))
-	if (check_base_type (t, main) && check_lang_type (t, type))
-	  type = t;
+	{
+	  if (check_base_type (t, main) && check_lang_type (t, type))
+	    {
+	      type = t;
+	      break;
+	    }
+	}
     }
   else if (TREE_CODE (type) != VECTOR_TYPE
 	   && TREE_CODE (type) != ARRAY_TYPE)
@@ -24753,7 +24882,7 @@ is_naming_typedef_decl (const_tree decl)
       /* It looks like Ada produces TYPE_DECLs that are very similar
          to C++ naming typedefs but that have different
          semantics. Let's be specific to c++ for now.  */
-      || !is_cxx ())
+      || !is_cxx (decl))
     return FALSE;
 
   return (DECL_ORIGINAL_TYPE (decl) == NULL_TREE
@@ -27740,6 +27869,25 @@ prune_unused_types (void)
   for (i = 0; base_types.iterate (i, &base_type); i++)
     prune_unused_types_mark (base_type, 1);
 
+  /* For -fvar-tracking-assignments, also set the mark on nodes that could be
+     referenced by DW_TAG_call_site DW_AT_call_origin (i.e. direct call
+     callees).  */
+  cgraph_node *cnode;
+  FOR_EACH_FUNCTION (cnode)
+    if (cnode->referred_to_p (false))
+      {
+	dw_die_ref die = lookup_decl_die (cnode->decl);
+	if (die == NULL || die->die_mark)
+	  continue;
+	for (cgraph_edge *e = cnode->callers; e; e = e->next_caller)
+	  if (e->caller != cnode
+	      && opt_for_fn (e->caller->decl, flag_var_tracking_assignments))
+	    {
+	      prune_unused_types_mark (die, 1);
+	      break;
+	    }
+      }
+
   if (debug_str_hash)
     debug_str_hash->empty ();
   if (skeleton_debug_str_hash)
@@ -27878,6 +28026,7 @@ base_type_cmp (const void *x, const void *y)
   dw_die_ref dy = *(const dw_die_ref *) y;
   unsigned int byte_size1, byte_size2;
   unsigned int encoding1, encoding2;
+  unsigned int align1, align2;
   if (dx->die_mark > dy->die_mark)
     return -1;
   if (dx->die_mark < dy->die_mark)
@@ -27893,6 +28042,12 @@ base_type_cmp (const void *x, const void *y)
   if (encoding1 < encoding2)
     return 1;
   if (encoding1 > encoding2)
+    return -1;
+  align1 = get_AT_unsigned (dx, DW_AT_alignment);
+  align2 = get_AT_unsigned (dy, DW_AT_alignment);
+  if (align1 < align2)
+    return 1;
+  if (align1 > align2)
     return -1;
   return 0;
 }
@@ -28641,16 +28796,27 @@ resolve_addr (dw_die_ref die)
 		&& DECL_ABSTRACT_ORIGIN (tdecl) == NULL_TREE
 		&& (cdie = lookup_context_die (DECL_CONTEXT (tdecl))))
 	      {
-		/* Creating a full DIE for tdecl is overly expensive and
-		   at this point even wrong when in the LTO phase
-		   as it can end up generating new type DIEs we didn't
-		   output and thus optimize_external_refs will crash.  */
-		tdie = new_die (DW_TAG_subprogram, cdie, NULL_TREE);
-		add_AT_flag (tdie, DW_AT_external, 1);
-		add_AT_flag (tdie, DW_AT_declaration, 1);
-		add_linkage_attr (tdie, tdecl);
-		add_name_and_src_coords_attributes (tdie, tdecl);
-		equate_decl_number_to_die (tdecl, tdie);
+		dw_die_ref pdie = cdie;
+		/* Make sure we don't add these DIEs into type units.
+		   We could emit skeleton DIEs for context (namespaces,
+		   outer structs/classes) and a skeleton DIE for the
+		   innermost context with DW_AT_signature pointing to the
+		   type unit.  See PR78835.  */
+		while (pdie && pdie->die_tag != DW_TAG_type_unit)
+		  pdie = pdie->die_parent;
+		if (pdie == NULL)
+		  {
+		    /* Creating a full DIE for tdecl is overly expensive and
+		       at this point even wrong when in the LTO phase
+		       as it can end up generating new type DIEs we didn't
+		       output and thus optimize_external_refs will crash.  */
+		    tdie = new_die (DW_TAG_subprogram, cdie, NULL_TREE);
+		    add_AT_flag (tdie, DW_AT_external, 1);
+		    add_AT_flag (tdie, DW_AT_declaration, 1);
+		    add_linkage_attr (tdie, tdecl);
+		    add_name_and_src_coords_attributes (tdie, tdecl);
+		    equate_decl_number_to_die (tdecl, tdie);
+		  }
 	      }
 	    if (tdie)
 	      {
@@ -29828,6 +29994,9 @@ dwarf2out_c_finalize (void)
   cold_text_section_used = false;
   cold_text_section = NULL;
   current_unit_personality = NULL;
+
+  early_dwarf = false;
+  early_dwarf_finished = false;
 
   next_die_offset = 0;
   single_comp_unit_die = NULL;
