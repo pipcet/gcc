@@ -1272,6 +1272,7 @@ struct GTY(()) saved_scope {
   vec<tree, va_gc> *lang_base;
   tree lang_name;
   tree template_parms;
+  tree deduction_guide_type;
   cp_binding_level *x_previous_class_level;
   tree x_saved_tree;
 
@@ -5422,6 +5423,9 @@ struct cp_decl_specifier_seq {
   BOOL_BITFIELD gnu_thread_keyword_p : 1;
   /* True iff the type is a decltype.  */
   BOOL_BITFIELD decltype_p : 1;
+  /* True iff the declaration declares a constructor or C++17 deduction
+     guide.  */
+  BOOL_BITFIELD constructor_p : 1;
 };
 
 /* The various kinds of declarators.  */
@@ -6069,6 +6073,7 @@ extern tree scalar_constant_value		(tree);
 extern tree decl_really_constant_value		(tree);
 extern int diagnose_uninitialized_cst_or_ref_member (tree, bool, bool);
 extern tree build_vtbl_address                  (tree);
+extern bool maybe_reject_flexarray_init		(tree, tree);
 
 /* in lex.c */
 extern void cxx_dup_lang_specific_decl		(tree);
@@ -6283,6 +6288,8 @@ extern tree template_parm_to_arg                (tree);
 extern tree dguide_name				(tree);
 extern bool dguide_name_p			(tree);
 extern bool deduction_guide_p			(const_tree);
+extern bool copy_guide_p			(const_tree);
+extern bool template_guide_p			(const_tree);
 
 /* in repo.c */
 extern void init_repo				(void);

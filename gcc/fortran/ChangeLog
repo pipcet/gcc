@@ -1,3 +1,93 @@
+2017-02-28  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79739
+	* resolve.c (resolve_fl_procedure): Deal with the case where
+	'submodule_name' is NULL so that gfc_error does not ICE.
+	Reformat the error message to make it more consistent.
+
+2017-02-28  Jakub Jelinek  <jakub@redhat.com>
+
+	* parse.c (parse_critical_block): Use cond ? G_("...") : G_("...")
+	instead of just cond ? "..." : "...".
+	* scanner.c (gfc_next_char_literal): Likewise.
+	* match.c (match_exit_cycle): Likewise.
+
+2017-02-26  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/51119
+	* options.c (gfc_post_options): Set default limit for matmul
+	inlining to 30.
+	* invoke.texi: Document change.
+
+2017-02-25  Dominique d'Humieres  <dominiq@lps.ens.fr>
+
+	PR fortran/79601
+	* interface.c (check_dtio_arg_TKR_intent): Change 'intent'
+	to 'INTENT'.
+
+2017-02-25  Dominique d'Humieres  <dominiq@lps.ens.fr>
+
+	PR fortran/79597
+	* interface.c (gfc_match_end_interface): Remove spurious comma
+	and space, replace 'got %s' with 'got %qs'.
+
+2017-02-20  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79599
+	* interface.c (check_dtio_arg_TKR_intent): Supply 'must'
+	missing from error message.
+
+2017-02-20  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79523
+	* interface.c (gfc_find_typebound_dtio_proc): Guard test for
+	flavor attribute by checking that symbol is resolved.
+
+2017-02-16  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79382
+	* decl.c (access_attr_decl): Test for presence of generic DTIO
+	interface and emit error if not present.
+
+2017-02-20  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79434
+	* parse.c (check_component, parse_union): Whitespace.
+	(set_syms_host_assoc): For a derived type, check if the module
+	in which it was declared is one of the submodule ancestors. If
+	it is, make the components public. Otherwise, reset attribute
+	'host_assoc' and set 'use-assoc' so that encapsulation is
+	preserved.
+
+2017-02-19  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79447
+	* decl.c (gfc_set_constant_character_len): Whitespace.
+	(gfc_match_end): Catch case where a procedure is contained in
+	a module procedure and ensure that 'end procedure' is the
+	correct termination.
+
+2017-02-19  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79402
+	* resolve.c (fixup_unique_dummy): New function.
+	(gfc_resolve_expr): Call it for dummy variables with a unique
+	symtree name.
+
+2017-02-19  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/79229
+	* trans-expr.c (gfc_trans_assignment_1): Deref indirect refs when
+	compiling with -fcheck=mem to check the pointer and not the data.
+
+2017-02-19  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/79335
+	* trans-array.c (duplicate_allocatable_coarray): Ensure attributes
+	passed are properly initialized.
+	(structure_alloc_comps): Same.
+	* trans-expr.c (gfc_trans_structure_assign): Same.
+
 2017-02-13  Jakub Jelinek  <jakub@redhat.com>
 
 	* trans-expr.c (gfc_conv_substring): Add missing space in diagnostics.

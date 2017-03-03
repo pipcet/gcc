@@ -1,3 +1,571 @@
+2017-03-03  Andrew Senkevich  <andrew.senkevich@intel.com>
+
+	* gcc.target/i386/avx512vpopcntdq-check.h: New.
+	* gcc.target/i386/avx512vpopcntdq-vpopcntd-1.c: Ditto.
+	* gcc.target/i386/avx512vpopcntdq-vpopcntq-1.c: Ditto.
+	* gcc.target/i386/avx512f-helper.h: Add avx512vpopcntdq-check.h.
+	* gcc.target/i386/i386.exp
+	(check_effective_target_avx512vpopcntdq): New.
+
+2017-03-03  Toma Tabacu  <toma.tabacu@imgtec.com>
+
+	* gcc.target/mips/pr68273.c (dg-final): Match SImode registers only for
+	ilp32 targets and match DImode registers for lp64 targets.
+
+2017-03-03  Uros Bizjak  <ubizjak@gmail.com>
+
+	* g++.dg/pr71624.C: Disable for x32.
+	* g++.dg/pr71633.C: Ditto.
+
+2017-03-03  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/79807
+	* gcc.target/i386/pr79807.c: New test.
+
+2017-03-03  Martin Liska  <mliska@suse.cz>
+
+	PR tree-optimization/79803
+	* gcc.dg/tree-ssa/pr79803.c: New test.
+
+2017-03-03  Martin Liska  <mliska@suse.cz>
+
+	PR rtl-optimization/79574
+	* gcc.dg/pr79574-2.c: New test.
+
+2017-03-03  Richard Biener  <rguenther@suse.de>
+
+	PR c++/79825
+	* g++.dg/warn/Wuninitialized-8.C: New testcase.
+
+2017-03-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* gcc.dg/pr57134.c: Use empty inline asm string literal.
+
+2017-03-03  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/79791
+	* g++.dg/warn/Wwrite-strings-1.C: New test.
+	* g++.dg/warn/Wwrite-strings-2.C: New test.
+	* g++.dg/warn/Wwrite-strings-3.C: New test.
+	* g++.dg/warn/Wwrite-strings-4.C: New test.
+	* g++.dg/warn/Wwrite-strings-5.C: New test.
+	* g++.dg/warn/Wwrite-strings-6.C: New test.
+	* g++.dg/warn/Wwrite-strings-7.C: New test.
+	* g++.dg/warn/Wwrite-strings-8.C: New test.
+	* g++.dg/warn/Wwrite-strings-9.C: New test.
+	* g++.dg/warn/Wwrite-strings-10.C: New test.
+	* g++.dg/warn/Wwrite-strings-11.C: New test.
+	* g++.dg/warn/Wwrite-strings-12.C: New test.
+
+2017-03-03  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/79818
+	* gcc.dg/torture/pr79818.c: New testcase.
+
+2017-03-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/79782
+	* g++.dg/warn/Wunused-parm-10.C: New test.
+
+2017-03-02  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.dg/rtl/x86_64/*.c: Test for
+	"{ i?86-*-* x86_64-*-* } && lp64" targets only.
+
+2017-03-02  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/79514
+	* gcc.target/i386/pr79514.c: New test.
+
+2017-03-02  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/79780
+	* gcc.c-torture/compile/pr79780.c: New test.
+
+2017-03-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79345
+	PR c++/42000
+	* g++.dg/warn/Wuninitialized-7.C: New testcase.
+	* c-c++-common/ubsan/bounds-2.c: Add -Wno-uninitialized.
+	* gcc.dg/uninit-pr19430-2.c: Add expected warning.
+
+2017-03-02  Richard Biener  <rguenther@suse.de>
+
+	PR c/79756
+	* gcc.dg/vector-1.c: New testcase.
+
+2017-03-02  Bin Cheng  <bin.cheng@arm.com>
+
+	PR tree-optimization/66768
+	* gcc.target/i386/pr66768.c: New test.
+
+2017-03-02  Richard Biener  <rguenther@suse.de>
+
+	* gcc.dg/rtl/x86_64/dfinit.c: Only run for lp64.
+	* gcc.dg/rtl/x86_64/final.c: Likewise.
+	* gcc.dg/rtl/x86_64/into-cfglayout.c: Likewise.
+	* gcc.dg/rtl/x86_64/ira.c: Likewise.
+	* gcc.dg/rtl/x86_64/times-two.c.after-expand.c: Likewise.
+	* gcc.dg/rtl/x86_64/vregs.c: Likewise.
+
+2017-03-02  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79777
+	* gcc.dg/torture/pr79777.c: New testcase.
+
+2017-03-01  Martin Sebor  <msebor@redhat.com>
+
+	PR middle-end/79692
+	* gcc.dg/tree-ssa/builtin-sprintf-2.c: Add test cases.
+	* gcc.dg/tree-ssa/builtin-sprintf-warn-10.c: Correct %#g.
+	* gcc.dg/tree-ssa/builtin-sprintf-warn-15.c: New test.
+	* gcc.dg/tree-ssa/builtin-snprintf-3.c: Ditto.
+
+2017-03-01  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.target/i386/invsize-2.c: New test.
+	* gcc.target/i386/invsize-3.c: Ditto.
+	* gcc.target/i386/invsize-4.c: Ditto.
+	* gcc.target/i386/pr66274.c: Expect "unsuported size" warning.
+	* gcc.target/i386/stackalign/asm-1.c: Ditto.
+
+2017-03-01  Michael Meissner  <meissner@linux.vnet.ibm.com>
+
+	PR target/79439
+	* gcc.target/powerpc/pr79439.c: New test.
+
+2017-03-01  Pat Haugen  <pthaugen@us.ibm.com>
+
+	* gcc.target/powerpc/pr79544.c: Add test for vec_vsrad and fix up
+	scan string.
+
+
+2017-03-01  Kelvin Nilsen  <kelvin@gcc.gnu.org>
+
+	PR target/79395
+	* gcc.target/powerpc/vsu/vec-all-ne-10.c: Change scan-assembler
+	pattern to look for vcmpequd. instead of vcmpnew.
+	* gcc.target/powerpc/vsu/vec-all-ne-14.c: Likewise.
+	* gcc.target/powerpc/vsu/vec-all-ne-7.c: Change scan-assembler
+	pattern to look for xvcmpeqsp. instead of xvcmpnesp.
+	* gcc.target/powerpc/vsu/vec-all-ne-8.c: Change scan-assembler to
+	look for xvcmpeqdp. instead of xvcmpnedp.
+	* gcc.target/powerpc/vsu/vec-all-ne-9.c: Change scan-assembler to
+	look for vcmpequd. instead of vcmpnew.
+	* gcc.target/powerpc/vsu/vec-any-eq-10.c: Likewise.
+	* gcc.target/powerpc/vsu/vec-any-eq-14.c: Likewise.
+	* gcc.target/powerpc/vsu/vec-any-eq-7.c: Change scan-assembler to
+	look for xvcmpeqsp. instead of xvcmpnesp.
+	* gcc.target/powerpc/vsu/vec-any-eq-8.c: Change scan-assembler to
+	look for xvcmpeqdp. instead of xvcmpnedp.
+	* gcc.target/powerpc/vsu/vec-any-eq-9.c: Change scan-assembler to
+	look for vcmpequd. instead of vcmpnew.
+	* gcc.target/powerpc/vsu/vec-cmpne-8.c: Change scan-assembler to
+	look for vcmpeqsp instead of xvcmpnesp.
+	* gcc.target/powerpc/vsu/vec-cmpne-9.c: Change scan-assembler to
+	look for xvcmpeqdp instead of xvcmpnedp.
+
+2017-03-01  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/79721
+	* gcc.dg/torture/pr79721.c: New testcase.
+
+2017-03-01  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/79681
+	* g++.dg/cpp1y/constexpr-79681-1.C: New test.
+	* g++.dg/cpp1y/constexpr-79681-2.C: New test.
+
+	PR c++/79746
+	* g++.dg/warn/Wunused-parm-9.C: New test.
+
+	PR tree-optimization/79734
+	* g++.dg/opt/pr79734.C: New test.
+
+2017-02-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/79737
+	* gcc.c-torture/execute/pr79737-1.c: New test.
+	* gcc.c-torture/execute/pr79737-2.c: New test.
+
+2017-02-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.target/sparc/20170228-1.c: New test.
+
+2017-02-28  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.target/i386/invsize-1.c: New test.
+
+2017-02-28  Martin Sebor  <msebor@redhat.com>
+
+	PR tree-optimization/79691
+	* gcc.dg/tree-ssa/pr79691.c: New test.
+
+2017-02-28  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/79729
+	* gcc.target/i386/pr79729.c: New test.
+
+2017-02-28  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79740
+	* gcc.dg/torture/pr79740.c: New testcase.
+
+2017-02-28  Richard Biener  <rguenther@suse.de>
+
+	PR middle-end/79731
+	* c-c++-common/torture/pr79731.c: New testcase.
+
+2017-02-28  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79732
+	* gcc.dg/torture/pr79732.c: New testcase.
+
+2017-02-28  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79723
+	* gcc.target/i386/pr79723.c: New testcase.
+
+2017-02-27  Pat Haugen  <pthaugen@us.ibm.com>
+
+	PR target/79544
+	* gcc.target/powerpc/pr79544.c: New.
+
+2017-02-27  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/79414
+	* g++.dg/parse/crash67.C: New.
+
+2017-02-27  Bin Cheng  <bin.cheng@arm.com>
+
+	PR tree-optimization/77536
+	* gcc.dg/vect/pr79347.c: Revise testing string.
+
+2017-02-27  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/45397
+	* gcc.dg/tree-ssa/pr45397.c: New testcase.
+
+2017-02-27  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79690
+	* gcc.target/i386/pr79690.c: New testcase.
+
+2017-02-26  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/51119
+	* gfortran.dg/inline_matmul_1.f90: Scan optimized dump instead
+	of original.
+	* gfortran.dg/inline_matmul_11.f90: Likewise.
+	* gfortran.dg/inline_matmul_9.f90: Likewise.
+	* gfortran.dg/matmul_13.f90: New test.
+	* gfortran.dg/matmul_14.f90: New test.
+
+2017-02-25  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/79396
+	* g++.dg/opt/pr79396.C: New test.
+
+2017-02-25  Dominique d'Humieres  <dominiq@lps.ens.fr>
+
+	PR fortran/79597
+	* gfortran.dg/dtio_6.f90: Update test.
+
+2017-02-25  Dominique d'Humieres  <dominiq@lps.ens.fr>
+
+	PR fortran/79601
+	* gfortran.dg/interface_operator_2.f90: New test.
+
+2017-02-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/79677
+	* gcc.dg/pr79677.c: New test.
+
+2017-02-24  Matthew Fortune  <matthew.fortune@imgtec.com>
+
+	* gcc.target/mips/mips-ps-type-2.c (move): Force generation
+	of mov.ps.
+	* gcc.target/mips/mips-ps-type.c (move): Likewise.
+	(cond_move1): Simplify condition to force generation of
+	mov[nz].ps.
+	(cond_move2): Likewise.
+
+2017-02-24  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/79588
+	* g++.dg/warn/Wrestrict-1.C: New test.
+	* g++.dg/warn/Wrestrict-2.C: New test.
+
+2017-02-24  David Edelsohn  <dje.gcc@gmail.com>
+
+	* g++.dg/ext/complit15.C: Require LTO.
+
+2017-02-24  Toma Tabacu  <toma.tabacu@imgtec.com>
+
+	* gcc.dg/tree-ssa/ssa-thread-14.c (dg-options): Use
+	logical_op_short_circuit to skip targets.
+	(dg-additional-options): Don't pass -mbranch-cost=2 for MIPS, AVR
+	and s390.
+
+2017-02-24  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/opt63.adb: New test.
+
+2017-02-24  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gnat.dg/discr47.adb: New test.
+
+2017-02-24  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79389
+	* gcc.dg/tree-ssa/split-path-10.c: New testcase.
+
+2017-02-23  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/79361
+	* g++.dg/cpp0x/pr79361-1.C: New.
+	* g++.dg/cpp0x/pr79361-2.C: Likewise.
+
+2017-02-23  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* gcc.target/visium/bit_test.c: Accept any lsr form.
+	* gcc.target/visium/block_move.c: Tweak.
+
+2017-02-23  Dominik Vogt  <vogt@linux.vnet.ibm.com>
+
+	PR 68749
+	* gcc.dg/ifcvt-4.c: Disable for -m31, use -march=z196.
+
+2017-02-23  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79683
+	* gcc.target/i386/pr79683.c: New testcase.
+
+2017-02-22  Jeff Law  <law@redhat.com>
+
+	PR tree-optimization/79578
+	* g++.dg/tree-ssa/ssa-dse-3.C: New test.
+
+2017-02-22  Sameera Deshpande  <sameera.deshpande@imgtec.com>
+
+	* gcc.target/mips/msa-fp-cc.c: New test.
+
+2017-02-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/79664
+	* g++.dg/gomp/teams-1.C: Adjust expected diagnostic location.
+	* g++.dg/cpp1y/constexpr-throw.C: Likewise.
+	* g++.dg/gomp/pr79664.C: New test.
+
+	* g++.dg/debug/dwarf2/inline-var-2.C: New test.
+
+2017-02-22  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/79653
+	* g++.dg/cpp0x/alignas10.C: New test.
+	* g++.dg/cpp0x/alignas9.C: New test.
+
+	PR c++/79657
+	* g++.dg/ext/underlying_type12.C: New test.
+
+	PR c/79662
+	* gcc.dg/enum-incomplete-4.c: New test.
+
+2017-02-22  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/70465
+	* gcc.target/i386/pr70465-2.c: New test.
+
+2017-02-21  Uros Bizjak  <ubizjak@gmail.com>
+
+	* gcc.dg/pr61441.c: Use dg-add-options ieee.
+
+2017-02-22  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79673
+	* gcc.target/i386/pr79673.c: New testcase.
+
+2017-02-22  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/79666
+	* gcc.dg/torture/pr79666.c: New testcase.
+
+2017-02-22  Martin Liska  <mliska@suse.cz>
+
+	PR lto/79587
+	* gcc.dg/tree-prof/pr79587.c: New test.
+
+2017-02-21  Marek Polacek  <polacek@redhat.com>
+
+	PR c++/79535
+	* g++.dg/ext/flexary23.C: New test.
+
+2017-02-21  Uros Bizjak  <ubizjak@gmail.com>
+
+	PR target/79593
+	* gcc.target/i386/pr79593.c: New test.
+
+2017-02-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/79654
+	* g++.dg/cpp1z/decomp26.C: New test.
+
+	PR sanitizer/79589
+	* g++.dg/ubsan/pr79589.C: New test.
+
+2017-02-21  Jeff Law  <law@redhat.com>
+
+	PR tree-optimization/79621
+	* gcc.c-torture/compile/pr79621.c: New test.
+
+2017-02-21  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/79655
+	* g++.dg/cpp1y/constexpr-79655.C: New test.
+
+	PR c++/79639
+	* g++.dg/cpp1y/constexpr-79639.C: New test.
+
+	PR target/79633
+	* gcc.target/i386/mpx/pr79633.c: New test.
+
+	PR target/79570
+	* gcc.dg/pr79570.c: New test.
+
+	PR c++/79641
+	* c-c++-common/pr79641.c: New test.
+
+	PR tree-optimization/79649
+	* gcc.target/i386/pr79649.c: New test.
+
+	PR target/79494
+	* gcc.dg/pr79494.c: New test.
+
+2017-02-21  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	* gcc.dg/plugin/diagnostic-test-expressions-1.c: Add -Wno-psabi
+	to dg-options.
+
+2017-02-21  Kyrylo Tkachov  <kyrylo.tkachov@arm.com>
+
+	* gcc.dg/gimplefe-26.c: Require c99_runtime.
+
+2017-02-02  Jason Merrill  <jason@redhat.com>
+
+	PR c++/79580
+	* g++.dg/ext/complit15.C: New.
+
+2017-02-20  Kelvin Nilsen  <kelvin@gcc.gnu.org>
+
+	PR target/78056
+	* gcc.target/powerpc/pr78056-8.c: Remove.
+
+2017-02-20  Marek Polacek  <polacek@redhat.com>
+
+	PR middle-end/79537
+	* gcc.dg/comp-goto-4.c: New test.
+
+	PR sanitizer/79558
+	* c-c++-common/ubsan/bounds-14.c: New test.
+
+2017-02-20  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/79568
+	* gcc.target/i386/pr79568-1.c: New test.
+	* gcc.target/i386/pr79568-2.c: New test.
+	* gcc.target/i386/pr79568-3.c: New test.
+
+2017-02-16  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79382
+	* gfortran.dg/dtio_10.f90: Change test of error message.
+	* gfortran.dg/dtio_23.f90: New test.
+	* gfortran.dg/dtio_24.f90: New test.
+
+2017-02-20  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79434
+	* gfortran.dg/submodule_25.f08: New test.
+
+2017-02-19  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79447
+	* gfortran.dg/submodule_24.f08: New test.
+
+2017-02-19  Andre Vehreschild  <vehre@gcc.gnu.org>
+
+	PR fortran/79229
+	* gfortran.dg/class_allocate_24.f90: New test.
+
+2017-02-19  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/79402
+	* gfortran.dg/submodule_23.f90: New test.
+
+2017-02-19  Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/79380
+	* g++.dg/cpp0x/alignas8.C: New.
+
+2017-02-19  Eric Fiselier  <eric@efcs.ca>
+	    Jonathan Wakely  <jwakely@redhat.com>
+
+	PR c++/69523
+	* g++.dg/cpp0x/Wliteral-suffix2.C: New test.
+
+2017-02-19  Prathamesh Kulkarni  <prathamesh.kulkarni@linaro.org>
+
+	* gcc.dg/gimplefe-26.c: New test.
+
+2017-02-18  John David Anglin  <danglin@gcc.gnu.org>
+
+	* g++.dg/tls/thread_local-order2.C: xfail on hppa*-*-hpux*.
+
+2017-02-18  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/79569
+	* gcc.target/i386/3dnowA-3.c: New test.
+
+	PR target/79559
+	* gcc.target/i386/pr79559.c: New test.
+
+2017-02-17  Joseph Myers  <joseph@codesourcery.com>
+
+	* gcc.dg/c11-float-2.c: New test.
+	* gcc.dg/torture/float128-floath.c,
+	gcc.dg/torture/float128x-floath.c,
+	gcc.dg/torture/float16-floath.c, gcc.dg/torture/float32-floath.c,
+	gcc.dg/torture/float32x-floath.c, gcc.dg/torture/float64-floath.c,
+	gcc.dg/torture/float64x-floath.c: Do not test comparison of
+	*_DECIMAL_DIG macros with DECIMAL_DIG.
+
+2017-02-17  Bill Schmidt  <wschmidt@linux.vnet.ibm.com>
+
+	PR target/79261
+	* gcc.target/powerpc/vec-xxpermdi.c: New file.
+
+2017-02-17  Julia Koval  <julia.koval@intel.com>
+
+	* gcc.target/i386/rdpid.c New test.
+	* gcc.target/i386/sse-12.c: Add -mrdpid.
+	* gcc.target/i386/sse-13.c: Ditto.
+	* gcc.target/i386/sse-14.c: Ditto.
+	* gcc.target/i386/sse-22.c: Ditto.
+	* gcc.target/i386/sse-23.c: Ditto.
+	* g++.dg/other/i386-2.C: Ditto.
+	* g++.dg/other/i386-3.C: Ditto.
+
+2017-02-17  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	* gcc.dg/pr59833.c: Add -fsignaling-nans to options.
+	* gcc.dg/pr61441.c: Ditto.
+
+2017-02-17  Martin Liska  <mliska@suse.cz>
+
+	PR rtl-optimization/79574
+	* gcc.dg/pr79574.c: New test.
+
 2017-02-17  Marek Polacek  <polacek@redhat.com>
 
 	PR middle-end/79536
@@ -79,7 +647,7 @@
 
 	PR target/79481
 	* gcc.target/i386/sse-14.c (test_2vx): Add void return type.
-	(test_3vx): Change return type from int to void. 
+	(test_3vx): Change return type from int to void.
 	(_mm512_prefetch_i32gather_ps, _mm512_prefetch_i32scatter_ps,
 	_mm512_prefetch_i64gather_ps, _mm512_prefetch_i64scatter_ps,
 	_mm512_prefetch_i32gather_pd, _mm512_prefetch_i32scatter_pd,
@@ -370,7 +938,7 @@
 
 2017-02-07  Andrew Pinski  <apinski@cavium.com>
 
-	* gcc.target/aarch64/popcount.c : New Testcase.
+	* gcc.target/aarch64/popcount.c: New Testcase.
 
 2017-02-07  Jakub Jelinek  <jakub@redhat.com>
 
@@ -593,7 +1161,7 @@
 
 2017-02-02  Aaron Sawdey  <acsawdey@linux.vnet.ibm.com>
 
-        * gcc.dg/sms-8.c: Update options for powerpc*-*-*.
+	* gcc.dg/sms-8.c: Update options for powerpc*-*-*.
 
 2017-02-02  Jan Hubicka  <hubicka@ucw.cz>
 

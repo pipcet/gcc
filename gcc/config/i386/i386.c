@@ -83,6 +83,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "selftest.h"
 #include "selftest-rtl.h"
 #include "print-rtl.h"
+#include "intl.h"
 
 /* This file should be included last.  */
 #include "target-def.h"
@@ -4281,6 +4282,7 @@ ix86_target_string (HOST_WIDE_INT isa, HOST_WIDE_INT isa2,
      ISAs come first.  Target string will be displayed in the same order.  */
   static struct ix86_target_opts isa2_opts[] =
   {
+    { "-mrdpid",	OPTION_MASK_ISA_RDPID },
     { "-msgx",		OPTION_MASK_ISA_SGX },
     { "-mavx5124vnniw", OPTION_MASK_ISA_AVX5124VNNIW },
     { "-mavx5124fmaps", OPTION_MASK_ISA_AVX5124FMAPS },
@@ -4348,6 +4350,7 @@ ix86_target_string (HOST_WIDE_INT isa, HOST_WIDE_INT isa2,
     { "-mmpx",		OPTION_MASK_ISA_MPX },
     { "-mclwb",		OPTION_MASK_ISA_CLWB }
   };
+
   /* Flag options.  */
   static struct ix86_target_opts flag_opts[] =
   {
@@ -5263,11 +5266,11 @@ ix86_option_override_internal (bool main_args_p,
       else if (!strcmp (opts->x_ix86_tune_string, "x86-64"))
         warning (OPT_Wdeprecated,
 		 main_args_p
-		 ? "%<-mtune=x86-64%> is deprecated; use %<-mtune=k8%> "
-		   "or %<-mtune=generic%> instead as appropriate"
-		 : "%<target(\"tune=x86-64\")%> is deprecated; use "
-		   "%<target(\"tune=k8\")%> or %<target(\"tune=generic\")%> "
-		   "instead as appropriate");
+		 ? G_("%<-mtune=x86-64%> is deprecated; use %<-mtune=k8%> "
+		      "or %<-mtune=generic%> instead as appropriate")
+		 : G_("%<target(\"tune=x86-64\")%> is deprecated; use "
+		      "%<target(\"tune=k8\")%> or %<target(\"tune=generic\")%>"
+		      " instead as appropriate"));
     }
   else
     {
@@ -5416,17 +5419,19 @@ ix86_option_override_internal (bool main_args_p,
 	if (!strcmp (opts->x_ix86_arch_string, "generic"))
 	  {
 	    error (main_args_p
-		  ? "%<generic%> CPU can be used only for %<-mtune=%> switch"
-		  : "%<generic%> CPU can be used only for "
-		    "%<target(\"tune=\")%> attribute");
+		   ? G_("%<generic%> CPU can be used only for %<-mtune=%> "
+			"switch")
+		   : G_("%<generic%> CPU can be used only for "
+			"%<target(\"tune=\")%> attribute"));
 	    return false;
 	  }
 	else if (!strcmp (opts->x_ix86_arch_string, "intel"))
 	  {
 	    error (main_args_p
-		  ? "%<intel%> CPU can be used only for %<-mtune=%> switch"
-		  : "%<intel%> CPU can be used only for "
-		    "%<target(\"tune=\")%> attribute");
+		   ? G_("%<intel%> CPU can be used only for %<-mtune=%> "
+			"switch")
+		   : G_("%<intel%> CPU can be used only for "
+			"%<target(\"tune=\")%> attribute"));
 	    return false;
 	  }
 
@@ -5654,8 +5659,8 @@ ix86_option_override_internal (bool main_args_p,
   if (i == pta_size)
     {
       error (main_args_p
-	     ? "bad value (%qs) for %<-march=%> switch"
-	     : "bad value (%qs) for %<target(\"arch=\")%> attribute",
+	     ? G_("bad value (%qs) for %<-march=%> switch")
+	     : G_("bad value (%qs) for %<target(\"arch=\")%> attribute"),
 	     opts->x_ix86_arch_string);
 
       auto_vec <const char *> candidates;
@@ -5672,16 +5677,16 @@ ix86_option_override_internal (bool main_args_p,
       if (hint)
 	inform (input_location,
 		main_args_p
-		? "valid arguments to %<-march=%> switch are: "
-		  "%s; did you mean %qs?"
-		: "valid arguments to %<target(\"arch=\")%> attribute are: "
-		  "%s; did you mean %qs?", s, hint);
+		? G_("valid arguments to %<-march=%> switch are: "
+		     "%s; did you mean %qs?")
+		: G_("valid arguments to %<target(\"arch=\")%> attribute are: "
+		     "%s; did you mean %qs?"), s, hint);
       else
 	inform (input_location,
 		main_args_p
-		? "valid arguments to %<-march=%> switch are: %s"
-		: "valid arguments to %<target(\"arch=\")%> attribute are: %s",
-		s);
+		? G_("valid arguments to %<-march=%> switch are: %s")
+		: G_("valid arguments to %<target(\"arch=\")%> attribute "
+		     "are: %s"), s);
       XDELETEVEC (s);
     }
 
@@ -5727,8 +5732,8 @@ ix86_option_override_internal (bool main_args_p,
   if (ix86_tune_specified && i == pta_size)
     {
       error (main_args_p
-	     ? "bad value (%qs) for %<-mtune=%> switch"
-	     : "bad value (%qs) for %<target(\"tune=\")%> attribute",
+	     ? G_("bad value (%qs) for %<-mtune=%> switch")
+	     : G_("bad value (%qs) for %<target(\"tune=\")%> attribute"),
 	     opts->x_ix86_tune_string);
 
       auto_vec <const char *> candidates;
@@ -5743,16 +5748,16 @@ ix86_option_override_internal (bool main_args_p,
       if (hint)
 	inform (input_location,
 		main_args_p
-		? "valid arguments to %<-mtune=%> switch are: "
-		  "%s; did you mean %qs?"
-		: "valid arguments to %<target(\"tune=\")%> attribute are: "
-		  "%s; did you mean %qs?", s, hint);
+		? G_("valid arguments to %<-mtune=%> switch are: "
+		     "%s; did you mean %qs?")
+		: G_("valid arguments to %<target(\"tune=\")%> attribute are: "
+		     "%s; did you mean %qs?"), s, hint);
       else
 	inform (input_location,
 		main_args_p
-		? "valid arguments to %<-mtune=%> switch are: %s"
-		: "valid arguments to %<target(\"tune=\")%> attribute are: %s",
-		s);
+		? G_("valid arguments to %<-mtune=%> switch are: %s")
+		: G_("valid arguments to %<target(\"tune=\")%> attribute "
+		     "are: %s"), s);
       XDELETEVEC (s);
     }
 
@@ -5854,8 +5859,9 @@ ix86_option_override_internal (bool main_args_p,
 
       if (TARGET_RTD_P (opts->x_target_flags))
 	warning (0,
-		 main_args_p ? "%<-mrtd%> is ignored in 64bit mode"
-			     : "%<target(\"rtd\")%> is ignored in 64bit mode");
+		 main_args_p
+		 ? G_("%<-mrtd%> is ignored in 64bit mode")
+		 : G_("%<target(\"rtd\")%> is ignored in 64bit mode"));
     }
   else
     {
@@ -5977,8 +5983,8 @@ ix86_option_override_internal (bool main_args_p,
   if (TARGET_SSEREGPARM_P (opts->x_target_flags)
       && ! TARGET_SSE_P (opts->x_ix86_isa_flags))
     error (main_args_p
-	   ? "%<-msseregparm%> used without SSE enabled"
-	   : "%<target(\"sseregparm\")%> used without SSE enabled");
+	   ? G_("%<-msseregparm%> used without SSE enabled")
+	   : G_("%<target(\"sseregparm\")%> used without SSE enabled"));
 
   if (opts_set->x_ix86_fpmath)
     {
@@ -6045,10 +6051,11 @@ ix86_option_override_internal (bool main_args_p,
       if (opts_set->x_target_flags & MASK_ACCUMULATE_OUTGOING_ARGS)
 	warning (0,
 		 main_args_p
-		 ? "stack probing requires %<-maccumulate-outgoing-args%> "
-		   "for correctness"
-		 : "stack probing requires "
-		   "%<target(\"accumulate-outgoing-args\")%> for correctness");
+		 ? G_("stack probing requires %<-maccumulate-outgoing-args%> "
+		      "for correctness")
+		 : G_("stack probing requires "
+		      "%<target(\"accumulate-outgoing-args\")%> for "
+		      "correctness"));
       opts->x_target_flags |= MASK_ACCUMULATE_OUTGOING_ARGS;
     }
 
@@ -6060,9 +6067,10 @@ ix86_option_override_internal (bool main_args_p,
       if (opts_set->x_target_flags & MASK_ACCUMULATE_OUTGOING_ARGS)
 	warning (0,
 		 main_args_p
-		 ? "fixed ebp register requires %<-maccumulate-outgoing-args%>"
-		 : "fixed ebp register requires "
-		   "%<target(\"accumulate-outgoing-args\")%>");
+		 ? G_("fixed ebp register requires "
+		      "%<-maccumulate-outgoing-args%>")
+		 : G_("fixed ebp register requires "
+		      "%<target(\"accumulate-outgoing-args\")%>"));
       opts->x_target_flags |= MASK_ACCUMULATE_OUTGOING_ARGS;
     }
 
@@ -6711,6 +6719,7 @@ ix86_valid_target_attribute_inner_p (tree args, char *p_strings[],
     IX86_ATTR_ISA ("fxsr",	OPT_mfxsr),
     IX86_ATTR_ISA ("mpx",	OPT_mmpx),
     IX86_ATTR_ISA ("clwb",	OPT_mclwb),
+    IX86_ATTR_ISA ("rdpid",	OPT_mrdpid),
 
     /* enum options */
     IX86_ATTR_ENUM ("fpmath=",	OPT_mfpmath_),
@@ -15054,6 +15063,8 @@ ix86_expand_split_stack_prologue (void)
   add_function_usage_to (call_insn, call_fusage);
   if (!TARGET_64BIT)
     add_reg_note (call_insn, REG_ARGS_SIZE, GEN_INT (0));
+  /* Indicate that this function can't jump to non-local gotos.  */
+  make_reg_eh_region_note_nothrow_nononlocal (as_a <rtx_insn *> (call_insn));
 
   /* In order to make call/return prediction work right, we now need
      to execute a return instruction.  See
@@ -17635,13 +17646,16 @@ print_reg (rtx x, int code, FILE *file)
 
   switch (msize)
     {
-    case 8:
-    case 4:
-      if (LEGACY_INT_REGNO_P (regno))
-	putc (msize == 8 && TARGET_64BIT ? 'r' : 'e', file);
-      /* FALLTHRU */
     case 16:
     case 12:
+    case 8:
+      if (GENERAL_REGNO_P (regno) && msize > GET_MODE_SIZE (word_mode))
+	warning (0, "unsupported size for integer register");
+      /* FALLTHRU */
+    case 4:
+      if (LEGACY_INT_REGNO_P (regno))
+	putc (msize > 4 && TARGET_64BIT ? 'r' : 'e', file);
+      /* FALLTHRU */
     case 2:
     normal:
       reg = hi_reg_name[regno];
@@ -17649,6 +17663,8 @@ print_reg (rtx x, int code, FILE *file)
     case 1:
       if (regno >= ARRAY_SIZE (qi_reg_name))
 	goto normal;
+      if (!ANY_QI_REGNO_P (regno))
+	error ("unsupported size for integer register");
       reg = qi_reg_name[regno];
       break;
     case 0:
@@ -17844,8 +17860,8 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	      break;
 
 	    default:
-	      output_operand_lossage
-		("invalid operand size for operand code 'O'");
+	      output_operand_lossage ("invalid operand size for operand "
+				      "code 'O'");
 	      return;
 	    }
 
@@ -17879,15 +17895,14 @@ ix86_print_operand (FILE *file, rtx x, int code)
 		  return;
 
 		default:
-		  output_operand_lossage
-		    ("invalid operand size for operand code 'z'");
+		  output_operand_lossage ("invalid operand size for operand "
+					  "code 'z'");
 		  return;
 		}
 	    }
 
 	  if (GET_MODE_CLASS (GET_MODE (x)) == MODE_FLOAT)
-	    warning
-	      (0, "non-integer operand used with operand code 'z'");
+	    warning (0, "non-integer operand used with operand code 'z'");
 	  /* FALLTHRU */
 
 	case 'Z':
@@ -17949,13 +17964,12 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	    }
 	  else
 	    {
-	      output_operand_lossage
-		("invalid operand type used with operand code 'Z'");
+	      output_operand_lossage ("invalid operand type used with "
+				      "operand code 'Z'");
 	      return;
 	    }
 
-	  output_operand_lossage
-	    ("invalid operand size for operand code 'Z'");
+	  output_operand_lossage ("invalid operand size for operand code 'Z'");
 	  return;
 
 	case 'd':
@@ -18154,7 +18168,12 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	  break;
 
 	case 'K':
-	  gcc_assert (CONST_INT_P (x));
+	  if (!CONST_INT_P (x))
+	    {
+	      output_operand_lossage ("operand is not an integer, invalid "
+				      "operand code 'K'");
+	      return;
+	    }
 
 	  if (INTVAL (x) & IX86_HLE_ACQUIRE)
 #ifdef HAVE_AS_IX86_HLE
@@ -18177,8 +18196,12 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	  return;
 
 	case 'r':
-	  gcc_assert (CONST_INT_P (x));
-	  gcc_assert (INTVAL (x) == ROUND_SAE);
+	  if (!CONST_INT_P (x) || INTVAL (x) != ROUND_SAE)
+	    {
+	      output_operand_lossage ("operand is not a specific integer, "
+				      "invalid operand code 'r'");
+	      return;
+	    }
 
 	  if (ASSEMBLER_DIALECT == ASM_INTEL)
 	    fputs (", ", file);
@@ -18191,7 +18214,12 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	  return;
 
 	case 'R':
-	  gcc_assert (CONST_INT_P (x));
+	  if (!CONST_INT_P (x))
+	    {
+	      output_operand_lossage ("operand is not an integer, invalid "
+				      "operand code 'R'");
+	      return;
+	    }
 
 	  if (ASSEMBLER_DIALECT == ASM_INTEL)
 	    fputs (", ", file);
@@ -18211,7 +18239,8 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	      fputs ("{rz-sae}", file);
 	      break;
 	    default:
-	      gcc_unreachable ();
+	      output_operand_lossage ("operand is not a specific integer, "
+				      "invalid operand code 'R'");
 	    }
 
 	  if (ASSEMBLER_DIALECT == ASM_ATT)
@@ -18306,7 +18335,7 @@ ix86_print_operand (FILE *file, rtx x, int code)
 	  return;
 
 	default:
-	    output_operand_lossage ("invalid operand code '%c'", code);
+	  output_operand_lossage ("invalid operand code '%c'", code);
 	}
     }
 
@@ -32063,11 +32092,11 @@ ix86_init_mmx_sse_builtins (void)
 	       IX86_BUILTIN_SBB64);
 
   /* Read/write FLAGS.  */
-  def_builtin (~OPTION_MASK_ISA_64BIT, "__builtin_ia32_readeflags_u32",
+  def_builtin (0, "__builtin_ia32_readeflags_u32",
                UNSIGNED_FTYPE_VOID, IX86_BUILTIN_READ_FLAGS);
   def_builtin (OPTION_MASK_ISA_64BIT, "__builtin_ia32_readeflags_u64",
                UINT64_FTYPE_VOID, IX86_BUILTIN_READ_FLAGS);
-  def_builtin (~OPTION_MASK_ISA_64BIT, "__builtin_ia32_writeeflags_u32",
+  def_builtin (0, "__builtin_ia32_writeeflags_u32",
                VOID_FTYPE_UNSIGNED, IX86_BUILTIN_WRITE_FLAGS);
   def_builtin (OPTION_MASK_ISA_64BIT, "__builtin_ia32_writeeflags_u64",
                VOID_FTYPE_UINT64, IX86_BUILTIN_WRITE_FLAGS);
@@ -34220,6 +34249,8 @@ ix86_expand_multi_arg_builtin (enum insn_code icode, tree exp, rtx target,
       || GET_MODE (target) != tmode
       || !insn_data[icode].operand[0].predicate (target, tmode))
     target = gen_reg_rtx (tmode);
+  else if (memory_operand (target, tmode))
+    num_memory++;
 
   gcc_assert (nargs <= 4);
 
@@ -35505,6 +35536,8 @@ ix86_expand_args_builtin (const struct builtin_description *d,
 	  || GET_MODE (target) != tmode
 	  || !insn_p->operand[0].predicate (target, tmode))
 	target = gen_reg_rtx (tmode);
+      else if (memory_operand (target, tmode))
+	num_memory++;
       real_target = target;
     }
   else
@@ -36711,9 +36744,18 @@ ix86_expand_builtin (tree exp, rtx target, rtx subtarget,
      Originally the builtin was not created if it wasn't applicable to the
      current ISA based on the command line switches.  With function specific
      options, we need to check in the context of the function making the call
-     whether it is supported.  */
-  if ((ix86_builtins_isa[fcode].isa
-       && !(ix86_builtins_isa[fcode].isa & ix86_isa_flags))
+     whether it is supported.  Treat AVX512VL specially.  For other flags,
+     if isa includes more than one ISA bit, treat those are requiring any
+     of them.  For AVX512VL, require both AVX512VL and the non-AVX512VL
+     ISAs.  Similarly for 64BIT, but we shouldn't be building such builtins
+     at all, -m64 is a whole TU option.  */
+  if (((ix86_builtins_isa[fcode].isa
+	& ~(OPTION_MASK_ISA_AVX512VL | OPTION_MASK_ISA_64BIT))
+       && !(ix86_builtins_isa[fcode].isa
+	    & ~(OPTION_MASK_ISA_AVX512VL | OPTION_MASK_ISA_64BIT)
+	    & ix86_isa_flags))
+      || ((ix86_builtins_isa[fcode].isa & OPTION_MASK_ISA_AVX512VL)
+	  && !(ix86_isa_flags & OPTION_MASK_ISA_AVX512VL))
       || (ix86_builtins_isa[fcode].isa2
 	  && !(ix86_builtins_isa[fcode].isa2 & ix86_isa_flags2)))
     {
@@ -38689,6 +38731,9 @@ s4fma_expand:
 		}
 	      return target;
 	    }
+	    case IX86_BUILTIN_RDPID:
+	      return ix86_expand_special_args_builtin (bdesc_args2 + i, exp,
+						     target);
 	  default:
 	    return ix86_expand_args_builtin (bdesc_args2 + i, exp, target);
 	  }

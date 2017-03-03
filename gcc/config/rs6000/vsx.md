@@ -1383,28 +1383,28 @@
 
 ;; *tsqrt* returning the fg flag
 (define_expand "vsx_tsqrt<mode>2_fg"
-  [(set (match_dup 3)
+  [(set (match_dup 2)
 	(unspec:CCFP [(match_operand:VSX_B 1 "vsx_register_operand" "")]
 		     UNSPEC_VSX_TSQRT))
    (set (match_operand:SI 0 "gpc_reg_operand" "")
-	(gt:SI (match_dup 3)
+	(gt:SI (match_dup 2)
 	       (const_int 0)))]
   "VECTOR_UNIT_VSX_P (<MODE>mode)"
 {
-  operands[3] = gen_reg_rtx (CCFPmode);
+  operands[2] = gen_reg_rtx (CCFPmode);
 })
 
 ;; *tsqrt* returning the fe flag
 (define_expand "vsx_tsqrt<mode>2_fe"
-  [(set (match_dup 3)
+  [(set (match_dup 2)
 	(unspec:CCFP [(match_operand:VSX_B 1 "vsx_register_operand" "")]
 		     UNSPEC_VSX_TSQRT))
    (set (match_operand:SI 0 "gpc_reg_operand" "")
-	(eq:SI (match_dup 3)
+	(eq:SI (match_dup 2)
 	       (const_int 0)))]
   "VECTOR_UNIT_VSX_P (<MODE>mode)"
 {
-  operands[3] = gen_reg_rtx (CCFPmode);
+  operands[2] = gen_reg_rtx (CCFPmode);
 })
 
 (define_insn "*vsx_tsqrt<mode>2_internal"
@@ -2435,10 +2435,42 @@
 
 ;; Expand the builtin form of xxpermdi to canonical rtl.
 (define_expand "vsx_xxpermdi_<mode>"
-  [(match_operand:VSX_L 0 "vsx_register_operand" "")
-   (match_operand:VSX_L 1 "vsx_register_operand" "")
-   (match_operand:VSX_L 2 "vsx_register_operand" "")
-   (match_operand:QI 3 "u5bit_cint_operand" "")]
+  [(match_operand:VSX_L 0 "vsx_register_operand")
+   (match_operand:VSX_L 1 "vsx_register_operand")
+   (match_operand:VSX_L 2 "vsx_register_operand")
+   (match_operand:QI 3 "u5bit_cint_operand")]
+  "VECTOR_MEM_VSX_P (<MODE>mode)"
+{
+  rtx target = operands[0];
+  rtx op0 = operands[1];
+  rtx op1 = operands[2];
+  int mask = INTVAL (operands[3]);
+  rtx perm0 = GEN_INT ((mask >> 1) & 1);
+  rtx perm1 = GEN_INT ((mask & 1) + 2);
+  rtx (*gen) (rtx, rtx, rtx, rtx, rtx);
+
+  if (<MODE>mode == V2DFmode)
+    gen = gen_vsx_xxpermdi2_v2df_1;
+  else
+    {
+      gen = gen_vsx_xxpermdi2_v2di_1;
+      if (<MODE>mode != V2DImode)
+	{
+	  target = gen_lowpart (V2DImode, target);
+	  op0 = gen_lowpart (V2DImode, op0);
+	  op1 = gen_lowpart (V2DImode, op1);
+	}
+    }
+  emit_insn (gen (target, op0, op1, perm0, perm1));
+  DONE;
+})
+
+;; Special version of xxpermdi that retains big-endian semantics.
+(define_expand "vsx_xxpermdi_<mode>_be"
+  [(match_operand:VSX_L 0 "vsx_register_operand")
+   (match_operand:VSX_L 1 "vsx_register_operand")
+   (match_operand:VSX_L 2 "vsx_register_operand")
+   (match_operand:QI 3 "u5bit_cint_operand")]
   "VECTOR_MEM_VSX_P (<MODE>mode)"
 {
   rtx target = operands[0];
@@ -3564,7 +3596,8 @@
 ;; Compare vectors producing a vector result and a predicate, setting CR6
 ;; to indicate a combined status.  This pattern matches v16qi, v8hi, and
 ;; v4si modes.  It does not match v2df, v4sf, or v2di modes.  There's no
-;; need to match the v2di mode because that is expanded into v4si.
+;; need to match v4sf, v2df, or v2di modes because those are expanded
+;; to use Power8 instructions.
 (define_insn "*vsx_ne_<mode>_p"
   [(set (reg:CC CR6_REGNO)
 	(unspec:CC
@@ -3575,22 +3608,7 @@
 	(ne:VSX_EXTRACT_I (match_dup 1)
 			  (match_dup 2)))]
   "TARGET_P9_VECTOR"
-  "xvcmpne<VSX_EXTRACT_WIDTH>. %0,%1,%2"
-  [(set_attr "type" "vecsimple")])
-
-;; Compare vectors producing a vector result and a predicate, setting CR6
-;; to indicate a combined status, for v4sf and v2df operands.
-(define_insn "*vsx_ne_<mode>_p"
-  [(set (reg:CC CR6_REGNO)
-	(unspec:CC [(ne:CC
-		     (match_operand:VSX_F 1 "vsx_register_operand" "wa")
-		     (match_operand:VSX_F 2 "vsx_register_operand" "wa"))]
-	 UNSPEC_PREDICATE))
-   (set (match_operand:VSX_F 0 "vsx_register_operand" "=wa")
-	(ne:VSX_F (match_dup 1)
-		  (match_dup 2)))]
-  "TARGET_P9_VECTOR"
-  "xvcmpne<VSs>. %x0,%x1,%x2"
+  "vcmpne<VSX_EXTRACT_WIDTH>. %0,%1,%2"
   [(set_attr "type" "vecsimple")])
 
 (define_insn "*vector_nez_<mode>_p"
@@ -3708,17 +3726,6 @@
 	 UNSPEC_VCMPNEH))]
   "TARGET_P9_VECTOR"
   "vcmpnew %0,%1,%2"
-  [(set_attr "type" "vecsimple")])
-
-;; Vector Compare Not Equal Float or Double
-(define_insn "vcmpne<VSs>"
-  [(set (match_operand:<VSI> 0 "vsx_register_operand" "=wa")
-	(unspec:<VSI>
-	 [(match_operand:VSX_F 1 "vsx_register_operand" "wa")
-	  (match_operand:VSX_F 2 "vsx_register_operand" "wa")]
-	 UNSPEC_VCMPNEH))]
-  "TARGET_P9_VECTOR"
-  "xvcmpne<VSs> %x0,%x1,%x2"
   [(set_attr "type" "vecsimple")])
 
 ;; Vector Compare Not Equal or Zero Word
@@ -3870,7 +3877,7 @@
     {
       rtx op1 = operands[1];
       rtx v4si_tmp = gen_reg_rtx (V4SImode);
-      emit_insn (gen_vsx_xxpermdi_v4si (v4si_tmp, op1, op1, const1_rtx));
+      emit_insn (gen_vsx_xxpermdi_v4si_be (v4si_tmp, op1, op1, const1_rtx));
       operands[1] = v4si_tmp;
       operands[3] = GEN_INT (12 - INTVAL (operands[3]));
     }

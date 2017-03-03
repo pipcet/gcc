@@ -657,7 +657,7 @@ DEFPARAM(PARAM_SELSCHED_MAX_LOOKAHEAD,
 DEFPARAM(PARAM_SELSCHED_MAX_SCHED_TIMES,
          "selsched-max-sched-times",
          "Maximum number of times that an insn could be scheduled.",
-         2, 0, 0)
+         2, 1, 0)
 
 DEFPARAM(PARAM_SELSCHED_INSNS_TO_RENAME,
          "selsched-insns-to-rename",
@@ -965,7 +965,7 @@ DEFPARAM (PARAM_MAX_VARTRACK_REVERSE_OP_SIZE,
 DEFPARAM (PARAM_MIN_NONDEBUG_INSN_UID,
 	  "min-nondebug-insn-uid",
 	  "The minimum UID to be used for a nondebug insn.",
-	  0, 1, 0)
+	  0, 0, 0)
 
 DEFPARAM (PARAM_IPA_SRA_PTR_GROWTH_FACTOR,
 	  "ipa-sra-ptr-growth-factor",

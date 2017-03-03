@@ -66,6 +66,7 @@
 #include "builtins.h"
 #include "context.h"
 #include "tree-pass.h"
+#include "except.h"
 #if TARGET_XCOFF
 #include "xcoffout.h"  /* get declarations of xcoff_*_section_name */
 #endif
@@ -15436,6 +15437,8 @@ rs6000_expand_ternop_builtin (enum insn_code icode, tree exp, rtx target)
     }
   else if (icode == CODE_FOR_vsx_xxpermdi_v2df
            || icode == CODE_FOR_vsx_xxpermdi_v2di
+           || icode == CODE_FOR_vsx_xxpermdi_v2df_be
+           || icode == CODE_FOR_vsx_xxpermdi_v2di_be
            || icode == CODE_FOR_vsx_xxsldwi_v16qi
            || icode == CODE_FOR_vsx_xxsldwi_v8hi
            || icode == CODE_FOR_vsx_xxsldwi_v4si
@@ -31678,6 +31681,8 @@ rs6000_expand_split_stack_prologue (void)
      split_stack_return use r0.  */
   use_reg (&call_fusage, r0);
   add_function_usage_to (insn, call_fusage);
+  /* Indicate that this function can't jump to non-local gotos.  */
+  make_reg_eh_region_note_nothrow_nononlocal (insn);
   emit_insn (gen_frame_load (r0, r1, info->lr_save_offset));
   insn = emit_move_insn (lr, r0);
   add_reg_note (insn, REG_CFA_RESTORE, lr);
@@ -38843,7 +38848,12 @@ rs6000_final_prescan_insn (rtx_insn *insn, rtx *operand ATTRIBUTE_UNUSED,
       if (insn_code_number < 0)
 	return;
 
+      /* get_insn_template can modify recog_data, so save and restore it.  */
+      struct recog_data_d recog_data_save = recog_data;
+      for (int i = 0; i < recog_data.n_operands; i++)
+	recog_data.operand[i] = copy_rtx (recog_data.operand[i]);
       temp = get_insn_template (insn_code_number, insn);
+      recog_data = recog_data_save;
 
       if (get_attr_cell_micro (insn) == CELL_MICRO_ALWAYS)
 	warning_at (location, OPT_mwarn_cell_microcode,

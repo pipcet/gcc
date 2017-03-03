@@ -3510,7 +3510,7 @@ finish_id_expression (tree id_expression,
 	  && DECL_CONTEXT (decl) == NULL_TREE
 	  && !cp_unevaluated_operand)
 	{
-	  *error_msg = "use of parameter outside function body";
+	  *error_msg = G_("use of parameter outside function body");
 	  return error_mark_node;
 	}
     }
@@ -3520,13 +3520,13 @@ finish_id_expression (tree id_expression,
   if (TREE_CODE (decl) == TEMPLATE_DECL
       && !DECL_FUNCTION_TEMPLATE_P (decl))
     {
-      *error_msg = "missing template arguments";
+      *error_msg = G_("missing template arguments");
       return error_mark_node;
     }
   else if (TREE_CODE (decl) == TYPE_DECL
 	   || TREE_CODE (decl) == NAMESPACE_DECL)
     {
-      *error_msg = "expected primary-expression";
+      *error_msg = G_("expected primary-expression");
       return error_mark_node;
     }
 
@@ -3743,7 +3743,15 @@ finish_id_expression (tree id_expression,
 	  if (TREE_CODE (first_fn) == TEMPLATE_DECL)
 	    first_fn = DECL_TEMPLATE_RESULT (first_fn);
 
-	  if (!really_overloaded_fn (decl)
+	  /* [basic.def.odr]: "A function whose name appears as a
+	     potentially-evaluated expression is odr-used if it is the unique
+	     lookup result".
+
+	     But only mark it if it's a complete postfix-expression; in a call,
+	     ADL might select a different function, and we'll call mark_used in
+	     build_over_call.  */
+	  if (done
+	      && !really_overloaded_fn (decl)
 	      && !mark_used (first_fn))
 	    return error_mark_node;
 
@@ -3830,7 +3838,8 @@ finish_underlying_type (tree type)
       return underlying_type;
     }
 
-  complete_type (type);
+  if (!complete_type_or_else (type, NULL_TREE))
+    return error_mark_node;
 
   if (TREE_CODE (type) != ENUMERAL_TYPE)
     {

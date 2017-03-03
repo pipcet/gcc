@@ -403,13 +403,13 @@ maybe_default_option (struct gcc_options *opts,
     handle_generated_option (opts, opts_set, default_opt->opt_index,
 			     default_opt->arg, default_opt->value,
 			     lang_mask, DK_UNSPECIFIED, loc,
-			     handlers, dc);
+			     handlers, true, dc);
   else if (default_opt->arg == NULL
 	   && !option->cl_reject_negative)
     handle_generated_option (opts, opts_set, default_opt->opt_index,
 			     default_opt->arg, !default_opt->value,
 			     lang_mask, DK_UNSPECIFIED, loc,
-			     handlers, dc);
+			     handlers, true, dc);
 }
 
 /* As indicated by the optimization level LEVEL (-Os if SIZE is set,
@@ -1246,7 +1246,7 @@ print_filtered_help (unsigned int include_flags,
 		    }
 		  else
 		    sprintf (new_help + strlen (new_help),
-			     "%#x", * (int *) flag_var);
+			     "%d", * (int *) flag_var);
 		}
 	      else
 		strcat (new_help, option_enabled (i, opts)
