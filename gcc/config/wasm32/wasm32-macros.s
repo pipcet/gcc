@@ -275,6 +275,127 @@ __sigchar_\sig:
 __wasm_code_\name\():
         .endm
 
+        .macro defunb name, sig:vararg
+        createsig \sig
+        .local __wasm_blocks_\name\()_sym
+        .set __wasm_depth, __wasm_blocks_\name\()_sym
+        .pushsection .wasm.chars.function.ab
+        .byte 0
+        .popsection
+        .pushsection .wasm.chars.function_index.ab,""
+        .type \name, @function
+        .size \name, 1
+\name\():
+        .byte 0x00
+        .set __wasm_function_index, \name\()
+        .popsection
+        .pushsection .wasm.space.pc,""
+        .set __wasm_pc_base, .
+        .set __wasm_pc_base_\()\name, .
+        .popsection
+        .if 0
+        .ifeqs "\name","main"
+        .pushsection .wasm.chars.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.export
+        lstring \name
+        .byte 0
+        rleb128_32 \name
+        .popsection
+        .endif
+        .endif
+        .ifeqs "\name","_start"
+        .pushsection .wasm.chars.global
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.global
+        .byte 0x7f
+        .byte 0
+        .byte 0x41
+        rleb128_32 \name
+        .byte 0x0b
+        .pushsection .wasm.chars.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.export
+        lstring "entry"
+        .byte 3
+        .byte 3
+        .popsection
+        .endif
+        .if 0
+        .pushsection .wasm.chars.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.export
+        rleb128_8 18
+        .ascii "f_"
+        .reloc .,R_ASMJS_HEX16,\name
+        .ascii "0000000000000000"
+        .byte 0
+        rleb128_32 \name
+        .popsection
+        .endif
+        .pushsection .wasm.chars.code
+        .byte 0
+        .popsection
+        .pushsection .wasm.chars.element.a
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.element.a
+        rleb128_32 \name
+        .popsection
+        .if 1
+        .pushsection .wasm.chars.name.ab
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.name.ab
+        lstring \name
+        .byte 31
+        lstring dpc
+        lstring sp1
+        lstring r0
+        lstring r1
+        lstring rpc
+        lstring pc0
+        lstring rp
+        lstring fp
+        lstring sp
+        lstring r2
+        lstring r3
+        lstring r4
+        lstring r5
+        lstring r6
+        lstring r7
+        lstring i0
+        lstring i1
+        lstring i2
+        lstring i3
+        lstring i4
+        lstring i5
+        lstring i6
+        lstring i7
+        lstring f0
+        lstring f1
+        lstring f2
+        lstring f3
+        lstring f4
+        lstring f5
+        lstring f6
+        lstring f7
+        .popsection
+        .endif
+        .pushsection .wasm.payload.function.ab
+        rleb128_32 __sigchar_\sig
+        .popsection
+
+        .set __wasm_counter, __wasm_counter + 1
+        .set __wasm_blocks, 0
+        .pushsection .wasm.payload.code.ab,2*__wasm_counter+1
+__wasm_code_\name\():
+        .endm
+        
         .macro jump
         .byte 0x06
         .byte 1
@@ -321,6 +442,79 @@ __wasm_code_\name\():
         .popsection
         .popsection
         .pushsection .wasm.payload.code,2*__wasm_counter
+        rleb128_32 2b - 1f
+1:
+__wasm_locals_\name\():
+        .byte 0x02
+        .byte 17
+        .byte 0x7f
+        .byte 8
+        .byte 0x7c
+        i32.const -16
+        get_local $sp1
+        i32.add
+        set_local $sp
+        .ifne __wasm_blocks
+__wasm_ast_\name\():
+        block[]
+        loop[]
+__wasm_blocks_\name:
+        .rept __wasm_blocks
+        block[]
+        .endr
+        .pushsection .wasm.dummy
+        .offset __wasm_blocks
+__wasm_blocks_\name\()_sym:
+        .popsection
+        .if 0
+        i32.const 0
+        i32.load a=2 0
+        if[]
+        i32.const -1
+        get_local $dpc
+        i32.ne
+        i32.const 0
+        get_local $dpc
+        i32.ne
+        i32.and
+        if[]
+        i32.const 1
+        get_local $sp
+        i32.or
+        set_local $rp
+        br __wasm_blocks+3
+        end
+        end
+        .endif
+        get_local $dpc
+        .byte 0x0e
+        rleb128_32 __wasm_blocks-1
+        rleb128_32 __wasm_blocks-1
+        .set __wasm_block, 1
+        .rept __wasm_blocks-2
+        rleb128_32 __wasm_block
+        .set __wasm_block, __wasm_block + 1
+        .endr
+        rleb128_32 0
+        end
+        .popsection
+        .else
+        .pushsection .wasm.dummy
+        .offset __wasm_blocks
+__wasm_blocks_\name\()_sym:
+        .popsection
+        .endif
+        .endm
+        .macro endefunb name
+        .local __wasm_locals_\name\()
+        .local __wasm_ast_\name\()
+        .local __wasm_blocks_\name\()
+        .local __wasm_blocks_\name\()_sym
+2:
+        .pushsection .wasm.dummy
+        .popsection
+        .popsection
+        .pushsection .wasm.payload.code.ab,2*__wasm_counter
         rleb128_32 2b - 1f
 1:
 __wasm_locals_\name\():
