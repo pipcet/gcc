@@ -24,6 +24,7 @@ $syscall:
         .pushsection .wasm.payload.element.a
         rleb128_32 $syscall
         .popsection
+        .if 0
         .pushsection .wasm.chars.name.a
         .byte 0x00
         .popsection
@@ -31,3 +32,4 @@ $syscall:
         lstring $syscall
         .byte 0
         .popsection
+        .endif

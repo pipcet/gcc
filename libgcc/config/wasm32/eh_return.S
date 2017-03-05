@@ -24,6 +24,7 @@ $eh_return:
         .pushsection .wasm.payload.element.a
         rleb128_32 $eh_return
         .popsection
+        .if 0
         .pushsection .wasm.chars.name.a
         .byte 0x00
         .popsection
@@ -31,3 +32,4 @@ $eh_return:
         lstring $eh_return
         .byte 0
         .popsection
+        .endif

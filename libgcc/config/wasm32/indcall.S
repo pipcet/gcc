@@ -16,6 +16,7 @@
 $indcall:
         .byte 0x00
         .popsection
+        .if 0
         .pushsection .wasm.chars.name.a
         .byte 0x00
         .popsection
@@ -23,3 +24,4 @@ $indcall:
         lstring $indcall
         .byte 0
         .popsection
+        .endif

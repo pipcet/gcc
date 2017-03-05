@@ -22,6 +22,7 @@ $trace:
         .pushsection .wasm.payload.element.a
         rleb128_32 $trace
         .popsection
+        .if 0
         .pushsection .wasm.chars.name.a
         .byte 0x00
         .popsection
@@ -29,3 +30,4 @@ $trace:
         lstring $trace
         .byte 0
         .popsection
+        .endif

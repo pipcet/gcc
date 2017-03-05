@@ -226,42 +226,80 @@ __sigchar_\sig:
         rleb128_32 \name
         .popsection
         .if 1
-        .pushsection .wasm.chars.name.b
+        .pushsection .wasm.chars.name.function
         .byte 0
         .popsection
-        .pushsection .wasm.payload.name.b
+        .pushsection .wasm.payload.name.function
+        rleb128_32 \name
         lstring \name
+        .popsection
+        .pushsection .wasm.chars.name.local
+        .byte 0
+        .popsection
+        .pushsection .wasm.payload.name.local
+        rleb128_32 \name
         .byte 31
+        .byte 0
         lstring dpc
+        .byte 1
         lstring sp1
+        .byte 2
         lstring r0
+        .byte 3
         lstring r1
+        .byte 4
         lstring rpc
+        .byte 5
         lstring pc0
+        .byte 6
         lstring rp
+        .byte 7
         lstring fp
+        .byte 8
         lstring sp
+        .byte 9
         lstring r2
+        .byte 10
         lstring r3
+        .byte 11
         lstring r4
+        .byte 12
         lstring r5
+        .byte 13
         lstring r6
+        .byte 14
         lstring r7
+        .byte 15
         lstring i0
+        .byte 16
         lstring i1
+        .byte 17
         lstring i2
+        .byte 18
         lstring i3
+        .byte 19
         lstring i4
+        .byte 20
         lstring i5
+        .byte 21
         lstring i6
+        .byte 22
         lstring i7
+        .byte 23
         lstring f0
+        .byte 24
         lstring f1
+        .byte 25
         lstring f2
+        .byte 26
         lstring f3
+        .byte 27
         lstring f4
+        .byte 28
         lstring f5
+        .byte 29
         lstring f6
+        .byte 30
         lstring f7
         .popsection
         .endif
