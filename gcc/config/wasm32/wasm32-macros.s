@@ -3,6 +3,9 @@
         .local __wasm_block
         .local __wasm_blocks
         .local __wasm_depth
+        .set __wasm_blocks, 0
+        .set __wasm_block, 0
+        .set __wasm_depth, 0
         .local $dpc, $sp1, $r0, $r1, $rpc, $pc0
         .local $rp, $fp, $sp
         .local $r2, $r3, $r4, $r5, $r6, $r7
@@ -161,7 +164,7 @@ __sigchar_\sig:
         .pushsection .wasm.chars.function
         .byte 0
         .popsection
-        .pushsection .wasm.chars.function_index.b,""
+        .pushsection .wasm.chars.function_index.b,"x"
         .type \name, @function
         .size \name, 1
 \name\():
@@ -314,39 +317,23 @@ __wasm_code_\name\():
         .endm
 
         .macro jump
-        .byte 0x06
-        .byte 1
-        rleb128_32 __wasm_depth - __wasm_blocks - 2
+        br __wasm_depth - __wasm_blocks - 1
         .endm
 
         .macro throw
-        .byte 0x06
-        .byte 2
-        rleb128_32 __wasm_depth - __wasm_blocks - 2
+        br __wasm_depth - __wasm_blocks
         .endm
 
         .macro jump1
-        .byte 0x06
-        .byte 3
-        rleb128_32 __wasm_depth - __wasm_blocks - 2
+        br __wasm_depth - __wasm_blocks
         .endm
 
         .macro throw1
-        .byte 0x06
-        .byte 4
-        rleb128_32 __wasm_depth - __wasm_blocks - 2
+        br __wasm_depth - __wasm_blocks + 1
         .endm
 
         .macro jump2
-        .byte 0x06
-        .byte 5
-        rleb128_32 __wasm_depth - __wasm_blocks - 2
-        .endm
-
-        .macro throw_if
-        .byte 0x06
-        .byte 6
-        rleb128_32 __wasm_depth - __wasm_blocks - 2
+        br __wasm_depth - __wasm_blocks - 1
         .endm
 
         .macro endefun name
@@ -437,7 +424,7 @@ __wasm_blocks_\name\()_sym:
         .ifne 1
         .macro .labeldef_debug label
         .ifndef __wasm_function_index
-        .pushsection .wasm.chars.function_index.b,""
+        .pushsection .wasm.chars.function_index.b,"x"
 0:
         .popsection
         .set __wasm_function_index, 0b
