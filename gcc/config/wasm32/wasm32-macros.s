@@ -159,8 +159,8 @@ __sigchar_\sig:
 
         .macro defun name, sig:vararg
         createsig \sig
-        .local __wasm_blocks_\name\()_sym
-        .set __wasm_depth, __wasm_blocks_\name\()_sym
+        .local __wasm_body_blocks_\name\()_sym
+        .set __wasm_depth, __wasm_body_blocks_\name\()_sym
         .pushsection .wasm.chars.function
         .byte 0
         .popsection
@@ -337,38 +337,41 @@ __wasm_code_\name\():
         .endm
 
         .macro endefun name
-        .local __wasm_locals_\name\()
-        .local __wasm_ast_\name\()
-        .local __wasm_blocks_\name\()
-        .local __wasm_blocks_\name\()_sym
+        .local __wasm_body_header_\name\()
+        .local __wasm_body_ast_\name\()
+        .local __wasm_body_blocks_\name\()
+        .local __wasm_body_blocks_\name\()_sym
 2:
         .pushsection .wasm.dummy
         .popsection
         .popsection
         .pushsection .wasm.payload.code,2*__wasm_counter
+
+__wasm_body_header_\name\():
+        .type __wasm_body_header_\name\(), @object
         rleb128_32 2b - 1f
 1:
-__wasm_locals_\name\():
         .byte 0x02
         .byte 17
         .byte 0x7f
         .byte 8
         .byte 0x7c
+        .size __wasm_body_header_\name\(), . - __wasm_body_header_\name\()
+__wasm_body_ast_\name\():
         i32.const -16
         get_local $sp1
         i32.add
         set_local $sp
         .ifne __wasm_blocks
-__wasm_ast_\name\():
         block[]
         loop[]
-__wasm_blocks_\name:
+__wasm_body_blocks_\name:
         .rept __wasm_blocks
         block[]
         .endr
         .pushsection .wasm.dummy
         .offset __wasm_blocks
-__wasm_blocks_\name\()_sym:
+__wasm_body_blocks_\name\()_sym:
         .popsection
         .if 0
         i32.const 0
@@ -405,7 +408,7 @@ __wasm_blocks_\name\()_sym:
         .else
         .pushsection .wasm.dummy
         .offset __wasm_blocks
-__wasm_blocks_\name\()_sym:
+__wasm_body_blocks_\name\()_sym:
         .popsection
         .endif
         .endm
