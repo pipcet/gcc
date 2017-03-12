@@ -111,3 +111,6 @@ Target Joined Var(my_register_cost) UInteger Init(2)
 
 mcmov
 Target Var(my_use_cmov) Init(0)
+
+rdynamic
+Driver
