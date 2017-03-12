@@ -99,7 +99,9 @@ extern void wasm32_output_aligned_bss (FILE *stream, const_tree tree, const char
 				      unsigned HOST_WIDE_INT size,
 				      unsigned HOST_WIDE_INT rounded);
 
-extern void wasm32_output_aligned_decl_local (FILE *stream, tree decl, const char *name, size_t size ATTRIBUTE_UNUSED, size_t align ATTRIBUTE_UNUSED);
+extern void wasm32_output_aligned_decl_local (FILE *stream, tree decl, const char *name, size_t size, size_t align);
+
+extern void wasm32_output_aligned_decl_common (FILE *stream, tree decl, const char *name, size_t size, size_t align);
 
 extern const char *wasm32_emit_binop_assign(rtx lval, rtx a, rtx b, rtx op);
 extern void wasm32_asm_named_section (const char *name, unsigned int flags,

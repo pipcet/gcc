@@ -2078,17 +2078,18 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
   putc ('\n', asm_out_file);
 }
 
-void wasm32_output_common (FILE *stream, const char *name, size_t size ATTRIBUTE_UNUSED, size_t rounded)
+void wasm32_output_aligned_decl_common (FILE *stream, tree decl, const char *name, size_t size, size_t align)
 {
   fprintf (stream, "\t.comm ");
   assemble_name(stream, name);
-  fprintf (stream, ", %d", (int)rounded);
+  fprintf (stream, ", %d, %d", (int)size, (int)(align / BITS_PER_UNIT));
   fprintf (stream, "\n");
 }
 
-void wasm32_output_aligned_decl_local (FILE *stream, tree decl ATTRIBUTE_UNUSED, const char *name, size_t size ATTRIBUTE_UNUSED, size_t align ATTRIBUTE_UNUSED)
+void wasm32_output_aligned_decl_local (FILE *stream, tree decl, const char *name, size_t size, size_t align)
 {
   fprintf (stream, "\t.local %s\n", name);
+  wasm32_output_aligned_decl_common (stream, decl, name, size, align);
 }
 
 void wasm32_output_local (FILE *stream, const char *name, size_t size ATTRIBUTE_UNUSED, size_t rounded ATTRIBUTE_UNUSED)

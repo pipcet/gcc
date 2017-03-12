@@ -267,8 +267,8 @@ typedef struct {
 #define ASM_APP_ON "#APP\n"
 #define ASM_APP_OFF "#APP\n"
 
-#undef ASM_OUTPUT_COMMON
-#define ASM_OUTPUT_COMMON wasm32_output_common
+#undef ASM_OUTPUT_ALIGNED_DECL_COMMON
+#define ASM_OUTPUT_ALIGNED_DECL_COMMON wasm32_output_aligned_decl_common
 
 #define ASM_OUTPUT_LOCAL wasm32_output_local
 #define ASM_OUTPUT_LABEL(stream, name) \
