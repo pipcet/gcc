@@ -167,6 +167,14 @@ __sigchar_\sig:
         .pushsection .wasm.chars.function_index.b,"x"
         .type \name, @function
         .size \name, 1
+        .reloc .,R_ASMJS_CODE_POINTER,__wasm_code_\name\()
+        .reloc .,R_ASMJS_CODE_POINTER,__wasm_element_\name\()
+        .reloc .,R_ASMJS_CODE_POINTER,__wasm_element2_\name\()
+        .reloc .,R_ASMJS_CODE_POINTER,__wasm_function_\name\()
+        .reloc .,R_ASMJS_CODE_POINTER,__wasm_name_local_\name\()
+        .reloc .,R_ASMJS_CODE_POINTER,__wasm_name_local2_\name\()
+        .reloc .,R_ASMJS_CODE_POINTER,__wasm_name_function_\name\()
+        .reloc .,R_ASMJS_CODE_POINTER,__wasm_name_function2_\name\()
 \name\():
         .byte 0x00
         .set __wasm_function_index, \name\()
@@ -223,23 +231,29 @@ __sigchar_\sig:
         .byte 0
         .popsection
         .pushsection .wasm.chars.element
+__wasm_element_\()\name:
         .byte 0
         .popsection
         .pushsection .wasm.payload.element
+__wasm_element2_\()\name:
         rleb128_32 \name
         .popsection
         .if 1
         .pushsection .wasm.chars.name.function
+__wasm_name_function_\()\name:
         .byte 0
         .popsection
         .pushsection .wasm.payload.name.function
+__wasm_name_function2_\()\name:
         rleb128_32 \name
         lstring \name
         .popsection
         .pushsection .wasm.chars.name.local
+__wasm_name_local_\()\name:
         .byte 0
         .popsection
         .pushsection .wasm.payload.name.local
+__wasm_name_local2_\()\name:
         rleb128_32 \name
         .byte 31
         .byte 0
@@ -307,6 +321,7 @@ __sigchar_\sig:
         .popsection
         .endif
         .pushsection .wasm.payload.function
+__wasm_function_\name\():
         rleb128_32 __sigchar_\sig
         .popsection
 
