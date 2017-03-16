@@ -2002,12 +2002,14 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
 {
   char flagchars[10], *f = flagchars;
 
-  /* It might be best to define TARGET_HAVEN_NAMED_SECTIONS to 0 */
+#if 0
+  /* It might be best to define TARGET_HAVE_NAMED_SECTIONS to 0 */
   if (flags & SECTION_CODE)
     {
       fprintf (asm_out_file, "%s\n", TEXT_SECTION_ASM_OP);
       return;
     }
+#endif
 
   /* If we have already declared this section, we can use an
      abbreviated form to switch back to it -- unless this section is
@@ -2044,38 +2046,42 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
     *f++ = 'G';
   *f = '\0';
 
-  fprintf (asm_out_file, "\t.section\t%s,\"%s\"", name, flagchars);
-
-  if (!(flags & SECTION_NOTYPE))
+  for (int i = 0; i < 2; i++)
     {
-      const char *type;
-      const char *format;
+      fprintf (asm_out_file, "\t.%ssection\t%s,\"%s\"",
+	       ((i == 0) ? "" : "push"), name, flagchars);
 
-      if (flags & SECTION_BSS)
-	type = "nobits";
-      else
-	type = "progbits";
-
-      format = ",@%s";
-      /* On platforms that use "@" as the assembly comment character,
-	 use "%" instead.  */
-      if (strcmp (ASM_COMMENT_START, "@") == 0)
-	format = ",%%%s";
-      fprintf (asm_out_file, format, type);
-
-      if (flags & SECTION_ENTSIZE)
-	fprintf (asm_out_file, ",%d", flags & SECTION_ENTSIZE);
-      if (HAVE_COMDAT_GROUP && (flags & SECTION_LINKONCE) && (!(flags&SECTION_CODE)))
+      if (!(flags & SECTION_NOTYPE))
 	{
-	  if (TREE_CODE (decl) == IDENTIFIER_NODE)
-	    fprintf (asm_out_file, ",%s,comdat", IDENTIFIER_POINTER (decl));
-	  else
-	    fprintf (asm_out_file, ",%s,comdat",
-		     IDENTIFIER_POINTER (DECL_COMDAT_GROUP (decl)));
-	}
-    }
+	  const char *type;
+	  const char *format;
 
-  putc ('\n', asm_out_file);
+	  if (flags & SECTION_BSS)
+	    type = "nobits";
+	  else
+	    type = "progbits";
+
+	  format = ",@%s";
+	  /* On platforms that use "@" as the assembly comment character,
+	     use "%" instead.  */
+	  if (strcmp (ASM_COMMENT_START, "@") == 0)
+	    format = ",%%%s";
+	  fprintf (asm_out_file, format, type);
+
+	  if (flags & SECTION_ENTSIZE)
+	    fprintf (asm_out_file, ",%d", flags & SECTION_ENTSIZE);
+	  if (HAVE_COMDAT_GROUP && (flags & SECTION_LINKONCE) && (!(flags&SECTION_CODE)))
+	    {
+	      if (TREE_CODE (decl) == IDENTIFIER_NODE)
+		fprintf (asm_out_file, ",%s,comdat", IDENTIFIER_POINTER (decl));
+	      else
+		fprintf (asm_out_file, ",%s,comdat",
+			 IDENTIFIER_POINTER (DECL_COMDAT_GROUP (decl)));
+	    }
+	}
+
+      putc ('\n', asm_out_file);
+    }
 }
 
 void wasm32_output_aligned_decl_common (FILE *stream, tree decl, const char *name, size_t size, size_t align)
