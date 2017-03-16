@@ -3,24 +3,24 @@
         .globl $indcall
 
         createsig FiiiiiiiE
-        .pushsection .wasm.chars.import
+        .pushsection .space.import
         .byte 0x00
         .popsection
-        .pushsection .wasm.payload.import
+        .pushsection .wasm.import
         lstring "sys"
         lstring "indcall"
         .byte 0x00
         rleb128 __sigchar_FiiiiiiiE
         .popsection
-        .pushsection .wasm.chars.function_index.a,"",@nobits
+        .pushsection .space.function_index.import,"",@nobits
 $indcall:
         .byte 0x00
         .popsection
         .if 0
-        .pushsection .wasm.chars.name.a
+        .pushsection .space.name.function.import
         .byte 0x00
         .popsection
-        .pushsection .wasm.payload.name.a
+        .pushsection .wasm.name.function.import
         lstring $indcall
         .byte 0
         .popsection

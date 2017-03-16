@@ -75,9 +75,11 @@
 
         .macro .wasmtextlabeldpcdef label
         nextcase
-        .pushsection .wasm.space.pc
+        .previous
+        .pushsection .space.pc.%S
 \label:
         .popsection
+        .previous
         .endm
 
         .macro .ndatatextlabel label
@@ -94,9 +96,11 @@
 
         .macro .labeldef_internal label
         nextcase
-        .pushsection .wasm.space.pc
+        .previous
+        .pushsection .space.pc.%S
 \label:
         .popsection
+        .previous
         .endm
 
         .macro rleb128 expr:vararg
@@ -145,26 +149,38 @@
 
         .macro createsig sig
         .ifndef __sigchar_\sig
-        .pushsection .wasm.chars.type,"G",@progbits,__sigchar_\sig,comdat
+        .pushsection .space.type,"G",@progbits,__sigchar_\sig,comdat
         .weak __sigchar_\sig
 __sigchar_\sig:
         .byte 0
         .size __sigchar_\sig, . - __sigchar_\sig
         .popsection
-        .pushsection .wasm.payload.type,"G",@progbits,__sigchar_\sig,comdat
+        .pushsection .wasm.type,"G",@progbits,__sigchar_\sig,comdat
         signature \sig
         .popsection
         .endif
         .endm
 
+        ;; input section stack:
+        ;; .wasm.code..text       <--      top
+        ;; .text
+        ;;     OR
+        ;; .wasm.code..text.f     <--      top
+        ;; .text.f
         .macro defun name, sig:vararg
         createsig \sig
         .local __wasm_body_blocks_\name\()_sym
         .set __wasm_depth, __wasm_body_blocks_\name\()_sym
-        .pushsection .wasm.chars.function
+        .previous
+        ;; right now, .space.function.* and .space.code.* are
+        ;; equivalent, and neither index is actually used anywhere.
+        .pushsection .space.function.%S
         .byte 0
         .popsection
-        .pushsection .wasm.chars.function_index.b,"x"
+        .pushsection .space.code.%S,"x"
+        .byte 0
+        .popsection
+        .pushsection .space.function_index.%S,"x"
         .type \name, @function
         .size \name, 1
         .reloc .,R_ASMJS_CODE_POINTER,__wasm_code_\name\()
@@ -179,16 +195,16 @@ __sigchar_\sig:
         .byte 0x00
         .set __wasm_function_index, \name\()
         .popsection
-        .pushsection .wasm.space.pc,""
+        .pushsection .space.pc.%S,""
         .set __wasm_pc_base, .
         .set __wasm_pc_base_\()\name, .
         .popsection
         .if 0
         .ifeqs "\name","main"
-        .pushsection .wasm.chars.export
+        .pushsection .space.export
         .byte 0
         .popsection
-        .pushsection .wasm.payload.export
+        .pushsection .wasm.export
         lstring \name
         .byte 0
         rleb128_32 \name
@@ -196,29 +212,29 @@ __sigchar_\sig:
         .endif
         .endif
         .ifeqs "\name","_start"
-        .pushsection .wasm.chars.global
+        .pushsection .space.global
         .byte 0
         .popsection
-        .pushsection .wasm.payload.global
+        .pushsection .wasm.global
         .byte 0x7f
         .byte 0
         .byte 0x41
         rleb128_32 \name
         .byte 0x0b
-        .pushsection .wasm.chars.export
+        .pushsection .space.export
         .byte 0
         .popsection
-        .pushsection .wasm.payload.export
+        .pushsection .wasm.export
         lstring "entry"
         .byte 3
         .byte 3
         .popsection
         .endif
         .if 0
-        .pushsection .wasm.chars.export
+        .pushsection .space.export
         .byte 0
         .popsection
-        .pushsection .wasm.payload.export
+        .pushsection .wasm.export
         rleb128_8 18
         .ascii "f_"
         .reloc .,R_ASMJS_HEX16,\name
@@ -227,32 +243,29 @@ __sigchar_\sig:
         rleb128_32 \name
         .popsection
         .endif
-        .pushsection .wasm.chars.code
-        .byte 0
-        .popsection
-        .pushsection .wasm.chars.element
+        .pushsection .space.element.%S
 __wasm_element_\()\name:
         .byte 0
         .popsection
-        .pushsection .wasm.payload.element
+        .pushsection .wasm.element.%S
 __wasm_element2_\()\name:
         rleb128_32 \name
         .popsection
         .if 1
-        .pushsection .wasm.chars.name.function
+        .pushsection .space.name.function.%S
 __wasm_name_function_\()\name:
         .byte 0
         .popsection
-        .pushsection .wasm.payload.name.function
+        .pushsection .wasm.name.function.%S
 __wasm_name_function2_\()\name:
         rleb128_32 \name
         lstring \name
         .popsection
-        .pushsection .wasm.chars.name.local
+        .pushsection .space.name.local.%S
 __wasm_name_local_\()\name:
         .byte 0
         .popsection
-        .pushsection .wasm.payload.name.local
+        .pushsection .wasm.name.local.%S
 __wasm_name_local2_\()\name:
         rleb128_32 \name
         .byte 31
@@ -320,14 +333,15 @@ __wasm_name_local2_\()\name:
         lstring f7
         .popsection
         .endif
-        .pushsection .wasm.payload.function
+        .pushsection .wasm.function.%S
 __wasm_function_\name\():
         rleb128_32 __sigchar_\sig
         .popsection
 
         .set __wasm_counter, __wasm_counter + 1
         .set __wasm_blocks, 0
-        .pushsection .wasm.payload.code,2*__wasm_counter+1
+        .popsection
+        .pushsection .wasm.code.%S,2*__wasm_counter+1
 __wasm_code_\name\():
         .endm
 
@@ -357,10 +371,8 @@ __wasm_code_\name\():
         .local __wasm_body_blocks_\name\()
         .local __wasm_body_blocks_\name\()_sym
 2:
-        .pushsection .wasm.dummy
         .popsection
-        .popsection
-        .pushsection .wasm.payload.code,2*__wasm_counter
+        .pushsection .wasm.code.%S,2*__wasm_counter
 
 __wasm_body_header_\name\():
         .type __wasm_body_header_\name\(), @object
@@ -419,7 +431,6 @@ __wasm_body_blocks_\name\()_sym:
         .endr
         rleb128_32 0
         end
-        .popsection
         .else
         .pushsection .wasm.dummy
         .offset __wasm_blocks
@@ -434,15 +445,18 @@ __wasm_body_blocks_\name\()_sym:
         .error "nextcase outside of defun"
         .endif
         .set __wasm_blocks, __wasm_blocks + 1
-        .pushsection .wasm.space.pc
+        .previous
+        .pushsection .space.pc.%S
         .byte 0x00
         .popsection
+        .previous
         .endm
 
         .ifne 1
         .macro .labeldef_debug label
+        .previous
         .ifndef __wasm_function_index
-        .pushsection .wasm.chars.function_index.b,"x"
+        .pushsection .space.function_index.%S,"x"
 0:
         .popsection
         .set __wasm_function_index, 0b
@@ -450,9 +464,10 @@ __wasm_body_blocks_\name\()_sym:
         .ifndef __wasm_blocks
         .set __wasm_blocks, 0
         .endif
-        .pushsection .wasm.space.pc
+        .pushsection .space.pc.%S
 \label:
         .popsection
+        .previous
         .endm
         .else
         .macro .labeldef_debug label

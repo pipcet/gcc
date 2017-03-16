@@ -3,32 +3,32 @@
         .globl $eh_return
 
         createsig FiiiiE
-        .pushsection .wasm.chars.import
+        .pushsection .space.import
         .byte 0x00
         .popsection
-        .pushsection .wasm.payload.import
+        .pushsection .wasm.import
         lstring "sys"
         lstring "eh_return"
         .byte 0x00
         rleb128 __sigchar_FiiiiE
         .popsection
-        .pushsection .wasm.chars.function_index.a,""
+        .pushsection .space.function_index.import,""
         .type $eh_return, @function
         .size $eh_return, 1
 $eh_return:
         .byte 0x00
         .popsection
-        .pushsection .wasm.chars.element.a
+        .pushsection .space.element.import
         .byte 0x00
         .popsection
-        .pushsection .wasm.payload.element.a
+        .pushsection .wasm.element.import
         rleb128_32 $eh_return
         .popsection
         .if 0
-        .pushsection .wasm.chars.name.a
+        .pushsection .space.name.function.import
         .byte 0x00
         .popsection
-        .pushsection .wasm.payload.name.a
+        .pushsection .wasm.name.function.import
         lstring $eh_return
         .byte 0
         .popsection

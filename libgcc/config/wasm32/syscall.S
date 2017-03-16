@@ -3,32 +3,32 @@
         .globl $syscall
 
         createsig FiiiiiiiE
-        .pushsection .wasm.chars.import
+        .pushsection .space.import
         .byte 0x00
         .popsection
-        .pushsection .wasm.payload.import
+        .pushsection .wasm.import
         lstring "sys"
         lstring "call"
         .byte 0x00
         rleb128 __sigchar_FiiiiiiiE
         .popsection
-        .pushsection .wasm.chars.function_index.a,""
+        .pushsection .space.function_index.import,""
         .type $syscall, @function
         .size $syscall, 1
 $syscall:
         .byte 0xff
         .popsection
-        .pushsection .wasm.chars.element.a
+        .pushsection .space.element.import
         .byte 0x00
         .popsection
-        .pushsection .wasm.payload.element.a
+        .pushsection .wasm.element.import
         rleb128_32 $syscall
         .popsection
         .if 0
-        .pushsection .wasm.chars.name.a
+        .pushsection .space.name.function.import
         .byte 0x00
         .popsection
-        .pushsection .wasm.payload.name.a
+        .pushsection .wasm.name.function.import
         lstring $syscall
         .byte 0
         .popsection

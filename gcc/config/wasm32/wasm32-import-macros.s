@@ -13,6 +13,7 @@ __str_\module:
         .byte 0
 .endif
         .text
+        .pushsection .wasm.%S,2*__wasm_counter+1
         .global \name
 	defun \name, FiiiiiiiE
         nextcase
@@ -168,6 +169,7 @@ __str_\module:
         .byte 0
 .endif
         .text
+        .pushsection .wasm.%S,2*__wasm_counter+1
         .global \name
 	defun \name, FiiiiiiiE
         nextcase

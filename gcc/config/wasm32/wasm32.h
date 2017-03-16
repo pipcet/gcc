@@ -245,7 +245,7 @@ typedef struct {
 #define NO_FUNCTION_CSE true
 //#define LOGICAL_OP_NON_SHORT_CIRCUIT 1
 
-#define TEXT_SECTION_ASM_OP "\t.section .wasm.payload.code\n\t.subsection 2*__wasm_counter+1"
+#define TEXT_SECTION_ASM_OP "\t.text\n\t.pushsection .wasm.code.%S,2*__wasm_counter+1"
 #define DATA_SECTION_ASM_OP "\t.data"
 #define READONLY_DATA_SECTION_ASM_OP "\t.section .rodata"
 #define BSS_SECTION_ASM_OP "\t.data"

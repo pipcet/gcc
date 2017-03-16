@@ -26,7 +26,7 @@ along with GCC; see the file COPYING3.	If not see
 /* The parameter used to prevent infinite reloading for an insn.  Each
    insn operands might require a reload and, if it is a memory, its
    base and index registers might require a reload too.	 */
-#define LRA_MAX_INSN_RELOADS (MAX_RECOG_OPERANDS * 3)
+#define LRA_MAX_INSN_RELOADS (MAX_RECOG_OPERANDS * 9)
 
 typedef struct lra_live_range *lra_live_range_t;
 
