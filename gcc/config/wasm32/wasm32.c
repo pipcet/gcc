@@ -2019,6 +2019,8 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
       && (flags & SECTION_DECLARED))
     {
       fprintf (asm_out_file, "\t.section\t%s\n", name);
+      if (flags & SECTION_CODE)
+	fprintf (asm_out_file, "\t.pushsection .wasm.code.%%S,2*__wasm_counter+1\n");
       return;
     }
 
@@ -2046,10 +2048,8 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
     *f++ = 'G';
   *f = '\0';
 
-  for (int i = 0; i < 2; i++)
-    {
-      fprintf (asm_out_file, "\t.%ssection\t%s,\"%s\"",
-	       ((i == 0) ? "" : "push"), name, flagchars);
+  fprintf (asm_out_file, "\t.section\t%s,\"%s\"",
+	    name, flagchars);
 
       if (!(flags & SECTION_NOTYPE))
 	{
@@ -2081,7 +2081,9 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
 	}
 
       putc ('\n', asm_out_file);
-    }
+
+      if (flags & SECTION_CODE)
+	fprintf (asm_out_file, "\t.pushsection .wasm.code.%%S,2*__wasm_counter+1\n");
 }
 
 void wasm32_output_aligned_decl_common (FILE *stream, tree decl, const char *name, size_t size, size_t align)
