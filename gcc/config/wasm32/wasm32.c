@@ -2371,7 +2371,7 @@ rtx wasm32_expand_epilogue()
 const char *wasm32_expand_ret_insn()
 {
   char buf[1024];
-  snprintf (buf, 1022, "i32.const %d\n\tget_local $fp\n\ti32.add\n\treturn[1]\n\t.set __wasm32_fallthrough, 0",
+  snprintf (buf, 1022, "i32.const %d\n\tget_local $fp\n\ti32.add\n\treturn\n\t.set __wasm32_fallthrough, 0",
 	    wasm32_function_regsize (NULL_TREE));
 
   return ggc_strdup (buf);
@@ -2570,7 +2570,7 @@ wasm32_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
   if (stackcall)
     asm_fprintf (f, "\tget_local $sp\n\ti32.const %d\n\ti32.add\n\tget_local %s\n\ti32.store a=2 0\n", structret ? 24 : 16, r);
 
-  asm_fprintf (f, "\ti32.const 0\n\tget_local $sp\n\ti32.const 16\n\ti32.add\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti32.add\n\ti32.const %s\n\tcall[6] %s\n",
+  asm_fprintf (f, "\ti32.const 0\n\tget_local $sp\n\ti32.const 16\n\ti32.add\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti32.add\n\ti32.const %s\n\tcall %s\n",
 	       tname, tname);
 }
 

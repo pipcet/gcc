@@ -810,7 +810,7 @@
                      (match_operand:SI 3 "register_operand" "r")]
     UNSPECV_NONLOCAL_GOTO)]
   ""
-  ".flush\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 16)) %O1)\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 24)) %O0)\n\t(i32.store (i32.const 4096) %O3)\n\t(br $mainloop)")
+  ".flush\n\tunreachable")
 
 (define_expand "builtin_longjmp"
    [(set (pc) (unspec_volatile [(match_operand 0)]
@@ -825,7 +825,7 @@
    [(set (pc) (unspec_volatile [(match_operand 0)]
                UNSPECV_BUILTIN_LONGJMP))]
    ""
-   ".flush\n\t(set_local $fp (i32.load %O0))\n\t(i32.store (i32.add (get_local $fp) (i32.const 4)) (i32.load (i32.add %O0 (i32.const 4))))\n\t(i32.store (i32.add (get_local $fp) (i32.const 12)) (i32.load (i32.add %O0 (i32.const 4))))\n\t(return (i32.or (get_local $fp) (i32.const 3)))")
+   ".flush\n\tunreachable")
 
 (define_expand "nonlocal_goto"
   [(set (pc)
@@ -850,7 +850,7 @@
                           ] UNSPECV_NONLOCAL_GOTO))
    ]
   ""
-  ".flush\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 4)) %O1)\n\t(i32.store (i32.add (i32.load (get_local $fp)) (i32.const 12)) %O2)\n\t(i32.store (i32.const 4096) %O3)\n\t(return (i32.or (i32.load (i32.add (i32.load (get_local $fp)) (i32.const 4))) (i32.const 3)))")
+  ".flush\n\tunreachable")
 
 (define_expand "nonlocal_goto_receiver"
   [(unspec_volatile [(const_int 0)] UNSPECV_NONLOCAL_GOTO_RECEIVER)]
@@ -869,4 +869,4 @@
                           ] UNSPECV_THUNK_GOTO))
    ]
   ""
-  "i32.const 0\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti32.add\n\t%0\n\tcall[6] %L0\n\treturn")
+  "i32.const 0\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti32.add\n\t%0\n\tcall %L0\n\treturn")
