@@ -1316,7 +1316,7 @@ static void c_parser_cilk_grainsize (c_parser *, bool *);
 
 static void c_parser_parse_rtl_body (c_parser *parser, char *start_with_pass);
 
-/* Parse a translation unit (C90 6.7, C99 6.9).
+/* Parse a translation unit (C90 6.7, C99 6.9, C11 6.9).
 
    translation-unit:
      external-declarations
@@ -1359,7 +1359,7 @@ c_parser_translation_unit (c_parser *parser)
       error ("storage size of %q+D isn%'t known", decl);
 }
 
-/* Parse an external declaration (C90 6.7, C99 6.9).
+/* Parse an external declaration (C90 6.7, C99 6.9, C11 6.9).
 
    external-declaration:
      function-definition
@@ -1475,8 +1475,8 @@ static void c_finish_omp_declare_simd (c_parser *, tree, tree, vec<c_token>);
 static void c_finish_oacc_routine (struct oacc_routine_data *, tree, bool);
 
 /* Parse a declaration or function definition (C90 6.5, 6.7.1, C99
-   6.7, 6.9.1).  If FNDEF_OK is true, a function definition is
-   accepted; otherwise (old-style parameter declarations) only other
+   6.7, 6.9.1, C11 6.7, 6.9.1).  If FNDEF_OK is true, a function definition
+   is accepted; otherwise (old-style parameter declarations) only other
    declarations are accepted.  If STATIC_ASSERT_OK is true, a static
    assertion is accepted; otherwise (old-style parameter declarations)
    it is not.  If NESTED is true, we are inside a function or parsing
@@ -1859,7 +1859,13 @@ c_parser_declaration_or_fndef (c_parser *parser, bool fndef_ok,
 		  init_loc = c_parser_peek_token (parser)->location;
 		  rich_location richloc (line_table, init_loc);
 		  start_init (NULL_TREE, asm_name, global_bindings_p (), &richloc);
+		  /* A parameter is initialized, which is invalid.  Don't
+		     attempt to instrument the initializer.  */
+		  int flag_sanitize_save = flag_sanitize;
+		  if (nested && !empty_ok)
+		    flag_sanitize = 0;
 		  init = c_parser_expr_no_commas (parser, NULL);
+		  flag_sanitize = flag_sanitize_save;
 		  if (TREE_CODE (init.value) == COMPONENT_REF
 		      && DECL_C_BIT_FIELD (TREE_OPERAND (init.value, 1)))
 		    error_at (here,
@@ -1917,7 +1923,13 @@ c_parser_declaration_or_fndef (c_parser *parser, bool fndef_ok,
 		  init_loc = c_parser_peek_token (parser)->location;
 		  rich_location richloc (line_table, init_loc);
 		  start_init (d, asm_name, global_bindings_p (), &richloc);
+		  /* A parameter is initialized, which is invalid.  Don't
+		     attempt to instrument the initializer.  */
+		  int flag_sanitize_save = flag_sanitize;
+		  if (TREE_CODE (d) == PARM_DECL)
+		    flag_sanitize = 0;
 		  init = c_parser_initializer (parser);
+		  flag_sanitize = flag_sanitize_save;
 		  finish_init ();
 		}
 	      if (oacc_routine_data)
@@ -2250,7 +2262,7 @@ c_parser_static_assert_declaration_no_semi (c_parser *parser)
 }
 
 /* Parse some declaration specifiers (possibly none) (C90 6.5, C99
-   6.7), adding them to SPECS (which may already include some).
+   6.7, C11 6.7), adding them to SPECS (which may already include some).
    Storage class specifiers are accepted iff SCSPEC_OK; type
    specifiers are accepted iff TYPESPEC_OK; alignment specifiers are
    accepted iff ALIGNSPEC_OK; attributes are accepted at the start
@@ -2267,7 +2279,7 @@ c_parser_static_assert_declaration_no_semi (c_parser *parser)
    handled as storage class specifiers, as is __thread.  Alignment
    specifiers are from C11.
 
-   C90 6.5.1, C99 6.7.1:
+   C90 6.5.1, C99 6.7.1, C11 6.7.1:
    storage-class-specifier:
      typedef
      extern
@@ -2278,14 +2290,14 @@ c_parser_static_assert_declaration_no_semi (c_parser *parser)
 
    (_Thread_local is new in C11.)
 
-   C99 6.7.4:
+   C99 6.7.4, C11 6.7.4:
    function-specifier:
      inline
      _Noreturn
 
    (_Noreturn is new in C11.)
 
-   C90 6.5.2, C99 6.7.2:
+   C90 6.5.2, C99 6.7.2, C11 6.7.2:
    type-specifier:
      void
      char
@@ -2307,7 +2319,7 @@ c_parser_static_assert_declaration_no_semi (c_parser *parser)
    (_Bool and _Complex are new in C99.)
    (atomic-type-specifier is new in C11.)
 
-   C90 6.5.3, C99 6.7.3:
+   C90 6.5.3, C99 6.7.3, C11 6.7.3:
 
    type-qualifier:
      const
@@ -2644,7 +2656,7 @@ c_parser_declspecs (c_parser *parser, struct c_declspecs *specs,
  out: ;
 }
 
-/* Parse an enum specifier (C90 6.5.2.2, C99 6.7.2.2).
+/* Parse an enum specifier (C90 6.5.2.2, C99 6.7.2.2, C11 6.7.2.2).
 
    enum-specifier:
      enum attributes[opt] identifier[opt] { enumerator-list } attributes[opt]
@@ -2682,7 +2694,6 @@ c_parser_enum_specifier (c_parser *parser)
   location_t enum_loc;
   location_t ident_loc = UNKNOWN_LOCATION;  /* Quiet warning.  */
   gcc_assert (c_parser_next_token_is_keyword (parser, RID_ENUM));
-  enum_loc = c_parser_peek_token (parser)->location;
   c_parser_consume_token (parser);
   attrs = c_parser_attributes (parser);
   enum_loc = c_parser_peek_token (parser)->location;
@@ -2808,7 +2819,7 @@ c_parser_enum_specifier (c_parser *parser)
   return ret;
 }
 
-/* Parse a struct or union specifier (C90 6.5.2.1, C99 6.7.2.1).
+/* Parse a struct or union specifier (C90 6.5.2.1, C99 6.7.2.1, C11 6.7.2.1).
 
    struct-or-union-specifier:
      struct-or-union attributes[opt] identifier[opt]
@@ -3003,8 +3014,8 @@ c_parser_struct_or_union_specifier (c_parser *parser)
   return ret;
 }
 
-/* Parse a struct-declaration (C90 6.5.2.1, C99 6.7.2.1), *without*
-   the trailing semicolon.
+/* Parse a struct-declaration (C90 6.5.2.1, C99 6.7.2.1, C11 6.7.2.1),
+   *without* the trailing semicolon.
 
    struct-declaration:
      specifier-qualifier-list struct-declarator-list
@@ -3289,13 +3300,13 @@ c_parser_alignas_specifier (c_parser * parser)
 }
 
 /* Parse a declarator, possibly an abstract declarator (C90 6.5.4,
-   6.5.5, C99 6.7.5, 6.7.6).  If TYPE_SEEN_P then a typedef name may
-   be redeclared; otherwise it may not.  KIND indicates which kind of
-   declarator is wanted.  Returns a valid declarator except in the
-   case of a syntax error in which case NULL is returned.  *SEEN_ID is
-   set to true if an identifier being declared is seen; this is used
-   to diagnose bad forms of abstract array declarators and to
-   determine whether an identifier list is syntactically permitted.
+   6.5.5, C99 6.7.5, 6.7.6, C11 6.7.6, 6.7.7).  If TYPE_SEEN_P then
+   a typedef name may be redeclared; otherwise it may not.  KIND
+   indicates which kind of declarator is wanted.  Returns a valid
+   declarator except in the case of a syntax error in which case NULL is
+   returned.  *SEEN_ID is set to true if an identifier being declared is
+   seen; this is used to diagnose bad forms of abstract array declarators
+   and to determine whether an identifier list is syntactically permitted.
 
    declarator:
      pointer[opt] direct-declarator
@@ -4261,7 +4272,7 @@ c_parser_attributes (c_parser *parser)
   return attrs;
 }
 
-/* Parse a type name (C90 6.5.5, C99 6.7.6).
+/* Parse a type name (C90 6.5.5, C99 6.7.6, C11 6.7.7).
 
    type-name:
      specifier-qualifier-list abstract-declarator[opt]
@@ -4297,7 +4308,7 @@ c_parser_type_name (c_parser *parser)
   return ret;
 }
 
-/* Parse an initializer (C90 6.5.7, C99 6.7.8).
+/* Parse an initializer (C90 6.5.7, C99 6.7.8, C11 6.7.9).
 
    initializer:
      assignment-expression
@@ -4659,7 +4670,7 @@ c_parser_initval (c_parser *parser, struct c_expr *after,
 }
 
 /* Parse a compound statement (possibly a function body) (C90 6.6.2,
-   C99 6.8.2).
+   C99 6.8.2, C11 6.8.2).
 
    compound-statement:
      { block-item-list[opt] }
@@ -4929,7 +4940,7 @@ c_parser_all_labels (c_parser *parser)
     c_parser_label (parser);
 }
 
-/* Parse a label (C90 6.6.1, C99 6.8.1).
+/* Parse a label (C90 6.6.1, C99 6.8.1, C11 6.8.1).
 
    label:
      identifier : attributes[opt]
@@ -5042,7 +5053,7 @@ c_parser_label (c_parser *parser)
     }
 }
 
-/* Parse a statement (C90 6.6, C99 6.8).
+/* Parse a statement (C90 6.6, C99 6.8, C11 6.8).
 
    statement:
      labeled-statement
@@ -5572,7 +5583,7 @@ c_parser_maybe_reclassify_token (c_parser *parser)
     }
 }
 
-/* Parse an if statement (C90 6.6.4, C99 6.8.4).
+/* Parse an if statement (C90 6.6.4, C99 6.8.4, C11 6.8.4).
 
    if-statement:
      if ( expression ) statement
@@ -5673,7 +5684,7 @@ c_parser_if_statement (c_parser *parser, bool *if_p, vec<tree> *chain)
   c_parser_maybe_reclassify_token (parser);
 }
 
-/* Parse a switch statement (C90 6.6.4, C99 6.8.4).
+/* Parse a switch statement (C90 6.6.4, C99 6.8.4, C11 6.8.4).
 
    switch-statement:
      switch (expression) statement
@@ -5730,7 +5741,7 @@ c_parser_switch_statement (c_parser *parser, bool *if_p)
   c_parser_maybe_reclassify_token (parser);
 }
 
-/* Parse a while statement (C90 6.6.5, C99 6.8.5).
+/* Parse a while statement (C90 6.6.5, C99 6.8.5, C11 6.8.5).
 
    while-statement:
       while (expression) statement
@@ -5780,7 +5791,7 @@ c_parser_while_statement (c_parser *parser, bool ivdep, bool *if_p)
   c_cont_label = save_cont;
 }
 
-/* Parse a do statement (C90 6.6.5, C99 6.8.5).
+/* Parse a do statement (C90 6.6.5, C99 6.8.5, C11 6.8.5).
 
    do-statement:
      do statement while ( expression ) ;
@@ -5824,7 +5835,7 @@ c_parser_do_statement (c_parser *parser, bool ivdep)
   add_stmt (c_end_compound_stmt (loc, block, flag_isoc99));
 }
 
-/* Parse a for statement (C90 6.6.5, C99 6.8.5).
+/* Parse a for statement (C90 6.6.5, C99 6.8.5, C11 6.8.5).
 
    for-statement:
      for ( expression[opt] ; expression[opt] ; expression[opt] ) statement
@@ -6350,9 +6361,9 @@ c_parser_asm_goto_operands (c_parser *parser)
 }
 
 /* Parse an expression other than a compound expression; that is, an
-   assignment expression (C90 6.3.16, C99 6.5.16).  If AFTER is not
-   NULL then it is an Objective-C message expression which is the
-   primary-expression starting the expression as an initializer.
+   assignment expression (C90 6.3.16, C99 6.5.16, C11 6.5.16).  If
+   AFTER is not NULL then it is an Objective-C message expression which
+   is the primary-expression starting the expression as an initializer.
 
    assignment-expression:
      conditional-expression
@@ -6433,8 +6444,8 @@ c_parser_expr_no_commas (c_parser *parser, struct c_expr *after,
   return ret;
 }
 
-/* Parse a conditional expression (C90 6.3.15, C99 6.5.15).  If AFTER
-   is not NULL then it is an Objective-C message expression which is
+/* Parse a conditional expression (C90 6.3.15, C99 6.5.15, C11 6.5.15).  If
+   AFTER is not NULL then it is an Objective-C message expression which is
    the primary-expression starting the expression as an initializer.
 
    conditional-expression:
@@ -6547,9 +6558,9 @@ c_parser_conditional_expression (c_parser *parser, struct c_expr *after,
 }
 
 /* Parse a binary expression; that is, a logical-OR-expression (C90
-   6.3.5-6.3.14, C99 6.5.5-6.5.14).  If AFTER is not NULL then it is
-   an Objective-C message expression which is the primary-expression
-   starting the expression as an initializer.
+   6.3.5-6.3.14, C99 6.5.5-6.5.14, C11 6.5.5-6.5.14).  If AFTER is not
+   NULL then it is an Objective-C message expression which is the
+   primary-expression starting the expression as an initializer.
 
    OMP_ATOMIC_LHS is NULL, unless parsing OpenMP #pragma omp atomic,
    when it should be the unfolded lhs.  In a valid OpenMP source,
@@ -6821,8 +6832,8 @@ c_parser_binary_expression (c_parser *parser, struct c_expr *after,
 #undef POP
 }
 
-/* Parse a cast expression (C90 6.3.4, C99 6.5.4).  If AFTER is not
-   NULL then it is an Objective-C message expression which is the
+/* Parse a cast expression (C90 6.3.4, C99 6.5.4, C11 6.5.4).  If AFTER
+   is not NULL then it is an Objective-C message expression which is the
    primary-expression starting the expression as an initializer.
 
    cast-expression:
@@ -6882,7 +6893,7 @@ c_parser_cast_expression (c_parser *parser, struct c_expr *after)
     return c_parser_unary_expression (parser);
 }
 
-/* Parse an unary expression (C90 6.3.3, C99 6.5.3).
+/* Parse an unary expression (C90 6.3.3, C99 6.5.3, C11 6.5.3).
 
    unary-expression:
      postfix-expression
@@ -7452,7 +7463,7 @@ c_parser_generic_selection (c_parser *parser)
 	  else
 	    {
 	      error_at (assoc.type_location,
-			"%<_Generic> selector matches multiple associations");
+			"%<_Generic%> selector matches multiple associations");
 	      inform (matched_assoc.type_location,
 		      "other match is here");
 	    }
@@ -7482,7 +7493,8 @@ c_parser_generic_selection (c_parser *parser)
   return matched_assoc.expression;
 }
 
-/* Parse a postfix expression (C90 6.3.1-6.3.2, C99 6.5.1-6.5.2).
+/* Parse a postfix expression (C90 6.3.1-6.3.2, C99 6.5.1-6.5.2,
+   C11 6.5.1-6.5.2).
 
    postfix-expression:
      primary-expression
@@ -8561,7 +8573,7 @@ c_parser_postfix_expression_after_primary (c_parser *parser,
     }
 }
 
-/* Parse an expression (C90 6.3.17, C99 6.5.17).
+/* Parse an expression (C90 6.3.17, C99 6.5.17, C11 6.5.17).
 
    expression:
      assignment-expression
@@ -10157,6 +10169,7 @@ static bool
 c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
 {
   unsigned int id;
+  const char *construct = NULL;
 
   id = c_parser_peek_token (parser)->pragma_kind;
   gcc_assert (id != PRAGMA_NONE);
@@ -10170,9 +10183,16 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OACC_ENTER_DATA:
       if (context != pragma_compound)
 	{
+	  construct = "acc enter data";
+	in_compound:
 	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma acc enter data%> may only be "
-			    "used in compound statements");
+	    {
+	      error_at (c_parser_peek_token (parser)->location,
+			"%<#pragma %s%> may only be used in compound "
+			"statements", construct);
+	      c_parser_skip_until_found (parser, CPP_PRAGMA_EOL, NULL);
+	      return false;
+	    }
 	  goto bad_stmt;
 	}
       c_parser_oacc_enter_exit_data (parser, true);
@@ -10181,10 +10201,8 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OACC_EXIT_DATA:
       if (context != pragma_compound)
 	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma acc exit data%> may only be "
-			    "used in compound statements");
-	  goto bad_stmt;
+	  construct = "acc exit data";
+	  goto in_compound;
 	}
       c_parser_oacc_enter_exit_data (parser, false);
       return false;
@@ -10203,10 +10221,8 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OACC_UPDATE:
       if (context != pragma_compound)
 	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma acc update%> may only be "
-			    "used in compound statements");
-	  goto bad_stmt;
+	  construct = "acc update";
+	  goto in_compound;
 	}
       c_parser_oacc_update (parser);
       return false;
@@ -10214,10 +10230,8 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OMP_BARRIER:
       if (context != pragma_compound)
 	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma omp barrier%> may only be "
-			    "used in compound statements");
-	  goto bad_stmt;
+	  construct = "omp barrier";
+	  goto in_compound;
 	}
       c_parser_omp_barrier (parser);
       return false;
@@ -10225,10 +10239,8 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OMP_FLUSH:
       if (context != pragma_compound)
 	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma omp flush%> may only be "
-			    "used in compound statements");
-	  goto bad_stmt;
+	  construct = "omp flush";
+	  goto in_compound;
 	}
       c_parser_omp_flush (parser);
       return false;
@@ -10236,10 +10248,8 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OMP_TASKWAIT:
       if (context != pragma_compound)
 	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma omp taskwait%> may only be "
-			    "used in compound statements");
-	  goto bad_stmt;
+	  construct = "omp taskwait";
+	  goto in_compound;
 	}
       c_parser_omp_taskwait (parser);
       return false;
@@ -10247,10 +10257,8 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OMP_TASKYIELD:
       if (context != pragma_compound)
 	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma omp taskyield%> may only be "
-			    "used in compound statements");
-	  goto bad_stmt;
+	  construct = "omp taskyield";
+	  goto in_compound;
 	}
       c_parser_omp_taskyield (parser);
       return false;
@@ -10258,10 +10266,8 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OMP_CANCEL:
       if (context != pragma_compound)
 	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma omp cancel%> may only be "
-			    "used in compound statements");
-	  goto bad_stmt;
+	  construct = "omp cancel";
+	  goto in_compound;
 	}
       c_parser_omp_cancel (parser);
       return false;
@@ -10345,10 +10351,8 @@ c_parser_pragma (c_parser *parser, enum pragma_context context, bool *if_p)
     case PRAGMA_OACC_WAIT:
       if (context != pragma_compound)
 	{
-	  if (context == pragma_stmt)
-	    c_parser_error (parser, "%<#pragma acc enter data%> may only be "
-			    "used in compound statements");
-	  goto bad_stmt;
+	  construct = "acc wait";
+	  goto in_compound;
 	}
 	/* FALL THROUGH.  */
 
@@ -11816,7 +11820,7 @@ c_parser_oacc_shape_clause (c_parser *parser, omp_clause_code kind,
 	  if (c == boolean_true_node)
 	    {
 	      warning_at (loc, 0,
-			  "%<%s%> value must be positive", str);
+			  "%qs value must be positive", str);
 	      expr = integer_one_node;
 	    }
 
@@ -12112,7 +12116,7 @@ c_parser_omp_clause_reduction (c_parser *parser, tree list)
 	default:
 	  c_parser_error (parser,
 			  "expected %<+%>, %<*%>, %<-%>, %<&%>, "
-			  "%<^%>, %<|%>, %<&&%>, %<||%>, %<min%> or %<max%>");
+			  "%<^%>, %<|%>, %<&&%>, %<||%> or identifier");
 	  c_parser_skip_until_found (parser, CPP_CLOSE_PAREN, 0);
 	  return list;
 	}
@@ -15454,7 +15458,7 @@ c_parser_omp_ordered (c_parser *parser, enum pragma_context context,
 	  if (context == pragma_stmt)
 	    {
 	      error_at (loc,
-			"%<#pragma omp ordered%> with %<depend> clause may "
+			"%<#pragma omp ordered%> with %<depend%> clause may "
 			"only be used in compound statements");
 	      c_parser_skip_to_pragma_eol (parser, false);
 	      return false;
@@ -15864,8 +15868,9 @@ c_parser_omp_cancellation_point (c_parser *parser, enum pragma_context context)
   if (context != pragma_compound)
     {
       if (context == pragma_stmt)
-	error_at (loc, "%<#pragma omp cancellation point%> may only be used in"
-		  " compound statements");
+	error_at (loc,
+		  "%<#pragma %s%> may only be used in compound statements",
+		  "omp cancellation point");
       else
 	c_parser_error (parser, "expected declaration specifiers");
       c_parser_skip_to_pragma_eol (parser, false);
@@ -16122,9 +16127,8 @@ c_parser_omp_target_update (location_t loc, c_parser *parser,
 {
   if (context == pragma_stmt)
     {
-      error_at (loc,
-		"%<#pragma omp target update%> may only be "
-		"used in compound statements");
+      error_at (loc, "%<#pragma %s%> may only be used in compound statements",
+		"omp target update");
       c_parser_skip_to_pragma_eol (parser, false);
       return false;
     }
@@ -16182,9 +16186,8 @@ c_parser_omp_target_enter_data (location_t loc, c_parser *parser,
 
   if (context == pragma_stmt)
     {
-      error_at (loc,
-		"%<#pragma omp target enter data%> may only be "
-		"used in compound statements");
+      error_at (loc, "%<#pragma %s%> may only be used in compound statements",
+		"omp target enter data");
       c_parser_skip_to_pragma_eol (parser, false);
       return NULL_TREE;
     }
@@ -16267,9 +16270,8 @@ c_parser_omp_target_exit_data (location_t loc, c_parser *parser,
 
   if (context == pragma_stmt)
     {
-      error_at (loc,
-		"%<#pragma omp target exit data%> may only be "
-		"used in compound statements");
+      error_at (loc, "%<#pragma %s%> may only be used in compound statements",
+		"omp target exit data");
       c_parser_skip_to_pragma_eol (parser, false);
       return NULL_TREE;
     }
@@ -16297,7 +16299,7 @@ c_parser_omp_target_exit_data (location_t loc, c_parser *parser,
 	    map_seen |= 1;
 	    error_at (OMP_CLAUSE_LOCATION (*pc),
 		      "%<#pragma omp target exit data%> with map-type other "
-		      "than %<from%>, %<release> or %<delete%> on %<map%>"
+		      "than %<from%>, %<release%> or %<delete%> on %<map%>"
 		      " clause");
 	    *pc = OMP_CLAUSE_CHAIN (*pc);
 	    continue;
@@ -16960,7 +16962,7 @@ c_parser_omp_declare_reduction (c_parser *parser, enum pragma_context context)
     default:
       c_parser_error (parser,
 		      "expected %<+%>, %<*%>, %<-%>, %<&%>, "
-		      "%<^%>, %<|%>, %<&&%>, %<||%>, %<min%> or identifier");
+		      "%<^%>, %<|%>, %<&&%>, %<||%> or identifier");
       goto fail;
     }
 
