@@ -1,3 +1,4 @@
+/* { dg-skip-if "no SF regs" { wasm32-*-* } { "*" } { "" } } */
 /* PR tree-optimization/55921 */
 
 typedef union

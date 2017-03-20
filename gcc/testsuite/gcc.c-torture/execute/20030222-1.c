@@ -5,6 +5,7 @@
    for a long long.  */
 /* { dg-skip-if "asm would require extra shift-left-4-byte" { spu-*-* } "*" "" } */
 /* { dg-skip-if "asm requires register allocation" { nvptx-*-* } "*" "" } */
+/* { dg-skip-if "asm requires register allocation" { wasm32-*-* } "*" "" } */
 #include <limits.h>
 
 void

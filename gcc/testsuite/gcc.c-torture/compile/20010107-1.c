@@ -1,4 +1,4 @@
-/* xfail this, it doesn't work with separate code and data spaces. */
+/* { dg-xfail-if "separate code/data spaces" { wasm32-*-* } { "*" } { "" } } */
 
 unsigned long x[4];
 
