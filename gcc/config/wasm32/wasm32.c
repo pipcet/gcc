@@ -739,6 +739,11 @@ void wasm32_print_label(FILE *stream, rtx x)
     ASM_OUTPUT_LABEL_REF (stream, buf);
     break;
   }
+  case CONST_INT: {
+    /* for pr21840.c */
+    asm_fprintf (stream, "%ld", (long) XWINT (x, 0));
+    break;
+  }
   default:
     gcc_unreachable ();
   }
