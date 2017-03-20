@@ -91,12 +91,12 @@
   ""
   "%O2")
 
-(define_insn "*assignsi"
-  [(match_operator 2 "set_operator"
-      [(match_operand:SI 0 "nonimmediate_operand" "=rmt")
-       (match_operand:SI 1 "general_operand" "rmit")])]
-  ""
-  "%O2")
+;; (define_insn "*assignsi"
+;;   [(match_operator 2 "set_operator"
+;;       [(match_operand:SI 0 "nonimmediate_operand" "=rmt")
+;;        (match_operand:SI 1 "general_operand" "rmit")])]
+;;   ""
+;;   "%O2")
 
 (define_insn "*assignsil"
   [(match_operator 2 "set_operator"
