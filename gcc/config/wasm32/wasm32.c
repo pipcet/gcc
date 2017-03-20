@@ -2269,6 +2269,43 @@ int wasm32_first_parm_offset(const_tree fntype ATTRIBUTE_UNUSED)
   return 0;
 }
 
+const char *
+output_call (rtx *operands, bool immediate)
+{
+  output_asm_insn ("i32.const -1", operands);
+  output_asm_insn ("get_local $sp", operands);
+  output_asm_insn ("get_local $r0", operands);
+  output_asm_insn ("get_local $r1", operands);
+  output_asm_insn ("i32.const 0", operands);
+  output_asm_insn ("i32.const 0", operands);
+
+  if (immediate)
+    {
+      output_asm_insn ("call %L0@plt{__sigchar_FiiiiiiiE}",
+		       operands);
+    }
+  else
+    {
+      output_asm_insn ("%0",
+		       operands);
+      output_asm_insn ("call_indirect __sigchar_FiiiiiiiE 0",
+		       operands);
+    }
+
+  output_asm_insn ("tee_local $rp", operands);
+  output_asm_insn ("i32.const 3", operands);
+  output_asm_insn ("i32.and", operands);
+  output_asm_insn ("if[]", operands);
+  output_asm_insn (".dpc .LI%=", operands);
+  output_asm_insn ("set_local $dpc", operands);
+  output_asm_insn ("throw1", operands);
+  output_asm_insn ("end", operands);
+
+  output_asm_insn (".wasmtextlabeldpcdef .LI%=", operands);
+
+  return "";
+}
+
 rtx wasm32_expand_call (rtx retval, rtx address, rtx callarg1)
 {
   int argcount;
