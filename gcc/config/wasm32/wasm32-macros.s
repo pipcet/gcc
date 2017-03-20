@@ -377,8 +377,6 @@ __wasm_code_\name\():
         .macro endefun name
         .local __wasm_body_header_\name\()
         .local __wasm_body_ast_\name\()
-        .local __wasm_body_blocks_\name\()
-        .local __wasm_body_blocks_\name\()_sym
 2:
         .popsection
         .pushsection .wasm.code.%S,2*__wasm_counter
@@ -394,11 +392,15 @@ __wasm_body_header_\name\():
         .byte 0x7c
         .size __wasm_body_header_\name\(), . - __wasm_body_header_\name\()
 __wasm_body_ast_\name\():
+        .ifne __wasm_blocks
         i32.const -16
         get_local $sp1
         i32.add
         set_local $sp
+        .endif
         .ifne __wasm_blocks
+        .local __wasm_body_blocks_\name\()
+        .local __wasm_body_blocks_\name\()_sym
         block[]
         loop[]
 __wasm_body_blocks_\name:
