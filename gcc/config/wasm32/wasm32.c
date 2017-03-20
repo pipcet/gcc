@@ -2135,7 +2135,7 @@ bool wasm32_hard_regno_mode_ok(unsigned int regno, machine_mode mode)
   if (regno >= 24 && regno <= 31)
     return FLOAT_MODE_P (mode);
   else
-    return !FLOAT_MODE_P (mode);
+    return !FLOAT_MODE_P (mode) && mode != DImode;
 
   return true;
 }
