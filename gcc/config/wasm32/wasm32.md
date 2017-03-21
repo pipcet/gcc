@@ -804,7 +804,7 @@
    [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")]
      UNSPECV_EH_RETURN)]
    ""
-   "get_local $fp\n\tget_local $sp\n\t%O0\n\tcall $eh_return")
+   "get_local $fp\n\tget_local $sp\n\t%O0\n\tcall $eh_return\n\treturn")
 
 (define_insn "*nonlocal_goto"
   [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")
