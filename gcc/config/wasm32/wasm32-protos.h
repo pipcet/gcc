@@ -83,7 +83,7 @@ extern rtx wasm32_incoming_return_addr_rtx();
 extern rtx wasm32_return_addr_rtx(int, rtx);
 extern rtx wasm32_get_drap_rtx(void);
 
-extern const char *output_call (rtx *operands, bool immediate);
+extern const char *output_call (rtx *operands, bool immediate, bool value);
 extern rtx wasm32_expand_call (rtx, rtx, rtx);
 extern rtx wasm32_expand_prologue ();
 extern rtx wasm32_expand_epilogue ();

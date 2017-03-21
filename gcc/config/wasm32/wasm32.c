@@ -281,6 +281,80 @@ wasm32_legitimate_address_p (machine_mode mode, rtx x, bool strict_p)
   return (r.count <= MAX_REGS_PER_ADDRESS) && (r.count <= max_rpi) && (r.indir <= 0) && (r.const_count <= 1);
 }
 
+static char *
+wasm32_signature_string (const_tree fntype)
+{
+  function_args_iterator args_iter;
+  tree n = NULL_TREE, t;
+  int count = 0;
+
+  if (!fntype)
+    return NULL;
+
+  FOREACH_FUNCTION_ARGS (fntype, t, args_iter)
+    {
+      n = t;
+      count++;
+    }
+
+  char *ret = (char *)xmalloc (count + 3);
+  char *p = ret;
+  *p++ = 'F';
+
+  FOREACH_FUNCTION_ARGS (fntype, t, args_iter)
+    {
+      switch (TYPE_MODE (t))
+	{
+	case QImode:
+	case HImode:
+	case SImode:
+	  *p++ = 'i';
+	  break;
+	case DImode:
+	  *p++ = 'l';
+	  break;
+	case SFmode:
+	  *p++ = 'f';
+	  break;
+	case DFmode:
+	  *p++ = 'd';
+	  break;
+	case VOIDmode:
+	  break;
+	default:
+	  abort ();
+	}
+    }
+
+  switch (TYPE_MODE (TREE_TYPE (fntype)))
+    {
+    case QImode:
+    case HImode:
+    case SImode:
+      *p++ = 'i';
+      break;
+    case DImode:
+      *p++ = 'l';
+      break;
+    case SFmode:
+      *p++ = 'f';
+      break;
+    case DFmode:
+      *p++ = 'd';
+      break;
+    case VOIDmode:
+      *p++ = 'v';
+      break;
+    default:
+      abort ();
+    }
+
+  *p++ = 'E';
+  *p++ = 0;
+
+  return ret;
+}
+
 static int wasm32_argument_count (const_tree fntype)
 {
   function_args_iterator args_iter;
@@ -330,6 +404,22 @@ wasm32_is_stackcall (const_tree type)
 
   if (wasm32_argument_count (type) < 0)
     return true;
+
+  return false;
+}
+
+static bool
+wasm32_is_rawcall (const_tree type)
+{
+  if (!type)
+    return false;
+
+  tree attrs = TYPE_ATTRIBUTES (type);
+  if (attrs != NULL_TREE)
+    {
+      if (lookup_attribute ("rawcall", attrs))
+	return true;
+    }
 
   return false;
 }
@@ -682,6 +772,7 @@ static const struct attribute_spec wasm32_attribute_table[] =
        affects_type_identity } */
   /* stackcall, no regparms but argument count on the stack */
   { "stackcall", 0, 0, false, true, true, wasm32_handle_cconv_attribute, true },
+  { "rawcall", 0, 0, false, true, true, wasm32_handle_cconv_attribute, true },
   { "regparm", 1, 1, false, true, true, wasm32_handle_cconv_attribute, true },
 
   { "nobogotics", 0, 0, false, true, true, wasm32_handle_bogotics_attribute, false },
@@ -2270,8 +2361,39 @@ int wasm32_first_parm_offset(const_tree fntype ATTRIBUTE_UNUSED)
 }
 
 const char *
-output_call (rtx *operands, bool immediate)
+output_call (rtx *operands, bool immediate, bool value)
 {
+  if (CONST_INT_P (operands[1]) && INTVAL (operands[1]))
+    {
+      long wideint = INTVAL (operands[1]);
+      const char *signature = (const char *)wideint;
+      if (value)
+	{
+	  output_asm_insn ("i32.const 8288", operands);
+	}
+
+      if (immediate)
+	{
+	  char *templ;
+	  asprintf (&templ, "call %%L0@plt{__sigchar_%s}", signature);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	}
+      else
+	{
+	  char *templ;
+	  asprintf (&templ, "call_indirect __sigchar_%s 0", signature);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	}
+
+      if (value)
+	{
+	  output_asm_insn ("i32.store a=2 0", operands);
+	}
+
+      return "";
+    }
   output_asm_insn ("i32.const -1", operands);
   output_asm_insn ("get_local $sp", operands);
   output_asm_insn ("get_local $r0", operands);
@@ -2316,6 +2438,16 @@ rtx wasm32_expand_call (rtx retval, rtx address, rtx callarg1)
 
   argcount = wasm32_argument_count (funtype);
 
+#if 0
+  emit_insn (gen_rtx_UNSPEC_VOLATILE (VOIDmode,
+				      gen_rtvec (1, gen_rtx_REG (SImode, R0_REG)),
+				      UNSPECV_STACK_PUSH));
+  emit_insn (gen_rtx_SET (gen_rtx_REG (SImode, R0_REG),
+			  gen_rtx_UNSPEC_VOLATILE (SImode,
+						   gen_rtvec (1, const0_rtx),
+						   UNSPECV_STACK_POP)));
+#endif
+
   if (wasm32_is_real_stackcall (funtype))
     {
       rtx loc = gen_rtx_MEM (SImode,
@@ -2337,7 +2469,7 @@ rtx wasm32_expand_call (rtx retval, rtx address, rtx callarg1)
       emit_move_insn (loc, const0_rtx);
     }
 
-  call = gen_rtx_CALL (retval ? SImode : VOIDmode, address, callarg1);
+  call = gen_rtx_CALL (retval ? SImode : VOIDmode, address, wasm32_is_rawcall (funtype) ? gen_rtx_CONST_INT (DImode, (long)wasm32_signature_string (funtype)) : const0_rtx);
 
   if (retval)
     call = gen_rtx_SET (gen_rtx_REG (SImode, RV_REG), call);
