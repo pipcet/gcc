@@ -23,6 +23,9 @@
   UNSPECV_NONLOCAL_GOTO_RECEIVER
   UNSPECV_BUILTIN_LONGJMP
   UNSPECV_THUNK_GOTO
+
+  UNSPECV_STACK_PUSH
+  UNSPECV_STACK_POP
 ])
 
 (define_c_enum "unspec" [
@@ -870,3 +873,15 @@
    ]
   ""
   "i32.const 0\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti32.add\n\t%0\n\tcall %L0\n\treturn")
+
+
+(define_insn "*stack_push"
+   [(unspec_volatile [(match_operand 0 "general_operand" "rmit")] UNSPECV_STACK_PUSH)]
+   ""
+   "%0")
+
+(define_insn "*stack_pop"
+   [(set (reg:SI R0_REG)
+         (unspec_volatile:SI [(const_int 0)] UNSPECV_STACK_POP))]
+   ""
+   "set_local $r0")
