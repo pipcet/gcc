@@ -324,7 +324,7 @@ case "${host}" in
     AC_CHECK_FUNCS(__cxa_thread_atexit_impl)
     AM_ICONV
     ;;
-  *-wasm32)
+  wasm32-*)
     GLIBCXX_CHECK_COMPILER_FEATURES
     GLIBCXX_CHECK_LINKER_FEATURES
     GLIBCXX_CHECK_MATH_SUPPORT
