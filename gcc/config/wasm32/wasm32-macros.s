@@ -3,9 +3,11 @@
         .local __wasm_block
         .local __wasm_blocks
         .local __wasm_depth
+        .local __wasm_in_defun
         .set __wasm_blocks, 0
         .set __wasm_block, 0
         .set __wasm_depth, 0
+        .set __wasm_in_defun, 0
         .local $dpc, $sp1, $r0, $r1, $rpc, $pc0
         .local $rp, $fp, $sp
         .local $r2, $r3, $r4, $r5, $r6, $r7
@@ -168,6 +170,7 @@ __sigchar_\sig:
         ;; .wasm.code..text.f     <--      top
         ;; .text.f
         .macro defun name, sig:vararg
+        .set __wasm_in_defun, 1
         createsig \sig
         .local __wasm_body_blocks_\name\()_sym
         .set __wasm_depth, __wasm_body_blocks_\name\()_sym
@@ -448,19 +451,23 @@ __wasm_body_blocks_\name\()_sym:
 __wasm_body_blocks_\name\()_sym:
         .popsection
         .endif
+        .set __wasm_in_defun, 0
         .endm
 
         .macro nextcase
+        .ifne __wasm_in_defun
+        .dpc 1f
+        set_local $dpc
+        jump
         end
-        .ifndef __wasm_blocks
-        .error "nextcase outside of defun"
-        .endif
         .set __wasm_blocks, __wasm_blocks + 1
         .previous
         .pushsection .space.pc.%S
         .byte 0x00
+1:
         .popsection
         .previous
+        .endif
         .endm
 
         .ifne 0
