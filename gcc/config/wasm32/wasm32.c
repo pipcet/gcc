@@ -2372,6 +2372,63 @@ output_call (rtx *operands, bool immediate, bool value)
 	  output_asm_insn ("i32.const 8288", operands);
 	}
 
+      bool retval = signature[1] != 'v';
+      int num_args = strlen (signature) - 3;
+
+      if (num_args)
+	{
+	  output_asm_insn ("get_local $r0", operands);
+	  num_args--;
+	}
+      if (num_args)
+	{
+	  output_asm_insn ("get_local $r1", operands);
+	  num_args--;
+	}
+      if (num_args)
+	{
+	  output_asm_insn ("i32.const 8296", operands);
+	  output_asm_insn ("i32.load a=2 0", operands);
+	  num_args--;
+	}
+      if (num_args)
+	{
+	  output_asm_insn ("i32.const 8304", operands);
+	  output_asm_insn ("i32.load a=2 0", operands);
+	  num_args--;
+	}
+#if 0
+      if (num_args)
+	{
+	  output_asm_insn ("i32.const 8312", operands);
+	  output_asm_insn ("i32.load a=2 0", operands);
+	  num_args--;
+	}
+      if (num_args)
+	{
+	  output_asm_insn ("i32.const 8320", operands);
+	  output_asm_insn ("i32.load a=2 0", operands);
+	  num_args--;
+	}
+#endif
+
+      int stackcount = 0;
+      while (num_args)
+	{
+	  output_asm_insn ("get_local $sp", operands);
+	  char *templ;
+	  asprintf (&templ, "i32.const %d", 4 * stackcount);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  output_asm_insn ("i32.load a=2 0", operands);
+	  stackcount++;
+	  num_args--;
+	}
+
+      if (num_args)
+	abort ();
+
       if (immediate)
 	{
 	  char *templ;
@@ -2390,6 +2447,10 @@ output_call (rtx *operands, bool immediate, bool value)
       if (value)
 	{
 	  output_asm_insn ("i32.store a=2 0", operands);
+	}
+      else if (retval)
+	{
+	  output_asm_insn ("drop", operands);
 	}
 
       return "";

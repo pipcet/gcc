@@ -261,8 +261,8 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       "flag_pic"
       "@
-      * return output_call (operands, true, false);
-      * return output_call (operands, false, false);")
+      * return output_call (operands, true, true);
+      * return output_call (operands, false, true);")
 
 (define_insn "*call"
    [(call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
@@ -278,8 +278,8 @@
             (match_operand:SI 1 "general_operand" "rmi,rmi")))]
       "!flag_pic"
       "@
-      * return output_call (operands, true, false);
-      * return output_call (operands, false, false);")
+      * return output_call (operands, true, true);
+      * return output_call (operands, false, true);")
 
 (define_expand "call"
   [(parallel [(call (match_operand 0)
