@@ -1,6 +1,6 @@
-/* GCC backend for the asm.js target
+/* GCC backend for the WebAssembly target
    Copyright (C) 1991-2015 Free Software Foundation, Inc.
-   Copyright (C) 2016 Pip Cet <pipcet@gmail.com>
+   Copyright (C) 2016-2017 Pip Cet <pipcet@gmail.com>
 
    Based on the ARM port, which was:
    Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
@@ -22,9 +22,6 @@
    You should have received a copy of the GNU General Public License
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
-
-#define N_ARGREG_PASSED 2
-#define N_ARGREG_GLOBAL 2
 
 #include "config.h"
 #include "system.h"
@@ -96,6 +93,9 @@
 #include "rtl-chkp.h"
 #include "print-tree.h"
 #include "varasm.h"
+
+#define N_ARGREG_PASSED 2
+#define N_ARGREG_GLOBAL 2
 
 extern void
 debug_tree (tree node);
@@ -601,15 +601,6 @@ wasm32_handle_cconv_attribute (tree *node ATTRIBUTE_UNUSED,
   return NULL;
 }
 
-static tree
-wasm32_handle_bogotics_attribute (tree *node ATTRIBUTE_UNUSED,
-				 tree name ATTRIBUTE_UNUSED,
-				 tree args ATTRIBUTE_UNUSED, int,
-				 bool *no_add_attrs ATTRIBUTE_UNUSED)
-{
-  return NULL;
-}
-
 static vec<struct wasm32_jsexport_decl> wasm32_jsexport_decls;
 
 __attribute__((weak)) void
@@ -775,13 +766,6 @@ static const struct attribute_spec wasm32_attribute_table[] =
   { "rawcall", 0, 0, false, true, true, wasm32_handle_cconv_attribute, true },
   { "regparm", 1, 1, false, true, true, wasm32_handle_cconv_attribute, true },
 
-  { "nobogotics", 0, 0, false, true, true, wasm32_handle_bogotics_attribute, false },
-  { "bogotics_backwards", 0, 0, false, true, true, wasm32_handle_bogotics_attribute, false },
-  { "bogotics", 0, 0, false, true, true, wasm32_handle_bogotics_attribute, false },
-
-  { "nobreak", 0, 0, false, true, true, wasm32_handle_bogotics_attribute, false },
-  { "breakonenter", 0, 0, false, true, true, wasm32_handle_bogotics_attribute, false },
-  { "fullbreak", 0, 0, false, true, true, wasm32_handle_bogotics_attribute, false },
   { "jsexport", 0, 2, false, false, false, wasm32_handle_jsexport_attribute, false },
   { NULL, 0, 0, false, false, false, NULL, false }
 };
@@ -1756,19 +1740,6 @@ unsigned wasm32_outgoing_reg_parm_stack_space(const_tree fndecl ATTRIBUTE_UNUSED
 void wasm32_file_start(void)
 {
   fputs ("#NO_APP\n", asm_out_file);
-  switch (pc_type) {
-  case PC_STRICT:
-    fputs ("\t.set __gcc_pc_update, 2\n", asm_out_file);
-    break;
-  case PC_MEDIUM:
-    fputs ("\t.set __gcc_pc_update, 1\n", asm_out_file);
-    break;
-  case PC_LAX:
-  default:
-    fputs ("\t.set __gcc_pc_update, 0\n", asm_out_file);
-    break;
-  }
-  fputs ("\t.set __gcc_bogotics_backwards, 0\n", asm_out_file);
   fputs ("\t.include \"wasm32-macros.s\"\n", asm_out_file);
   default_file_start ();
 }
@@ -1845,7 +1816,9 @@ static unsigned wasm32_function_regstore(FILE *stream,
   size += 8;
 
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_global $gpo\n\tget_local $dpc\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
-  size += 8;
+  size += 4;
+  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_global $gpo\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
+  size += 4;
 
   asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $sp\n\ti32.store a=2 0\n", size);
   size += 8;
@@ -1935,26 +1908,6 @@ void wasm32_start_function(FILE *f, const char *name, tree decl)
   const char *p = name;
   char *q = cooked_name;
   tree type = decl ? TREE_TYPE (decl) : NULL;
-  enum wasm32_bogotics_type bt_type = bogotics_type;
-
-  (void) bt_type;
-
-  if (type)
-    {
-      tree attrs = TYPE_ATTRIBUTES (type);
-
-      if (attrs)
-	{
-	  if (lookup_attribute("nobogotics", attrs))
-	    bt_type = BOGOTICS_NONE;
-
-	  if (lookup_attribute("bogotics", attrs))
-	    bt_type = BOGOTICS_ALL;
-
-	  if (lookup_attribute("bogotics_backwards", attrs))
-	    bt_type = BOGOTICS_BACKWARDS;
-	}
-    }
 
   for (p = name; *p; p++)
       *q++ = *p;
@@ -2016,10 +1969,9 @@ wasm32_fpswitch_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
 }
 void wasm32_end_function(FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
 {
-  char *cooked_name = (char *)alloca(strlen(name)+1);
+  char *cooked_name = (char *) alloca (strlen (name)+1);
   const char *p = name;
   char *q = cooked_name;
-  enum wasm32_bogotics_type bt_type = bogotics_type;
 
   for (p = name; *p; p++)
     *q++ = *p;
@@ -2349,7 +2301,7 @@ rtx wasm32_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
 	 plus_constant
 	 (Pmode,
 	  gen_rtx_REG (Pmode, FP_REG),
-	  wasm32_function_regsize (NULL) + 8));
+	  24));
     }
   else
     return const0_rtx;
@@ -2577,7 +2529,7 @@ rtx wasm32_expand_prologue()
   add_reg_note (insn, REG_CFA_DEF_CFA,
 		plus_constant (Pmode, frame_pointer_rtx, 0));
   add_reg_note (insn, REG_CFA_EXPRESSION, gen_rtx_SET (gen_rtx_MEM (Pmode, gen_rtx_PLUS (Pmode, sp, gen_rtx_MINUS (Pmode, gen_rtx_MEM (Pmode, sp), sp))), frame_pointer_rtx));
-  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, 16)), pc_rtx));
+  add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (Pmode, plus_constant (Pmode, sp, 24)), pc_rtx));
 
   if (crtl->calls_eh_return)
     {
