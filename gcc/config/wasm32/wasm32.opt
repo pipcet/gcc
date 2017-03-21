@@ -30,23 +30,6 @@ mall-frame-regs
 Target Report Mask(ALL_FRAME_REGS) Init(0)
 Always create all registers on the frame to ease debugging.
 
-mbogotics=
-Target RejectNegative ToLower Joined Enum(wasm32_bogotics_type) Var(bogotics_type) Init(BOGOTICS_NONE)
-Count and report BogoTICS, and enable regular interrupts.
-
-Enum
-Name(wasm32_bogotics_type) Type(enum wasm32_bogotics_type)
-Bogotics to count:
-
-EnumValue
-Enum(wasm32_bogotics_type) String(none) Value(BOGOTICS_NONE)
-
-EnumValue
-Enum(wasm32_bogotics_type) String(all) Value(BOGOTICS_ALL)
-
-EnumValue
-Enum(wasm32_bogotics_type) String(backwards) Value(BOGOTICS_BACKWARDS)
-
 mbreakpoints=
 Target RejectNegative ToLower Joined Enum(wasm32_breakpoints_type) Var(breakpoints_type) Init(BP_NONE)
 How many simulated breakpoints to support.
