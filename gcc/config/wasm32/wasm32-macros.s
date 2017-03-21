@@ -463,7 +463,7 @@ __wasm_body_blocks_\name\()_sym:
         .previous
         .endm
 
-        .ifne 1
+        .ifne 0
         .macro .labeldef_debug label
         .previous
         .ifndef __wasm_function_index
