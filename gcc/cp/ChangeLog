@@ -1,3 +1,34 @@
+2017-03-20  Jason Merrill  <jason@redhat.com>
+
+	PR c++/80096 - ICE with C++17 non-type auto.
+	* pt.c (tsubst): Delay tsubst of type of template non-type
+	parameter.
+
+	PR c++/79519 - ICE with deleted template friend.
+	* decl.c (grokdeclarator): Complain about misplaced function
+	definition using =, as well.
+
+	PR c++/79640 - infinite recursion with generic lambda.
+	* pt.c (tsubst_copy) [VAR_DECL]: Register the dummy instantiation
+	before substituting its initializer.
+
+2017-03-20  Marek Polacek  <polacek@redhat.com>
+	    Paolo Carlini  <paolo.carlini@oracle.com>
+
+	PR c++/80059 - ICE with noexcept and __transaction_atomic
+	* except.c (build_must_not_throw_expr): Call
+	instantiate_non_dependent_expr_sfinae.
+
+2017-03-19  Jason Merrill  <jason@redhat.com>
+
+	PR c++/80084 - wrong C++17 decomposition by reference of parameter.
+	* decl.c (cp_finish_decomp): Don't pull out the DECL_INITIAL of a
+	reference decomposition.
+
+	PR c++/80077 - error with constexpr and -fno-elide-constructors.
+	* constexpr.c (cxx_eval_call_expression): Set ctx->call while
+	expanding trivial constructor.
+
 2017-03-17  Jason Merrill  <jason@redhat.com>
 
 	PR c++/78345 - ICE initializing array from lambda.

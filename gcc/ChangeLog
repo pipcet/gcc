@@ -1,3 +1,120 @@
+2017-03-20  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	PR rtl-optimization/79910
+	* combine.c (can_combine_p): Do not allow combining an I0 or I1
+	if its dest is used by an insn before I2 (other than the combined
+	insns themselves, which are properly handled already).
+
+2017-03-20  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	Revert:
+	2017-03-17  Bernd Schmidt  <bschmidt@redhat.com>
+
+	* combine.c (record_used_regs): New static function.
+	(try_combine): Handle situations where there is an additional
+	instruction between I2 and I3 which needs to have a LOG_LINK
+	updated.
+
+	Revert:
+	2017-03-17  Jim Wilson  <jim.wilson@linaro.org>
+
+	* combine.c (try_combine): Delete redundant i1 test.  Call
+	prev_nonnote_nondebug_insn instead of prev_nonnote_insn.
+
+2017-03-20  Aaron Sawdey  <acsawdey@linux.vnet.ibm.com>
+
+	PR target/80083
+	* config/rs6000/rs6000.md (*movsi_internal1): Fix constraints for
+	alternatives 13/14.
+
+2017-03-20  Bill Schmidt  <wschmidt@linux.vnet.ibm.com>
+
+	PR tree-optimization/80054
+	* gimple-ssa-strength-reduction.c (all_phi_incrs_profitable): Fail
+	the optimization if a PHI or any of its arguments is not dominated
+	by the candidate's basis.  Use gphi* rather than gimple* as
+	appropriate.
+	(replace_profitable_candidates): Clean up a gimple* variable that
+	should be a gphi* variable.
+
+2017-03-20  Martin Sebor  <msebor@redhat.com>
+
+	PR c++/52477
+	* doc/extend.texi (attribute constructor): Document present limitation.
+
+2017-03-20  Kelvin Nilsen  <kelvin@gcc.gnu.org>
+
+	PR target/79963
+	* config/rs6000/altivec.h (vec_all_ne): Under __cplusplus__ and
+	__POWER9_VECTOR__ #ifdef control, change template definition to
+	use Power9-specific built-in function.
+	(vec_any_eq): Likewise.
+	* config/rs6000/vector.md (vector_ae_v2di_p): Change the flag used
+	to control outcomes from this test.
+	(vector_ae_<mode>p): For VEC_F modes, likewise.
+
+2017-03-20  Ian Lance Taylor  <iant@google.com>
+
+	* config/i386/i386.c (ix86_function_regparm): Save an extra
+	register for -fsplit-stack with DECL_STATIC_CHAIN.
+
+2017-03-17  Palmer Dabbelt  <palmer@dabbelt.com>
+
+	PR target/79912
+	* config/riscv/riscv.c (riscv_preferred_reload_class): Remove.
+	(TARGET_PREFERRED_RELOAD_CLASS): Likewise.
+
+2017-03-17  Palmer Dabbelt  <palmer@dabbelt.com>
+
+	* config/riscv/riscv.c (riscv_print_operand): Use "fence
+	iorw,ow".
+	* config/riscv/sync.mc (mem_thread_fence_1): Use "fence
+	iorw,iorw".
+
+2017-03-20  Marek Polacek  <polacek@redhat.com>
+
+	PR sanitizer/80063
+	* asan.c (DEF_SANITIZER_BUILTIN): Use do { } while (0).
+
+2017-03-20  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/80113
+	* graphite-isl-ast-to-gimple.c (copy_loop_phi_nodes): Do not
+	allocate extra SSA name for PHI def.
+	(add_close_phis_to_outer_loops): Likewise.
+	(add_close_phis_to_merge_points): Likewise.
+	(copy_loop_close_phi_args): Likewise.
+	(copy_cond_phi_nodes): Likewise.
+
+2017-03-20  Martin Liska  <mliska@suse.cz>
+
+	PR middle-end/79753
+	* tree-chkp.c (chkp_build_returned_bound): Do not build
+	returned bounds for a LHS that's not a BOUNDED_P type.
+
+2017-03-20  Martin Liska  <mliska@suse.cz>
+
+	PR target/79769
+	PR target/79770
+	* tree-chkp.c (chkp_find_bounds_1): Handle REAL_CST,
+	COMPLEX_CST and VECTOR_CST.
+
+2017-03-20  Andreas Krebbel  <krebbel@linux.vnet.ibm.com>
+
+	PR target/78857
+	* config/s390/s390.md ("cmp<mode>_ccs_0"): Add a clobber of the
+	target operand.  A new splitter adds the clobber statement in case
+	the target operand is dead anyway.
+
+2017-03-19  Gerald Pfeifer  <gerald@pfeifer.com>
+
+	* doc/install.texi (Specific) <sparc-*-linux*>: No longer refer 
+	to age-old versions of binutils and glibc.
+
+2017-03-18  Segher Boessenkool  <segher@kernel.crashing.org>
+
+	* doc/contrib.texi (Contributors): Remove duplicate entry for myself.
+
 2017-03-18  Gerald Pfeifer  <gerald@pfeifer.com>
 
 	* doc/contrib.texi (Contributors): Add Segher Boessenkool.
