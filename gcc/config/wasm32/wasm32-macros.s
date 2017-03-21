@@ -486,18 +486,3 @@ __wasm_body_blocks_\name\()_sym:
         .endm
         .endif
         .set __wasm_fallthrough, 1
-
-        .macro T a
-        i32.const \a
-        get_local $sp
-        get_local $fp
-        get_local $rp
-        get_local $dpc
-        .ifdef __wasm_blocks
-        i32.const __wasm_blocks
-        .else
-        i32.const -1
-        .endif
-        call $trace
-        drop
-        .endm
