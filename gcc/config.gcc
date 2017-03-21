@@ -3073,13 +3073,13 @@ asmjs-*-gnu | asmjs-*-asmjs)
         c_target_objs="asmjs-c.o"
         cxx_target_objs="asmjs-cxx.o"
         ;;
-wasm32-*-wasm32)
+wasm32-*-*)
         tm_file="${tm_file}"
         tmake_file="${tmake_file} wasm32/t-wasm32"
         c_target_objs="wasm32-c.o"
         cxx_target_objs="wasm32-cxx.o"
         ;;
-wasm64-*-wasm64)
+wasm64-*-*)
         tm_file="${tm_file}"
         tmake_file="${tmake_file} wasm64/t-wasm64"
         c_target_objs="wasm64-c.o"
