@@ -104,7 +104,7 @@
         .endm
 
         .macro rleb128 expr:vararg
-        .reloc .,R_ASMJS_LEB128,\expr
+        .reloc .,R_WASM32_LEB128,\expr
         .rept 15
         .byte 0x80
         .endr
@@ -112,7 +112,7 @@
         .endm
 
         .macro rleb128_64 expr:vararg
-        .reloc .,R_ASMJS_LEB128,\expr
+        .reloc .,R_WASM32_LEB128,\expr
         .rept 9
         .byte 0x80
         .endr
@@ -120,7 +120,7 @@
         .endm
 
         .macro rleb128_32 expr:vararg
-        .reloc .,R_ASMJS_LEB128,\expr
+        .reloc .,R_WASM32_LEB128,\expr
         .rept 4
         .byte 0x80
         .endr
@@ -128,7 +128,7 @@
         .endm
 
         .macro rleb128_8 expr:vararg
-        .reloc .,R_ASMJS_LEB128,\expr
+        .reloc .,R_WASM32_LEB128,\expr
         .rept 1
         .byte 0x80
         .endr
@@ -136,7 +136,7 @@
         .endm
 
         .macro rleb128_1 expr:vararg
-        .reloc .,R_ASMJS_LEB128,\expr
+        .reloc .,R_WASM32_LEB128,\expr
         .byte 0x00
         .endm
 
@@ -175,20 +175,20 @@ __sigchar_\sig:
         ;; right now, .space.function.* and .space.code.* are
         ;; equivalent, and neither index is actually used anywhere.
         .pushsection .space.function.%S
-        .reloc .,R_ASMJS_CODE_POINTER,__wasm_function_\name
-        .reloc .,R_ASMJS_INDEX,\name
+        .reloc .,R_WASM32_CODE_POINTER,__wasm_function_\name
+        .reloc .,R_WASM32_INDEX,\name
 5:
         .byte 0
         .popsection
         .pushsection .space.code.%S,"x"
-        .reloc .,R_ASMJS_CODE_POINTER,__wasm_code_\name
-        .reloc .,R_ASMJS_INDEX,\name
+        .reloc .,R_WASM32_CODE_POINTER,__wasm_code_\name
+        .reloc .,R_WASM32_INDEX,\name
 6:
         .byte 0
         .popsection
         .pushsection .space.element.%S
-        .reloc .,R_ASMJS_CODE_POINTER,__wasm_element_\name
-        .reloc .,R_ASMJS_INDEX,\name
+        .reloc .,R_WASM32_CODE_POINTER,__wasm_element_\name
+        .reloc .,R_WASM32_INDEX,\name
 7:
         .byte 0
         .popsection
@@ -199,11 +199,11 @@ __wasm_element_\()\name:
         .pushsection .space.function_index.%S,"x"
         .type \name, @function
         .size \name, 1
-        .reloc .,R_ASMJS_INDEX,5b
-        .reloc .,R_ASMJS_INDEX,6b
-        .reloc .,R_ASMJS_INDEX,7b
-        .reloc .,R_ASMJS_INDEX,__wasm_name_local_\name
-        .reloc .,R_ASMJS_INDEX,__wasm_name_function_\name
+        .reloc .,R_WASM32_INDEX,5b
+        .reloc .,R_WASM32_INDEX,6b
+        .reloc .,R_WASM32_INDEX,7b
+        .reloc .,R_WASM32_INDEX,__wasm_name_local_\name
+        .reloc .,R_WASM32_INDEX,__wasm_name_function_\name
 \name\():
         .byte 0x00
         .set __wasm_function_index, \name\()
@@ -250,7 +250,7 @@ __wasm_element_\()\name:
         .pushsection .wasm.export
         rleb128_8 18
         .ascii "f_"
-        .reloc .,R_ASMJS_HEX16,\name
+        .reloc .,R_WASM32_HEX16,\name
         .ascii "0000000000000000"
         .byte 0
         rleb128_32 \name
@@ -259,8 +259,8 @@ __wasm_element_\()\name:
         .if 1
         .pushsection .space.name.function.%S
 __wasm_name_function_\name:
-        .reloc .,R_ASMJS_CODE_POINTER,__wasm_name_function2_\name
-        .reloc .,R_ASMJS_INDEX,\name
+        .reloc .,R_WASM32_CODE_POINTER,__wasm_name_function2_\name
+        .reloc .,R_WASM32_INDEX,\name
         .byte 0
         .popsection
         .pushsection .wasm.name.function.%S
@@ -270,8 +270,8 @@ __wasm_name_function2_\name:
         .popsection
         .pushsection .space.name.local.%S
 __wasm_name_local_\name:
-        .reloc .,R_ASMJS_CODE_POINTER,__wasm_name_local2_\name
-        .reloc .,R_ASMJS_INDEX,\name
+        .reloc .,R_WASM32_CODE_POINTER,__wasm_name_local2_\name
+        .reloc .,R_WASM32_INDEX,\name
         .byte 0
         .popsection
         .pushsection .wasm.name.local.%S

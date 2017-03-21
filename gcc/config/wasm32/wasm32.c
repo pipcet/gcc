@@ -159,7 +159,7 @@ wasm32_assemble_integer (rtx x, unsigned int size, int aligned_p)
   if (op) {
     fputc ('\t', asm_out_file);
     if (is_fpointer) {
-      fputs (".reloc .,R_ASMJS_ABS32_CODE,", asm_out_file);
+      fputs (".reloc .,R_WASM32_ABS32_CODE,", asm_out_file);
       output_addr_const (asm_out_file, x);
       fputc ('\n', asm_out_file);
       fputc ('\t', asm_out_file);
