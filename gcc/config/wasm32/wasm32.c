@@ -1495,27 +1495,27 @@ struct wasm32_operator wasm32_operators[] = {
   },
   {
     FIX, DFmode, SImode,
-    NULL, "i32.trunc_s_f64",
+    NULL, "i32.trunc_s/f64",
     1
   },
   {
     UNSIGNED_FIX, DFmode, SImode,
-    NULL, "i32.trunc_u_f64",
+    NULL, "i32.trunc_u/f64",
     1
   },
   {
     FLOAT, SImode, DFmode,
-    NULL, "f64.convert_s_i32",
+    NULL, "f64.convert_s/i32",
     1
   },
   {
     FLOAT_EXTEND, SFmode, DFmode,
-    NULL, "f64.promote_f32",
+    NULL, "f64.promote/f32",
     1
   },
   {
     FLOAT_TRUNCATE, DFmode, SFmode,
-    NULL, "f32.demote_f64",
+    NULL, "f32.demote/f64",
     1
   },
   {
