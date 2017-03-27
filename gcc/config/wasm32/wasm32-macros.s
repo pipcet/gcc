@@ -54,7 +54,7 @@
         .set $a2, 4120
         .set $a3, 4128
         .set $tp, 8192
-        ;; per-instance get_global/set_global globals
+        ;; per-instance immutable get_global globals
         .set $got, 0
         .set $plt, 1
         .set $gpo, 2
@@ -68,11 +68,6 @@
         set_local $rp
         throw
         .wasmtextlabeldpcdef .LFl\@
-        .endm
-
-        .macro .wasmtextlabelpc0def label
-        nextcase
-        .set \label, __wasm_function_index
         .endm
 
         .macro .wasmtextlabeldpcdef label
@@ -492,4 +487,3 @@ __wasm_body_blocks_\name\()_sym:
         .labeldef_internal \label
         .endm
         .endif
-        .set __wasm_fallthrough, 1
