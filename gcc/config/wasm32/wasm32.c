@@ -400,6 +400,9 @@ wasm32_is_stackcall (const_tree type)
     {
       if (lookup_attribute ("stackcall", attrs))
 	return true;
+
+      if (lookup_attribute ("rawcall", attrs))
+	return true;
     }
 
   if (wasm32_argument_count (type) < 0)
@@ -2319,14 +2322,23 @@ output_call (rtx *operands, bool immediate, bool value)
     {
       long wideint = INTVAL (operands[1]);
       const char *signature = (const char *)wideint;
-      if (value)
-	{
-	  output_asm_insn ("i32.const 8288", operands);
-	}
-
       bool retval = signature[1] != 'v';
+      bool stackret = (signature[1] == 'l'
+		       || signature[1] == 'f'
+		       || signature[1] == 'd');
       int num_args = strlen (signature) - 3;
 
+      if (value)
+	{
+	  output_asm_insn ("get_local $sp", operands);
+	}
+      else if (stackret)
+	{
+	  output_asm_insn ("get_local $sp", operands);
+	  output_asm_insn ("i32.load a=2 0", operands);
+	}
+
+#if 0
       if (num_args)
 	{
 	  output_asm_insn ("get_local $r0", operands);
@@ -2349,7 +2361,6 @@ output_call (rtx *operands, bool immediate, bool value)
 	  output_asm_insn ("i32.load a=2 0", operands);
 	  num_args--;
 	}
-#if 0
       if (num_args)
 	{
 	  output_asm_insn ("i32.const 8312", operands);
@@ -2364,18 +2375,42 @@ output_call (rtx *operands, bool immediate, bool value)
 	}
 #endif
 
-      int stackcount = 0;
+      int stackoff = stackret ? 4 : 0;
+      int sigindex = 2;
       while (num_args)
 	{
-	  output_asm_insn ("get_local $sp", operands);
 	  char *templ;
-	  asprintf (&templ, "i32.const %d", 4 * stackcount);
+
+	  output_asm_insn ("get_local $sp", operands);
+	  if (signature[sigindex] == 'd' ||
+	      signature[sigindex] == 'l')
+	    stackoff += (stackoff & 4);
+	  asprintf (&templ, "i32.const %d", stackoff);
 	  output_asm_insn (templ, operands);
-	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  output_asm_insn ("i32.load a=2 0", operands);
-	  stackcount++;
+	  if (signature[sigindex] == 'i')
+	    {
+	      output_asm_insn ("i32.load a=2 0", operands);
+	      stackoff += 4;
+	    }
+	  else if (signature[sigindex] == 'f')
+	    {
+	      output_asm_insn ("f32.load a=2 0", operands);
+	      stackoff += 4;
+	    }
+	  else if (signature[sigindex] == 'l')
+	    {
+	      output_asm_insn ("i64.load a=3 0", operands);
+	      stackoff += 8;
+	    }
+	  else if (signature[sigindex] == 'd')
+	    {
+	      output_asm_insn ("f64.load a=3 0", operands);
+	      stackoff += 8;
+	    }
 	  num_args--;
+	  sigindex++;
+	  free (templ);
 	}
 
       if (num_args)
@@ -2398,7 +2433,25 @@ output_call (rtx *operands, bool immediate, bool value)
 
       if (value)
 	{
-	  output_asm_insn ("i32.store a=2 0", operands);
+	  if (signature[1] == 'i')
+	    {
+	      output_asm_insn ("i32.store a=2 0", operands);
+	    }
+	}
+      else if (stackret)
+	{
+	  if (signature[1] == 'f')
+	    {
+	      output_asm_insn ("f32.store a=2 0", operands);
+	    }
+	  else if (signature[1] == 'l')
+	    {
+	      output_asm_insn ("i64.store a=3 0", operands);
+	    }
+	  else if (signature[1] == 'd')
+	    {
+	      output_asm_insn ("f64.store a=3 0", operands);
+	    }
 	}
       else if (retval)
 	{
