@@ -2330,7 +2330,7 @@ output_call (rtx *operands, bool immediate, bool value)
 
       if (value)
 	{
-	  output_asm_insn ("get_local $sp", operands);
+	  output_asm_insn ("i32.const 8288", operands);
 	}
       else if (stackret)
 	{
