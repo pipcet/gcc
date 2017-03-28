@@ -2285,12 +2285,9 @@ static int last_regsize;
 rtx wasm32_incoming_return_addr_rtx(void)
 {
   return
-    gen_rtx_MEM
-    (Pmode,
-     plus_constant
-     (Pmode,
-      gen_rtx_REG (Pmode, SP_REG),
-      8));
+    gen_rtx_MEM (Pmode, plus_constant
+		 (Pmode, gen_rtx_REG (Pmode, SP_REG),
+		  8));
 }
 
 rtx wasm32_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
@@ -2299,12 +2296,9 @@ rtx wasm32_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
     {
       crtl->calls_eh_return = 1;
       return
-	gen_rtx_MEM
-	(Pmode,
-	 plus_constant
-	 (Pmode,
-	  gen_rtx_REG (Pmode, FP_REG),
-	  24));
+	gen_rtx_MEM (Pmode, plus_constant
+		     (Pmode, gen_rtx_REG (Pmode, FP_REG),
+		      24));
     }
   else
     return const0_rtx;
