@@ -159,7 +159,7 @@ wasm32_assemble_integer (rtx x, unsigned int size, int aligned_p)
   if (op) {
     fputc ('\t', asm_out_file);
     if (is_fpointer) {
-      fputs (".reloc .,R_WASM32_ABS32_CODE,", asm_out_file);
+      fputs (".reloc .,R_WASM32_32_CODE,", asm_out_file);
       output_addr_const (asm_out_file, x);
       fputc ('\n', asm_out_file);
       fputc ('\t', asm_out_file);
@@ -2003,7 +2003,7 @@ void wasm32_output_ascii (FILE *f, const void *ptr, size_t len)
   if (len) {
     size_t i;
 
-    asm_fprintf(f, "\t.QI ");
+    asm_fprintf(f, "\t.byte ");
 
     for (i=0; i<len; i++) {
       asm_fprintf(f, "%d%c", bytes[i], i == len-1 ? '\n' : ',');
@@ -2166,7 +2166,7 @@ void wasm32_output_skip (FILE *stream, size_t bytes)
 {
   size_t n;
   for (n = 0; n < bytes; n++) {
-    fprintf (stream, "\t.QI 0\n");
+    fprintf (stream, "\t.byte 0\n");
   }
 }
 
@@ -2913,6 +2913,6 @@ wasm32_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
 #include "target-def.h"
 
 #undef TARGET_ASM_ALIGNED_DI_OP
-#define TARGET_ASM_ALIGNED_DI_OP "\t.di\t"
+#define TARGET_ASM_ALIGNED_DI_OP "\t.quad\t"
 
 struct gcc_target targetm = TARGET_INITIALIZER;
