@@ -2290,7 +2290,7 @@ rtx wasm32_incoming_return_addr_rtx(void)
 		  8));
 }
 
-rtx wasm32_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
+rtx wasm32_return_addr_rtx(int count, rtx frameaddr)
 {
   if (count == 0)
     {
@@ -2298,7 +2298,7 @@ rtx wasm32_return_addr_rtx(int count ATTRIBUTE_UNUSED, rtx frameaddr)
       return
 	gen_rtx_MEM (Pmode, plus_constant
 		     (Pmode, gen_rtx_REG (Pmode, FP_REG),
-		      24));
+		      272 + 8));
     }
   else
     return const0_rtx;

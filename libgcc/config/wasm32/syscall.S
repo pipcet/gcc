@@ -4,10 +4,11 @@
 
         createsig FiiiiiiiE
         .pushsection .space.import
+        .reloc .,R_WASM32_CODE_POINTER,0f
         .byte 0x00
         .popsection
         .pushsection .wasm.import
-        lstring "sys"
+0:      lstring "sys"
         lstring "call"
         .byte 0x00
         rleb128 __sigchar_FiiiiiiiE
