@@ -17,13 +17,15 @@
         .type $syscall, @function
         .size $syscall, 1
 $syscall:
+        .reloc .,R_WASM32_INDEX,1f
         .byte 0xff
         .popsection
         .pushsection .space.element.import
-        .byte 0x00
+        .reloc .,R_WASM32_CODE_POINTER,0f
+1:      .byte 0x00
         .popsection
         .pushsection .wasm.element.import
-        rleb128_32 $syscall
+0:      rleb128_32 $syscall
         .popsection
         .if 0
         .pushsection .space.name.function.import
