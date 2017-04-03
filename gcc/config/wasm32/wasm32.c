@@ -2420,6 +2420,7 @@ output_call (rtx *operands, bool immediate, bool value)
       else
 	{
 	  char *templ;
+	  output_asm_insn ("%0", operands);
 	  asprintf (&templ, "call_indirect __sigchar_%s 0", signature);
 	  output_asm_insn (templ, operands);
 	  free (templ);
