@@ -93,6 +93,8 @@
 #include "rtl-chkp.h"
 #include "print-tree.h"
 #include "varasm.h"
+#include "print-rtl.h"
+#include "tree-pass.h"
 
 #define N_ARGREG_PASSED 2
 #define N_ARGREG_GLOBAL 2
@@ -2312,7 +2314,8 @@ int wasm32_first_parm_offset(const_tree fntype ATTRIBUTE_UNUSED)
 const char *
 output_call (rtx *operands, bool immediate, bool value)
 {
-  if (CONST_INT_P (operands[1]) && INTVAL (operands[1]))
+  const char *sig = XSTR (operands[1], 0);
+  if (sig[0])
     {
       long wideint = INTVAL (operands[1]);
       const char *signature = (const char *)wideint;
@@ -2496,6 +2499,12 @@ rtx wasm32_expand_call (rtx retval, rtx address, rtx callarg1)
   rtx_insn *call_insn;
   rtx sp = gen_rtx_REG (SImode, SP_REG);
   tree funtype = cfun->machine->funtype;
+  rtx sig = gen_rtx_CONST_STRING (VOIDmode, "");
+
+  if (wasm32_is_rawcall (funtype))
+    {
+      sig = gen_rtx_CONST_STRING (VOIDmode, wasm32_signature_string (funtype));
+    }
 
   argcount = wasm32_argument_count (funtype);
 
@@ -2530,7 +2539,7 @@ rtx wasm32_expand_call (rtx retval, rtx address, rtx callarg1)
       emit_move_insn (loc, const0_rtx);
     }
 
-  call = gen_rtx_CALL (retval ? SImode : VOIDmode, address, wasm32_is_rawcall (funtype) ? gen_rtx_CONST_INT (DImode, (long)wasm32_signature_string (funtype)) : const0_rtx);
+  call = gen_rtx_CALL (retval ? SImode : VOIDmode, address, sig);
 
   if (retval)
     call = gen_rtx_SET (gen_rtx_REG (SImode, RV_REG), call);

@@ -249,7 +249,7 @@
 
 (define_insn "*call"
    [(call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
-          (match_operand:SI 1 "general_operand" "rmi,rmi"))]
+            (match_operand:VOID 1))]
       "flag_pic"
       "@
       * return output_call (operands, true, false);
@@ -258,7 +258,7 @@
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
       (call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
-            (match_operand:SI 1 "general_operand" "rmi,rmi")))]
+            (match_operand:VOID 1)))]
       "flag_pic"
       "@
       * return output_call (operands, true, true);
@@ -266,7 +266,7 @@
 
 (define_insn "*call"
    [(call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
-          (match_operand:SI 1 "general_operand" "rmi,rmi"))]
+            (match_operand:VOID 1))]
       "!flag_pic"
       "@
       * return output_call (operands, true, false);
@@ -275,7 +275,7 @@
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
       (call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
-            (match_operand:SI 1 "general_operand" "rmi,rmi")))]
+            (match_operand:VOID 1)))]
       "!flag_pic"
       "@
       * return output_call (operands, true, true);
