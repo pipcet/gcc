@@ -245,7 +245,11 @@ typedef struct {
 #define NO_FUNCTION_CSE true
 //#define LOGICAL_OP_NON_SHORT_CIRCUIT 1
 
-#define TEXT_SECTION_ASM_OP "\t.text\n\t.ifdef __wasm_counter\n\t.pushsection .wasm.code.%S,2*__wasm_counter+1\n\t.else\n\t.pushsection .wasm.code.%S\n\t.endif"
+/* This is slightly complicated: we have to create the .space.code.%s
+   and .wasm.code.%S sections at the same time, or the linker will see
+   .wasm.code.A, then .wasm.code.B, then .space.code.B, then
+   .space.code.A, and our index space will be disordered.  */
+#define TEXT_SECTION_ASM_OP "\ttext_section"
 #define DATA_SECTION_ASM_OP "\t.data"
 #define READONLY_DATA_SECTION_ASM_OP "\t.section .rodata"
 #define BSS_SECTION_ASM_OP "\t.data"
