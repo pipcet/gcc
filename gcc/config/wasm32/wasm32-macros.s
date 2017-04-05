@@ -193,7 +193,7 @@ __sigchar_\sig:
         ;; right now, .space.function.* and .space.code.* are
         ;; equivalent, and neither index is actually used anywhere.
         .pushsection .space.function.%S
-        .reloc .,R_WASM32_CODE_POINTER,__wasm_function_\name
+        .reloc .,R_WASM32_CODE_POINTER,__wasm_function__\name
         .reloc .,R_WASM32_INDEX,\name
 5:
         .byte 0
@@ -361,7 +361,7 @@ __wasm_name_local2_\name:
         .popsection
         .endif
         .pushsection .wasm.function.%S
-__wasm_function_\name\():
+__wasm_function__\name\():
         rleb128_32 __sigchar_\sig
         .popsection
 
