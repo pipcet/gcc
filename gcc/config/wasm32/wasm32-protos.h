@@ -129,6 +129,10 @@ struct wasm32_jsexport_decl {
   vec<const char *> fragments;
 };
 
+struct wasm32_imexport_decl {
+  vec<const char *> fragments;
+};
+
 
 extern void wasm32_jsexport (tree, struct wasm32_jsexport_opts *,
 			    vec<struct wasm32_jsexport_decl> *);

@@ -777,6 +777,169 @@ wasm32_handle_jsexport_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
   return NULL_TREE;
 }
 
+static vec<struct wasm32_imexport_decl> wasm32_imexport_decls;
+
+static void wasm32_imexport_unit_callback (void *, void *)
+{
+  unsigned i,j;
+  struct wasm32_imexport_decl *p;
+  const char *pstr;
+
+  if (!wasm32_imexport_decls.is_empty())
+    {
+      FOR_EACH_VEC_ELT (wasm32_imexport_decls, i, p)
+	{
+	  FOR_EACH_VEC_ELT (p->fragments, j, pstr)
+	    {
+	      fprintf (asm_out_file, "\t%s\n", pstr);
+	    }
+	}
+    }
+
+  wasm32_imexport_decls = vec<struct wasm32_imexport_decl>();
+}
+
+static bool
+wasm32_import_parse (const_tree decl, const char **name,
+		     const char **module, const char **field)
+{
+  tree attrs = DECL_ATTRIBUTES (decl);
+  if (attrs)
+    {
+      tree imattr = lookup_attribute ("import", attrs);
+      if (imattr)
+	{
+	  tree args = TREE_VALUE (imattr);
+
+	  *name = IDENTIFIER_POINTER (DECL_NAME (decl));
+
+	  *module = TREE_STRING_POINTER (args);
+	  args = TREE_CHAIN (args);
+	  if (args && TREE_CODE (args) == STRING_CST)
+	    {
+	      *field = TREE_STRING_POINTER (args);
+	    }
+	  else if (TREE_CODE (decl) == FUNCTION_DECL
+		   || TREE_CODE (decl) == VAR_DECL)
+	    {
+	      *field = IDENTIFIER_POINTER (DECL_NAME (decl));
+	    }
+	  else
+	    *field = *name;
+
+	  return true;
+	}
+    }
+
+  return false;
+}
+
+static void
+wasm32_imexport_decl_callback (void *gcc_data, void *)
+{
+  tree decl = (tree) gcc_data;
+
+  if (DECL_P (decl))
+    {
+      const char *name;
+      const char *module;
+      const char *field;
+
+      if (wasm32_import_parse (decl, &name, &module, &field))
+	{
+	  struct wasm32_imexport_decl ret;
+
+	  ret.fragments = vec<const char *> ();
+
+	  if (TREE_CODE (decl) == VAR_DECL)
+	    ret.fragments.safe_push (concat ("import_global ", name,
+					     ", ", module, ", ", field,
+					     NULL));
+	  else if (TREE_CODE (decl) == FUNCTION_DECL)
+	    ret.fragments.safe_push (concat ("import_function ", name,
+					     ", ", module, ", ", field,
+					     NULL));
+
+	  wasm32_imexport_decls.safe_push (ret);
+	}
+#if 0
+      if (wasm32_export_parse (decl, &name, &field))
+	{
+	  struct wasm32_imexport_decl ret;
+
+	  ret.fragments = vec<const char *> ();
+
+	  if (TREE_CODE (decl) == VAR_DECL)
+	    ret.fragments.safe_push (concat ("export_global ", name,
+					     ", ", field));
+	  else if (TREE_CODE (decl) == FUNCTION_DECL)
+	    ret.fragments.safe_push (concat ("export_function ", name,
+					     ", ", field));
+
+	  wasm32_imexport_decls.safe_push (ret);
+	}
+#endif
+    }
+}
+
+static bool
+wasm32_imexport_plugin_inited = false;
+
+static void
+wasm32_imexport_plugin_init (void)
+{
+  register_callback("imexport", PLUGIN_FINISH_DECL,
+		    wasm32_imexport_decl_callback, NULL);
+  register_callback("imexport", PLUGIN_FINISH_TYPE,
+		    wasm32_imexport_decl_callback, NULL);
+  register_callback("imexport", PLUGIN_FINISH_UNIT,
+		    wasm32_imexport_unit_callback, NULL);
+  flag_plugin_added = true;
+
+  wasm32_imexport_plugin_inited = true;
+}
+
+static tree
+wasm32_handle_import_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
+				tree args, int,
+				bool *no_add_attrs ATTRIBUTE_UNUSED)
+{
+  const char *module ATTRIBUTE_UNUSED;
+  const char *field ATTRIBUTE_UNUSED;
+
+  wasm32_imexport_plugin_init ();
+
+  if (TREE_CODE (args) != STRING_CST)
+    {
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+
+  module = TREE_STRING_POINTER (args);
+
+  args = TREE_CHAIN (args);
+
+  if (args && TREE_CODE (args) == STRING_CST)
+    {
+      field = TREE_STRING_POINTER (args);
+    }
+  else if (TREE_CODE (*node) == FUNCTION_DECL)
+    {
+      field = IDENTIFIER_POINTER (DECL_NAME (*node));
+    }
+  else if (TREE_CODE (*node) == VAR_DECL)
+    {
+      field = IDENTIFIER_POINTER (DECL_NAME (*node));
+    }
+  else
+    {
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+
+  return NULL_TREE;
+}
+
 static const struct attribute_spec
 wasm32_attribute_table[] =
 {
@@ -788,6 +951,7 @@ wasm32_attribute_table[] =
   { "regparm", 1, 1, false, true, true, wasm32_handle_cconv_attribute, true },
 
   { "jsexport", 0, 2, false, false, false, wasm32_handle_jsexport_attribute, false },
+  { "import", 1, 2, true, false, false, wasm32_handle_import_attribute, false },
   { NULL, 0, 0, false, false, false, NULL, false }
 };
 
@@ -1165,7 +1329,25 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
   case SYMBOL_REF:
     {
       const char *name = XSTR (x, 0);
-      if (!SYMBOL_REF_FUNCTION_P (x))
+      tree decl = XTREE (x, 1);
+      tree attrs;
+      tree import_attr;
+
+      if (decl && TREE_CODE (decl) == VAR_DECL
+	  && (attrs = DECL_ATTRIBUTES (decl))
+	  && (import_attr = lookup_attribute ("import", attrs)))
+	{
+	  asm_fprintf (stream, "get_global __wasm_import_global_");
+	  assemble_name (stream, name);
+	}
+      else if (decl && TREE_CODE (decl) == FUNCTION_DECL
+	  && (attrs = DECL_ATTRIBUTES (decl))
+	  && (import_attr = lookup_attribute ("import", attrs)))
+	{
+	  asm_fprintf (stream, "i32.const ");
+	  assemble_name (stream, name);
+	}
+      else if (!SYMBOL_REF_FUNCTION_P (x))
 	{
 	  if (flag_pic)
 	    {
@@ -2534,10 +2716,27 @@ output_call (rtx *operands, bool immediate, bool value)
 
       if (immediate)
 	{
-	  char *templ;
-	  asprintf (&templ, "call %%L0@plt{__sigchar_%s}", signature);
-	  output_asm_insn (templ, operands);
-	  free (templ);
+	  tree decl;
+	  tree attrs;
+
+	  if (GET_CODE (operands[0]) == SYMBOL_REF
+	      && (decl = XTREE (operands[0], 1))
+	      && (attrs = DECL_ATTRIBUTES (decl))
+	      && (lookup_attribute ("import", attrs)
+		  || lookup_attribute ("noplt", attrs)))
+	    {
+	      char *templ;
+	      asprintf (&templ, "call %%L0");
+	      output_asm_insn (templ, operands);
+	      free (templ);
+	    }
+	  else
+	    {
+	      char *templ;
+	      asprintf (&templ, "call %%L0@plt{__sigchar_%s}", signature);
+	      output_asm_insn (templ, operands);
+	      free (templ);
+	    }
 	}
       else
 	{
@@ -2586,8 +2785,28 @@ output_call (rtx *operands, bool immediate, bool value)
 
   if (immediate)
     {
-      output_asm_insn ("call %L0@plt{__sigchar_FiiiiiiiE}",
-		       operands);
+      const char *signature = "FiiiiiiiE";
+      tree decl;
+      tree attrs;
+
+      if (GET_CODE (operands[0]) == SYMBOL_REF
+	  && (decl = XTREE (operands[0], 1))
+	  && (attrs = DECL_ATTRIBUTES (decl))
+	  && (lookup_attribute ("import", attrs)
+	      || lookup_attribute ("noplt", attrs)))
+	{
+	  char *templ;
+	  asprintf (&templ, "call %%L0");
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	}
+      else
+	{
+	  char *templ;
+	  asprintf (&templ, "call %%L0@plt{__sigchar_%s}", signature);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	}
     }
   else
     {
@@ -2612,7 +2831,7 @@ output_call (rtx *operands, bool immediate, bool value)
 }
 
 rtx
-wasm32_expand_call (rtx retval, rtx address, rtx callarg1)
+wasm32_expand_call (rtx retval, rtx address, rtx callarg1 ATTRIBUTE_UNUSED)
 {
   int argcount;
   rtx use = NULL, call;
