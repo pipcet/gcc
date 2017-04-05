@@ -111,7 +111,8 @@ wasm32_cpu_cpp_builtins (struct cpp_reader * pfile)
   cpp_define(pfile, "__WASM32__");
 }
 
-bool linux_libc_has_function(enum function_class cl ATTRIBUTE_UNUSED)
+bool
+linux_libc_has_function(enum function_class cl ATTRIBUTE_UNUSED)
 {
   return true;
 }
