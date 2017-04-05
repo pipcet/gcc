@@ -59,6 +59,31 @@
         .set $plt, 1
         .set $gpo, 2
 
+        .macro text_section
+        .text
+	.ifdef __wasm_counter
+	.pushsection .space.code.%S,"x"
+	.popsection
+	.pushsection .space.function_index.%S,"x"
+	.popsection
+	.pushsection .space.element.%S,"x"
+	.popsection
+	.pushsection .wasm.element.%S,"x"
+	.popsection
+	.pushsection .wasm.code.%S,2*__wasm_counter+1
+	.else
+	.pushsection .space.code.%S,"x"
+	.popsection
+	.pushsection .space.function_index.%S,"x"
+	.popsection
+	.pushsection .space.element.%S,"x"
+	.popsection
+	.pushsection .wasm.element.%S,"x"
+	.popsection
+	.pushsection .wasm.code.%S
+	.endif
+        .endm
+
         .macro .flush
         .dpc .LFl\@
         set_local $dpc
