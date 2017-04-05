@@ -120,23 +120,31 @@ linux_libc_has_function(enum function_class cl ATTRIBUTE_UNUSED)
 void
 wasm32_globalize_label (FILE * stream, const char *name)
 {
-  asm_fprintf (stream, "\t.global %s\n", name + (name[0] == '*'));
+  asm_fprintf (stream, "\t.global ");
+  assemble_name (stream, name);
+  asm_fprintf (stream, "\n");
 }
 
 void
 wasm32_weaken_label (FILE *stream, const char *name)
 {
-  asm_fprintf (stream, "\t.weak %s\n", name + (name[0] == '*'));
+  asm_fprintf (stream, "\t.weak ");
+  assemble_name (stream, name);
+  asm_fprintf (stream, "\n");
 }
 
 void
 wasm32_output_def (FILE *stream, const char *alias, const char *name)
 {
-  asm_fprintf (stream, "\t.set %s, %s\n", alias + (alias[0] == '*'), name + (name[0] == '*'));
+  asm_fprintf (stream, "\t.set ");
+  assemble_name (stream, alias);
+  asm_fprintf (stream, ", ");
+  assemble_name (stream, name);
+  asm_fprintf (stream, "\n");
 }
 
 bool
-wasm32_assemble_integer (rtx x, unsigned int size, int aligned_p)
+wasm32_assemble_integer (rtx x, unsigned int size, int aligned_p ATTRIBUTE_UNUSED)
 {
   bool is_fpointer = false;
   const char *op = NULL;
@@ -291,7 +299,7 @@ static char *
 wasm32_signature_string (const_tree fntype)
 {
   function_args_iterator args_iter;
-  tree n = NULL_TREE, t;
+  tree t;
   int count = 0;
 
   if (!fntype)
@@ -299,7 +307,6 @@ wasm32_signature_string (const_tree fntype)
 
   FOREACH_FUNCTION_ARGS (fntype, t, args_iter)
     {
-      n = t;
       count++;
     }
 
@@ -626,7 +633,7 @@ wasm32_jsexport (tree node ATTRIBUTE_UNUSED,
 		struct wasm32_jsexport_opts *opts ATTRIBUTE_UNUSED,
 		vec<struct wasm32_jsexport_decl> *decls ATTRIBUTE_UNUSED)
 {
-  error("jsexport not defined for this frontend");
+  error ("jsexport not defined for this frontend");
 }
 
 #include <print-tree.h>
@@ -729,11 +736,6 @@ static void wasm32_jsexport_decl_callback (void *gcc_data, void *)
 	}
     }
 
-  if (!found)
-    {
-      return;
-    }
-
   if (found)
     wasm32_jsexport(decl, &opts, &wasm32_jsexport_decls);
 }
@@ -824,11 +826,11 @@ wasm32_print_label (FILE *stream, rtx x)
 	const char *name = XSTR (x, 0);
 	if (!SYMBOL_REF_FUNCTION_P (x))
 	  {
-	    asm_fprintf (stream, "%s", name + (name[0] == '*'));
+	    assemble_name (stream, name);
 	  }
 	else if (in_section->common.flags & SECTION_CODE)
 	  {
-	    asm_fprintf (stream, "%s", name + (name[0] == '*'));
+	    assemble_name (stream, name);
 	  }
 	else
 	  {
@@ -868,11 +870,11 @@ wasm32_print_label_plt (FILE *stream, rtx x)
 	  const char *name = XSTR (x, 0);
 	  if (!SYMBOL_REF_FUNCTION_P (x))
 	    {
-	      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+	      assemble_name (stream, name);
 	    }
 	  else if (in_section->common.flags & SECTION_CODE)
 	    {
-	      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+	      assemble_name (stream, name);
 	    }
 	  else
 	    {
@@ -1169,14 +1171,15 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	    {
 	      asm_fprintf (stream, "get_global $got\n");
 	      asm_fprintf (stream, "\ti32.const ");
-	      asm_fprintf (stream, "%s@got\n", name + (name[0] == '*'));
+	      assemble_name (stream, name);
+	      asm_fprintf (stream, "@got\n");
 	      asm_fprintf (stream, "\ti32.add\n\t");
 	      asm_fprintf (stream, "i32.load a=2 0");
 	    }
 	  else
 	    {
 	      asm_fprintf (stream, "i32.const ");
-	      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+	      assemble_name (stream, name);
 	    }
 	}
       else if (in_section->common.flags & SECTION_CODE)
@@ -1185,14 +1188,15 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	    {
 	      asm_fprintf (stream, "get_global $got\n");
 	      asm_fprintf (stream, "\ti32.const ");
-	      asm_fprintf (stream, "%s@gotcode\n", name + (name[0] == '*'));
+	      assemble_name (stream, name);
+	      asm_fprintf (stream, "@gotcode\n");
 	      asm_fprintf (stream, "\ti32.add\n\t");
 	      asm_fprintf (stream, "i32.load a=2 0");
 	    }
 	  else
 	    {
 	      asm_fprintf (stream, "i32.const ");
-	      asm_fprintf (stream, "%s", name + (name[0] == '*'));
+	      assemble_name (stream, name);
 	    }
 	}
       else
@@ -1294,7 +1298,7 @@ wasm32_print_operand(FILE *stream, rtx x, int code)
     }
   else if (code == '@')
     {
-      asm_fprintf (stream, "%s", wasm32_function_name);
+      assemble_name (stream, wasm32_function_name);
       return true;
     }
   else if (code == 'L')
@@ -2042,12 +2046,11 @@ wasm32_function_regload (FILE *stream,
 }
 
 void
-wasm32_start_function (FILE *f, const char *name, tree decl)
+wasm32_start_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
 {
   char *cooked_name = (char *)alloca (strlen(name)+1);
   const char *p = name;
   char *q = cooked_name;
-  tree type = decl ? TREE_TYPE (decl) : NULL;
 
   for (p = name; *p; p++)
       *q++ = *p;
@@ -2128,8 +2131,9 @@ wasm32_end_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   wasm32_function_regload (f, decl);
   wasm32_function_regstore (f, decl, cooked_name);
 
-  asm_fprintf (f, "\tendefun %s\n",
-	      cooked_name);
+  asm_fprintf (f, "\tendefun ");
+  assemble_name (f, name);
+  asm_fprintf (f, "\n");
 
   //wasm32_define_function(f, name, decl);
   //wasm32_fpswitch_function(f, name, decl);
@@ -2154,7 +2158,9 @@ wasm32_output_ascii (FILE *f, const void *ptr, size_t len)
 void
 wasm32_output_label (FILE *stream, const char *name)
 {
-  fprintf (stream, "\t%s:\n", name + (name[0] == '*'));
+  fprintf (stream, "\t");
+  assemble_name (stream, name);
+  fprintf (stream, ":\n");
 }
 
 void
@@ -2167,28 +2173,35 @@ void
 wasm32_output_internal_label (FILE *stream, const char *name)
 {
   if (in_section && in_section->common.flags & SECTION_CODE)
-    fprintf (stream, "\t.labeldef_internal %s\n", name + (name[0] == '*'));
+    {
+      fprintf (stream, "\t.labeldef_internal ");
+      assemble_name (stream, name);
+      fprintf (stream, "\n");
+    }
   else
-    fprintf (stream, "%s:\n", name + (name[0] == '*'));
+    {
+      assemble_name (stream, name);
+      fprintf (stream, ":\n");
+    }
 }
 
 void
 wasm32_output_labelref (FILE *stream, const char *name)
 {
-  fprintf (stream, "%s", name + (name[0] == '*'));
+  fprintf (stream, "%s", name);
 }
 
 void
 wasm32_output_label_ref (FILE *stream, const char *name)
 {
-  fprintf (stream, "%s", name + (name[0] == '*'));
+  fprintf (stream, "%s", name);
 }
 
 void
 wasm32_output_symbol_ref (FILE *stream, rtx x)
 {
   const char *name = XSTR (x, 0);
-  fprintf (stream, "%s", name + (name[0] == '*'));
+  assemble_name (stream, name);
 }
 
 void
@@ -2269,7 +2282,8 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
 }
 
 void
-wasm32_output_aligned_decl_common (FILE *stream, tree decl, const char *name, size_t size, size_t align)
+wasm32_output_aligned_decl_common (FILE *stream, tree decl ATTRIBUTE_UNUSED,
+				   const char *name, size_t size, size_t align)
 {
   fprintf (stream, "\t.comm ");
   assemble_name(stream, name);
@@ -2440,7 +2454,7 @@ wasm32_incoming_return_addr_rtx (void)
 }
 
 rtx
-wasm32_return_addr_rtx (int count, rtx frameaddr)
+wasm32_return_addr_rtx (int count, rtx frameaddr ATTRIBUTE_UNUSED)
 {
   if (count == 0)
     {
@@ -2988,7 +3002,7 @@ wasm32_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
     asm_fprintf (f, "\tget_local $sp\n\ti32.const %d\n\ti32.add\n\tget_local %s\n\ti32.store a=2 0\n", structret ? 20 : 16, r);
 
   asm_fprintf (f, "\ti32.const -1\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %s@plt{__sigchar_FiiiiiiiE}\n\treturn\n",
-	       tname, tname);
+	       tname);
 }
 
 #undef TARGET_ASM_GLOBALIZE_LABEL
