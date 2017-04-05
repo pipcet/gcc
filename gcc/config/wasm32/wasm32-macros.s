@@ -557,3 +557,36 @@ __wasm_import_global_\symbol:
         .byte 0
         .popsection
         .endm
+
+        .macro export_function symbol, field
+        .pushsection .space.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.export
+        lstring \field
+        .byte 0
+        rleb128_32 \symbol
+        .popsection
+        .endm
+
+        .macro export_global symbol, field
+        .pushsection .space.global
+        .byte 0
+        .popsection
+        .pushsection .space.global_index
+0:      .byte 0
+        .popsection
+        .pushsection .wasm.global
+        .byte 0x7f
+        .byte 0
+        i32.const \symbol
+        end
+        .popsection
+        .pushsection .space.export
+        .byte 0
+        .popsection
+        .pushsection .wasm.export
+        lstring \field
+        .byte 3
+        rleb128_32 0b
+        .endm

@@ -834,6 +834,35 @@ wasm32_import_parse (const_tree decl, const char **name,
   return false;
 }
 
+static bool
+wasm32_export_parse (const_tree decl, const char **name, const char **field)
+{
+  tree attrs = DECL_ATTRIBUTES (decl);
+  if (attrs)
+    {
+      tree exattr = lookup_attribute ("export", attrs);
+      if (exattr)
+	{
+	  tree args = TREE_VALUE (exattr);
+
+	  *name = IDENTIFIER_POINTER (DECL_NAME (decl));
+
+	  if (!args)
+	    *field = *name;
+	  else
+	    {
+	      tree arg = TREE_VALUE (args);
+
+	      *field = TREE_STRING_POINTER (arg);
+	    }
+
+	  return true;
+	}
+    }
+
+  return false;
+}
+
 static void
 wasm32_imexport_decl_callback (void *gcc_data, void *)
 {
@@ -854,10 +883,11 @@ wasm32_imexport_decl_callback (void *gcc_data, void *)
 	  if (TREE_CODE (decl) == VAR_DECL)
 	    {
 	      bool is_mutable = false; /* XXX */
-	      ret.fragments.safe_push (concat ("import_global ", name,
-					       ", \"", module, "\", \"", field,
-					       "\", ", is_mutable ? "1" : "0",
-					       NULL));
+	      ret.fragments.safe_push
+		(concat ("import_global ", name,
+			 ", \"", module, "\", \"", field,
+			 "\", ", is_mutable ? "1" : "0",
+			 NULL));
 	    }
 	  else if (TREE_CODE (decl) == FUNCTION_DECL)
 	    {
@@ -871,14 +901,15 @@ wasm32_imexport_decl_callback (void *gcc_data, void *)
 	      else
 		sig = "FiiiiiiiE";
 
-	      ret.fragments.safe_push (concat ("import_function ", name,
-					       ", \"", module, "\", \"", field,
-					       "\", __sigchar_", sig, NULL));
+	      ret.fragments.safe_push
+		(concat ("import_function ", name,
+			 ", \"", module, "\", \"", field,
+			 "\", __sigchar_", sig, NULL));
 	    }
 
 	  wasm32_imexport_decls.safe_push (ret);
 	}
-#if 0
+
       if (wasm32_export_parse (decl, &name, &field))
 	{
 	  struct wasm32_imexport_decl ret;
@@ -894,7 +925,6 @@ wasm32_imexport_decl_callback (void *gcc_data, void *)
 
 	  wasm32_imexport_decls.safe_push (ret);
 	}
-#endif
     }
 }
 
@@ -904,15 +934,18 @@ wasm32_imexport_plugin_inited = false;
 static void
 wasm32_imexport_plugin_init (void)
 {
-  register_callback("imexport", PLUGIN_FINISH_DECL,
-		    wasm32_imexport_decl_callback, NULL);
-  register_callback("imexport", PLUGIN_FINISH_TYPE,
-		    wasm32_imexport_decl_callback, NULL);
-  register_callback("imexport", PLUGIN_FINISH_UNIT,
-		    wasm32_imexport_unit_callback, NULL);
-  flag_plugin_added = true;
+  if (!wasm32_imexport_plugin_inited)
+    {
+      register_callback("imexport", PLUGIN_FINISH_DECL,
+			wasm32_imexport_decl_callback, NULL);
+      register_callback("imexport", PLUGIN_FINISH_TYPE,
+			wasm32_imexport_decl_callback, NULL);
+      register_callback("imexport", PLUGIN_FINISH_UNIT,
+			wasm32_imexport_unit_callback, NULL);
+      flag_plugin_added = true;
 
-  wasm32_imexport_plugin_inited = true;
+      wasm32_imexport_plugin_inited = true;
+    }
 }
 
 static tree
@@ -963,6 +996,37 @@ wasm32_handle_import_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
   return NULL_TREE;
 }
 
+static tree
+wasm32_handle_export_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
+				tree args, int,
+				bool *no_add_attrs ATTRIBUTE_UNUSED)
+{
+  const char *module ATTRIBUTE_UNUSED;
+  const char *field ATTRIBUTE_UNUSED;
+  tree arg;
+
+  wasm32_imexport_plugin_init ();
+  wasm32_imexport_decl_callback ((void *)*node, NULL);
+
+  if (!args)
+    {
+      field = IDENTIFIER_POINTER (DECL_NAME (*node));
+      return NULL_TREE;
+    }
+
+  arg = TREE_VALUE (args);
+
+  if (TREE_CODE (arg) != STRING_CST)
+    {
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+
+  field = TREE_STRING_POINTER (arg);
+
+  return NULL_TREE;
+}
+
 static const struct attribute_spec
 wasm32_attribute_table[] =
 {
@@ -975,6 +1039,7 @@ wasm32_attribute_table[] =
 
   { "jsexport", 0, 2, false, false, false, wasm32_handle_jsexport_attribute, false },
   { "import", 1, 2, true, false, false, wasm32_handle_import_attribute, false },
+  { "export", 0, 1, true, false, false, wasm32_handle_export_attribute, false },
   { NULL, 0, 0, false, false, false, NULL, false }
 };
 
