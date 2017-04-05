@@ -2067,50 +2067,6 @@ wasm32_start_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   //asm_fprintf (f, "\ti32.const -16\n\tget_local $sp1\n\ti32.add\n\tset_local $sp\n"); moved to wasm32-macros.s
 }
 
-static void
-wasm32_define_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
-{
-  char *cooked_name = (char *)alloca (strlen(name)+1);
-  const char *p = name;
-  char *q = cooked_name;
-
-  for (p = name; *p; p++)
-    *q++ = *p;
-
-  *q = 0;
-
-  while (cooked_name[0] == '*')
-    cooked_name++;
-
-  asm_fprintf (f, "\t.section .special.define,\"a\"\n");
-  asm_fprintf (f, "\t.pushsection .javascript%%S,\"a\"\n");
-  asm_fprintf (f, "\t.ascii \"\\tdeffun({name: \\\"f_\"\n\t.codetextlabel .L.%s\n\t.ascii \"\\\", symbol: \\\"%s\\\", pc0: \"\n\t.codetextlabel .L.%s\n\t.ascii \", pc1: \"\n\t.codetextlabel .L.ends.%s\n\t.ascii \", regsize: %d, regmask: 0x%x});\\n\"\n", cooked_name, cooked_name, cooked_name, cooked_name, wasm32_function_regsize (decl), wasm32_function_regmask (decl));
-  asm_fprintf (f, "\t.popsection\n");
-}
-
-static void
-wasm32_fpswitch_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
-{
-  char *cooked_name = (char *)alloca (strlen(name)+1);
-  const char *p = name;
-  char *q = cooked_name;
-
-  for (p = name; *p; p++)
-    *q++ = *p;
-
-  *q = 0;
-
-  while (cooked_name[0] == '*')
-    cooked_name++;
-
-  asm_fprintf (f, "\t.section .special.fpswitch,\"a\"\n");
-  asm_fprintf (f, "\t.pushsection .wasm_pwas%%S,\"a\"\n");
-  asm_fprintf (f, "\t.rept (.L.ends.%s-.L.%s+4096)/4096\n", cooked_name, cooked_name);
-  asm_fprintf (f, "\t(return (call $f_$\n\t.codetextlabel .L.%s\n\t (get_local $dpc) (get_local $sp1) (get_local $r0) (get_local $r1) (get_local $rpc) (get_local $pc0)))\n", cooked_name);
-  asm_fprintf (f, "\t.endr\n");
-  asm_fprintf (f, "\t.popsection\n");
-}
-
 void
 wasm32_end_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
 {
