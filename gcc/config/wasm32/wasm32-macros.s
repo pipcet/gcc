@@ -507,3 +507,32 @@ __wasm_body_blocks_\name\()_sym:
         .labeldef_internal \label
         .endm
         .endif
+
+        .macro import_function symbol, module, field, sigsym
+        .pushsection .space.import
+        .reloc ., R_WASM32_CODE_POINTER, 0f
+        .byte 0
+        .popsection
+        .pushsection .wasm.import
+0:      lstring \module
+        lstring \field
+        .byte 0
+        rleb128 \sigsym
+        .popsection
+        .pushsection .space.function_index.import,""
+        .type \symbol, @function
+        .size \symbol, 1
+\symbol:
+        .reloc ., R_WASM32_INDEX, 1f
+        .byte 0
+        .popsection
+        .pushsection .space.element.import
+        .reloc ., R_WASM32_CODE_POINTER, 0f
+1:
+        .byte 0
+        .popsection
+        .pushsection .wasm.element.import
+0:
+        rleb128_32 \symbol
+        .popsection
+        .endm

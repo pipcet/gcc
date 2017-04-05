@@ -4,7 +4,7 @@
 
         createsig FiiiiE
         .pushsection .space.import
-        .reloc .,R_WASM32_CODE_POINTER,0f
+        .reloc ., R_WASM32_CODE_POINTER, 0f
         .byte 0x00
         .popsection
         .pushsection .wasm.import

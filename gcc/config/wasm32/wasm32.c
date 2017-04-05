@@ -810,20 +810,20 @@ wasm32_import_parse (const_tree decl, const char **name,
       if (imattr)
 	{
 	  tree args = TREE_VALUE (imattr);
+	  tree arg = TREE_VALUE (args);;
 
 	  *name = IDENTIFIER_POINTER (DECL_NAME (decl));
 
-	  *module = TREE_STRING_POINTER (args);
+	  *module = TREE_STRING_POINTER (arg);
 	  args = TREE_CHAIN (args);
-	  if (args && TREE_CODE (args) == STRING_CST)
-	    {
-	      *field = TREE_STRING_POINTER (args);
-	    }
+	  if (args)
+	    arg = TREE_VALUE (args);
+
+	  if (args && TREE_CODE (arg) == STRING_CST)
+	    *field = TREE_STRING_POINTER (arg);
 	  else if (TREE_CODE (decl) == FUNCTION_DECL
 		   || TREE_CODE (decl) == VAR_DECL)
-	    {
-	      *field = IDENTIFIER_POINTER (DECL_NAME (decl));
-	    }
+	    *field = IDENTIFIER_POINTER (DECL_NAME (decl));
 	  else
 	    *field = *name;
 
@@ -853,12 +853,24 @@ wasm32_imexport_decl_callback (void *gcc_data, void *)
 
 	  if (TREE_CODE (decl) == VAR_DECL)
 	    ret.fragments.safe_push (concat ("import_global ", name,
-					     ", ", module, ", ", field,
-					     NULL));
+					     ", \"", module, "\", \"", field,
+					     "\"", NULL));
 	  else if (TREE_CODE (decl) == FUNCTION_DECL)
-	    ret.fragments.safe_push (concat ("import_function ", name,
-					     ", ", module, ", ", field,
-					     NULL));
+	    {
+	      const char *sig;
+
+	      if (lookup_attribute ("rawcall", TYPE_ATTRIBUTES (TREE_TYPE (decl))))
+		{
+		  sig = wasm32_signature_string (TREE_TYPE (decl));
+		  ret.fragments.safe_push (concat ("createsig ", sig, NULL));
+		}
+	      else
+		sig = "FiiiiiiiE";
+
+	      ret.fragments.safe_push (concat ("import_function ", name,
+					       ", \"", module, "\", \"", field,
+					       "\", __sigchar_", sig, NULL));
+	    }
 
 	  wasm32_imexport_decls.safe_push (ret);
 	}
@@ -871,10 +883,10 @@ wasm32_imexport_decl_callback (void *gcc_data, void *)
 
 	  if (TREE_CODE (decl) == VAR_DECL)
 	    ret.fragments.safe_push (concat ("export_global ", name,
-					     ", ", field));
+					     ", \"", field, "\"", NULL));
 	  else if (TREE_CODE (decl) == FUNCTION_DECL)
 	    ret.fragments.safe_push (concat ("export_function ", name,
-					     ", ", field));
+					     ", \"", field, "\"", NULL));
 
 	  wasm32_imexport_decls.safe_push (ret);
 	}
@@ -906,22 +918,29 @@ wasm32_handle_import_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
 {
   const char *module ATTRIBUTE_UNUSED;
   const char *field ATTRIBUTE_UNUSED;
+  tree arg;
 
   wasm32_imexport_plugin_init ();
+  wasm32_imexport_decl_callback ((void *)*node, NULL);
 
-  if (TREE_CODE (args) != STRING_CST)
+  arg = TREE_VALUE (args);
+
+  if (TREE_CODE (arg) != STRING_CST)
     {
       *no_add_attrs = true;
       return NULL_TREE;
     }
 
-  module = TREE_STRING_POINTER (args);
+  module = TREE_STRING_POINTER (arg);
 
   args = TREE_CHAIN (args);
 
-  if (args && TREE_CODE (args) == STRING_CST)
+  if (args)
+    arg = TREE_VALUE (args);
+
+  if (args && TREE_CODE (arg) == STRING_CST)
     {
-      field = TREE_STRING_POINTER (args);
+      field = TREE_STRING_POINTER (arg);
     }
   else if (TREE_CODE (*node) == FUNCTION_DECL)
     {
