@@ -48,12 +48,7 @@
         .set $f6, 29
         .set $f7, 30
         ;; in-memory per-thread globals
-        .set $rv, 4096
-        .set $a0, 4104
-        .set $a1, 4112
-        .set $a2, 4120
-        .set $a3, 4128
-        .set $tp, 8192
+        .set $rv, 8288
         ;; per-instance immutable get_global globals
         .set $got, 0
         .set $plt, 1

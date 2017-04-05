@@ -43,8 +43,7 @@
 
 /* XXX TARGET_FLOAT_EXCEPTIONS_ROUNDING_SUPPORTED_P -> 0 */
 
-/* Define this if most significant bit is lowest numbered
-   in instructions that operate on numbered bit-fields.  */
+/* WebAssembly is strictly little-endian.  */
 #define BITS_BIG_ENDIAN 0
 #define BYTES_BIG_ENDIAN 0
 #define WORDS_BIG_ENDIAN BYTES_BIG_ENDIAN
@@ -62,8 +61,8 @@
 #define BIGGEST_ALIGNMENT 64
 #define MALLOC_ABI_ALIGNMENT 64
 #define MAX_OFILE_ALIGNMENT (32768 * 8)
-/* Nonzero if move instructions will actually fail to work
-   when given unaligned data.  */
+/* Nonzero if move instructions will actually fail to work when given
+   unaligned data.  XXX this should be 0.  */
 #define STRICT_ALIGNMENT 1
 // #define MAX_FIXED_MODE_SIZE Pmode
 
@@ -71,7 +70,7 @@
 #define LONG_LONG_TYPE_SIZE 64
 #define FLOAT_TYPE_SIZE 32
 #define DOUBLE_TYPE_SIZE 64
-#define LONG_DOUBLE_TYPE_SIZE 64 /* The proposed WASM ABI has 128 */
+#define LONG_DOUBLE_TYPE_SIZE 64 /* The proposed wasm ABI has 128.  */
 
 #define DEFAULT_SIGNED_CHAR  0 /* XXX check wasm ABI */
 
@@ -226,12 +225,10 @@ typedef struct {
 #define FUNCTION_PROFILER(STREAM, LABELNO)	        \
   do { } while(0)
 
-/* Length in units of the trampoline for entering a nested function. */
+/* Length in units of the trampoline for entering a nested function.  */
 #define TRAMPOLINE_SIZE 32
 /* Alignment required for a trampoline in bits.  */
 #define TRAMPOLINE_ALIGNMENT 128
-
-/* XXX TARGET_EDOM? */
 
 #define MAX_REGS_PER_ADDRESS 5 /* XXX */
 
@@ -260,7 +257,7 @@ typedef struct {
 #define FINI_ARRAY_SECTION_ASM_OP
 
 /* hand-crafted version of "call". It's a bit of a hack to use #FUNC
- * as the unique identifier since we don't have %=... (there's __COUNTER__) */
+   as the unique identifier since we don't have %=... (there's __COUNTER__) */
 /* XXX is this still needed? */
 #define CRT_CALL_STATIC_FUNCTION(SECTION_OP, FUNC)		\
    asm (SECTION_OP "\n\t"					\
