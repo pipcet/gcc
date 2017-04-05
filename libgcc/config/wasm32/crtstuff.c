@@ -37,6 +37,12 @@ asm(".globl __wasm_null\n\t"
     ".popsection\n\t"
     ".endif\n\t");
 
+asm(".pushsection .space.global_index.import\n\t"
+    ".byte 0\n\t"
+    ".byte 0\n\t"
+    ".byte 0\n\t"
+    ".popsection\n\t");
+
 #endif
 
 #include "../../crtstuff.c"

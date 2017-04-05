@@ -536,3 +536,24 @@ __wasm_body_blocks_\name\()_sym:
         rleb128_32 \symbol
         .popsection
         .endm
+
+        .macro import_global symbol, module, field, mutable
+        .pushsection .space.import
+        .reloc ., R_WASM32_CODE_POINTER, 0f
+        .byte 0
+        .popsection
+        .pushsection .wasm.import
+0:
+        lstring \module
+        lstring \field
+        .byte 3
+        .byte 0x7f              ; fixed at i32 for now
+        .byte \mutable
+        .popsection
+        .pushsection .space.global_index.import
+        .type __wasm_import_global_\symbol, @object
+        .size __wasm_import_global_\symbol, 1
+__wasm_import_global_\symbol:
+        .byte 0
+        .popsection
+        .endm

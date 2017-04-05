@@ -852,9 +852,13 @@ wasm32_imexport_decl_callback (void *gcc_data, void *)
 	  ret.fragments = vec<const char *> ();
 
 	  if (TREE_CODE (decl) == VAR_DECL)
-	    ret.fragments.safe_push (concat ("import_global ", name,
-					     ", \"", module, "\", \"", field,
-					     "\"", NULL));
+	    {
+	      bool is_mutable = false; /* XXX */
+	      ret.fragments.safe_push (concat ("import_global ", name,
+					       ", \"", module, "\", \"", field,
+					       "\", ", is_mutable ? "1" : "0",
+					       NULL));
+	    }
 	  else if (TREE_CODE (decl) == FUNCTION_DECL)
 	    {
 	      const char *sig;
