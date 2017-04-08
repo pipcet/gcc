@@ -184,7 +184,7 @@ __sigchar_\sig:
         ;;     OR
         ;; .wasm.code..text.f     <--      top
         ;; .text.f
-        .macro defun name, sig:vararg
+        .macro defun name, sig, raw = 0
         .set __wasm_in_defun, 1
         createsig \sig
         .local __wasm_body_blocks_\name\()_sym
@@ -220,7 +220,9 @@ __wasm_element_\()\name:
         .reloc .,R_WASM32_INDEX,5b
         .reloc .,R_WASM32_INDEX,6b
         .reloc .,R_WASM32_INDEX,7b
+        .ifeq \raw
         .reloc .,R_WASM32_INDEX,__wasm_name_local_\name
+        .endif
         .reloc .,R_WASM32_INDEX,__wasm_name_function_\name
 \name\():
         .byte 0x00
@@ -230,19 +232,11 @@ __wasm_element_\()\name:
         .set __wasm_pc_base, .
         .set __wasm_pc_base_\()\name, .
         .popsection
-        .if 0
-        .ifeqs "\name","main"
-        .pushsection .space.export
-        .byte 0
-        .popsection
-        .pushsection .wasm.export
-        lstring \name
-        .byte 0
-        rleb128_32 \name
-        .popsection
-        .endif
-        .endif
         .ifeqs "\name","_start"
+        .pushsection .space.global_index
+3:
+        .byte 0
+        .popsection
         .pushsection .space.global
         .byte 0
         .popsection
@@ -258,20 +252,7 @@ __wasm_element_\()\name:
         .pushsection .wasm.export
         lstring "entry"
         .byte 3
-        .byte 3
-        .popsection
-        .endif
-        .if 0
-        .pushsection .space.export
-        .byte 0
-        .popsection
-        .pushsection .wasm.export
-        rleb128_8 18
-        .ascii "f_"
-        .reloc .,R_WASM32_HEX16,\name
-        .ascii "0000000000000000"
-        .byte 0
-        rleb128_32 \name
+        rleb128_32 3b
         .popsection
         .endif
         .if 1
@@ -286,6 +267,7 @@ __wasm_name_function2_\name:
         rleb128_32 \name
         lstring \name
         .popsection
+        .ifeq \raw
         .pushsection .space.name.local.%S
 __wasm_name_local_\name:
         .reloc .,R_WASM32_CODE_POINTER,__wasm_name_local2_\name
@@ -360,6 +342,7 @@ __wasm_name_local2_\name:
         lstring f7
         .popsection
         .endif
+        .endif
         .pushsection .wasm.function.%S
 __wasm_function__\name\():
         rleb128_32 __sigchar_\sig
@@ -392,7 +375,27 @@ __wasm_code_\name\():
         br __wasm_depth - __wasm_blocks - 1
         .endm
 
-        .macro endefun name
+        .macro function_header i, f, l, d
+        .byte -((\i != 0) + (\f != 0) + (\l != 0) + (\d != 0))
+        .if \i
+        rleb128_32 \i
+        .byte 0x7f
+        .endif
+        .if \l
+        rleb128_32 \l
+        .byte 0x7e
+        .endif
+        .if \f
+        rleb128_32 \f
+        .byte 0x7d
+        .endif
+        .if \d
+        rleb128_32 \d
+        .byte 0x7c
+        .endif
+        .endm
+
+        .macro endefun name, raw = 0, ints = 17, floats = 8
         .local __wasm_body_header_\name\()
         .local __wasm_body_ast_\name\()
 2:
@@ -403,11 +406,7 @@ __wasm_body_header_\name\():
         .type __wasm_body_header_\name\(), @object
         rleb128_32 2b - 1f
 1:
-        .byte 0x02
-        .byte 17
-        .byte 0x7f
-        .byte 8
-        .byte 0x7c
+        function_header \ints, 0, 0, \floats
         .size __wasm_body_header_\name\(), . - __wasm_body_header_\name\()
 __wasm_body_ast_\name\():
         .ifne __wasm_blocks
@@ -429,26 +428,6 @@ __wasm_body_blocks_\name:
         .offset __wasm_blocks
 __wasm_body_blocks_\name\()_sym:
         .popsection
-        .if 0
-        i32.const 0
-        i32.load a=2 0
-        if[]
-        i32.const -1
-        get_local $dpc
-        i32.ne
-        i32.const 0
-        get_local $dpc
-        i32.ne
-        i32.and
-        if[]
-        i32.const 1
-        get_local $sp
-        i32.or
-        set_local $rp
-        br __wasm_blocks+3
-        end
-        end
-        .endif
         get_local $dpc
         .byte 0x0e
         rleb128_32 __wasm_blocks-1

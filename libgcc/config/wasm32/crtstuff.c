@@ -37,6 +37,21 @@ asm(".globl __wasm_null\n\t"
     ".popsection\n\t"
     ".endif\n\t");
 
+asm("\t.pushsection .space.global\n"
+    "\t.byte 0\n"
+    "\t.popsection\n"
+    "\t.pushsection .space.global_index\n"
+    "\t.globl __wasm_stack_pointer\n"
+    "__wasm_stack_pointer:\n"
+    "\t.byte 0\n"
+    "\t.popsection\n"
+    "\t.pushsection .wasm.global\n"
+    "\t.byte 0x7f\n"
+    "\t.byte 1\n"
+    "\ti32.const 0\n"
+    "\tend\n"
+    "\t.popsection\n");
+
 asm(".pushsection .space.global_index.import\n\t"
     ".byte 0\n\t"
     ".byte 0\n\t"

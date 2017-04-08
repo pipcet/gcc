@@ -2315,8 +2315,201 @@ wasm32_function_regload (FILE *stream,
   return size;
 }
 
+static void
+save_stack_args (const char *sig)
+{
+  rtx *operands = NULL;
+  bool stackret = (sig[1] == 'l'
+		   || sig[1] == 'f'
+		   || sig[1] == 'd');
+  int stacksize = stackret ? 4 : 0;
+  int local_index = 0;
+  int sigindex;
+
+  for (sigindex = 2; sig[sigindex] != 'E'; sigindex++, local_index++)
+    {
+      switch (sig[sigindex])
+	{
+	case 'i':
+	case 'f':
+	  stacksize += 4;
+	  break;
+	case 'l':
+	case 'd':
+	  stacksize += (stacksize & 4);
+	  stacksize += 8;
+	  break;
+	}
+    }
+
+  stacksize += 7;
+  stacksize &= -8;
+
+  char *templ;
+  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+  asprintf (&templ, "i32.const %d", -stacksize);
+  output_asm_insn (templ, operands);
+  free (templ);
+  output_asm_insn ("i32.add", operands);
+  output_asm_insn ("set_global __wasm_stack_pointer", operands);
+
+  stacksize = stackret ? 4 : 0;
+  local_index = 0;
+  for (sigindex = 2; sig[sigindex] != 'E'; sigindex++, local_index++)
+    {
+      switch (sig[sigindex])
+	{
+	case 'i':
+	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  asprintf (&templ, "i32.const %d", stacksize);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  asprintf (&templ, "get_local %d", local_index);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.store a=2 0", operands);
+	  stacksize += 4;
+	  break;
+	case 'f':
+	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  asprintf (&templ, "i32.const %d", stacksize);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  asprintf (&templ, "get_local %d", local_index);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("f32.store a=2 0", operands);
+	  stacksize += 4;
+	  break;
+	case 'd':
+	  stacksize += stacksize & 4;
+	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  asprintf (&templ, "i32.const %d", stacksize);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  asprintf (&templ, "get_local %d", local_index);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("f64.store a=2 0", operands);
+	  stacksize += 8;
+	  break;
+	case 'l':
+	  stacksize += stacksize & 4;
+	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  asprintf (&templ, "i32.const %d", stacksize);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  asprintf (&templ, "get_local %d", local_index);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i64.store a=2 0", operands);
+	  stacksize += 8;
+	  break;
+	}
+    }
+}
+
+static void
+load_stack_rets (const char *sig)
+{
+  rtx *operands = NULL;
+  bool stackret = (sig[1] == 'l'
+		   || sig[1] == 'f'
+		   || sig[1] == 'd');
+  int stacksize = stackret ? 4 : 0;
+  int local_index = 0;
+  int sigindex;
+
+  for (sigindex = 2; sig[sigindex] != 'E'; sigindex++, local_index++)
+    {
+      switch (sig[sigindex])
+	{
+	case 'i':
+	case 'f':
+	  stacksize += 4;
+	  break;
+	case 'l':
+	case 'd':
+	  stacksize += (stacksize & 4);
+	  stacksize += 8;
+	  break;
+	}
+    }
+
+  char *templ;
+  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+  asprintf (&templ, "i32.const %d", -stacksize);
+  output_asm_insn (templ, operands);
+  free (templ);
+  output_asm_insn ("i32.add", operands);
+  output_asm_insn ("set_global __wasm_stack_pointer", operands);
+
+  stacksize = stackret ? 4 : 0;
+  local_index = 0;
+  for (sigindex = 2; sig[sigindex] != 'E'; sigindex++, local_index++)
+    {
+      switch (sig[sigindex])
+	{
+	case 'i':
+	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  asprintf (&templ, "i32.const %d", stacksize);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  asprintf (&templ, "get_local %d", local_index);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.store a=2 0", operands);
+	  stacksize += 4;
+	  break;
+	case 'f':
+	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  asprintf (&templ, "i32.const %d", stacksize);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  asprintf (&templ, "get_local %d", local_index);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("f32.store a=2 0", operands);
+	  stacksize += 4;
+	  break;
+	case 'd':
+	  stacksize += stacksize & 4;
+	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  asprintf (&templ, "i32.const %d", stacksize);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  asprintf (&templ, "get_local %d", local_index);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("f64.store a=2 0", operands);
+	  stacksize += 8;
+	  break;
+	case 'l':
+	  stacksize += stacksize & 4;
+	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  asprintf (&templ, "i32.const %d", stacksize);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i32.add", operands);
+	  asprintf (&templ, "get_local %d", local_index);
+	  output_asm_insn (templ, operands);
+	  free (templ);
+	  output_asm_insn ("i64.store a=2 0", operands);
+	  stacksize += 8;
+	  break;
+	}
+    }
+}
+
 void
-wasm32_start_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
+wasm32_start_function (FILE *f, const char *name, tree decl)
 {
   char *cooked_name = (char *)alloca (strlen(name)+1);
   const char *p = name;
@@ -2332,9 +2525,64 @@ wasm32_start_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
 
   wasm32_function_name = ggc_strdup (cooked_name);
 
-  asm_fprintf (f, "\tdefun %s, FiiiiiiiE\n",
-	       cooked_name);
-  //asm_fprintf (f, "\ti32.const -16\n\tget_local $sp1\n\ti32.add\n\tset_local $sp\n"); moved to wasm32-macros.s
+  tree type = TREE_TYPE (decl);
+  if (lookup_attribute ("rawcall", TYPE_ATTRIBUTES (type)))
+    {
+      const char *sig = wasm32_signature_string (type);
+      wasm32_function_name = concat ("__wasm_wrapped_", wasm32_function_name,
+				     NULL);
+
+      asm_fprintf (f, "\tdefun %s, %s, 1\n", cooked_name, sig);
+
+      save_stack_args (sig);
+      switch (sig[1])
+	{
+	case 'v':
+	case 'i':
+	  break;
+	case 'l':
+	case 'f':
+	case 'd':
+	  asm_fprintf (f, "\tget_global __wasm_stack_pointer\n");
+	  break;
+	}
+      asm_fprintf (f, "\ti32.const -1\n");
+      asm_fprintf (f, "\tget_global __wasm_stack_pointer\n");
+      asm_fprintf (f, "\ti32.const 0\n");
+      asm_fprintf (f, "\ti32.const 0\n");
+      asm_fprintf (f, "\ti32.const 0\n");
+      asm_fprintf (f, "\ti32.const 0\n");
+      asm_fprintf (f, "\tcall %s\n", wasm32_function_name);
+      asm_fprintf (f, "\tdrop\n");
+      switch (sig[1])
+	{
+	case 'v':
+	  break;
+	case 'i':
+	  asm_fprintf (f, "\ti32.const 8288\n");
+	  asm_fprintf (f, "\ti32.load a=2 0\n");
+	  break;
+	case 'l':
+	  asm_fprintf (f, "\ti32.load a=2 0\n");
+	  asm_fprintf (f, "\ti64.load a=3 0\n");
+	  break;
+	case 'f':
+	  asm_fprintf (f, "\ti32.load a=2 0\n");
+	  asm_fprintf (f, "\tf32.load a=2 0\n");
+	  break;
+	case 'd':
+	  asm_fprintf (f, "\ti32.load a=2 0\n");
+	  asm_fprintf (f, "\tf64.load a=3 0\n");
+	  break;
+	}
+      asm_fprintf (f, "\treturn\n");
+      asm_fprintf (f, "\tend\n");
+      asm_fprintf (f, "\tendefun %s, 1\n", cooked_name);
+
+      cooked_name = (char *)wasm32_function_name;
+    }
+
+  asm_fprintf (f, "\tdefun %s, FiiiiiiiE\n", cooked_name);
 }
 
 void
@@ -2358,11 +2606,8 @@ wasm32_end_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
   wasm32_function_regstore (f, decl, cooked_name);
 
   asm_fprintf (f, "\tendefun ");
-  assemble_name (f, name);
+  assemble_name (f, wasm32_function_name);
   asm_fprintf (f, "\n");
-
-  //wasm32_define_function(f, name, decl);
-  //wasm32_fpswitch_function(f, name, decl);
 }
 
 void
@@ -2700,20 +2945,64 @@ wasm32_first_parm_offset (const_tree fntype ATTRIBUTE_UNUSED)
   return 0;
 }
 
+static void
+load_stack_args (const char *sig)
+{
+  rtx *operands = NULL;
+  bool stackret = (sig[1] == 'l'
+		   || sig[1] == 'f'
+		   || sig[1] == 'd');
+  int num_args = strlen (sig) - 3;
+
+  int stackoff = stackret ? 4 : 0;
+  int sigindex = 2;
+  while (num_args)
+    {
+      char *templ;
+
+      output_asm_insn ("get_local $sp", operands);
+      if (sig[sigindex] == 'd' ||
+	  sig[sigindex] == 'l')
+	stackoff += (stackoff & 4);
+      asprintf (&templ, "i32.const %d", stackoff);
+      output_asm_insn (templ, operands);
+      output_asm_insn ("i32.add", operands);
+      if (sig[sigindex] == 'i')
+	{
+	  output_asm_insn ("i32.load a=2 0", operands);
+	  stackoff += 4;
+	}
+      else if (sig[sigindex] == 'f')
+	{
+	  output_asm_insn ("f32.load a=2 0", operands);
+	  stackoff += 4;
+	}
+      else if (sig[sigindex] == 'l')
+	{
+	  output_asm_insn ("i64.load a=3 0", operands);
+	  stackoff += 8;
+	}
+      else if (sig[sigindex] == 'd')
+	{
+	  output_asm_insn ("f64.load a=3 0", operands);
+	  stackoff += 8;
+	}
+      num_args--;
+      sigindex++;
+      free (templ);
+    }
+}
+
 const char *
 output_call (rtx *operands, bool immediate, bool value)
 {
   const char *sig = XSTR (operands[1], 0);
+  bool retval = sig[1] != 'v';
+  bool stackret = (sig[1] == 'l'
+		   || sig[1] == 'f'
+		   || sig[1] == 'd');
   if (sig[0])
     {
-      long wideint = INTVAL (operands[1]);
-      const char *signature = (const char *)wideint;
-      bool retval = signature[1] != 'v';
-      bool stackret = (signature[1] == 'l'
-		       || signature[1] == 'f'
-		       || signature[1] == 'd');
-      int num_args = strlen (signature) - 3;
-
       if (value)
 	{
 	  output_asm_insn ("i32.const 8288", operands);
@@ -2724,83 +3013,12 @@ output_call (rtx *operands, bool immediate, bool value)
 	  output_asm_insn ("i32.load a=2 0", operands);
 	}
 
-#if 0
-      if (num_args)
-	{
-	  output_asm_insn ("get_local $r0", operands);
-	  num_args--;
-	}
-      if (num_args)
-	{
-	  output_asm_insn ("get_local $r1", operands);
-	  num_args--;
-	}
-      if (num_args)
-	{
-	  output_asm_insn ("i32.const 8296", operands);
-	  output_asm_insn ("i32.load a=2 0", operands);
-	  num_args--;
-	}
-      if (num_args)
-	{
-	  output_asm_insn ("i32.const 8304", operands);
-	  output_asm_insn ("i32.load a=2 0", operands);
-	  num_args--;
-	}
-      if (num_args)
-	{
-	  output_asm_insn ("i32.const 8312", operands);
-	  output_asm_insn ("i32.load a=2 0", operands);
-	  num_args--;
-	}
-      if (num_args)
-	{
-	  output_asm_insn ("i32.const 8320", operands);
-	  output_asm_insn ("i32.load a=2 0", operands);
-	  num_args--;
-	}
-#endif
+      load_stack_args (sig);
 
-      int stackoff = stackret ? 4 : 0;
-      int sigindex = 2;
-      while (num_args)
-	{
-	  char *templ;
-
-	  output_asm_insn ("get_local $sp", operands);
-	  if (signature[sigindex] == 'd' ||
-	      signature[sigindex] == 'l')
-	    stackoff += (stackoff & 4);
-	  asprintf (&templ, "i32.const %d", stackoff);
-	  output_asm_insn (templ, operands);
-	  output_asm_insn ("i32.add", operands);
-	  if (signature[sigindex] == 'i')
-	    {
-	      output_asm_insn ("i32.load a=2 0", operands);
-	      stackoff += 4;
-	    }
-	  else if (signature[sigindex] == 'f')
-	    {
-	      output_asm_insn ("f32.load a=2 0", operands);
-	      stackoff += 4;
-	    }
-	  else if (signature[sigindex] == 'l')
-	    {
-	      output_asm_insn ("i64.load a=3 0", operands);
-	      stackoff += 8;
-	    }
-	  else if (signature[sigindex] == 'd')
-	    {
-	      output_asm_insn ("f64.load a=3 0", operands);
-	      stackoff += 8;
-	    }
-	  num_args--;
-	  sigindex++;
-	  free (templ);
-	}
-
-      if (num_args)
-	abort ();
+      output_asm_insn ("get_local $sp", operands);
+      output_asm_insn ("i32.const -16", operands);
+      output_asm_insn ("i32.add", operands);
+      output_asm_insn ("set_global __wasm_stack_pointer", operands);
 
       if (immediate)
 	{
@@ -2821,7 +3039,7 @@ output_call (rtx *operands, bool immediate, bool value)
 	  else
 	    {
 	      char *templ;
-	      asprintf (&templ, "call %%L0@plt{__sigchar_%s}", signature);
+	      asprintf (&templ, "call %%L0@plt{__sigchar_%s}", sig);
 	      output_asm_insn (templ, operands);
 	      free (templ);
 	    }
@@ -2830,29 +3048,29 @@ output_call (rtx *operands, bool immediate, bool value)
 	{
 	  char *templ;
 	  output_asm_insn ("%0", operands);
-	  asprintf (&templ, "call_indirect __sigchar_%s 0", signature);
+	  asprintf (&templ, "call_indirect __sigchar_%s 0", sig);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	}
 
       if (value)
 	{
-	  if (signature[1] == 'i')
+	  if (sig[1] == 'i')
 	    {
 	      output_asm_insn ("i32.store a=2 0", operands);
 	    }
 	}
       else if (stackret)
 	{
-	  if (signature[1] == 'f')
+	  if (sig[1] == 'f')
 	    {
 	      output_asm_insn ("f32.store a=2 0", operands);
 	    }
-	  else if (signature[1] == 'l')
+	  else if (sig[1] == 'l')
 	    {
 	      output_asm_insn ("i64.store a=3 0", operands);
 	    }
-	  else if (signature[1] == 'd')
+	  else if (sig[1] == 'd')
 	    {
 	      output_asm_insn ("f64.store a=3 0", operands);
 	    }
@@ -2873,7 +3091,7 @@ output_call (rtx *operands, bool immediate, bool value)
 
   if (immediate)
     {
-      const char *signature = "FiiiiiiiE";
+      const char *sig = "FiiiiiiiE";
       tree decl;
       tree attrs;
 
@@ -2891,7 +3109,7 @@ output_call (rtx *operands, bool immediate, bool value)
       else
 	{
 	  char *templ;
-	  asprintf (&templ, "call %%L0@plt{__sigchar_%s}", signature);
+	  asprintf (&templ, "call %%L0@plt{__sigchar_%s}", sig);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	}
