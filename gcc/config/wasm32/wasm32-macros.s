@@ -13,7 +13,7 @@
         .local $r2, $r3, $r4, $r5, $r6, $r7
         .local $i0, $i1, $i2, $i3, $i4, $i5, $i6, $i7
         .local $f0, $f1, $f2, $f3, $f4, $f5, $f6, $f7
-        .local $rv, $a0, $a1, $a2, $a3, $tp
+        .local $rv
         .set __wasm_counter, 0
         ;; local/"register" names. The first six are arguments.
         .set $dpc, 0
