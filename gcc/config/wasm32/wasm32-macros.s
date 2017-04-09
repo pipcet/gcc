@@ -424,10 +424,7 @@ __wasm_body_blocks_\name:
         .rept __wasm_blocks
         block[]
         .endr
-        .pushsection .wasm.dummy
-        .offset __wasm_blocks
-__wasm_body_blocks_\name\()_sym:
-        .popsection
+        .set __wasm_body_blocks_\name\()_sym, __wasm_blocks
         get_local $dpc
         .byte 0x0e
         rleb128_32 __wasm_blocks-1
@@ -440,10 +437,7 @@ __wasm_body_blocks_\name\()_sym:
         rleb128_32 0
         end
         .else
-        .pushsection .wasm.dummy
-        .offset __wasm_blocks
-__wasm_body_blocks_\name\()_sym:
-        .popsection
+        .set __wasm_body_blocks_\name\()_sym, __wasm_blocks
         .endif
         .set __wasm_in_defun, 0
         .endm
