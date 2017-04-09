@@ -2468,6 +2468,7 @@ rs6000_debug_reg_global (void)
 	   "wx reg_class = %s\n"
 	   "wy reg_class = %s\n"
 	   "wz reg_class = %s\n"
+	   "wA reg_class = %s\n"
 	   "wH reg_class = %s\n"
 	   "wI reg_class = %s\n"
 	   "wJ reg_class = %s\n"
@@ -2500,6 +2501,7 @@ rs6000_debug_reg_global (void)
 	   reg_class_names[rs6000_constraints[RS6000_CONSTRAINT_wx]],
 	   reg_class_names[rs6000_constraints[RS6000_CONSTRAINT_wy]],
 	   reg_class_names[rs6000_constraints[RS6000_CONSTRAINT_wz]],
+	   reg_class_names[rs6000_constraints[RS6000_CONSTRAINT_wA]],
 	   reg_class_names[rs6000_constraints[RS6000_CONSTRAINT_wH]],
 	   reg_class_names[rs6000_constraints[RS6000_CONSTRAINT_wI]],
 	   reg_class_names[rs6000_constraints[RS6000_CONSTRAINT_wJ]],
@@ -3210,7 +3212,10 @@ rs6000_init_hard_regno_mode_ok (bool global_init_p)
     }
 
   if (TARGET_POWERPC64)
-    rs6000_constraints[RS6000_CONSTRAINT_wr] = GENERAL_REGS;
+    {
+      rs6000_constraints[RS6000_CONSTRAINT_wr] = GENERAL_REGS;
+      rs6000_constraints[RS6000_CONSTRAINT_wA] = BASE_REGS;
+    }
 
   if (TARGET_P8_VECTOR && TARGET_UPPER_REGS_SF)			/* SFmode  */
     {
@@ -3820,8 +3825,72 @@ rs6000_md_asm_adjust (vec<rtx> &/*outputs*/, vec<rtx> &/*inputs*/,
   return NULL;
 }
 
-/* Override command line options.  Mostly we process the processor type and
-   sometimes adjust other TARGET_ options.  */
+/* Override command line options.
+
+   Combine build-specific configuration information with options
+   specified on the command line to set various state variables which
+   influence code generation, optimization, and expansion of built-in
+   functions.  Assure that command-line configuration preferences are
+   compatible with each other and with the build configuration; issue
+   warnings while adjusting configuration or error messages while
+   rejecting configuration.
+
+   Upon entry to this function:
+
+     This function is called once at the beginning of
+     compilation, and then again at the start and end of compiling
+     each section of code that has a different configuration, as
+     indicated, for example, by adding the
+
+       __attribute__((__target__("cpu=power9")))
+
+     qualifier to a function definition or, for example, by bracketing
+     code between
+
+       #pragma GCC target("altivec")
+
+     and
+
+       #pragma GCC reset_options
+
+     directives.  Parameter global_init_p is true for the initial
+     invocation, which initializes global variables, and false for all
+     subsequent invocations.
+
+
+     Various global state information is assumed to be valid.  This
+     includes OPTION_TARGET_CPU_DEFAULT, representing the name of the
+     default CPU specified at build configure time, TARGET_DEFAULT,
+     representing the default set of option flags for the default
+     target, and global_options_set.x_rs6000_isa_flags, representing
+     which options were requested on the command line.
+
+   Upon return from this function:
+
+     rs6000_isa_flags_explicit has a non-zero bit for each flag that
+     was set by name on the command line.  Additionally, if certain
+     attributes are automatically enabled or disabled by this function
+     in order to assure compatibility between options and
+     configuration, the flags associated with those attributes are
+     also set.  By setting these "explicit bits", we avoid the risk
+     that other code might accidentally overwrite these particular
+     attributes with "default values".
+
+     The various bits of rs6000_isa_flags are set to indicate the
+     target options that have been selected for the most current
+     compilation efforts.  This has the effect of also turning on the
+     associated TARGET_XXX values since these are macros which are
+     generally defined to test the corresponding bit of the
+     rs6000_isa_flags variable.
+
+     The variable rs6000_builtin_mask is set to represent the target
+     options for the most current compilation efforts, consistent with
+     the current contents of rs6000_isa_flags.  This variable controls
+     expansion of built-in functions.
+
+     Various other global variables and fields of global structures
+     (over 50 in all) are initialized to reflect the desired options
+     for the most current compilation efforts.  */
 
 static bool
 rs6000_option_override_internal (bool global_init_p)
@@ -4246,9 +4315,22 @@ rs6000_option_override_internal (bool global_init_p)
 
   if (TARGET_P8_VECTOR && !TARGET_VSX)
     {
-      if (rs6000_isa_flags_explicit & OPTION_MASK_P8_VECTOR)
+      if ((rs6000_isa_flags_explicit & OPTION_MASK_P8_VECTOR)
+	  && (rs6000_isa_flags_explicit & OPTION_MASK_VSX))
 	error ("-mpower8-vector requires -mvsx");
-      rs6000_isa_flags &= ~OPTION_MASK_P8_VECTOR;
+      else if ((rs6000_isa_flags_explicit & OPTION_MASK_P8_VECTOR) == 0)
+	{
+	  rs6000_isa_flags &= ~OPTION_MASK_P8_VECTOR;
+	  if (rs6000_isa_flags_explicit & OPTION_MASK_VSX)
+	    rs6000_isa_flags_explicit |= OPTION_MASK_P8_VECTOR;
+	}
+      else
+	{
+	  /* OPTION_MASK_P8_VECTOR is explicit, and OPTION_MASK_VSX is
+	     not explicit.  */
+	  rs6000_isa_flags |= OPTION_MASK_VSX;
+	  rs6000_isa_flags_explicit |= OPTION_MASK_VSX;
+	}
     }
 
   if (TARGET_VSX_TIMODE && !TARGET_VSX)
@@ -4448,9 +4530,22 @@ rs6000_option_override_internal (bool global_init_p)
 	 error messages.  However, if users have managed to select
 	 power9-vector without selecting power8-vector, they
 	 already know about undocumented flags.  */
-      if (rs6000_isa_flags_explicit & OPTION_MASK_P8_VECTOR)
+      if ((rs6000_isa_flags_explicit & OPTION_MASK_P9_VECTOR) &&
+	  (rs6000_isa_flags_explicit & OPTION_MASK_P8_VECTOR))
 	error ("-mpower9-vector requires -mpower8-vector");
-      rs6000_isa_flags &= ~OPTION_MASK_P9_VECTOR;
+      else if ((rs6000_isa_flags_explicit & OPTION_MASK_P9_VECTOR) == 0)
+	{
+	  rs6000_isa_flags &= ~OPTION_MASK_P9_VECTOR;
+	  if (rs6000_isa_flags_explicit & OPTION_MASK_P8_VECTOR)
+	    rs6000_isa_flags_explicit |= OPTION_MASK_P9_VECTOR;
+	}
+      else
+	{
+	  /* OPTION_MASK_P9_VECTOR is explicit and
+	     OPTION_MASK_P8_VECTOR is not explicit.  */
+	  rs6000_isa_flags |= OPTION_MASK_P8_VECTOR;
+	  rs6000_isa_flags_explicit |= OPTION_MASK_P8_VECTOR;
+	}
     }
 
   /* -mpower9-dform turns on both -mpower9-dform-scalar and
@@ -4479,10 +4574,52 @@ rs6000_option_override_internal (bool global_init_p)
 	 error messages.  However, if users have managed to select
 	 power9-dform without selecting power9-vector, they
 	 already know about undocumented flags.  */
-      if (rs6000_isa_flags_explicit & OPTION_MASK_P9_VECTOR)
+      if ((rs6000_isa_flags_explicit & OPTION_MASK_P9_VECTOR)
+	  && (rs6000_isa_flags_explicit & (OPTION_MASK_P9_DFORM_SCALAR
+					   | OPTION_MASK_P9_DFORM_VECTOR)))
 	error ("-mpower9-dform requires -mpower9-vector");
-      rs6000_isa_flags &= ~(OPTION_MASK_P9_DFORM_SCALAR
-			    | OPTION_MASK_P9_DFORM_VECTOR);
+      else if (rs6000_isa_flags_explicit & OPTION_MASK_P9_VECTOR)
+	{
+	  rs6000_isa_flags &=
+	    ~(OPTION_MASK_P9_DFORM_SCALAR | OPTION_MASK_P9_DFORM_VECTOR);
+	  rs6000_isa_flags_explicit |=
+	    (OPTION_MASK_P9_DFORM_SCALAR | OPTION_MASK_P9_DFORM_VECTOR);
+	}
+      else
+	{
+	  /* We know that OPTION_MASK_P9_VECTOR is not explicit and
+	     OPTION_MASK_P9_DFORM_SCALAR or OPTION_MASK_P9_DORM_VECTOR
+	     may be explicit.  */
+	  rs6000_isa_flags |= OPTION_MASK_P9_VECTOR;
+	  rs6000_isa_flags_explicit |= OPTION_MASK_P9_VECTOR;
+	}
+    }
+
+  if ((TARGET_P9_DFORM_SCALAR || TARGET_P9_DFORM_VECTOR)
+      && !TARGET_DIRECT_MOVE)
+    {
+      /* We prefer to not mention undocumented options in
+	 error messages.  However, if users have managed to select
+	 power9-dform without selecting direct-move, they
+	 already know about undocumented flags.  */
+      if ((rs6000_isa_flags_explicit & OPTION_MASK_DIRECT_MOVE)
+	  && ((rs6000_isa_flags_explicit & OPTION_MASK_P9_DFORM_VECTOR) ||
+	      (rs6000_isa_flags_explicit & OPTION_MASK_P9_DFORM_SCALAR) ||
+	      (TARGET_P9_DFORM_BOTH == 1)))
+	error ("-mpower9-dform, -mpower9-dform-vector, -mpower9-dform-scalar"
+	       " require -mdirect-move");
+      else if ((rs6000_isa_flags_explicit & OPTION_MASK_DIRECT_MOVE) == 0)
+	{
+	  rs6000_isa_flags |= OPTION_MASK_DIRECT_MOVE;
+	  rs6000_isa_flags_explicit |= OPTION_MASK_DIRECT_MOVE;
+	}
+      else
+	{
+	  rs6000_isa_flags &=
+	    ~(OPTION_MASK_P9_DFORM_SCALAR | OPTION_MASK_P9_DFORM_VECTOR);
+	  rs6000_isa_flags_explicit |=
+	    (OPTION_MASK_P9_DFORM_SCALAR | OPTION_MASK_P9_DFORM_VECTOR);
+	}
     }
 
   if (TARGET_P9_DFORM_SCALAR && !TARGET_UPPER_REGS_DF)
@@ -5253,7 +5390,9 @@ rs6000_option_override_internal (bool global_init_p)
     rs6000_single_float = rs6000_double_float = 1;
 
   /* If not explicitly specified via option, decide whether to generate indexed
-     load/store instructions.  */
+     load/store instructions.  A value of -1 indicates that the
+     initial value of this variable has not been overwritten. During
+     compilation, TARGET_AVOID_XFORM is either 0 or 1. */
   if (TARGET_AVOID_XFORM == -1)
     /* Avoid indexed addressing when targeting Power6 in order to avoid the
      DERAT mispredict penalty.  However the LVE and STVE altivec instructions
@@ -19533,8 +19672,9 @@ expand_block_compare (rtx operands[])
   unsigned int load_mode_size = GET_MODE_SIZE (load_mode);
 
   /* We don't want to generate too much code.  */
-  if (ROUND_UP (bytes, load_mode_size) / load_mode_size
-      > (unsigned HOST_WIDE_INT) rs6000_block_compare_inline_limit)
+  unsigned HOST_WIDE_INT max_bytes =
+    load_mode_size * (unsigned HOST_WIDE_INT) rs6000_block_compare_inline_limit;
+  if (!IN_RANGE (bytes, 1, max_bytes))
     return false;
 
   bool generate_6432_conversion = false;
@@ -32723,7 +32863,7 @@ static int load_store_pendulum;
 static int divide_cnt;
 /* The following variable helps pair and alternate vector and vector load
    insns during scheduling.  */
-static int vec_load_pendulum;
+static int vec_pairing;
 
 
 /* Power4 load update and store update instructions are cracked into a
@@ -33682,7 +33822,7 @@ power9_sched_reorder2 (rtx_insn **ready, int lastpos)
   int pos;
   int i;
   rtx_insn *tmp;
-  enum attr_type type;
+  enum attr_type type, type2;
 
   type = get_attr_type (last_scheduled_insn);
 
@@ -33715,183 +33855,114 @@ power9_sched_reorder2 (rtx_insn **ready, int lastpos)
       /* Last insn was the 2nd divide or not a divide, reset the counter.  */
       divide_cnt = 0;
 
-      /* Power9 can execute 2 vector operations and 2 vector loads in a single
-	 cycle.  So try to pair up and alternate groups of vector and vector
-	 load instructions.
+      /* The best dispatch throughput for vector and vector load insns can be
+	 achieved by interleaving a vector and vector load such that they'll
+	 dispatch to the same superslice. If this pairing cannot be achieved
+	 then it is best to pair vector insns together and vector load insns
+	 together.
 
-	 To aid this formation, a counter is maintained to keep track of
-	 vec/vecload insns issued.  The value of vec_load_pendulum maintains
-	 the current state with the following values:
+	 To aid in this pairing, vec_pairing maintains the current state with
+	 the following values:
 
-	     0  : Initial state, no vec/vecload group has been started.
+	     0  : Initial state, no vecload/vector pairing has been started.
 
-	     -1 : 1 vector load has been issued and another has been found on
-		  the ready list and moved to the end.
-
-	     -2 : 2 vector loads have been issued and a vector operation has
-		  been found and moved to the end of the ready list.
-
-	     -3 : 2 vector loads and a vector insn have been issued and a
-		  vector operation has been found and moved to the end of the
-		  ready list.
-
-	     1  : 1 vector insn has been issued and another has been found and
-		  moved to the end of the ready list.
-
-	     2  : 2 vector insns have been issued and a vector load has been
-		  found and moved to the end of the ready list.
-
-	     3  : 2 vector insns and a vector load have been issued and another
-		  vector load has been found and moved to the end of the ready
+	     1  : A vecload or vector insn has been issued and a candidate for
+		  pairing has been found and moved to the end of the ready
 		  list.  */
       if (type == TYPE_VECLOAD)
 	{
 	  /* Issued a vecload.  */
-	  if (vec_load_pendulum == 0)
+	  if (vec_pairing == 0)
 	    {
-	      /* We issued a single vecload, look for another and move it to
-		 the end of the ready list so it will be scheduled next.
-		 Set pendulum if found.  */
+	      int vecload_pos = -1;
+	      /* We issued a single vecload, look for a vector insn to pair it
+		 with.  If one isn't found, try to pair another vecload.  */
 	      pos = lastpos;
 	      while (pos >= 0)
 		{
-		  if (recog_memoized (ready[pos]) >= 0
-		      && get_attr_type (ready[pos]) == TYPE_VECLOAD)
+		  if (recog_memoized (ready[pos]) >= 0)
 		    {
-		      tmp = ready[pos];
-		      for (i = pos; i < lastpos; i++)
-			ready[i] = ready[i + 1];
-		      ready[lastpos] = tmp;
-		      vec_load_pendulum = -1;
-		      return cached_can_issue_more;
+		      type2 = get_attr_type (ready[pos]);
+		      if (is_power9_pairable_vec_type (type2))
+			{
+			  /* Found a vector insn to pair with, move it to the
+			     end of the ready list so it is scheduled next.  */
+			  tmp = ready[pos];
+			  for (i = pos; i < lastpos; i++)
+			    ready[i] = ready[i + 1];
+			  ready[lastpos] = tmp;
+			  vec_pairing = 1;
+			  return cached_can_issue_more;
+			}
+		      else if (type2 == TYPE_VECLOAD && vecload_pos == -1)
+			/* Remember position of first vecload seen.  */
+			vecload_pos = pos;
 		    }
 		  pos--;
 		}
-	    }
-	  else if (vec_load_pendulum == -1)
-	    {
-	      /* This is the second vecload we've issued, search the ready
-	         list for a vector operation so we can try to schedule a
-	         pair of those next.  If found move to the end of the ready
-	         list so it is scheduled next and set the pendulum.  */
-	      pos = lastpos;
-	      while (pos >= 0)
+	      if (vecload_pos >= 0)
 		{
-		  if (recog_memoized (ready[pos]) >= 0
-		      && is_power9_pairable_vec_type (
-			   get_attr_type (ready[pos])))
-		    {
-		      tmp = ready[pos];
-		      for (i = pos; i < lastpos; i++)
-			ready[i] = ready[i + 1];
-		      ready[lastpos] = tmp;
-		      vec_load_pendulum = -2;
-		      return cached_can_issue_more;
-		    }
-		  pos--;
-		}
-	    }
-	  else if (vec_load_pendulum == 2)
-	    {
-	      /* Two vector ops have been issued and we've just issued a
-		 vecload, look for another vecload and move to end of ready
-		 list if found.  */
-	      pos = lastpos;
-	      while (pos >= 0)
-	        {
-		  if (recog_memoized (ready[pos]) >= 0
-		      && get_attr_type (ready[pos]) == TYPE_VECLOAD)
-		    {
-		      tmp = ready[pos];
-		      for (i = pos; i < lastpos; i++)
-			ready[i] = ready[i + 1];
-		      ready[lastpos] = tmp;
-		      /* Set pendulum so that next vecload will be seen as
-			 finishing a group, not start of one.  */
-		      vec_load_pendulum = 3;
-		      return cached_can_issue_more;
-		    }
-		  pos--;
+		  /* Didn't find a vector to pair with but did find a vecload,
+		     move it to the end of the ready list.  */
+		  tmp = ready[vecload_pos];
+		  for (i = vecload_pos; i < lastpos; i++)
+		    ready[i] = ready[i + 1];
+		  ready[lastpos] = tmp;
+		  vec_pairing = 1;
+		  return cached_can_issue_more;
 		}
 	    }
 	}
       else if (is_power9_pairable_vec_type (type))
 	{
 	  /* Issued a vector operation.  */
-	  if (vec_load_pendulum == 0)
-	    /* We issued a single vec op, look for another and move it
-	       to the end of the ready list so it will be scheduled next.
-	       Set pendulum if found.  */
+	  if (vec_pairing == 0)
 	    {
+	      int vec_pos = -1;
+	      /* We issued a single vector insn, look for a vecload to pair it
+		 with.  If one isn't found, try to pair another vector.  */
 	      pos = lastpos;
 	      while (pos >= 0)
 		{
-		  if (recog_memoized (ready[pos]) >= 0
-		      && is_power9_pairable_vec_type (
-			   get_attr_type (ready[pos])))
+		  if (recog_memoized (ready[pos]) >= 0)
 		    {
-		      tmp = ready[pos];
-		      for (i = pos; i < lastpos; i++)
-			ready[i] = ready[i + 1];
-		      ready[lastpos] = tmp;
-		      vec_load_pendulum = 1;
-		      return cached_can_issue_more;
+		      type2 = get_attr_type (ready[pos]);
+		      if (type2 == TYPE_VECLOAD)
+			{
+			  /* Found a vecload insn to pair with, move it to the
+			     end of the ready list so it is scheduled next.  */
+			  tmp = ready[pos];
+			  for (i = pos; i < lastpos; i++)
+			    ready[i] = ready[i + 1];
+			  ready[lastpos] = tmp;
+			  vec_pairing = 1;
+			  return cached_can_issue_more;
+			}
+		      else if (is_power9_pairable_vec_type (type2)
+			       && vec_pos == -1)
+			/* Remember position of first vector insn seen.  */
+			vec_pos = pos;
 		    }
 		  pos--;
 		}
-	    }
-	  else if (vec_load_pendulum == 1)
-	    {
-	      /* This is the second vec op we've issued, search the ready
-		 list for a vecload operation so we can try to schedule a
-		 pair of those next.  If found move to the end of the ready
-		 list so it is scheduled next and set the pendulum.  */
-	      pos = lastpos;
-	      while (pos >= 0)
+	      if (vec_pos >= 0)
 		{
-		  if (recog_memoized (ready[pos]) >= 0
-		      && get_attr_type (ready[pos]) == TYPE_VECLOAD)
-		    {
-		      tmp = ready[pos];
-		      for (i = pos; i < lastpos; i++)
-			ready[i] = ready[i + 1];
-		      ready[lastpos] = tmp;
-		      vec_load_pendulum = 2;
-		      return cached_can_issue_more;
-		    }
-		  pos--;
-		}
-	    }
-	  else if (vec_load_pendulum == -2)
-	    {
-	      /* Two vecload ops have been issued and we've just issued a
-		 vec op, look for another vec op and move to end of ready
-	  	 list if found.  */
-	      pos = lastpos;
-	      while (pos >= 0)
-		{
-		  if (recog_memoized (ready[pos]) >= 0
-		      && is_power9_pairable_vec_type (
-			   get_attr_type (ready[pos])))
-		    {
-		      tmp = ready[pos];
-		      for (i = pos; i < lastpos; i++)
-			ready[i] = ready[i + 1];
-		      ready[lastpos] = tmp;
-		      /* Set pendulum so that next vec op will be seen as
-			 finishing a group, not start of one.  */
-		      vec_load_pendulum = -3;
-		      return cached_can_issue_more;
-		    }
-		  pos--;
+		  /* Didn't find a vecload to pair with but did find a vector
+		     insn, move it to the end of the ready list.  */
+		  tmp = ready[vec_pos];
+		  for (i = vec_pos; i < lastpos; i++)
+		    ready[i] = ready[i + 1];
+		  ready[lastpos] = tmp;
+		  vec_pairing = 1;
+		  return cached_can_issue_more;
 		}
 	    }
 	}
 
-      /* We've either finished a vec/vecload group, couldn't find an insn to
-	 continue the current group, or the last insn had nothing to do with
-	 with a group.  In any case, reset the pendulum.  */
-      vec_load_pendulum = 0;
+      /* We've either finished a vec/vecload pair, couldn't find an insn to
+	 continue the current pair, or the last insn had nothing to do with
+	 with pairing.  In any case, reset the state.  */
+      vec_pairing = 0;
     }
 
   return cached_can_issue_more;
@@ -34807,7 +34878,7 @@ rs6000_sched_init (FILE *dump ATTRIBUTE_UNUSED,
   last_scheduled_insn = NULL;
   load_store_pendulum = 0;
   divide_cnt = 0;
-  vec_load_pendulum = 0;
+  vec_pairing = 0;
 }
 
 /* The following function is called at the end of scheduling BB.
@@ -34854,7 +34925,7 @@ struct rs6000_sched_context
   rtx_insn *last_scheduled_insn;
   int load_store_pendulum;
   int divide_cnt;
-  int vec_load_pendulum;
+  int vec_pairing;
 };
 
 typedef struct rs6000_sched_context rs6000_sched_context_def;
@@ -34880,7 +34951,7 @@ rs6000_init_sched_context (void *_sc, bool clean_p)
       sc->last_scheduled_insn = NULL;
       sc->load_store_pendulum = 0;
       sc->divide_cnt = 0;
-      sc->vec_load_pendulum = 0;
+      sc->vec_pairing = 0;
     }
   else
     {
@@ -34888,7 +34959,7 @@ rs6000_init_sched_context (void *_sc, bool clean_p)
       sc->last_scheduled_insn = last_scheduled_insn;
       sc->load_store_pendulum = load_store_pendulum;
       sc->divide_cnt = divide_cnt;
-      sc->vec_load_pendulum = vec_load_pendulum;
+      sc->vec_pairing = vec_pairing;
     }
 }
 
@@ -34904,7 +34975,7 @@ rs6000_set_sched_context (void *_sc)
   last_scheduled_insn = sc->last_scheduled_insn;
   load_store_pendulum = sc->load_store_pendulum;
   divide_cnt = sc->divide_cnt;
-  vec_load_pendulum = sc->vec_load_pendulum;
+  vec_pairing = sc->vec_pairing;
 }
 
 /* Free _SC.  */
@@ -39204,7 +39275,10 @@ rs6000_inner_target_options (tree args, bool attr_p)
     }
 
   else
-    gcc_unreachable ();
+    {
+      error ("attribute %<target%> argument not a string");
+      return false;
+    }
 
   return ret;
 }
