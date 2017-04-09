@@ -3193,6 +3193,8 @@ wasm32_expand_call (rtx retval, rtx address, rtx callarg1 ATTRIBUTE_UNUSED)
 
   clobber_reg (&use, gen_rtx_REG (SImode, RV_REG)); // XXX
   use_reg (&use, gen_rtx_REG (SImode, SP_REG)); // XXX
+  use_reg (&use, gen_rtx_REG (SImode, R0_REG)); // XXX
+  use_reg (&use, gen_rtx_REG (SImode, R1_REG)); // XXX
   call_insn = emit_call_insn (call);
 
   if (use)
