@@ -3413,14 +3413,14 @@ wasm32_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
   emit_insn (gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (SImode, m_tramp, 8)), fnaddr));
   emit_insn (gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (SImode, m_tramp, 16)), static_chain));
   emit_insn (gen_rtx_SET (gen_rtx_REG (SImode, R0_REG), m_tramp));
-  wasm32_expand_call (NULL, gen_rtx_MEM (QImode, gen_rtx_SYMBOL_REF (SImode, "*init_trampoline")), gen_rtx_CONST_STRING (VOIDmode, ""));
+  wasm32_expand_call (NULL, gen_rtx_MEM (QImode, gen_rtx_SYMBOL_REF (SImode, "*__wasm_init_trampoline")), gen_rtx_CONST_STRING (VOIDmode, ""));
 }
 
 static void
 wasm32_trampoline_destroy (rtx m_tramp)
 {
   emit_insn (gen_rtx_SET (gen_rtx_REG (SImode, R0_REG), m_tramp));
-  wasm32_expand_call (NULL, gen_rtx_MEM (QImode, gen_rtx_SYMBOL_REF (SImode, "*destroy_trampoline")), gen_rtx_CONST_STRING (VOIDmode, ""));
+  wasm32_expand_call (NULL, gen_rtx_MEM (QImode, gen_rtx_SYMBOL_REF (SImode, "*__wasm_destroy_trampoline")), gen_rtx_CONST_STRING (VOIDmode, ""));
 }
 
 static bool
