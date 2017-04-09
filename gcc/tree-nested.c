@@ -3125,8 +3125,11 @@ finalize_nesting_tree_1 (struct nesting_info *root)
 
 	  x = builtin_decl_implicit (BUILT_IN_INIT_TRAMPOLINE);
 	  stmt = build_init_call_stmt (root, i->context, field, x);
+	  tree arg =
+	    build3 (COMPONENT_REF, TREE_TYPE (field), root->frame_decl,
+		    field, NULL_TREE);
 	  x = builtin_decl_implicit (BUILT_IN_DESTROY_TRAMPOLINE);
-	  gimple *stmt2 = build_init_call_stmt (root, i->context, field, x);
+	  gimple *stmt2 = gimple_build_call (x, 1, build_addr (arg));
 	  gimple_seq_add_stmt (&stmt2_list, stmt2);
 	  gimple_seq_add_stmt (&stmt_list, stmt);
 	}

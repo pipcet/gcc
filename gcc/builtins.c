@@ -5151,7 +5151,11 @@ expand_builtin_destroy_trampoline (tree exp)
 {
   rtx tramp;
 
-  return const0_rtx;
+  tramp = expand_normal (CALL_EXPR_ARG (exp, 0));
+  if (targetm.calls.destroy_trampoline)
+    targetm.calls.destroy_trampoline (tramp);
+
+  return tramp;
 }
 
 /* Expand a call to the builtin descriptor initialization routine.

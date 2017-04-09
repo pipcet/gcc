@@ -3974,6 +3974,8 @@ is used for aligning trampolines.
 
 @hook TARGET_TRAMPOLINE_ADJUST_ADDRESS
 
+@hook TARGET_DESTROY_TRAMPOLINE
+
 @hook TARGET_CUSTOM_FUNCTION_DESCRIPTORS
 
 Implementing trampolines is difficult on many machines because they have
