@@ -3395,7 +3395,7 @@ wasm32_cxx_class_data_always_comdat (void)
 static rtx
 wasm32_trampoline_adjust_address (rtx addr)
 {
-  return addr;
+  return gen_rtx_MEM (SImode, plus_constant (SImode, addr, 24));
 }
 
 /* Trampolines are merely three-word blocks of data aligned to a
@@ -3408,14 +3408,12 @@ static void
 wasm32_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
 {
   rtx fnaddr = force_reg (Pmode, XEXP (DECL_RTL (fndecl), 0));
-  m_tramp = wasm32_trampoline_adjust_address (XEXP (m_tramp, 0));
-  m_tramp = force_reg (Pmode, m_tramp);
+  m_tramp = XEXP (m_tramp, 0);
   emit_insn (gen_rtx_SET (gen_rtx_MEM (SImode, m_tramp), gen_rtx_CONST_INT(SImode, 0x4d4a5254L)));
-  emit_insn (gen_rtx_SET (m_tramp, plus_constant (SImode, m_tramp, 8)));
-  emit_insn (gen_rtx_SET (gen_rtx_MEM (SImode, m_tramp), fnaddr));
-  emit_insn (gen_rtx_SET (m_tramp, plus_constant (SImode, m_tramp, 8)));
-  emit_insn (gen_rtx_SET (gen_rtx_MEM (SImode, m_tramp), static_chain));
-  emit_insn (gen_rtx_SET (m_tramp, plus_constant (SImode, m_tramp, -16)));
+  emit_insn (gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (SImode, m_tramp, 8)), fnaddr));
+  emit_insn (gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (SImode, m_tramp, 16)), static_chain));
+  emit_insn (gen_rtx_SET (gen_rtx_REG (SImode, R0_REG), m_tramp));
+  emit_insn (gen_rtx_CALL (SImode, gen_rtx_MEM (QImode, gen_rtx_SYMBOL_REF (SImode, "*init_trampoline")), gen_rtx_CONST_STRING (VOIDmode, "")));
 }
 
 static bool

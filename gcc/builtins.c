@@ -5146,6 +5146,14 @@ expand_builtin_adjust_trampoline (tree exp)
   return tramp;
 }
 
+static rtx
+expand_builtin_destroy_trampoline (tree exp)
+{
+  rtx tramp;
+
+  return const0_rtx;
+}
+
 /* Expand a call to the builtin descriptor initialization routine.
    A descriptor is made up of a couple of pointers to the static
    chain and the code entry in this order.  */
@@ -6909,6 +6917,8 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
       return expand_builtin_init_trampoline (exp, false);
     case BUILT_IN_ADJUST_TRAMPOLINE:
       return expand_builtin_adjust_trampoline (exp);
+    case BUILT_IN_DESTROY_TRAMPOLINE:
+      return expand_builtin_destroy_trampoline (exp);
 
     case BUILT_IN_INIT_DESCRIPTOR:
       return expand_builtin_init_descriptor (exp);
