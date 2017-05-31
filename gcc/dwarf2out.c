@@ -12464,19 +12464,28 @@ modified_type_die (tree type, int cv_quals, bool reverse,
      this type.  */
   qualified_type = get_qualified_type (type, cv_quals);
 
-  if (qualified_type == sizetype
-      && TYPE_NAME (qualified_type)
-      && TREE_CODE (TYPE_NAME (qualified_type)) == TYPE_DECL)
+  if (qualified_type == sizetype)
     {
-      tree t = TREE_TYPE (TYPE_NAME (qualified_type));
+      /* Try not to expose the internal sizetype type's name.  */
+      if (TYPE_NAME (qualified_type)
+	  && TREE_CODE (TYPE_NAME (qualified_type)) == TYPE_DECL)
+	{
+	  tree t = TREE_TYPE (TYPE_NAME (qualified_type));
 
-      gcc_checking_assert (TREE_CODE (t) == INTEGER_TYPE
-			   && TYPE_PRECISION (t)
-			   == TYPE_PRECISION (qualified_type)
-			   && TYPE_UNSIGNED (t)
-			   == TYPE_UNSIGNED (qualified_type));
-      qualified_type = t;
+	  gcc_checking_assert (TREE_CODE (t) == INTEGER_TYPE
+			       && (TYPE_PRECISION (t)
+				   == TYPE_PRECISION (qualified_type))
+			       && (TYPE_UNSIGNED (t)
+				   == TYPE_UNSIGNED (qualified_type)));
+	  qualified_type = t;
+	}
+      else if (qualified_type == sizetype
+	       && TREE_CODE (sizetype) == TREE_CODE (size_type_node)
+	       && TYPE_PRECISION (sizetype) == TYPE_PRECISION (size_type_node)
+	       && TYPE_UNSIGNED (sizetype) == TYPE_UNSIGNED (size_type_node))
+	qualified_type = size_type_node;
     }
+
 
   /* If we do, then we can just use its DIE, if it exists.  */
   if (qualified_type)
@@ -12681,7 +12690,9 @@ modified_type_die (tree type, int cv_quals, bool reverse,
 	     but try to canonicalize.  */
 	  tree main = TYPE_MAIN_VARIANT (type);
 	  for (tree t = main; t; t = TYPE_NEXT_VARIANT (t))
-	    if (check_base_type (t, main) && check_lang_type (t, type))
+	    if (TYPE_QUALS_NO_ADDR_SPACE (t) == 0
+		&& check_base_type (t, main)
+		&& check_lang_type (t, type))
 	      return lookup_type_die (t);
 	  return lookup_type_die (type);
 	}
@@ -17362,6 +17373,7 @@ loc_list_from_tree_1 (tree loc, int want_address,
 		&& early_dwarf
 		&& current_function_decl
 		&& want_address != 1
+		&& ! DECL_IGNORED_P (loc)
 		&& (INTEGRAL_TYPE_P (TREE_TYPE (loc))
 		    || POINTER_TYPE_P (TREE_TYPE (loc)))
 		&& DECL_CONTEXT (loc) == current_function_decl
@@ -24571,13 +24583,13 @@ gen_type_die_with_usage (tree type, dw_die_ref context_die,
 	 but try to canonicalize.  */
       tree main = TYPE_MAIN_VARIANT (type);
       for (tree t = main; t; t = TYPE_NEXT_VARIANT (t))
-	{
-	  if (check_base_type (t, main) && check_lang_type (t, type))
-	    {
-	      type = t;
-	      break;
-	    }
-	}
+	if (TYPE_QUALS_NO_ADDR_SPACE (t) == 0
+	    && check_base_type (t, main)
+	    && check_lang_type (t, type))
+	  {
+	    type = t;
+	    break;
+	  }
     }
   else if (TREE_CODE (type) != VECTOR_TYPE
 	   && TREE_CODE (type) != ARRAY_TYPE)
@@ -24889,7 +24901,12 @@ decls_for_scope (tree stmt, dw_die_ref context_die)
 	for (i = 0; i < BLOCK_NUM_NONLOCALIZED_VARS (stmt); i++)
 	  {
 	    decl = BLOCK_NONLOCALIZED_VAR (stmt, i);
-	    if (TREE_CODE (decl) == FUNCTION_DECL)
+	    if (decl == current_function_decl)
+	      /* Ignore declarations of the current function, while they
+		 are declarations, gen_subprogram_die would treat them
+		 as definitions again, because they are equal to
+		 current_function_decl and endlessly recurse.  */;
+	    else if (TREE_CODE (decl) == FUNCTION_DECL)
 	      process_scope_var (stmt, decl, NULL_TREE, context_die);
 	    else
 	      process_scope_var (stmt, NULL_TREE, decl, context_die);
@@ -30093,8 +30110,9 @@ resolve_variable_value_in_expr (dw_attr_node *a, dw_loc_descr_ref loc)
 	      break;
 	    }
 	  /* Create DW_TAG_variable that we can refer to.  */
-	  ref = gen_decl_die (decl, NULL_TREE, NULL,
-			      lookup_decl_die (current_function_decl));
+	  gen_decl_die (decl, NULL_TREE, NULL,
+			lookup_decl_die (current_function_decl));
+	  ref = lookup_decl_die (decl);
 	  if (ref)
 	    {
 	      loc->dw_loc_oprnd1.val_class = dw_val_class_die_ref;
@@ -30187,6 +30205,7 @@ note_variable_value_in_expr (dw_die_ref die, dw_loc_descr_ref loc)
 	    loc->dw_loc_oprnd1.val_class = dw_val_class_die_ref;
 	    loc->dw_loc_oprnd1.v.val_die_ref.die = ref;
 	    loc->dw_loc_oprnd1.v.val_die_ref.external = 0;
+	    continue;
 	  }
 	if (VAR_P (decl)
 	    && DECL_CONTEXT (decl)

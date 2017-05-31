@@ -44,6 +44,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "params.h"
 #include "symbol-summary.h"
 #include "ipa-prop.h"
+#include "ipa-fnsummary.h"
 #include "ipa-inline.h"
 #include "tree-inline.h"
 #include "auto-profile.h"
@@ -355,7 +356,7 @@ get_function_decl_from_block (tree block)
 {
   tree decl;
 
-  if (LOCATION_LOCUS (BLOCK_SOURCE_LOCATION (block) == UNKNOWN_LOCATION))
+  if (LOCATION_LOCUS (BLOCK_SOURCE_LOCATION (block)) == UNKNOWN_LOCATION)
     return NULL_TREE;
 
   for (decl = BLOCK_ABSTRACT_ORIGIN (block);
@@ -1376,7 +1377,7 @@ afdo_propagate (bb_set *annotated_bb, edge_set *annotated_edge)
   FOR_ALL_BB_FN (bb, cfun)
   {
     bb->count = ((basic_block)bb->aux)->count;
-    if (is_bb_annotated ((const basic_block)bb->aux, *annotated_bb))
+    if (is_bb_annotated ((basic_block)bb->aux, *annotated_bb))
       set_bb_annotated (bb, annotated_bb);
   }
 
@@ -1467,7 +1468,7 @@ afdo_vpt_for_early_inline (stmt_set *promoted_stmts)
           current_function_decl) == NULL)
     return false;
 
-  compute_inline_parameters (cgraph_node::get (current_function_decl), true);
+  compute_fn_summary (cgraph_node::get (current_function_decl), true);
 
   bool has_vpt = false;
   FOR_EACH_BB_FN (bb, cfun)
@@ -1511,7 +1512,9 @@ afdo_vpt_for_early_inline (stmt_set *promoted_stmts)
 
   if (has_vpt)
     {
-      optimize_inline_calls (current_function_decl);
+      unsigned todo = optimize_inline_calls (current_function_decl);
+      if (todo & TODO_update_ssa_any)
+       update_ssa (TODO_update_ssa);
       return true;
     }
 
@@ -1589,7 +1592,7 @@ afdo_annotate_cfg (const stmt_set &promoted_stmts)
 static void
 early_inline ()
 {
-  compute_inline_parameters (cgraph_node::get (current_function_decl), true);
+  compute_fn_summary (cgraph_node::get (current_function_decl), true);
   unsigned todo = early_inliner (cfun);
   if (todo & TODO_update_ssa_any)
     update_ssa (TODO_update_ssa);
@@ -1667,7 +1670,7 @@ auto_profile (void)
     free_dominance_info (CDI_DOMINATORS);
     free_dominance_info (CDI_POST_DOMINATORS);
     cgraph_edge::rebuild_edges ();
-    compute_inline_parameters (cgraph_node::get (current_function_decl), true);
+    compute_fn_summary (cgraph_node::get (current_function_decl), true);
     pop_cfun ();
   }
 

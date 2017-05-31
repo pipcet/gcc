@@ -613,6 +613,10 @@ component_uses_parent_alias_set_from (const_tree t)
 {
   const_tree found = NULL_TREE;
 
+  if (AGGREGATE_TYPE_P (TREE_TYPE (t))
+      && TYPE_TYPELESS_STORAGE (TREE_TYPE (t)))
+    return const_cast <tree> (t);
+
   while (handled_component_p (t))
     {
       switch (TREE_CODE (t))
@@ -882,6 +886,10 @@ get_alias_set (tree t)
   /* Variant qualifiers don't affect the alias set, so get the main
      variant.  */
   t = TYPE_MAIN_VARIANT (t);
+
+  if (AGGREGATE_TYPE_P (t)
+      && TYPE_TYPELESS_STORAGE (t))
+    return 0;
 
   /* Always use the canonical type as well.  If this is a type that
      requires structural comparisons to identify compatible types
@@ -2037,6 +2045,18 @@ compare_base_decls (tree base1, tree base2)
   gcc_checking_assert (DECL_P (base1) && DECL_P (base2));
   if (base1 == base2)
     return 1;
+
+  /* If we have two register decls with register specification we
+     cannot decide unless their assembler name is the same.  */
+  if (DECL_REGISTER (base1)
+      && DECL_REGISTER (base2)
+      && DECL_ASSEMBLER_NAME_SET_P (base1)
+      && DECL_ASSEMBLER_NAME_SET_P (base2))
+    {
+      if (DECL_ASSEMBLER_NAME (base1) == DECL_ASSEMBLER_NAME (base2))
+	return 1;
+      return -1;
+    }
 
   /* Declarations of non-automatic variables may have aliases.  All other
      decls are unique.  */
@@ -3201,6 +3221,10 @@ memory_modified_in_insn_p (const_rtx mem, const_rtx insn)
 {
   if (!INSN_P (insn))
     return false;
+  /* Conservatively assume all non-readonly MEMs might be modified in
+     calls.  */
+  if (CALL_P (insn))
+    return true;
   memory_modified = false;
   note_stores (PATTERN (insn), memory_modified_1, CONST_CAST_RTX(mem));
   return memory_modified;

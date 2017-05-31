@@ -3595,24 +3595,40 @@ gfc_check_pointer_assign (gfc_expr *lvalue, gfc_expr *rvalue)
 	  return false;
 	}
 
+      /* F08:7.2.2.4 (4)  */
+      if (s2 && gfc_explicit_interface_required (s2, err, sizeof(err)))
+	{
+	  if (comp1 && !s1)
+	    {
+	      gfc_error ("Explicit interface required for component %qs at %L: %s",
+			 comp1->name, &lvalue->where, err);
+	      return false;
+	    }
+	  else if (s1->attr.if_source == IFSRC_UNKNOWN)
+	    {
+	      gfc_error ("Explicit interface required for %qs at %L: %s",
+			 s1->name, &lvalue->where, err);
+	      return false;
+	    }
+	}
+      if (s1 && gfc_explicit_interface_required (s1, err, sizeof(err)))
+	{
+	  if (comp2 && !s2)
+	    {
+	      gfc_error ("Explicit interface required for component %qs at %L: %s",
+			 comp2->name, &rvalue->where, err);
+	      return false;
+	    }
+	  else if (s2->attr.if_source == IFSRC_UNKNOWN)
+	    {
+	      gfc_error ("Explicit interface required for %qs at %L: %s",
+			 s2->name, &rvalue->where, err);
+	      return false;
+	    }
+	}
+
       if (s1 == s2 || !s1 || !s2)
 	return true;
-
-      /* F08:7.2.2.4 (4)  */
-      if (s1->attr.if_source == IFSRC_UNKNOWN
-	  && gfc_explicit_interface_required (s2, err, sizeof(err)))
-	{
-	  gfc_error ("Explicit interface required for %qs at %L: %s",
-		     s1->name, &lvalue->where, err);
-	  return false;
-	}
-      if (s2->attr.if_source == IFSRC_UNKNOWN
-	  && gfc_explicit_interface_required (s1, err, sizeof(err)))
-	{
-	  gfc_error ("Explicit interface required for %qs at %L: %s",
-		     s2->name, &rvalue->where, err);
-	  return false;
-	}
 
       if (!gfc_compare_interfaces (s1, s2, name, 0, 1,
 				   err, sizeof(err), NULL, NULL))
@@ -4264,9 +4280,13 @@ component_initializer (gfc_typespec *ts, gfc_component *c, bool generate)
 {
   gfc_expr *init = NULL;
 
-  /* See if we can find the initializer immediately.  */
+  /* See if we can find the initializer immediately.
+     Some components should never get initializers.  */
   if (c->initializer || !generate
-      || (ts->type == BT_CLASS && !c->attr.allocatable))
+      || (ts->type == BT_CLASS && !c->attr.allocatable)
+      || c->attr.pointer
+      || c->attr.class_pointer
+      || c->attr.proc_pointer)
     return c->initializer;
 
   /* Recursively handle derived type components.  */
@@ -4379,7 +4399,12 @@ gfc_generate_initializer (gfc_typespec *ts, bool generate)
 	  if ((comp->ts.type != tmp->ts.type
 	       || comp->ts.kind != tmp->ts.kind)
 	      && !comp->attr.pointer && !comp->attr.proc_pointer)
-	    gfc_convert_type_warn (ctor->expr, &comp->ts, 2, false);
+	    {
+	      bool val;
+	      val = gfc_convert_type_warn (ctor->expr, &comp->ts, 1, false);
+	      if (val == false)
+		return NULL;
+	    }
 	}
 
       if (comp->attr.allocatable

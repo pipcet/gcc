@@ -4474,6 +4474,40 @@ find_func_aliases_for_builtin_call (struct function *fn, gcall *t)
 	    process_all_all_constraints (lhsc, rhsc);
 	  }
 	return true;
+      /* Pure functions that return something not based on any object and
+         that use the memory pointed to by their arguments (but not
+	 transitively).  */
+      case BUILT_IN_STRCMP:
+      case BUILT_IN_STRNCMP:
+      case BUILT_IN_STRCASECMP:
+      case BUILT_IN_STRNCASECMP:
+      case BUILT_IN_MEMCMP:
+      case BUILT_IN_BCMP:
+      case BUILT_IN_STRSPN:
+      case BUILT_IN_STRCSPN:
+	{
+	  varinfo_t uses = get_call_use_vi (t);
+	  make_any_offset_constraints (uses);
+	  make_constraint_to (uses->id, gimple_call_arg (t, 0));
+	  make_constraint_to (uses->id, gimple_call_arg (t, 1));
+	  /* No constraints are necessary for the return value.  */
+	  return true;
+	}
+      case BUILT_IN_STRLEN:
+	{
+	  varinfo_t uses = get_call_use_vi (t);
+	  make_any_offset_constraints (uses);
+	  make_constraint_to (uses->id, gimple_call_arg (t, 0));
+	  /* No constraints are necessary for the return value.  */
+	  return true;
+	}
+      case BUILT_IN_OBJECT_SIZE:
+      case BUILT_IN_CONSTANT_P:
+	{
+	  /* No constraints are necessary for the return value or the
+	     arguments.  */
+	  return true;
+	}
       /* Trampolines are special - they set up passing the static
 	 frame.  */
       case BUILT_IN_INIT_TRAMPOLINE:
@@ -7419,7 +7453,7 @@ compute_dependence_clique (void)
 		    {
 		      fprintf (dump_file, "found restrict pointed-to "
 			       "for ");
-		      print_generic_expr (dump_file, ptr, 0);
+		      print_generic_expr (dump_file, ptr);
 		      fprintf (dump_file, " but not exclusively\n");
 		    }
 		  restrict_var = NULL;
@@ -7766,7 +7800,7 @@ ipa_pta_execute (void)
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
-      symtab_node::dump_table (dump_file);
+      symtab->dump (dump_file);
       fprintf (dump_file, "\n");
     }
 

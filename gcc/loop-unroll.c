@@ -191,7 +191,7 @@ static rtx get_expansion (struct var_to_expand *);
 static void
 report_unroll (struct loop *loop, location_t locus)
 {
-  int report_flags = MSG_OPTIMIZED_LOCATIONS | TDF_RTL | TDF_DETAILS;
+  dump_flags_t report_flags = MSG_OPTIMIZED_LOCATIONS | TDF_DETAILS;
 
   if (loop->lpt_decision.decision == LPT_NONE)
     return;
@@ -223,7 +223,7 @@ decide_unrolling (int flags)
       location_t locus = get_loop_location (loop);
 
       if (dump_enabled_p ())
-	dump_printf_loc (TDF_RTL, locus,
+	dump_printf_loc (MSG_NOTE, locus,
                          ";; *** Considering loop %d at BB %d for "
                          "unrolling ***\n",
                          loop->num, loop->header->index);
@@ -1913,6 +1913,9 @@ combine_var_copies_in_loop_exit (struct var_to_expand *ve, basic_block place)
   if (ve->var_expansions.length () == 0)
     return;
 
+  /* ve->reg might be SUBREG or some other non-shareable RTL, and we use
+     it both here and as the destination of the assignment.  */
+  sum = copy_rtx (sum);
   start_sequence ();
   switch (ve->op)
     {

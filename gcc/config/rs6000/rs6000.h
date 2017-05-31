@@ -2157,12 +2157,6 @@ do {									     \
 
 /* #define LEGITIMATE_PIC_OPERAND_P (X) */
 
-/* Define this if some processing needs to be done immediately before
-   emitting code for an insn.  */
-
-#define FINAL_PRESCAN_INSN(INSN,OPERANDS,NOPERANDS) \
-  rs6000_final_prescan_insn (INSN, OPERANDS, NOPERANDS)
-
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
 #define CASE_VECTOR_MODE SImode
@@ -2717,6 +2711,7 @@ extern int frame_pointer_needed;
    aren't in target_flags.  */
 #define RS6000_BTM_ALWAYS	0		/* Always enabled.  */
 #define RS6000_BTM_ALTIVEC	MASK_ALTIVEC	/* VMX/altivec vectors.  */
+#define RS6000_BTM_CMPB		MASK_CMPB	/* ISA 2.05: compare bytes.  */
 #define RS6000_BTM_VSX		MASK_VSX	/* VSX (vector/scalar).  */
 #define RS6000_BTM_P8_VECTOR	MASK_P8_VECTOR	/* ISA 2.07 vector.  */
 #define RS6000_BTM_P9_VECTOR	MASK_P9_VECTOR	/* ISA 3.0 vector.  */
