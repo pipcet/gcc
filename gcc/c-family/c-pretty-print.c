@@ -2361,11 +2361,9 @@ print_c_tree (FILE *file, tree t)
 {
   c_pretty_printer pp;
 
-  pp.flags = pp_c_flag_abstract;
   pp_needs_newline (&pp) = true;
   pp.buffer->stream = file;
-  pp.declaration (t);
-  //pp.type_id (t);
+  pp.statement (t);
   pp_newline_and_flush (&pp);
 }
 
