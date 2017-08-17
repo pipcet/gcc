@@ -222,7 +222,9 @@ ipa_profile_generate_summary (void)
 	    time += estimate_num_insns (stmt, &eni_time_weights);
 	    size += estimate_num_insns (stmt, &eni_size_weights);
 	  }
-	account_time_size (&hashtable, histogram, bb->count, time, size);
+	if (bb->count.initialized_p ())
+	  account_time_size (&hashtable, histogram, bb->count.to_gcov_type (),
+			     time, size);
       }
   histogram.qsort (cmp_counts);
 }
@@ -328,7 +330,7 @@ ipa_propagate_frequency_1 (struct cgraph_node *node, void *data)
 	 it is executed by the train run.  Transfer the function only if all
 	 callers are unlikely executed.  */
       if (profile_info
-	  && opt_for_fn (d->function_symbol->decl, flag_branch_probabilities)
+	  && edge->callee->count.initialized_p ()
 	  /* Thunks are not profiled.  This is more or less implementation
 	     bug.  */
 	  && !d->function_symbol->thunk.thunk_p
@@ -428,10 +430,11 @@ ipa_propagate_frequency (struct cgraph_node *node)
     }
 
   /* With profile we can decide on hot/normal based on count.  */
-  if (node->count)
+  if (node->count.initialized_p ())
     {
       bool hot = false;
-      if (node->count >= get_hot_bb_threshold ())
+      if (!(node->count == profile_count::zero ())
+	  && node->count >= get_hot_bb_threshold ())
 	hot = true;
       if (!hot)
 	hot |= contains_hot_call_p (node);
@@ -576,7 +579,7 @@ ipa_profile (void)
 
       for (e = n->indirect_calls; e; e = e->next_callee)
 	{
-	  if (n->count)
+	  if (n->count.initialized_p ())
 	    nindirect++;
 	  if (e->indirect_info->common_target_id)
 	    {
@@ -662,8 +665,8 @@ ipa_profile (void)
 		      nconverted++;
 		      e->make_speculative
 			(n2,
-			 apply_scale (e->count,
-				      e->indirect_info->common_target_probability),
+			 e->count.apply_probability
+				     (e->indirect_info->common_target_probability),
 			 apply_scale (e->frequency,
 				      e->indirect_info->common_target_probability));
 		      update = true;

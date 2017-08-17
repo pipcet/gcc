@@ -821,8 +821,7 @@ store_init_value (tree decl, tree init, vec<tree, va_gc>** cleanups, int flags)
 	  || (DECL_IN_AGGR_P (decl) && !DECL_VAR_DECLARED_INLINE_P (decl)))
 	{
 	  /* Diagnose a non-constant initializer for constexpr.  */
-	  if (processing_template_decl
-	      && !require_potential_constant_expression (value))
+	  if (!require_potential_constant_expression (value))
 	    value = error_mark_node;
 	  else
 	    value = cxx_constant_value (value, decl);
@@ -1183,7 +1182,7 @@ digest_init_flags (tree type, tree init, int flags, tsubst_flags_t complain)
 
 /* Process the initializer INIT for an NSDMI DECL (a FIELD_DECL).  */
 tree
-digest_nsdmi_init (tree decl, tree init)
+digest_nsdmi_init (tree decl, tree init, tsubst_flags_t complain)
 {
   gcc_assert (TREE_CODE (decl) == FIELD_DECL);
 
@@ -1193,8 +1192,8 @@ digest_nsdmi_init (tree decl, tree init)
     flags = LOOKUP_NORMAL;
   if (BRACE_ENCLOSED_INITIALIZER_P (init)
       && CP_AGGREGATE_TYPE_P (type))
-    init = reshape_init (type, init, tf_warning_or_error);
-  init = digest_init_flags (type, init, flags, tf_warning_or_error);
+    init = reshape_init (type, init, complain);
+  init = digest_init_flags (type, init, flags, complain);
   if (TREE_CODE (init) == TARGET_EXPR)
     /* This represents the whole initialization.  */
     TARGET_EXPR_DIRECT_INIT_P (init) = true;
@@ -1428,7 +1427,7 @@ process_init_constructor_record (tree type, tree init,
 	      goto restart;
 	    }
 	  /* C++14 aggregate NSDMI.  */
-	  next = get_nsdmi (field, /*ctor*/false);
+	  next = get_nsdmi (field, /*ctor*/false, complain);
 	}
       else if (type_build_ctor_call (TREE_TYPE (field)))
 	{
@@ -1526,7 +1525,8 @@ process_init_constructor_union (tree type, tree init,
 	    {
 	      CONSTRUCTOR_APPEND_ELT (CONSTRUCTOR_ELTS (init),
 				      field,
-				      get_nsdmi (field, /*in_ctor=*/false));
+				      get_nsdmi (field, /*in_ctor=*/false,
+						 complain));
 	      break;
 	    }
 	}

@@ -51,8 +51,11 @@ static tree handle_common_attribute (tree *, tree, tree, int, bool *);
 static tree handle_noreturn_attribute (tree *, tree, tree, int, bool *);
 static tree handle_hot_attribute (tree *, tree, tree, int, bool *);
 static tree handle_cold_attribute (tree *, tree, tree, int, bool *);
+static tree handle_no_sanitize_attribute (tree *, tree, tree, int, bool *);
 static tree handle_no_sanitize_address_attribute (tree *, tree, tree,
 						  int, bool *);
+static tree handle_no_sanitize_thread_attribute (tree *, tree, tree,
+						 int, bool *);
 static tree handle_no_address_safety_analysis_attribute (tree *, tree, tree,
 							 int, bool *);
 static tree handle_no_sanitize_undefined_attribute (tree *, tree, tree, int,
@@ -63,6 +66,7 @@ static tree handle_stack_protect_attribute (tree *, tree, tree, int, bool *);
 static tree handle_noinline_attribute (tree *, tree, tree, int, bool *);
 static tree handle_noclone_attribute (tree *, tree, tree, int, bool *);
 static tree handle_noicf_attribute (tree *, tree, tree, int, bool *);
+static tree handle_noipa_attribute (tree *, tree, tree, int, bool *);
 static tree handle_leaf_attribute (tree *, tree, tree, int, bool *);
 static tree handle_always_inline_attribute (tree *, tree, tree, int,
 					    bool *);
@@ -112,6 +116,7 @@ static tree handle_deprecated_attribute (tree *, tree, tree, int,
 static tree handle_vector_size_attribute (tree *, tree, tree, int,
 					  bool *);
 static tree handle_nonnull_attribute (tree *, tree, tree, int, bool *);
+static tree handle_nonstring_attribute (tree *, tree, tree, int, bool *);
 static tree handle_nothrow_attribute (tree *, tree, tree, int, bool *);
 static tree handle_cleanup_attribute (tree *, tree, tree, int, bool *);
 static tree handle_warn_unused_result_attribute (tree *, tree, tree, int,
@@ -139,6 +144,8 @@ static tree handle_bnd_variable_size_attribute (tree *, tree, tree, int, bool *)
 static tree handle_bnd_legacy (tree *, tree, tree, int, bool *);
 static tree handle_bnd_instrument (tree *, tree, tree, int, bool *);
 static tree handle_fallthrough_attribute (tree *, tree, tree, int, bool *);
+static tree handle_patchable_function_entry_attribute (tree *, tree, tree,
+						       int, bool *);
 
 /* Table of machine-independent attributes common to all C-like languages.
 
@@ -173,6 +180,8 @@ const struct attribute_spec c_common_attribute_table[] =
 			      handle_noclone_attribute, false },
   { "no_icf",                 0, 0, true,  false, false,
 			      handle_noicf_attribute, false },
+  { "noipa",		      0, 0, true,  false, false,
+			      handle_noipa_attribute, false },
   { "leaf",                   0, 0, true,  false, false,
 			      handle_leaf_attribute, false },
   { "always_inline",          0, 0, true,  false, false,
@@ -262,6 +271,8 @@ const struct attribute_spec c_common_attribute_table[] =
 			      handle_tls_model_attribute, false },
   { "nonnull",                0, -1, false, true, true,
 			      handle_nonnull_attribute, false },
+  { "nonstring",              0, 0, true, false, false,
+			      handle_nonstring_attribute, false },
   { "nothrow",                0, 0, true,  false, false,
 			      handle_nothrow_attribute, false },
   { "may_alias",	      0, 0, false, true, false, NULL, false },
@@ -285,11 +296,14 @@ const struct attribute_spec c_common_attribute_table[] =
 			      0, 0, true, false, false,
 			      handle_no_address_safety_analysis_attribute,
 			      false },
+  { "no_sanitize",	      1, 1, true, false, false,
+			      handle_no_sanitize_attribute,
+			      false },
   { "no_sanitize_address",    0, 0, true, false, false,
 			      handle_no_sanitize_address_attribute,
 			      false },
   { "no_sanitize_thread",     0, 0, true, false, false,
-			      handle_no_sanitize_address_attribute,
+			      handle_no_sanitize_thread_attribute,
 			      false },
   { "no_sanitize_undefined",  0, 0, true, false, false,
 			      handle_no_sanitize_undefined_attribute,
@@ -345,6 +359,9 @@ const struct attribute_spec c_common_attribute_table[] =
 			      handle_bnd_instrument, false },
   { "fallthrough",	      0, 0, false, false, false,
 			      handle_fallthrough_attribute, false },
+  { "patchable_function_entry",	1, 2, true, false, false,
+			      handle_patchable_function_entry_attribute,
+			      false },
   { NULL,                     0, 0, false, false, false, NULL, false }
 };
 
@@ -547,6 +564,65 @@ handle_cold_attribute (tree *node, tree name, tree ARG_UNUSED (args),
   return NULL_TREE;
 }
 
+/* Add FLAGS for a function NODE to no_sanitize_flags in DECL_ATTRIBUTES.  */
+
+void
+add_no_sanitize_value (tree node, unsigned int flags)
+{
+  tree attr = lookup_attribute ("no_sanitize", DECL_ATTRIBUTES (node));
+  if (attr)
+    {
+      unsigned int old_value = tree_to_uhwi (TREE_VALUE (attr));
+      flags |= old_value;
+
+      if (flags == old_value)
+	return;
+
+      TREE_VALUE (attr) = build_int_cst (unsigned_type_node, flags);
+    }
+  else
+    DECL_ATTRIBUTES (node)
+      = tree_cons (get_identifier ("no_sanitize"),
+		   build_int_cst (unsigned_type_node, flags),
+		   DECL_ATTRIBUTES (node));
+}
+
+/* Handle a "no_sanitize" attribute; arguments as in
+   struct attribute_spec.handler.  */
+
+static tree
+handle_no_sanitize_attribute (tree *node, tree name, tree args, int,
+			      bool *no_add_attrs)
+{
+  *no_add_attrs = true;
+  tree id = TREE_VALUE (args);
+  if (TREE_CODE (*node) != FUNCTION_DECL)
+    {
+      warning (OPT_Wattributes, "%qE attribute ignored", name);
+      return NULL_TREE;
+    }
+
+  if (TREE_CODE (id) != STRING_CST)
+    {
+      error ("no_sanitize argument not a string");
+      return NULL_TREE;
+    }
+
+  char *error_value = NULL;
+  char *string = ASTRDUP (TREE_STRING_POINTER (id));
+  unsigned int flags = parse_no_sanitize_attribute (string, &error_value);
+
+  if (error_value)
+    {
+      error ("wrong argument: \"%s\"", error_value);
+      return NULL_TREE;
+    }
+
+  add_no_sanitize_value (*node, flags);
+
+  return NULL_TREE;
+}
+
 /* Handle a "no_sanitize_address" attribute; arguments as in
    struct attribute_spec.handler.  */
 
@@ -554,14 +630,31 @@ static tree
 handle_no_sanitize_address_attribute (tree *node, tree name, tree, int,
 				      bool *no_add_attrs)
 {
+  *no_add_attrs = true;
   if (TREE_CODE (*node) != FUNCTION_DECL)
-    {
-      warning (OPT_Wattributes, "%qE attribute ignored", name);
-      *no_add_attrs = true;
-    }
+    warning (OPT_Wattributes, "%qE attribute ignored", name);
+  else
+    add_no_sanitize_value (*node, SANITIZE_ADDRESS);
 
   return NULL_TREE;
 }
+
+/* Handle a "no_sanitize_thread" attribute; arguments as in
+   struct attribute_spec.handler.  */
+
+static tree
+handle_no_sanitize_thread_attribute (tree *node, tree name, tree, int,
+				      bool *no_add_attrs)
+{
+  *no_add_attrs = true;
+  if (TREE_CODE (*node) != FUNCTION_DECL)
+    warning (OPT_Wattributes, "%qE attribute ignored", name);
+  else
+    add_no_sanitize_value (*node, SANITIZE_THREAD);
+
+  return NULL_TREE;
+}
+
 
 /* Handle a "no_address_safety_analysis" attribute; arguments as in
    struct attribute_spec.handler.  */
@@ -570,13 +663,12 @@ static tree
 handle_no_address_safety_analysis_attribute (tree *node, tree name, tree, int,
 					     bool *no_add_attrs)
 {
+  *no_add_attrs = true;
   if (TREE_CODE (*node) != FUNCTION_DECL)
     warning (OPT_Wattributes, "%qE attribute ignored", name);
-  else if (!lookup_attribute ("no_sanitize_address", DECL_ATTRIBUTES (*node)))
-    DECL_ATTRIBUTES (*node)
-      = tree_cons (get_identifier ("no_sanitize_address"),
-		   NULL_TREE, DECL_ATTRIBUTES (*node));
-  *no_add_attrs = true;
+  else
+    add_no_sanitize_value (*node, SANITIZE_ADDRESS);
+
   return NULL_TREE;
 }
 
@@ -587,11 +679,12 @@ static tree
 handle_no_sanitize_undefined_attribute (tree *node, tree name, tree, int,
 				      bool *no_add_attrs)
 {
+  *no_add_attrs = true;
   if (TREE_CODE (*node) != FUNCTION_DECL)
-    {
-      warning (OPT_Wattributes, "%qE attribute ignored", name);
-      *no_add_attrs = true;
-    }
+    warning (OPT_Wattributes, "%qE attribute ignored", name);
+  else
+    add_no_sanitize_value (*node,
+			   SANITIZE_UNDEFINED | SANITIZE_UNDEFINED_NONDEFAULT);
 
   return NULL_TREE;
 }
@@ -611,6 +704,21 @@ handle_asan_odr_indicator_attribute (tree *, tree, tree, int, bool *)
 static tree
 handle_stack_protect_attribute (tree *node, tree name, tree, int,
 				bool *no_add_attrs)
+{
+  if (TREE_CODE (*node) != FUNCTION_DECL)
+    {
+      warning (OPT_Wattributes, "%qE attribute ignored", name);
+      *no_add_attrs = true;
+    }
+
+  return NULL_TREE;
+}
+
+/* Handle a "noipa" attribute; arguments as in
+   struct attribute_spec.handler.  */
+
+static tree
+handle_noipa_attribute (tree *node, tree name, tree, int, bool *no_add_attrs)
 {
   if (TREE_CODE (*node) != FUNCTION_DECL)
     {
@@ -1764,9 +1872,14 @@ handle_alias_ifunc_attribute (bool is_alias, tree *node, tree name, tree args,
 	TREE_STATIC (decl) = 1;
 
       if (!is_alias)
-	/* ifuncs are also aliases, so set that attribute too.  */
-	DECL_ATTRIBUTES (decl)
-	  = tree_cons (get_identifier ("alias"), args, DECL_ATTRIBUTES (decl));
+	{
+	  /* ifuncs are also aliases, so set that attribute too.  */
+	  DECL_ATTRIBUTES (decl)
+	    = tree_cons (get_identifier ("alias"), args,
+			 DECL_ATTRIBUTES (decl));
+	  DECL_ATTRIBUTES (decl) = tree_cons (get_identifier ("ifunc"),
+					      NULL, DECL_ATTRIBUTES (decl));
+	}
     }
   else
     {
@@ -2860,6 +2973,48 @@ handle_nonnull_attribute (tree *node, tree ARG_UNUSED (name),
   return NULL_TREE;
 }
 
+/* Handle the "nonstring" variable attribute.  */
+
+static tree
+handle_nonstring_attribute (tree *node, tree name, tree ARG_UNUSED (args),
+			    int ARG_UNUSED (flags), bool *no_add_attrs)
+{
+  gcc_assert (!args);
+  tree_code code = TREE_CODE (*node);
+
+  if (VAR_P (*node)
+      || code == FIELD_DECL
+      || code == PARM_DECL)
+    {
+      tree type = TREE_TYPE (*node);
+
+      if (POINTER_TYPE_P (type) || TREE_CODE (type) == ARRAY_TYPE)
+	{
+	  tree eltype = TREE_TYPE (type);
+	  if (eltype == char_type_node)
+	    return NULL_TREE;
+	}
+
+      warning (OPT_Wattributes,
+	       "%qE attribute ignored on objects of type %qT",
+	       name, type);
+      *no_add_attrs = true;
+      return NULL_TREE;
+    }
+
+  if (code == FUNCTION_DECL)
+    warning (OPT_Wattributes,
+	     "%qE attribute does not apply to functions", name);
+  else if (code == TYPE_DECL)
+    warning (OPT_Wattributes,
+	     "%qE attribute does not apply to types", name);
+  else
+    warning (OPT_Wattributes, "%qE attribute ignored", name);
+
+  *no_add_attrs = true;
+  return NULL_TREE;
+}
+
 /* Handle a "nothrow" attribute; arguments as in
    struct attribute_spec.handler.  */
 
@@ -3029,6 +3184,19 @@ handle_target_attribute (tree *node, tree name, tree args, int flags,
 						      flags))
     *no_add_attrs = true;
 
+  /* Check that there's no empty string in values of the attribute.  */
+  for (tree t = args; t != NULL_TREE; t = TREE_CHAIN (t))
+    {
+      tree value = TREE_VALUE (t);
+      if (TREE_CODE (value) == STRING_CST
+	  && TREE_STRING_LENGTH (value) == 1
+	  && TREE_STRING_POINTER (value)[0] == '\0')
+	{
+	  warning (OPT_Wattributes, "empty string in attribute %<target%>");
+	  *no_add_attrs = true;
+	}
+    }
+
   return NULL_TREE;
 }
 
@@ -3171,5 +3339,12 @@ handle_fallthrough_attribute (tree *, tree name, tree, int,
 {
   warning (OPT_Wattributes, "%qE attribute ignored", name);
   *no_add_attrs = true;
+  return NULL_TREE;
+}
+
+static tree
+handle_patchable_function_entry_attribute (tree *, tree, tree, int, bool *)
+{
+  /* Nothing to be done here.  */
   return NULL_TREE;
 }

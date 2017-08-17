@@ -201,6 +201,8 @@ extern void ix86_expand_truncdf_32 (rtx, rtx);
 
 extern void ix86_expand_vecop_qihi (enum rtx_code, rtx, rtx, rtx);
 
+extern rtx ix86_split_stack_guard (void);
+
 #ifdef TREE_CODE
 extern void init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, tree, int);
 #endif	/* TREE_CODE  */
@@ -316,7 +318,7 @@ extern enum attr_cpu ix86_schedule;
 
 extern const char * ix86_output_call_insn (rtx_insn *insn, rtx call_op);
 extern bool ix86_operands_ok_for_move_multiple (rtx *operands, bool load,
-						enum machine_mode mode);
+						machine_mode mode);
 
 #ifdef RTX_CODE
 /* Target data for multipass lookahead scheduling.

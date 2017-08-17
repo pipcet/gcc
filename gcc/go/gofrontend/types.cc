@@ -746,6 +746,20 @@ Type::are_convertible(const Type* lhs, const Type* rhs, std::string* reason)
   if (Type::are_assignable(lhs, rhs, reason))
     return true;
 
+  // A pointer to a regular type may not be converted to a pointer to
+  // a type that may not live in the heap, except when converting to
+  // unsafe.Pointer.
+  if (lhs->points_to() != NULL
+      && rhs->points_to() != NULL
+      && !rhs->points_to()->in_heap()
+      && lhs->points_to()->in_heap()
+      && !lhs->is_unsafe_pointer_type())
+    {
+      if (reason != NULL)
+	reason->assign(_("conversion from notinheap type to normal type"));
+      return false;
+    }
+
   // The types are convertible if they have identical underlying
   // types, ignoring struct field tags.
   if ((lhs->named_type() != NULL || rhs->named_type() != NULL)
@@ -1043,6 +1057,8 @@ Type::get_backend_placeholder(Gogo* gogo)
       {
 	Location loc = Linemap::unknown_location();
 	bt = gogo->backend()->placeholder_pointer_type("", loc, false);
+	Pointer_type* pt = this->convert<Pointer_type, TYPE_POINTER>();
+	Type::placeholder_pointers.push_back(pt);
       }
       break;
 
@@ -2570,15 +2586,15 @@ Type::make_gc_symbol_var(Gogo* gogo)
 bool
 Type::needs_gcprog(Gogo* gogo, int64_t* ptrsize, int64_t* ptrdata)
 {
+  Type* voidptr = Type::make_pointer_type(Type::make_void_type());
+  if (!voidptr->backend_type_size(gogo, ptrsize))
+    go_unreachable();
+
   if (!this->backend_type_ptrdata(gogo, ptrdata))
     {
       go_assert(saw_errors());
       return false;
     }
-
-  Type* voidptr = Type::make_pointer_type(Type::make_void_type());
-  if (!voidptr->backend_type_size(gogo, ptrsize))
-    go_unreachable();
 
   return *ptrdata / *ptrsize > max_ptrmask_bytes;
 }
@@ -2795,7 +2811,13 @@ Bvariable*
 Type::gc_ptrmask_var(Gogo* gogo, int64_t ptrsize, int64_t ptrdata)
 {
   Ptrmask ptrmask(ptrdata / ptrsize);
-  ptrmask.set_from(gogo, this, ptrsize, 0);
+  if (ptrdata >= ptrsize)
+    ptrmask.set_from(gogo, this, ptrsize, 0);
+  else
+    {
+      // This can happen in error cases.  Just build an empty gcbits.
+      go_assert(saw_errors());
+    }
   std::string sym_name = "runtime.gcbits." + ptrmask.symname();
   Bvariable* bvnull = NULL;
   std::pair<GC_gcbits_vars::iterator, bool> ins =
@@ -5496,19 +5518,58 @@ Pointer_type::do_import(Import* imp)
   return Type::make_pointer_type(to);
 }
 
+// Cache of pointer types. Key is "to" type, value is pointer type
+// that points to key.
+
+Type::Pointer_type_table Type::pointer_types;
+
+// A list of placeholder pointer types.  We keep this so we can ensure
+// they are finalized.
+
+std::vector<Pointer_type*> Type::placeholder_pointers;
+
 // Make a pointer type.
 
 Pointer_type*
 Type::make_pointer_type(Type* to_type)
 {
-  typedef Unordered_map(Type*, Pointer_type*) Hashtable;
-  static Hashtable pointer_types;
-  Hashtable::const_iterator p = pointer_types.find(to_type);
+  Pointer_type_table::const_iterator p = pointer_types.find(to_type);
   if (p != pointer_types.end())
     return p->second;
   Pointer_type* ret = new Pointer_type(to_type);
   pointer_types[to_type] = ret;
   return ret;
+}
+
+// This helper is invoked immediately after named types have been
+// converted, to clean up any unresolved pointer types remaining in
+// the pointer type cache.
+//
+// The motivation for this routine: occasionally the compiler creates
+// some specific pointer type as part of a lowering operation (ex:
+// pointer-to-void), then Type::backend_type_size() is invoked on the
+// type (which creates a Btype placeholder for it), that placeholder
+// passed somewhere along the line to the back end, but since there is
+// no reference to the type in user code, there is never a call to
+// Type::finish_backend for the type (hence the Btype remains as an
+// unresolved placeholder).  Calling this routine will clean up such
+// instances.
+
+void
+Type::finish_pointer_types(Gogo* gogo)
+{
+  // We don't use begin() and end() because it is possible to add new
+  // placeholder pointer types as we finalized existing ones.
+  for (size_t i = 0; i < Type::placeholder_pointers.size(); i++)
+    {
+      Pointer_type* pt = Type::placeholder_pointers[i];
+      Type_btypes::iterator tbti = Type::type_btypes.find(pt);
+      if (tbti != Type::type_btypes.end() && tbti->second.is_placeholder)
+        {
+          pt->finish_backend(gogo, tbti->second.btype);
+          tbti->second.is_placeholder = false;
+        }
+    }
 }
 
 // The nil type.  We use a special type for nil because it is not the
@@ -5947,6 +6008,24 @@ Struct_type::do_needs_key_update()
 	return true;
     }
   return false;
+}
+
+// Return whether this struct type is permitted to be in the heap.
+
+bool
+Struct_type::do_in_heap()
+{
+  const Struct_field_list* fields = this->fields_;
+  if (fields == NULL)
+    return true;
+  for (Struct_field_list::const_iterator pf = fields->begin();
+       pf != fields->end();
+       ++pf)
+    {
+      if (!pf->type()->in_heap())
+	return false;
+    }
+  return true;
 }
 
 // Build identity and hash functions for this struct.
@@ -7629,11 +7708,18 @@ Array_type::get_value_pointer(Gogo*, Expression* array, bool is_lvalue) const
     {
       Temporary_reference_expression* tref =
           array->temporary_reference_expression();
+      Var_expression* ve = array->var_expression();
       if (tref != NULL)
         {
           tref = tref->copy()->temporary_reference_expression();
           tref->set_is_lvalue();
           array = tref;
+        }
+      else if (ve != NULL)
+        {
+          ve = new Var_expression(ve->named_object(), ve->location());
+          ve->set_in_lvalue_pos();
+          array = ve;
         }
     }
 
@@ -8013,6 +8099,10 @@ Map_type::do_verify()
   // The runtime support uses "map[void]void".
   if (!this->key_type_->is_comparable() && !this->key_type_->is_void_type())
     go_error_at(this->location_, "invalid map key type");
+  if (!this->key_type_->in_heap())
+    go_error_at(this->location_, "go:notinheap map key not allowed");
+  if (!this->val_type_->in_heap())
+    go_error_at(this->location_, "go:notinheap map value not allowed");
   return true;
 }
 
@@ -8526,6 +8616,19 @@ Type::make_map_type(Type* key_type, Type* val_type, Location location)
 }
 
 // Class Channel_type.
+
+// Verify.
+
+bool
+Channel_type::do_verify()
+{
+  // We have no location for this error, but this is not something the
+  // ordinary user will see.
+  if (!this->element_type_->in_heap())
+    go_error_at(Linemap::unknown_location(),
+		"chan of go:notinheap type not allowed");
+  return true;
+}
 
 // Hash code.
 
@@ -9816,7 +9919,9 @@ Interface_type::do_import(Import* imp)
       methods = NULL;
     }
 
-  return Type::make_interface_type(methods, imp->location());
+  Interface_type* ret = Type::make_interface_type(methods, imp->location());
+  ret->package_ = imp->package();
+  return ret;
 }
 
 // Make an interface type.
@@ -10930,13 +11035,13 @@ Named_type::do_get_backend(Gogo* gogo)
       if (this->seen_in_get_backend_)
 	{
 	  this->is_circular_ = true;
-	  return gogo->backend()->circular_pointer_type(bt, false);
+	  return gogo->backend()->circular_pointer_type(bt, true);
 	}
       this->seen_in_get_backend_ = true;
       bt1 = Type::get_named_base_btype(gogo, base);
       this->seen_in_get_backend_ = false;
       if (this->is_circular_)
-	bt1 = gogo->backend()->circular_pointer_type(bt, false);
+	bt1 = gogo->backend()->circular_pointer_type(bt, true);
       if (!gogo->backend()->set_placeholder_pointer_type(bt, bt1))
 	bt = gogo->backend()->error_type();
       return bt;

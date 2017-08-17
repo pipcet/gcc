@@ -1,3 +1,251 @@
+2017-08-14  Martin Sebor  <msebor@redhat.com>
+
+	PR c/81117
+	* c-attribs.c (c_common_attribute_table): Add nonstring entry.
+	(handle_nonstring_attribute): New function.
+
+2017-08-14  Martin Sebor  <msebor@redhat.com>
+
+	PR c/81117
+	* c-format.h (T89_G): New macro.
+	* c-format.c (local_gcall_ptr_node): New variable.
+	(init_dynamic_diag_info): Initialize it.
+
+2017-08-11  Martin Liska  <mliska@suse.cz>
+
+	* c-opts.c (c_common_post_options): Replace ASM_OUTPUT_DEF with
+	TARGET_SUPPORTS_ALIASES.
+
+2017-08-10  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-common.c (c_parse_error): Add rich_location * param, using it
+	rather implicitly using input_location.
+	* c-common.h (c_parse_error): Add rich_location * param.
+
+2017-08-09  Marek Polacek  <polacek@redhat.com>
+
+	* c-common.c (pointer_int_sum): Use true/false instead of 1/0.
+	(c_common_truthvalue_conversion): Likewise.
+	* c-omp.c (c_finish_omp_atomic): Likewise.
+	* c-common.h (build_binary_op): Update declaration.
+
+2017-08-08  Martin Liska  <mliska@suse.cz>
+
+	* c-ada-spec.c: Include header files.
+	* c-ubsan.c: Likewise.
+	* c-warn.c: Likewise.
+
+2017-08-07  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/69389
+	* c-omp.c (c_finish_omp_atomic): Handle atomics on bitfields.
+
+2017-08-07  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.c (has_nontrivial_methods): Test for FUNCTION_DECL.
+	(print_ada_methods): Likewise.
+	(print_ada_declaration): Likewise.
+
+2017-08-07  Martin Liska  <mliska@suse.cz>
+
+	* array-notation-common.c: Add new includes.
+	* c-format.c( handle_format_attribute): Canonicalize a format
+	function name.
+	* c-lex.c (c_common_has_attribute): Canonicalize name of an
+	attribute.
+	* c-pretty-print.c: Add new include.
+
+2017-08-05  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.c (has_static_fields): Look only into variables.
+	(print_constructor): Add TYPE parameter and use it for the name.
+	(print_destructor): Likewise.
+	(print_ada_declaration): Adjust to new constructor/destructor names.
+	Adjust calls to print_constructor and print_destructor.
+	(print_ada_struct_decl): Do not test TREE_STATIC on FIELD_DECL.
+	Look only into variables in the final loop.
+
+2017-08-01  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.c (has_static_fields): Look only into fields.
+	(dump_generic_ada_node): Small tweak.
+	(dump_nested_types): Look only into fields.
+	(print_ada_declaration): Look only into methods.  Small tweak.
+	(print_ada_struct_decl): Look only into fields.  Use DECL_VIRTUAL_P.
+
+2017-08-01  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.c (print_generic_ada_decl): Pass correctly-typed constant.
+	(dump_ada_function_declaration): Likewise.
+	(dump_generic_ada_node): Likewise.
+	(print_ada_declaration): Add support for const-qualified variables.
+
+2017-07-31  Martin Liska  <mliska@suse.cz>
+
+	PR sanitize/81530
+	* c-ubsan.c (ubsan_maybe_instrument_array_ref):
+	Guard condition with flag_sanitize_p also with current_function_decl
+	non-null equality.
+	(ubsan_maybe_instrument_reference_or_call): Likewise.
+
+2017-07-30  Uros Bizjak  <ubizjak@gmail.com>
+
+	* c-format.c (asm_fprintf_char_table): Add 'z' to format_chars.
+
+2017-07-29  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.c (dump_generic_ada_node): Take into account signedness
+	for enumeral types.
+	(print_ada_declaration): Add missing guard for record types.
+
+2017-07-27  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/45784
+	* c-omp.c (c_finish_omp_for): If the condition is wrapped in
+	rhs of COMPOUND_EXPR(s), skip them and readd their lhs into
+	new COMPOUND_EXPRs around the rhs of the comparison.
+
+2017-07-27  Marek Polacek  <polacek@redhat.com>
+
+	PR c/81417
+	* c-warn.c (warn_for_sign_compare): Tweak the warning message.  Print
+	the types.
+
+2017-07-27  Jakub Jelinek  <jakub@redhat.com>
+
+	* c-attribs.c (c_common_attribute_table): Add noipa attribute.
+	(handle_noipa_attribute): New function.
+
+2017-07-07  Torsten Duwe  <duwe@suse.de>
+
+	* c-attribs.c (c_common_attribute_table): Add entry for
+	"patchable_function_entry".
+
+2017-07-20  Nathan Sidwell  <nathan@acm.org>
+
+	Remove TYPE_METHODS.
+	* c-ada-spec.c (is_tagged_type, has_nontrivial_methods,
+	dump_ada_template, print_ada_methods,
+	print_ada_declaration): Member fns are on TYPE_FIELDS.
+
+2017-07-18  Nathan Sidwell  <nathan@acm.org>
+
+	* c-warn.c (warn_for_memset): Use TYPE_{MIN,MAX}_VALUE.
+
+2017-07-14  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-common.c (try_to_locate_new_include_insertion_point): New
+	function.
+	(per_file_includes_t): New typedef.
+	(added_includes_t): New typedef.
+	(added_includes): New variable.
+	(maybe_add_include_fixit): New function.
+	* c-common.h (maybe_add_include_fixit): New decl.
+
+2017-07-10  Martin Sebor  <msebor@redhat.com>
+
+	PR other/81345
+	* c.opt (-Wstringop-overflow): Set defaults in LangEnabledBy.
+
+2017-07-06  David Malcolm  <dmalcolm@redhat.com>
+
+	* c-common.c (selftest::c_family_tests): New.
+	* c-common.h (selftest::run_c_tests): Move decl to c/c-lang.h.
+	(selftest::c_family_tests): New decl.
+
+2017-07-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c/81231
+	* c-common.c (sync_resolve_size): Give error for pointers to incomplete
+	types.
+
+2017-07-04  Marek Polacek  <polacek@redhat.com>
+
+	* c-warn.c (warn_if_unused_value): Remove WITH_CLEANUP_EXPR handling.
+
+2017-06-28  Martin Liska  <mliska@suse.cz>
+
+	PR ipa/81128
+	* c-attribs.c (handle_alias_ifunc_attribute): Append ifunc alias
+	to a function declaration.
+
+2017-06-28  Martin Liska  <mliska@suse.cz>
+
+	PR driver/79659
+	* c.opt: Add IntegerRange to various options.
+
+2017-06-26  Marek Polacek  <polacek@redhat.com>
+
+	PR c/80116
+	* c-common.h (warn_for_multistatement_macros): Declare.
+	* c-warn.c: Include "c-family/c-indentation.h".
+	(warn_for_multistatement_macros): New function.
+	* c.opt (Wmultistatement-macros): New option.
+	* c-indentation.c (guard_tinfo_to_string): No longer static.
+	Change the parameter type to "enum rid".  Handle RID_SWITCH.
+	* c-indentation.h (guard_tinfo_to_string): Declare.
+
+2017-06-23  Marc Glisse  <marc.glisse@inria.fr>
+
+	* c-common.c (c_common_nodes_and_builtins): Use builtin_structptr_types.
+
+2017-06-15  Martin Sebor  <msebor@redhat.com>
+
+	PR c++/80560
+	* c.opt (-Wclass-memaccess): New option.
+
+2017-06-14  Boris Kolpackov  <boris@codesynthesis.com>
+
+	* c-opts.c (c_common_finish): Handle '-' special value to -MF.
+
+2017-06-13  Marek Polacek  <polacek@redhat.com>
+
+	PR objc/80949
+	* c-warn.c (do_warn_duplicated_branches): Return if any of the
+	branches is null.
+
+2017-06-13  Martin Liska  <mliska@suse.cz>
+
+	PR sanitize/78204
+	* c-attribs.c (add_no_sanitize_value): New function.
+	(handle_no_sanitize_attribute): Likewise.
+	(handle_no_sanitize_address_attribute): Use the function.
+	(handle_no_sanitize_thread_attribute): New function.
+	(handle_no_address_safety_analysis_attribute): Use
+	add_no_sanitize_value.
+	(handle_no_sanitize_undefined_attribute): Likewise.
+	* c-common.h: Declare new functions.
+	* c-ubsan.c (ubsan_instrument_division): Use sanitize_flags_p.
+	(ubsan_instrument_shift): Likewise.
+	(ubsan_instrument_bounds): Likewise.
+	(ubsan_maybe_instrument_array_ref): Likewise.
+	(ubsan_maybe_instrument_reference_or_call): Likewise.
+
+2017-06-11  Jason Merrill  <jason@redhat.com>
+
+	* c-ada-spec.c, c-pragma.c: Use id_equal.
+
+2017-06-04  Marek Polacek  <polacek@redhat.com>
+
+	PR c/80919
+	* c-format.c (matching_type_p): Return false if any of the types
+	requires structural equality.
+
+2017-06-02  Martin Sebor  <msebor@redhat.com>
+
+	PR c/80892
+	* c-warn.c (conversion_warning): Use -Wconversion for integer
+	conversion and -Wfloat-conversion for floating one.
+
+2017-06-02  Bernd Edlinger  <bernd.edlinger@hotmail.de>
+
+	* c.opt (Wsizeof-pointer-div): New warning option.
+
+2017-06-01  Volker Reichelt  <v.reichelt@netcologne.de>
+
+	* c.opt (Wcatch-value): New shortcut for Wcatch-value=1.
+	(Wcatch-value=1): Enable by -Wall.
+
 2017-05-30  David Malcolm  <dmalcolm@redhat.com>
 
 	* c-format.c (gcc_cxxdiag_char_table): Add 'H' and 'I' to

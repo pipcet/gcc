@@ -48,7 +48,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "ipa-prop.h"
 #include "tree-eh.h"
 #include "varasm.h"
-
+#include "stringpool.h"
+#include "attribs.h"
 
 /* Allocate a fresh `simd_clone' and return it.  NARGS is the number
    of arguments to reserve space for.  */
@@ -417,8 +418,7 @@ simd_clone_mangle (struct cgraph_node *node,
      if the simdlen is assumed to be 8 for the first one, etc.  */
   for (struct cgraph_node *clone = node->simd_clones; clone;
        clone = clone->simdclone->next_clone)
-    if (strcmp (IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (clone->decl)),
-		str) == 0)
+    if (id_equal (DECL_ASSEMBLER_NAME (clone->decl), str))
       return NULL_TREE;
 
   return get_identifier (str);
@@ -1152,8 +1152,7 @@ simd_clone_adjust (struct cgraph_node *node)
 
   if (incr_bb)
     {
-      edge e = make_edge (incr_bb, EXIT_BLOCK_PTR_FOR_FN (cfun), 0);
-      e->probability = REG_BR_PROB_BASE;
+      make_single_succ_edge (incr_bb, EXIT_BLOCK_PTR_FOR_FN (cfun), 0);
       gsi = gsi_last_bb (incr_bb);
       iter2 = make_ssa_name (iter);
       g = gimple_build_assign (iter2, PLUS_EXPR, iter1,
@@ -1242,8 +1241,11 @@ simd_clone_adjust (struct cgraph_node *node)
       g = gimple_build_cond (EQ_EXPR, mask, build_zero_cst (TREE_TYPE (mask)),
 			     NULL, NULL);
       gsi_insert_after (&gsi, g, GSI_CONTINUE_LINKING);
-      make_edge (loop->header, incr_bb, EDGE_TRUE_VALUE);
-      FALLTHRU_EDGE (loop->header)->flags = EDGE_FALSE_VALUE;
+      edge e = make_edge (loop->header, incr_bb, EDGE_TRUE_VALUE);
+      e->probability = profile_probability::unlikely ().guessed ();
+      edge fallthru = FALLTHRU_EDGE (loop->header);
+      fallthru->flags = EDGE_FALSE_VALUE;
+      fallthru->probability = profile_probability::likely ().guessed ();
     }
 
   basic_block latch_bb = NULL;
@@ -1265,7 +1267,10 @@ simd_clone_adjust (struct cgraph_node *node)
 
       redirect_edge_succ (FALLTHRU_EDGE (latch_bb), body_bb);
 
-      make_edge (incr_bb, new_exit_bb, EDGE_FALSE_VALUE);
+      edge new_e = make_edge (incr_bb, new_exit_bb, EDGE_FALSE_VALUE);
+
+      /* FIXME: Do we need to distribute probabilities for the conditional? */
+      new_e->probability = profile_probability::guessed_never ();
       /* The successor of incr_bb is already pointing to latch_bb; just
 	 change the flags.
 	 make_edge (incr_bb, latch_bb, EDGE_TRUE_VALUE);  */

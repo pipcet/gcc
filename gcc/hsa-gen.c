@@ -29,9 +29,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "vec.h"
 #include "tree.h"
 #include "tree-pass.h"
-#include "cfg.h"
 #include "function.h"
 #include "basic-block.h"
+#include "cfg.h"
 #include "fold-const.h"
 #include "gimple.h"
 #include "gimple-iterator.h"
@@ -60,6 +60,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "internal-fn.h"
 #include "builtins.h"
 #include "stor-layout.h"
+#include "stringpool.h"
+#include "attribs.h"
 
 /* Print a warning message and set that we have seen an error.  */
 
@@ -1929,7 +1931,7 @@ gen_hsa_addr (tree ref, hsa_bb *hbb, HOST_WIDE_INT *output_bitsize = NULL,
 
   if (handled_component_p (ref))
     {
-      enum machine_mode mode;
+      machine_mode mode;
       int unsignedp, volatilep, preversep;
 
       ref = get_inner_reference (ref, &bitsize, &bitpos, &varoffset, &mode,
@@ -3924,7 +3926,7 @@ get_hsa_kernel_dispatch_offset (const char *field_name)
 
   for (tree chain = TYPE_FIELDS (*hsa_kernel_dispatch_type);
        chain != NULL_TREE; chain = TREE_CHAIN (chain))
-    if (strcmp (field_name, IDENTIFIER_POINTER (DECL_NAME (chain))) == 0)
+    if (id_equal (DECL_NAME (chain), field_name))
       return int_byte_position (chain);
 
   gcc_unreachable ();
@@ -6047,9 +6049,10 @@ struct phi_definition
 
 template <typename T>
 static
-T sum_slice (const auto_vec <T> &v, unsigned start, unsigned end)
+T sum_slice (const auto_vec <T> &v, unsigned start, unsigned end,
+	     T zero)
 {
-  T s = 0;
+  T s = zero;
 
   for (unsigned i = start; i < end; i++)
     s += v[i];
@@ -6137,8 +6140,8 @@ convert_switch_statements (void)
 
 	auto_vec <edge> new_edges;
 	auto_vec <phi_definition *> phi_todo_list;
-	auto_vec <gcov_type> edge_counts;
-	auto_vec <int> edge_probabilities;
+	auto_vec <profile_count> edge_counts;
+	auto_vec <profile_probability> edge_probabilities;
 
 	/* Investigate all labels that and PHI nodes in these edges which
 	   should be fixed after we add new collection of edges.  */
@@ -6230,12 +6233,12 @@ convert_switch_statements (void)
 	    basic_block label_bb
 	      = label_to_block_fn (func, CASE_LABEL (label));
 	    edge new_edge = make_edge (cur_bb, label_bb, EDGE_TRUE_VALUE);
-	    int prob_sum = sum_slice <int> (edge_probabilities, i, labels) +
-	       edge_probabilities[0];
+	    profile_probability prob_sum = sum_slice <profile_probability>
+		 (edge_probabilities, i, labels, profile_probability::never ())
+		  + edge_probabilities[0];
 
-	    if (prob_sum)
-	      new_edge->probability
-		= RDIV (REG_BR_PROB_BASE * edge_probabilities[i], prob_sum);
+	    if (prob_sum.initialized_p ())
+	      new_edge->probability = edge_probabilities[i] / prob_sum;
 
 	    new_edge->count = edge_counts[i];
 	    new_edges.safe_push (new_edge);
@@ -6252,10 +6255,10 @@ convert_switch_statements (void)
 		  }
 
 		edge next_edge = make_edge (cur_bb, next_bb, EDGE_FALSE_VALUE);
-		next_edge->probability
-		  = inverse_probability (new_edge->probability);
+		next_edge->probability = new_edge->probability.invert ();
 		next_edge->count = edge_counts[0]
-		  + sum_slice <gcov_type> (edge_counts, i, labels);
+		  + sum_slice <profile_count> (edge_counts, i, labels,
+					       profile_count::zero ());
 		next_bb->frequency = EDGE_FREQUENCY (next_edge);
 		cur_bb = next_bb;
 	      }
@@ -6263,7 +6266,7 @@ convert_switch_statements (void)
 		    of the switch.  */
 	      {
 		edge e = make_edge (cur_bb, default_label_bb, EDGE_FALSE_VALUE);
-		e->probability = inverse_probability (new_edge->probability);
+		e->probability = new_edge->probability.invert ();
 		e->count = edge_counts[0];
 		new_edges.safe_insert (0, e);
 	      }

@@ -58,6 +58,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "gomp-constants.h"
 #include "gimple-pretty-print.h"
 #include "hsa-common.h"
+#include "stringpool.h"
+#include "attribs.h"
 
 /* Lowering of OMP parallel and workshare constructs proceeds in two
    phases.  The first phase scans the function looking for OMP statements
@@ -796,6 +798,8 @@ omp_copy_decl (tree var, copy_body_data *cb)
 
   if (TREE_CODE (var) == LABEL_DECL)
     {
+      if (FORCED_LABEL (var) || DECL_NONLOCAL (var))
+	return var;
       new_var = create_artificial_label (DECL_SOURCE_LOCATION (var));
       DECL_CONTEXT (new_var) = current_function_decl;
       insert_decl_map (&ctx->cb, var, new_var);
@@ -5056,7 +5060,7 @@ lower_oacc_reductions (location_t loc, tree clauses, tree level, bool inner,
 
 	/* Determine position in reduction buffer, which may be used
 	   by target.  */
-	enum machine_mode mode = TYPE_MODE (TREE_TYPE (var));
+	machine_mode mode = TYPE_MODE (TREE_TYPE (var));
 	unsigned align = GET_MODE_ALIGNMENT (mode) /  BITS_PER_UNIT;
 	offset = (offset + align - 1) & ~(align - 1);
 	tree off = build_int_cst (sizetype, offset);
@@ -6320,7 +6324,11 @@ lower_omp_ordered_clauses (gimple_stmt_iterator *gsi_p, gomp_ordered *ord_stmt,
     return;
 
   wide_int *folded_deps = XALLOCAVEC (wide_int, 2 * len - 1);
-  memset (folded_deps, 0, sizeof (*folded_deps) * (2 * len - 1));
+
+  /* wide_int is not a POD so it must be default-constructed.  */
+  for (unsigned i = 0; i != 2 * len - 1; ++i)
+    new (static_cast<void*>(folded_deps + i)) wide_int ();
+
   tree folded_dep = NULL_TREE;
   /* TRUE if the first dimension's offset is negative.  */
   bool neg_offset_p = false;
@@ -9079,7 +9087,7 @@ diagnose_sb_0 (gimple_stmt_iterator *gsi_p,
     }
   if (kind == NULL)
     {
-      gcc_checking_assert (flag_openmp);
+      gcc_checking_assert (flag_openmp || flag_openmp_simd);
       kind = "OpenMP";
     }
 
@@ -9339,7 +9347,7 @@ public:
   /* opt_pass methods: */
   virtual bool gate (function *)
   {
-    return flag_cilkplus || flag_openacc || flag_openmp;
+    return flag_cilkplus || flag_openacc || flag_openmp || flag_openmp_simd;
   }
   virtual unsigned int execute (function *)
     {

@@ -68,6 +68,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-outof-ssa.h"
 #include "cfgloop.h"
 #include "insn-attr.h" /* For INSN_SCHEDULING.  */
+#include "stringpool.h"
+#include "attribs.h"
 #include "asan.h"
 #include "tree-ssa-address.h"
 #include "output.h"
@@ -2241,6 +2243,11 @@ expand_used_vars (void)
       expand_stack_vars (NULL, &data);
     }
 
+  if (asan_sanitize_allocas_p () && cfun->calls_alloca)
+    var_end_seq = asan_emit_allocas_unpoison (virtual_stack_dynamic_rtx,
+					      virtual_stack_vars_rtx,
+					      var_end_seq);
+
   fini_vars_expansion ();
 
   /* If there were any artificial non-ignored vars without rtl
@@ -2389,7 +2396,6 @@ static basic_block
 expand_gimple_cond (basic_block bb, gcond *stmt)
 {
   basic_block new_bb, dest;
-  edge new_edge;
   edge true_edge;
   edge false_edge;
   rtx_insn *last2, *last;
@@ -2508,9 +2514,7 @@ expand_gimple_cond (basic_block bb, gcond *stmt)
   if (loop->latch == bb
       && loop->header == dest)
     loop->latch = new_bb;
-  new_edge = make_edge (new_bb, dest, 0);
-  new_edge->probability = REG_BR_PROB_BASE;
-  new_edge->count = new_bb->count;
+  make_single_succ_edge (new_bb, dest, 0);
   if (BARRIER_P (BB_END (new_bb)))
     BB_END (new_bb) = PREV_INSN (BB_END (new_bb));
   update_bb_for_insn (new_bb);
@@ -3168,7 +3172,7 @@ expand_asm_stmt (gasm *stmt)
   rtx body = gen_rtx_ASM_OPERANDS ((noutputs == 0 ? VOIDmode
 				    : GET_MODE (output_rvec[0])),
 				   ggc_strdup (gimple_asm_string (stmt)),
-				   empty_string, 0, argvec, constraintvec,
+				   "", 0, argvec, constraintvec,
 				   labelvec, locus);
   MEM_VOLATILE_P (body) = gimple_asm_volatile_p (stmt);
 
@@ -3566,7 +3570,13 @@ expand_gimple_stmt_1 (gimple *stmt)
     case GIMPLE_PREDICT:
       break;
     case GIMPLE_SWITCH:
-      expand_case (as_a <gswitch *> (stmt));
+      {
+	gswitch *swtch = as_a <gswitch *> (stmt);
+	if (gimple_switch_num_labels (swtch) == 1)
+	  expand_goto (CASE_LABEL (gimple_switch_default_label (swtch)));
+	else
+	  expand_case (swtch);
+      }
       break;
     case GIMPLE_ASM:
       expand_asm_stmt (as_a <gasm *> (stmt));
@@ -3782,8 +3792,7 @@ expand_gimple_tailcall (basic_block bb, gcall *stmt, bool *can_fallthru)
   rtx_insn *last2, *last;
   edge e;
   edge_iterator ei;
-  int probability;
-  gcov_type count;
+  profile_probability probability;
 
   last2 = last = expand_gimple_stmt (stmt);
 
@@ -3808,8 +3817,8 @@ expand_gimple_tailcall (basic_block bb, gcall *stmt, bool *can_fallthru)
      all edges here, or redirecting the existing fallthru edge to
      the exit block.  */
 
-  probability = 0;
-  count = 0;
+  probability = profile_probability::never ();
+  profile_count count = profile_count::zero ();
 
   for (ei = ei_start (bb->succs); (e = ei_safe_edge (ei)); )
     {
@@ -3819,8 +3828,6 @@ expand_gimple_tailcall (basic_block bb, gcall *stmt, bool *can_fallthru)
 	    {
 	      e->dest->count -= e->count;
 	      e->dest->frequency -= EDGE_FREQUENCY (e);
-	      if (e->dest->count < 0)
-		e->dest->count = 0;
 	      if (e->dest->frequency < 0)
 		e->dest->frequency = 0;
 	    }
@@ -3853,8 +3860,8 @@ expand_gimple_tailcall (basic_block bb, gcall *stmt, bool *can_fallthru)
 
   e = make_edge (bb, EXIT_BLOCK_PTR_FOR_FN (cfun), EDGE_ABNORMAL
 		 | EDGE_SIBCALL);
-  e->probability += probability;
-  e->count += count;
+  e->probability = probability;
+  e->count = count;
   BB_END (bb) = last;
   update_bb_for_insn (bb);
 
@@ -5492,8 +5499,6 @@ expand_gimple_basic_block (basic_block bb, bool disable_tail_calls)
       if (elt)
 	emit_label (*elt);
 
-      /* Java emits line number notes in the top of labels.
-	 ??? Make this go away once line number notes are obsoleted.  */
       BB_HEAD (bb) = NEXT_INSN (last);
       if (NOTE_P (BB_HEAD (bb)))
 	BB_HEAD (bb) = NEXT_INSN (BB_HEAD (bb));
@@ -5836,12 +5841,11 @@ construct_init_block (void)
     {
       first_block = e->dest;
       redirect_edge_succ (e, init_block);
-      e = make_edge (init_block, first_block, flags);
+      e = make_single_succ_edge (init_block, first_block, flags);
     }
   else
-    e = make_edge (init_block, EXIT_BLOCK_PTR_FOR_FN (cfun), EDGE_FALLTHRU);
-  e->probability = REG_BR_PROB_BASE;
-  e->count = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
+    e = make_single_succ_edge (init_block, EXIT_BLOCK_PTR_FOR_FN (cfun),
+			       EDGE_FALLTHRU);
 
   update_bb_for_insn (init_block);
   return init_block;
@@ -5921,9 +5925,8 @@ construct_exit_block (void)
 	ix++;
     }
 
-  e = make_edge (exit_block, EXIT_BLOCK_PTR_FOR_FN (cfun), EDGE_FALLTHRU);
-  e->probability = REG_BR_PROB_BASE;
-  e->count = EXIT_BLOCK_PTR_FOR_FN (cfun)->count;
+  e = make_single_succ_edge (exit_block, EXIT_BLOCK_PTR_FOR_FN (cfun),
+			     EDGE_FALLTHRU);
   FOR_EACH_EDGE (e2, ei, EXIT_BLOCK_PTR_FOR_FN (cfun)->preds)
     if (e2 != e)
       {
@@ -5931,10 +5934,6 @@ construct_exit_block (void)
 	exit_block->count -= e2->count;
 	exit_block->frequency -= EDGE_FREQUENCY (e2);
       }
-  if (e->count < 0)
-    e->count = 0;
-  if (exit_block->count < 0)
-    exit_block->count = 0;
   if (exit_block->frequency < 0)
     exit_block->frequency = 0;
   update_bb_for_insn (exit_block);
@@ -6482,6 +6481,11 @@ pass_expand::execute (function *fun)
      the CFG as the code does not expect dead landing pads.  */
   if (fun->eh->region_tree != NULL)
     finish_eh_generation ();
+
+  /* BB subdivision may have created basic blocks that are are only reachable
+     from unlikely bbs but not marked as such in the profile.  */
+  if (optimize)
+    propagate_unlikely_bbs_forward ();
 
   /* Remove unreachable blocks, otherwise we cannot compute dominators
      which are needed for loop state verification.  As a side-effect

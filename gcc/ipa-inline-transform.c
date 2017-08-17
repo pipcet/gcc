@@ -44,6 +44,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "ipa-fnsummary.h"
 #include "ipa-inline.h"
 #include "tree-inline.h"
+#include "function.h"
+#include "cfg.h"
+#include "basic-block.h"
 
 int ncalls_inlined;
 int nfunctions_inlined;
@@ -51,10 +54,12 @@ int nfunctions_inlined;
 /* Scale frequency of NODE edges by FREQ_SCALE.  */
 
 static void
-update_noncloned_frequencies (struct cgraph_node *node,
-			      int freq_scale)
+update_noncloned_frequencies (struct cgraph_node *node, 
+			      int freq_scale, profile_count num,
+			      profile_count den)
 {
   struct cgraph_edge *e;
+  bool scale = (num == profile_count::zero () || den > 0);
 
   /* We do not want to ignore high loop nest after freq drops to 0.  */
   if (!freq_scale)
@@ -65,14 +70,20 @@ update_noncloned_frequencies (struct cgraph_node *node,
       if (e->frequency > CGRAPH_FREQ_MAX)
         e->frequency = CGRAPH_FREQ_MAX;
       if (!e->inline_failed)
-        update_noncloned_frequencies (e->callee, freq_scale);
+        update_noncloned_frequencies (e->callee, freq_scale, num, den);
+      if (scale)
+	e->count = e->count.apply_scale (num, den);
     }
   for (e = node->indirect_calls; e; e = e->next_callee)
     {
       e->frequency = e->frequency * (gcov_type) freq_scale / CGRAPH_FREQ_BASE;
       if (e->frequency > CGRAPH_FREQ_MAX)
         e->frequency = CGRAPH_FREQ_MAX;
+      if (scale)
+	e->count = e->count.apply_scale (num, den);
     }
+  if (scale)
+    node->count = node->count.apply_scale (num, den);
 }
 
 /* We removed or are going to remove the last call to NODE.
@@ -209,7 +220,8 @@ clone_inlined_nodes (struct cgraph_edge *e, bool duplicate,
 	    }
 	  duplicate = false;
 	  e->callee->externally_visible = false;
-          update_noncloned_frequencies (e->callee, e->frequency);
+          update_noncloned_frequencies (e->callee, e->frequency,
+					e->count, e->callee->count);
 
 	  dump_callgraph_transformation (e->callee, inlining_into,
 					 "inlining to");
@@ -276,7 +288,7 @@ mark_all_inlined_calls_cdtor (cgraph_node *node)
     {
       cs->in_polymorphic_cdtor = true;
       if (!cs->inline_failed)
-    mark_all_inlined_calls_cdtor (cs->callee);
+	mark_all_inlined_calls_cdtor (cs->callee);
     }
   for (cgraph_edge *cs = node->indirect_calls; cs; cs = cs->next_callee)
     cs->in_polymorphic_cdtor = true;
@@ -661,7 +673,37 @@ inline_transform (struct cgraph_node *node)
 
   timevar_push (TV_INTEGRATION);
   if (node->callees && (opt_for_fn (node->decl, optimize) || has_inline))
-    todo = optimize_inline_calls (current_function_decl);
+    {
+      profile_count num = node->count;
+      profile_count den = ENTRY_BLOCK_PTR_FOR_FN (cfun)->count;
+      bool scale = num.initialized_p ()
+		   && (den > 0 || num == profile_count::zero ())
+		   && !(num == den);
+      if (scale)
+	{
+	  if (dump_file)
+	    {
+	      fprintf (dump_file, "Applying count scale ");
+	      num.dump (dump_file);
+	      fprintf (dump_file, "/");
+	      den.dump (dump_file);
+	      fprintf (dump_file, "\n");
+	    }
+
+	  basic_block bb;
+	  FOR_ALL_BB_FN (bb, cfun)
+	    {
+	      bb->count = bb->count.apply_scale (num, den);
+	
+	      edge e;
+	      edge_iterator ei;
+	      FOR_EACH_EDGE (e, ei, bb->succs)
+		e->count = e->count.apply_scale (num, den);
+	    }
+	  ENTRY_BLOCK_PTR_FOR_FN (cfun)->count = node->count;
+	}
+      todo = optimize_inline_calls (current_function_decl);
+   }
   timevar_pop (TV_INTEGRATION);
 
   cfun->always_inline_functions_inlined = true;

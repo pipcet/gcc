@@ -54,9 +54,10 @@ init_exception_processing (void)
   push_namespace (std_identifier);
   tmp = build_function_type_list (void_type_node, NULL_TREE);
   terminate_fn = build_cp_library_fn_ptr ("terminate", tmp,
-					   ECF_NOTHROW | ECF_NORETURN);
-  TREE_THIS_VOLATILE (terminate_fn) = 1;
-  TREE_NOTHROW (terminate_fn) = 1;
+					   ECF_NOTHROW | ECF_NORETURN
+					   | ECF_COLD);
+  gcc_checking_assert (TREE_THIS_VOLATILE (terminate_fn)
+		       && TREE_NOTHROW (terminate_fn));
   pop_namespace ();
 
   /* void __cxa_call_unexpected(void *); */
@@ -217,7 +218,7 @@ dtor_nothrow (tree type)
   if (CLASSTYPE_LAZY_DESTRUCTOR (type))
     lazily_declare_fn (sfk_destructor, type);
 
-  return TREE_NOTHROW (CLASSTYPE_DESTRUCTORS (type));
+  return TREE_NOTHROW (CLASSTYPE_DESTRUCTOR (type));
 }
 
 /* Build up a call to __cxa_end_catch, to destroy the exception object
@@ -664,6 +665,7 @@ build_throw (tree exp)
 	{
 	  int flags = LOOKUP_NORMAL | LOOKUP_ONLYCONVERTING;
 	  vec<tree, va_gc> *exp_vec;
+	  bool converted = false;
 
 	  /* Under C++0x [12.8/16 class.copy], a thrown lvalue is sometimes
 	     treated as an rvalue for the purposes of overload resolution
@@ -674,14 +676,31 @@ build_throw (tree exp)
 	      && ! TREE_STATIC (exp)
 	      /* The variable must not have the `volatile' qualifier.  */
 	      && !(cp_type_quals (TREE_TYPE (exp)) & TYPE_QUAL_VOLATILE))
-	    flags = flags | LOOKUP_PREFER_RVALUE;
+	    {
+	      tree moved = move (exp);
+	      exp_vec = make_tree_vector_single (moved);
+	      moved = (build_special_member_call
+		       (object, complete_ctor_identifier, &exp_vec,
+			TREE_TYPE (object), flags|LOOKUP_PREFER_RVALUE,
+			tf_none));
+	      release_tree_vector (exp_vec);
+	      if (moved != error_mark_node)
+		{
+		  exp = moved;
+		  converted = true;
+		}
+	    }
 
 	  /* Call the copy constructor.  */
-	  exp_vec = make_tree_vector_single (exp);
-	  exp = (build_special_member_call
-		 (object, complete_ctor_identifier, &exp_vec,
-		  TREE_TYPE (object), flags, tf_warning_or_error));
-	  release_tree_vector (exp_vec);
+	  if (!converted)
+	    {
+	      exp_vec = make_tree_vector_single (exp);
+	      exp = (build_special_member_call
+		     (object, complete_ctor_identifier, &exp_vec,
+		      TREE_TYPE (object), flags, tf_warning_or_error));
+	      release_tree_vector (exp_vec);
+	    }
+
 	  if (exp == error_mark_node)
 	    {
 	      error ("  in thrown expression");
@@ -1194,18 +1213,6 @@ build_noexcept_spec (tree expr, int complain)
 		  || TREE_CODE (expr) == DEFERRED_NOEXCEPT);
       return build_tree_list (expr, NULL_TREE);
     }
-}
-
-/* Returns a noexcept-specifier to be evaluated later, for an
-   implicitly-declared or explicitly defaulted special member function.  */
-
-tree
-unevaluated_noexcept_spec (void)
-{
-  if (!noexcept_deferred_spec)
-    noexcept_deferred_spec
-      = build_noexcept_spec (make_node (DEFERRED_NOEXCEPT), tf_none);
-  return noexcept_deferred_spec;
 }
 
 /* Returns a TRY_CATCH_EXPR that will put TRY_LIST and CATCH_LIST in the

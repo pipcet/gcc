@@ -37,6 +37,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "c-family/c-ubsan.h"
 #include "params.h"
 #include "gcc-rich-location.h"
+#include "stringpool.h"
+#include "attribs.h"
+#include "asan.h"
 
 static tree cp_build_addr_expr_strict (tree, tsubst_flags_t);
 static tree cp_build_function_call (tree, tree, tsubst_flags_t);
@@ -4047,7 +4050,7 @@ enum_cast_to_int (tree op)
 /* For the c-common bits.  */
 tree
 build_binary_op (location_t location, enum tree_code code, tree op0, tree op1,
-		 int /*convert_p*/)
+		 bool /*convert_p*/)
 {
   return cp_build_binary_op (location, code, op0, op1, tf_warning_or_error);
 }
@@ -4357,6 +4360,29 @@ cp_build_binary_op (location_t location,
     case FLOOR_DIV_EXPR:
     case ROUND_DIV_EXPR:
     case EXACT_DIV_EXPR:
+      if (TREE_CODE (op0) == SIZEOF_EXPR && TREE_CODE (op1) == SIZEOF_EXPR)
+	{
+	  tree type0 = TREE_OPERAND (op0, 0);
+	  tree type1 = TREE_OPERAND (op1, 0);
+	  tree first_arg = type0;
+	  if (!TYPE_P (type0))
+	    type0 = TREE_TYPE (type0);
+	  if (!TYPE_P (type1))
+	    type1 = TREE_TYPE (type1);
+	  if (POINTER_TYPE_P (type0) && same_type_p (TREE_TYPE (type0), type1)
+	      && !(TREE_CODE (first_arg) == PARM_DECL
+		   && DECL_ARRAY_PARAMETER_P (first_arg)
+		   && warn_sizeof_array_argument)
+	      && (complain & tf_warning))
+	    if (warning_at (location, OPT_Wsizeof_pointer_div,
+			    "division %<sizeof (%T) / sizeof (%T)%> does "
+			    "not compute the number of array elements",
+			    type0, type1))
+	      if (DECL_P (first_arg))
+		inform (DECL_SOURCE_LOCATION (first_arg),
+			"first %<sizeof%> operand was declared here");
+	}
+
       if ((code0 == INTEGER_TYPE || code0 == REAL_TYPE
 	   || code0 == COMPLEX_TYPE || code0 == VECTOR_TYPE)
 	  && (code1 == INTEGER_TYPE || code1 == REAL_TYPE
@@ -5230,10 +5256,10 @@ cp_build_binary_op (location_t location,
   if (build_type == NULL_TREE)
     build_type = result_type;
 
-  if ((flag_sanitize & (SANITIZE_SHIFT | SANITIZE_DIVIDE
-			| SANITIZE_FLOAT_DIVIDE))
+  if (sanitize_flags_p ((SANITIZE_SHIFT
+			 | SANITIZE_DIVIDE | SANITIZE_FLOAT_DIVIDE))
+      && current_function_decl != NULL_TREE
       && !processing_template_decl
-      && do_ubsan_in_current_function ()
       && (doing_div_or_mod || doing_shift))
     {
       /* OP0 and/or OP1 might have side-effects.  */
@@ -5241,8 +5267,8 @@ cp_build_binary_op (location_t location,
       op1 = cp_save_expr (op1);
       op0 = fold_non_dependent_expr (op0);
       op1 = fold_non_dependent_expr (op1);
-      if (doing_div_or_mod && (flag_sanitize & (SANITIZE_DIVIDE
-						| SANITIZE_FLOAT_DIVIDE)))
+      if (doing_div_or_mod
+	  && sanitize_flags_p (SANITIZE_DIVIDE | SANITIZE_FLOAT_DIVIDE))
 	{
 	  /* For diagnostics we want to use the promoted types without
 	     shorten_binary_op.  So convert the arguments to the
@@ -5255,7 +5281,7 @@ cp_build_binary_op (location_t location,
 	    cop1 = cp_convert (orig_type, op1, complain);
 	  instrument_expr = ubsan_instrument_division (location, cop0, cop1);
 	}
-      else if (doing_shift && (flag_sanitize & SANITIZE_SHIFT))
+      else if (doing_shift && sanitize_flags_p (SANITIZE_SHIFT))
 	instrument_expr = ubsan_instrument_shift (location, code, op0, op1);
     }
 
@@ -5463,9 +5489,9 @@ build_x_unary_op (location_t loc, enum tree_code code, cp_expr xarg,
 	    {
 	      if (complain & tf_error)
 		error (DECL_CONSTRUCTOR_P (fn)
-		       ? G_("taking address of constructor %qE")
-		       : G_("taking address of destructor %qE"),
-		       xarg.get_value ());
+		       ? G_("taking address of constructor %qD")
+		       : G_("taking address of destructor %qD"),
+		       fn);
 	      return error_mark_node;
 	    }
 	}
@@ -5566,7 +5592,7 @@ cp_truthvalue_conversion (tree expr)
   if (TYPE_PTR_OR_PTRMEM_P (type)
       /* Avoid ICE on invalid use of non-static member function.  */
       || TREE_CODE (expr) == FUNCTION_DECL)
-    return build_binary_op (input_location, NE_EXPR, expr, nullptr_node, 1);
+    return build_binary_op (input_location, NE_EXPR, expr, nullptr_node, true);
   else
     return c_common_truthvalue_conversion (input_location, expr);
 }
@@ -5629,7 +5655,7 @@ cp_build_addr_expr_1 (tree arg, bool strict_lvalue, tsubst_flags_t complain)
   arg = mark_lvalue_use (arg);
   argtype = lvalue_type (arg);
 
-  gcc_assert (!identifier_p (arg) || !IDENTIFIER_OPNAME_P (arg));
+  gcc_assert (!(identifier_p (arg) && IDENTIFIER_ANY_OP_P (arg)));
 
   if (TREE_CODE (arg) == COMPONENT_REF && type_unknown_p (arg)
       && !really_overloaded_fn (arg))
@@ -6658,7 +6684,7 @@ maybe_warn_about_useless_cast (tree type, tree expr, tsubst_flags_t complain)
 	       ? xvalue_p (expr) : lvalue_p (expr))
 	   && same_type_p (TREE_TYPE (expr), TREE_TYPE (type)))
 	  || same_type_p (TREE_TYPE (expr), type))
-	warning (OPT_Wuseless_cast, "useless cast to type %qT", type);
+	warning (OPT_Wuseless_cast, "useless cast to type %q#T", type);
     }
 }
 
@@ -6687,12 +6713,13 @@ tree
 convert_ptrmem (tree type, tree expr, bool allow_inverse_p,
 		bool c_cast_p, tsubst_flags_t complain)
 {
+  if (same_type_p (type, TREE_TYPE (expr)))
+    return expr;
+
   if (TYPE_PTRDATAMEM_P (type))
     {
       tree delta;
 
-      if (TREE_CODE (expr) == PTRMEM_CST)
-	expr = cplus_expand_constant (expr);
       delta = get_delta_difference (TYPE_PTRMEM_CLASS_TYPE (TREE_TYPE (expr)),
 				    TYPE_PTRMEM_CLASS_TYPE (type),
 				    allow_inverse_p,
@@ -6704,6 +6731,8 @@ convert_ptrmem (tree type, tree expr, bool allow_inverse_p,
 	{
 	  tree cond, op1, op2;
 
+	  if (TREE_CODE (expr) == PTRMEM_CST)
+	    expr = cplus_expand_constant (expr);
 	  cond = cp_build_binary_op (input_location,
 				     EQ_EXPR,
 				     expr,
@@ -6797,7 +6826,7 @@ build_static_cast_1 (tree type, tree expr, bool c_cast_p,
 			  NULL, complain);
       expr = build_address (expr);
 
-      if (flag_sanitize & SANITIZE_VPTR)
+      if (sanitize_flags_p (SANITIZE_VPTR))
 	{
 	  tree ubsan_check
 	    = cp_ubsan_maybe_instrument_downcast (input_location, type,
@@ -6941,7 +6970,7 @@ build_static_cast_1 (tree type, tree expr, bool c_cast_p,
       expr = build_base_path (MINUS_EXPR, expr, base, /*nonnull=*/false,
 			      complain);
 
-      if (flag_sanitize & SANITIZE_VPTR)
+      if (sanitize_flags_p (SANITIZE_VPTR))
 	{
 	  tree ubsan_check
 	    = cp_ubsan_maybe_instrument_downcast (input_location, type,
@@ -8564,9 +8593,10 @@ convert_for_assignment (tree type, tree rhs,
 	      if (rhstype == unknown_type_node)
 		{
 		  tree r = instantiate_type (type, rhs, tf_warning_or_error);
-		  /* -fpermissive might allow this.  */
+		  /* -fpermissive might allow this; recurse.  */
 		  if (!seen_error ())
-		    return r;
+		    return convert_for_assignment (type, r, errtype, fndecl,
+						   parmnum, complain, flags);
 		}
 	      else if (fndecl)
 		error ("cannot convert %qH to %qI for argument %qP to %qD",
@@ -9126,6 +9156,7 @@ check_return_expr (tree retval, bool *no_warning)
 
          Note that these conditions are similar to, but not as strict as,
 	 the conditions for the named return value optimization.  */
+      bool converted = false;
       if ((cxx_dialect != cxx98)
           && ((VAR_P (retval) && !DECL_HAS_VALUE_EXPR_P (retval))
 	      || TREE_CODE (retval) == PARM_DECL)
@@ -9133,14 +9164,25 @@ check_return_expr (tree retval, bool *no_warning)
 	  && !TREE_STATIC (retval)
 	  /* This is only interesting for class type.  */
 	  && CLASS_TYPE_P (functype))
-	flags = flags | LOOKUP_PREFER_RVALUE;
+	{
+	  tree moved = move (retval);
+	  moved = convert_for_initialization
+	    (NULL_TREE, functype, moved, flags|LOOKUP_PREFER_RVALUE,
+	     ICR_RETURN, NULL_TREE, 0, tf_none);
+	  if (moved != error_mark_node)
+	    {
+	      retval = moved;
+	      converted = true;
+	    }
+	}
 
       /* First convert the value to the function's return type, then
 	 to the type of return value's location to handle the
 	 case that functype is smaller than the valtype.  */
-      retval = convert_for_initialization
-	(NULL_TREE, functype, retval, flags, ICR_RETURN, NULL_TREE, 0,
-         tf_warning_or_error);
+      if (!converted)
+	retval = convert_for_initialization
+	  (NULL_TREE, functype, retval, flags, ICR_RETURN, NULL_TREE, 0,
+	   tf_warning_or_error);
       retval = convert (valtype, retval);
 
       /* If the conversion failed, treat this just like `return;'.  */

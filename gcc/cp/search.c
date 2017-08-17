@@ -28,6 +28,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "intl.h"
 #include "toplev.h"
 #include "spellcheck-tree.h"
+#include "stringpool.h"
+#include "attribs.h"
 
 static int is_subobject_of_p (tree, tree);
 static tree dfs_lookup_base (tree, void *);
@@ -444,6 +446,10 @@ lookup_field_1 (tree type, tree name, bool want_type)
     {
       tree decl = field;
 
+      if (DECL_DECLARES_FUNCTION_P (decl))
+	/* Functions are kep separately, at the moment.  */
+	continue;
+
       if (GATHER_STATISTICS)
 	n_fields_searched++;
 
@@ -507,10 +513,13 @@ current_scope (void)
 	      && same_type_p (DECL_FRIEND_CONTEXT (current_function_decl),
 			      current_class_type))))
     return current_function_decl;
+
   if (current_class_type)
     return current_class_type;
+
   if (current_function_decl)
     return current_function_decl;
+
   return current_namespace;
 }
 
@@ -1187,7 +1196,7 @@ lookup_field_r (tree binfo, void *data)
 
  done:
   /* Don't look for constructors or destructors in base classes.  */
-  if (IDENTIFIER_CTOR_OR_DTOR_P (lfi->name))
+  if (IDENTIFIER_CDTOR_P (lfi->name))
     return dfs_skip_bases;
   return NULL_TREE;
 }
@@ -1352,7 +1361,7 @@ lookup_member (tree xbasetype, tree name, int protect, bool want_type,
 
   if (rval && is_overloaded_fn (rval))
     rval = build_baselink (rval_binfo, basetype_path, rval,
-			   (IDENTIFIER_TYPENAME_P (name)
+			   (IDENTIFIER_CONV_OP_P (name)
 			   ? TREE_TYPE (name): NULL_TREE));
   return rval;
 }
@@ -1523,86 +1532,67 @@ lookup_fnfields (tree xbasetype, tree name, int protect)
   return rval;
 }
 
-/* Return the index in the CLASSTYPE_METHOD_VEC for CLASS_TYPE
-   corresponding to "operator TYPE ()", or -1 if there is no such
-   operator.  Only CLASS_TYPE itself is searched; this routine does
-   not scan the base classes of CLASS_TYPE.  */
+/* Return the conversion operators in CLASS_TYPE corresponding to
+   "operator TYPE ()".  Only CLASS_TYPE itself is searched; this
+   routine does not scan the base classes of CLASS_TYPE.  */
 
-static int
+static tree
 lookup_conversion_operator (tree class_type, tree type)
 {
-  int tpl_slot = -1;
+  tree tpls = NULL_TREE;
 
   if (TYPE_HAS_CONVERSION (class_type))
     {
-      int i;
-      tree fn;
+      tree fns;
       vec<tree, va_gc> *methods = CLASSTYPE_METHOD_VEC (class_type);
 
-      for (i = CLASSTYPE_FIRST_CONVERSION_SLOT;
-	   vec_safe_iterate (methods, i, &fn); ++i)
+      for (int i = CLASSTYPE_FIRST_CONVERSION_SLOT;
+	   vec_safe_iterate (methods, i, &fns); ++i)
 	{
 	  /* All the conversion operators come near the beginning of
 	     the class.  Therefore, if FN is not a conversion
 	     operator, there is no matching conversion operator in
 	     CLASS_TYPE.  */
-	  fn = OVL_FIRST (fn);
+	  tree fn = OVL_FIRST (fns);
 	  if (!DECL_CONV_FN_P (fn))
 	    break;
 
 	  if (TREE_CODE (fn) == TEMPLATE_DECL)
 	    /* All the templated conversion functions are on the same
 	       slot, so remember it.  */
-	    tpl_slot = i;
+	    tpls = fns;
 	  else if (same_type_p (DECL_CONV_FN_TYPE (fn), type))
-	    return i;
+	    return fns;
 	}
     }
 
-  return tpl_slot;
+  return tpls;
 }
 
-/* TYPE is a class type. Return the index of the fields within
-   the method vector with name NAME, or -1 if no such field exists.
-   Does not lazily declare implicitly-declared member functions.  */
+/* TYPE is a class type. Return the member functions in the method
+   vector with name NAME.  Does not lazily declare implicitly-declared
+   member functions.  */
 
-static int
-lookup_fnfields_idx_nolazy (tree type, tree name)
+tree
+lookup_fnfields_slot_nolazy (tree type, tree name)
 {
-  vec<tree, va_gc> *method_vec;
-  tree fn;
-  size_t i;
-
-  if (!CLASS_TYPE_P (type))
-    return -1;
-
-  method_vec = CLASSTYPE_METHOD_VEC (type);
+  vec<tree, va_gc> *method_vec = CLASSTYPE_METHOD_VEC (type);
   if (!method_vec)
-    return -1;
+    return NULL_TREE;
 
   if (GATHER_STATISTICS)
     n_calls_lookup_fnfields_1++;
 
-  /* Constructors are first...  */
-  if (name == ctor_identifier)
-    {
-      fn = CLASSTYPE_CONSTRUCTORS (type);
-      return fn ? CLASSTYPE_CONSTRUCTOR_SLOT : -1;
-    }
-  /* and destructors are second.  */
-  if (name == dtor_identifier)
-    {
-      fn = CLASSTYPE_DESTRUCTORS (type);
-      return fn ? CLASSTYPE_DESTRUCTOR_SLOT : -1;
-    }
-  if (IDENTIFIER_TYPENAME_P (name))
+  if (IDENTIFIER_CONV_OP_P (name))
     return lookup_conversion_operator (type, TREE_TYPE (name));
 
   /* Skip the conversion operators.  */
+  int i;
+  tree fns;
   for (i = CLASSTYPE_FIRST_CONVERSION_SLOT;
-       vec_safe_iterate (method_vec, i, &fn);
+       vec_safe_iterate (method_vec, i, &fns);
        ++i)
-    if (!DECL_CONV_FN_P (OVL_FIRST (fn)))
+    if (!DECL_CONV_FN_P (OVL_FIRST (fns)))
       break;
 
   /* If the type is complete, use binary search.  */
@@ -1620,42 +1610,39 @@ lookup_fnfields_idx_nolazy (tree type, tree name)
 	  if (GATHER_STATISTICS)
 	    n_outer_fields_searched++;
 
-	  tree tmp = (*method_vec)[i];
-	  tmp = OVL_NAME (tmp);
-	  if (tmp > name)
+	  fns = (*method_vec)[i];
+	  tree fn_name = OVL_NAME (fns);
+	  if (fn_name > name)
 	    hi = i;
-	  else if (tmp < name)
+	  else if (fn_name < name)
 	    lo = i + 1;
 	  else
-	    return i;
+	    return fns;
 	}
     }
   else
-    for (; vec_safe_iterate (method_vec, i, &fn); ++i)
+    for (; vec_safe_iterate (method_vec, i, &fns); ++i)
       {
 	if (GATHER_STATISTICS)
 	  n_outer_fields_searched++;
-	if (OVL_NAME (fn) == name)
-	  return i;
+	if (OVL_NAME (fns) == name)
+	  return fns;
       }
 
-  return -1;
+  return NULL_TREE;
 }
 
-/* TYPE is a class type. Return the index of the fields within
-   the method vector with name NAME, or -1 if no such field exists.  */
+/* TYPE is a class type. Return the overloads in
+   the method vector with name NAME.  Lazily create ctors etc.  */
 
-int
-lookup_fnfields_1 (tree type, tree name)
+tree
+lookup_fnfields_slot (tree type, tree name)
 {
-  if (!CLASS_TYPE_P (type))
-    return -1;
+  type = complete_type (type);
 
   if (COMPLETE_TYPE_P (type))
     {
-      if ((name == ctor_identifier
-	   || name == base_ctor_identifier
-	   || name == complete_ctor_identifier))
+      if (IDENTIFIER_CTOR_P (name))
 	{
 	  if (CLASSTYPE_LAZY_DEFAULT_CTOR (type))
 	    lazily_declare_fn (sfk_constructor, type);
@@ -1671,54 +1658,39 @@ lookup_fnfields_1 (tree type, tree name)
 	  if (CLASSTYPE_LAZY_MOVE_ASSIGN (type))
 	    lazily_declare_fn (sfk_move_assignment, type);
 	}
-      else if ((name == dtor_identifier
-		|| name == base_dtor_identifier
-		|| name == complete_dtor_identifier
-		|| name == deleting_dtor_identifier)
-	       && CLASSTYPE_LAZY_DESTRUCTOR (type))
-	lazily_declare_fn (sfk_destructor, type);
+      else if (IDENTIFIER_DTOR_P (name))
+	{
+	  if (CLASSTYPE_LAZY_DESTRUCTOR (type))
+	    lazily_declare_fn (sfk_destructor, type);
+	}
     }
 
-  return lookup_fnfields_idx_nolazy (type, name);
+  return lookup_fnfields_slot_nolazy (type, name);
 }
 
-/* TYPE is a class type. Return the field within the method vector with
-   name NAME, or NULL_TREE if no such field exists.  */
+/* Collect all the conversion operators of KLASS.  */
 
 tree
-lookup_fnfields_slot (tree type, tree name)
+lookup_all_conversions (tree klass)
 {
-  int ix = lookup_fnfields_1 (complete_type (type), name);
-  if (ix < 0)
-    return NULL_TREE;
-  return (*CLASSTYPE_METHOD_VEC (type))[ix];
+  tree lkp = NULL_TREE;
+
+  if (vec<tree, va_gc> *methods = CLASSTYPE_METHOD_VEC (klass))
+    {
+      tree ovl;
+      for (int idx = CLASSTYPE_FIRST_CONVERSION_SLOT;
+	   methods->iterate (idx, &ovl); ++idx)
+	{
+	  if (!DECL_CONV_FN_P (OVL_FIRST (ovl)))
+	    /* There are no more conversion functions.  */
+	    break;
+
+	  lkp = lookup_add (ovl, lkp);
+	}
+    }
+
+  return lkp;
 }
-
-/* As above, but avoid lazily declaring functions.  */
-
-tree
-lookup_fnfields_slot_nolazy (tree type, tree name)
-{
-  int ix = lookup_fnfields_idx_nolazy (complete_type (type), name);
-  if (ix < 0)
-    return NULL_TREE;
-  return (*CLASSTYPE_METHOD_VEC (type))[ix];
-}
-
-/* Like lookup_fnfields_1, except that the name is extracted from
-   FUNCTION, which is a FUNCTION_DECL or a TEMPLATE_DECL.  */
-
-int
-class_method_index_for_fn (tree class_type, tree function)
-{
-  gcc_assert (DECL_DECLARES_FUNCTION_P (function));
-
-  return lookup_fnfields_1 (class_type,
-			    DECL_CONSTRUCTOR_P (function) ? ctor_identifier :
-			    DECL_DESTRUCTOR_P (function) ? dtor_identifier :
-			    DECL_NAME (function));
-}
-
 
 /* DECL is the result of a qualified name lookup.  QUALIFYING_SCOPE is
    the class or namespace used to qualify the name.  CONTEXT_CLASS is
@@ -2415,37 +2387,26 @@ look_for_overrides (tree type, tree fndecl)
 tree
 look_for_overrides_here (tree type, tree fndecl)
 {
-  int ix;
+  tree ovl = lookup_fnfields_slot (type, DECL_NAME (fndecl));
 
-  /* If there are no methods in TYPE (meaning that only implicitly
-     declared methods will ever be provided for TYPE), then there are
-     no virtual functions.  */
-  if (!CLASSTYPE_METHOD_VEC (type))
-    return NULL_TREE;
+  for (ovl_iterator iter (ovl); iter; ++iter)
+    {
+      tree fn = *iter;
 
-  if (DECL_MAYBE_IN_CHARGE_DESTRUCTOR_P (fndecl))
-    ix = CLASSTYPE_DESTRUCTOR_SLOT;
-  else
-    ix = lookup_fnfields_1 (type, DECL_NAME (fndecl));
-  if (ix >= 0)
-    for (ovl_iterator iter ((*CLASSTYPE_METHOD_VEC (type))[ix]); iter; ++iter)
-      {
-	tree fn = *iter;
-
-	if (!DECL_VIRTUAL_P (fn))
-	  /* Not a virtual.  */;
-	else if (DECL_CONTEXT (fn) != type)
-	  /* Introduced with a using declaration.  */;
-	else if (DECL_STATIC_FUNCTION_P (fndecl))
-	  {
-	    tree btypes = TYPE_ARG_TYPES (TREE_TYPE (fn));
-	    tree dtypes = TYPE_ARG_TYPES (TREE_TYPE (fndecl));
-	    if (compparms (TREE_CHAIN (btypes), dtypes))
-	      return fn;
-	  }
-	else if (same_signature_p (fndecl, fn))
-	  return fn;
-      }
+      if (!DECL_VIRTUAL_P (fn))
+	/* Not a virtual.  */;
+      else if (DECL_CONTEXT (fn) != type)
+	/* Introduced with a using declaration.  */;
+      else if (DECL_STATIC_FUNCTION_P (fndecl))
+	{
+	  tree btypes = TYPE_ARG_TYPES (TREE_TYPE (fn));
+	  tree dtypes = TYPE_ARG_TYPES (TREE_TYPE (fndecl));
+	  if (compparms (TREE_CHAIN (btypes), dtypes))
+	    return fn;
+	}
+      else if (same_signature_p (fndecl, fn))
+	return fn;
+    }
 
   return NULL_TREE;
 }
@@ -2974,6 +2935,28 @@ binfo_via_virtual (tree binfo, tree limit)
 	return binfo;
     }
   return NULL_TREE;
+}
+
+/* BINFO is for a base class in some hierarchy.  Return true iff it is a
+   direct base.  */
+
+bool
+binfo_direct_p (tree binfo)
+{
+  tree d_binfo = BINFO_INHERITANCE_CHAIN (binfo);
+  if (BINFO_INHERITANCE_CHAIN (d_binfo))
+    /* A second inheritance chain means indirect.  */
+    return false;
+  if (!BINFO_VIRTUAL_P (binfo))
+    /* Non-virtual, so only one inheritance chain means direct.  */
+    return true;
+  /* A virtual base looks like a direct base, so we need to look through the
+     direct bases to see if it's there.  */
+  tree b_binfo;
+  for (int i = 0; BINFO_BASE_ITERATE (d_binfo, i, b_binfo); ++i)
+    if (b_binfo == binfo)
+      return true;
+  return false;
 }
 
 /* BINFO is a base binfo in the complete type BINFO_TYPE (HERE).

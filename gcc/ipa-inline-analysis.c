@@ -110,7 +110,10 @@ void
 free_growth_caches (void)
 {
   if (edge_removal_hook_holder)
-    symtab->remove_edge_removal_hook (edge_removal_hook_holder);
+    {
+      symtab->remove_edge_removal_hook (edge_removal_hook_holder);
+      edge_removal_hook_holder = NULL;
+    }
   edge_growth_cache.release ();
 }
 
@@ -172,10 +175,11 @@ do_estimate_edge_time (struct cgraph_edge *edge)
      edges and for those we disable size limits.  Don't do that when
      probability that caller will call the callee is low however, since it
      may hurt optimization of the caller's hot path.  */
-  if (edge->count && edge->maybe_hot_p ()
-      && (edge->count * 2
+  if (edge->count.initialized_p () && edge->maybe_hot_p ()
+      && (edge->count.apply_scale (2, 1)
           > (edge->caller->global.inlined_to
-	     ? edge->caller->global.inlined_to->count : edge->caller->count)))
+	     ? edge->caller->global.inlined_to->count
+	     : edge->caller->count)))
     hints |= INLINE_HINT_known_hot;
 
   known_vals.release ();
@@ -322,7 +326,8 @@ do_estimate_growth_1 (struct cgraph_node *node, void *data)
     {
       gcc_checking_assert (e->inline_failed);
 
-      if (cgraph_inline_failed_type (e->inline_failed) == CIF_FINAL_ERROR)
+      if (cgraph_inline_failed_type (e->inline_failed) == CIF_FINAL_ERROR
+	  || !opt_for_fn (e->caller->decl, optimize))
 	{
 	  d->uninlinable = true;
           continue;

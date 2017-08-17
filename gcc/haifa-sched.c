@@ -8302,7 +8302,19 @@ sched_create_recovery_edges (basic_block first_bb, basic_block rec,
   else
     edge_flags = 0;
 
-  make_edge (first_bb, rec, edge_flags);
+  edge e2 = single_succ_edge (first_bb);
+  edge e = make_edge (first_bb, rec, edge_flags);
+
+  /* TODO: The actual probability can be determined and is computed as
+     'todo_spec' variable in create_check_block_twin and
+     in sel-sched.c `check_ds' in create_speculation_check.  */
+  e->probability = profile_probability::very_unlikely ();
+  e->count = first_bb->count.apply_probability (e->probability);
+  rec->count = e->count;
+  rec->frequency = EDGE_FREQUENCY (e);
+  e2->probability = e->probability.invert ();
+  e2->count = first_bb->count - e2->count;
+
   rtx_code_label *label = block_label (second_bb);
   rtx_jump_insn *jump = emit_jump_insn_after (targetm.gen_jump (label),
 					      BB_END (rec));
@@ -8313,8 +8325,7 @@ sched_create_recovery_edges (basic_block first_bb, basic_block rec,
     /* Partition type is the same, if it is "unpartitioned".  */
     {
       /* Rewritten from cfgrtl.c.  */
-      if (flag_reorder_blocks_and_partition
-	  && targetm_common.have_named_sections)
+      if (crtl->has_bb_partition && targetm_common.have_named_sections)
 	{
 	  /* We don't need the same note for the check because
 	     any_condjump_p (check) == true.  */

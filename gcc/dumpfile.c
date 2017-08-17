@@ -26,7 +26,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "diagnostic-core.h"
 #include "dumpfile.h"
 #include "context.h"
+#include "profile-count.h"
 #include "tree-cfg.h"
+#include "langhooks.h"
 
 /* If non-NULL, return one past-the-end of the matching SUBPART of
    the WHOLE string.  */
@@ -59,10 +61,11 @@ static struct dump_file_info dump_files[TDI_end] =
   DUMP_FILE_INFO (".cgraph", "ipa-cgraph", DK_ipa, 0),
   DUMP_FILE_INFO (".type-inheritance", "ipa-type-inheritance", DK_ipa, 0),
   DUMP_FILE_INFO (".ipa-clones", "ipa-clones", DK_ipa, 0),
-  DUMP_FILE_INFO (".original", "tree-original", DK_tree, 3),
-  DUMP_FILE_INFO (".gimple", "tree-gimple", DK_tree, 4),
-  DUMP_FILE_INFO (".nested", "tree-nested", DK_tree, 5),
-#define FIRST_AUTO_NUMBERED_DUMP 3
+  DUMP_FILE_INFO (".original", "tree-original", DK_tree, 0),
+  DUMP_FILE_INFO (".gimple", "tree-gimple", DK_tree, 0),
+  DUMP_FILE_INFO (".nested", "tree-nested", DK_tree, 0),
+#define FIRST_AUTO_NUMBERED_DUMP 1
+#define FIRST_ME_AUTO_NUMBERED_DUMP 3
 
   DUMP_FILE_INFO (NULL, "lang-all", DK_lang, 0),
   DUMP_FILE_INFO (NULL, "tree-all", DK_tree, 0),
@@ -108,9 +111,9 @@ static const struct dump_option_value_info dump_options[] =
   {"missed", MSG_MISSED_OPTIMIZATION},
   {"note", MSG_NOTE},
   {"optall", MSG_ALL},
-  {"all", ~(TDF_RAW | TDF_SLIM | TDF_LINENO | TDF_GRAPH | TDF_STMTADDR
-	    | TDF_RHS_ONLY | TDF_NOUID | TDF_ENUMERATE_LOCALS | TDF_SCEV
-	    | TDF_GIMPLE)},
+  {"all", dump_flags_t (~(TDF_RAW | TDF_SLIM | TDF_LINENO | TDF_GRAPH
+			| TDF_STMTADDR | TDF_RHS_ONLY | TDF_NOUID
+			| TDF_ENUMERATE_LOCALS | TDF_SCEV | TDF_GIMPLE))},
   {NULL, 0}
 };
 
@@ -179,15 +182,22 @@ dump_register (const char *suffix, const char *swtch, const char *glob,
   if (count >= m_extra_dump_files_alloced)
     {
       if (m_extra_dump_files_alloced == 0)
-	m_extra_dump_files_alloced = 32;
+	m_extra_dump_files_alloced = 512;
       else
 	m_extra_dump_files_alloced *= 2;
       m_extra_dump_files = XRESIZEVEC (struct dump_file_info,
 				       m_extra_dump_files,
 				       m_extra_dump_files_alloced);
+
+      /* Construct a new object in the space allocated above.  */
+      new (m_extra_dump_files + count) dump_file_info ();
+    }
+  else
+    {
+      /* Zero out the already constructed object.  */
+      m_extra_dump_files[count] = dump_file_info ();
     }
 
-  memset (&m_extra_dump_files[count], 0, sizeof (struct dump_file_info));
   m_extra_dump_files[count].suffix = suffix;
   m_extra_dump_files[count].swtch = swtch;
   m_extra_dump_files[count].glob = glob;
@@ -197,6 +207,25 @@ dump_register (const char *suffix, const char *swtch, const char *glob,
   m_extra_dump_files[count].owns_strings = take_ownership;
 
   return count + TDI_end;
+}
+
+
+/* Allow languages and middle-end to register their dumps before the
+   optimization passes.  */
+
+void
+gcc::dump_manager::
+register_dumps ()
+{
+  lang_hooks.register_dumps (this);
+  /* If this assert fails, some FE registered more than
+     FIRST_ME_AUTO_NUMBERED_DUMP - FIRST_AUTO_NUMBERED_DUMP
+     dump files.  Bump FIRST_ME_AUTO_NUMBERED_DUMP accordingly.  */
+  gcc_assert (m_next_dump <= FIRST_ME_AUTO_NUMBERED_DUMP);
+  m_next_dump = FIRST_ME_AUTO_NUMBERED_DUMP;
+  dump_files[TDI_original].num = m_next_dump++;
+  dump_files[TDI_gimple].num = m_next_dump++;
+  dump_files[TDI_nested].num = m_next_dump++;
 }
 
 

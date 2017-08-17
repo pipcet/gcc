@@ -2115,8 +2115,8 @@ class Call_expression : public Expression
   Call_expression(Expression* fn, Expression_list* args, bool is_varargs,
 		  Location location)
     : Expression(EXPRESSION_CALL, location),
-      fn_(fn), args_(args), type_(NULL), results_(NULL), call_(NULL),
-      call_temp_(NULL), expected_result_count_(0), is_varargs_(is_varargs),
+      fn_(fn), args_(args), type_(NULL), call_(NULL), call_temp_(NULL)
+    , expected_result_count_(0), is_varargs_(is_varargs),
       varargs_are_lowered_(false), types_are_determined_(false),
       is_deferred_(false), is_concurrent_(false), issued_error_(false),
       is_multi_value_arg_(false), is_flattened_(false)
@@ -2144,11 +2144,11 @@ class Call_expression : public Expression
   size_t
   result_count() const;
 
-  // Return the temporary variable which holds result I.  This is only
-  // valid after the expression has been lowered, and is only valid
-  // for calls which return multiple results.
+  // Return the temporary variable that holds the results.  This is
+  // only valid after the expression has been lowered, and is only
+  // valid for calls which return multiple results.
   Temporary_statement*
-  result(size_t i) const;
+  results() const;
 
   // Set the number of results expected from this call.  This is used
   // when the call appears in a context that expects multiple results,
@@ -2287,13 +2287,10 @@ class Call_expression : public Expression
 
   Expression*
   interface_method_function(Interface_field_reference_expression*,
-			    Expression**);
+			    Expression**, Location);
 
   Bexpression*
   set_results(Translate_context*);
-
-  Bexpression*
-  call_result_ref(Translate_context* context);
 
   // The function to call.
   Expression* fn_;
@@ -2302,9 +2299,6 @@ class Call_expression : public Expression
   Expression_list* args_;
   // The type of the expression, to avoid recomputing it.
   Type* type_;
-  // The list of temporaries which will hold the results if the
-  // function returns a tuple.
-  std::vector<Temporary_statement*>* results_;
   // The backend expression for the call, used for a call which returns a tuple.
   Bexpression* call_;
   // A temporary variable to store this call if the function returns a tuple.
@@ -3219,6 +3213,9 @@ class Allocation_expression : public Expression
   void
   do_determine_type(const Type_context*)
   { }
+
+  void
+  do_check_types(Gogo*);
 
   Expression*
   do_copy();

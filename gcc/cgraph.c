@@ -20,8 +20,9 @@ along with GCC; see the file COPYING3.  If not see
 
 /*  This file contains basic routines manipulating call graph
 
-    The call-graph is a data structure designed for intra-procedural optimization.
-    It represents a multi-graph where nodes are functions and edges are call sites. */
+    The call-graph is a data structure designed for inter-procedural
+    optimization.  It represents a multi-graph where nodes are functions
+    (symbols within symbol table) and edges are call sites. */
 
 #include "config.h"
 #include "system.h"
@@ -60,6 +61,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-chkp.h"
 #include "context.h"
 #include "gimplify.h"
+#include "stringpool.h"
+#include "attribs.h"
 
 /* FIXME: Only for PROP_loops, but cgraph shouldn't have to know about this.  */
 #include "tree-pass.h"
@@ -500,6 +503,8 @@ cgraph_node::create (tree decl)
 
   node->decl = decl;
 
+  node->count = profile_count::uninitialized ();
+
   if ((flag_openacc || flag_openmp)
       && lookup_attribute ("omp declare target", DECL_ATTRIBUTES (decl)))
     {
@@ -579,10 +584,11 @@ cgraph_node *
 cgraph_node::create_same_body_alias (tree alias, tree decl)
 {
   cgraph_node *n;
-#ifndef ASM_OUTPUT_DEF
+
   /* If aliases aren't supported by the assembler, fail.  */
-  return NULL;
-#endif
+  if (!TARGET_SUPPORTS_ALIASES)
+    return NULL;
+
   /* Langhooks can create same body aliases of symbols not defined.
      Those are useless. Drop them on the floor.  */
   if (symtab->global_info_ready)
@@ -808,7 +814,7 @@ cgraph_edge::set_call_stmt (gcall *new_stmt, bool update_speculative)
 
 cgraph_edge *
 symbol_table::create_edge (cgraph_node *caller, cgraph_node *callee,
-			   gcall *call_stmt, gcov_type count, int freq,
+			   gcall *call_stmt, profile_count count, int freq,
 			   bool indir_unknown_callee)
 {
   cgraph_edge *edge;
@@ -849,10 +855,9 @@ symbol_table::create_edge (cgraph_node *caller, cgraph_node *callee,
   edge->lto_stmt_uid = 0;
 
   edge->count = count;
-  gcc_assert (count >= 0);
   edge->frequency = freq;
-  gcc_assert (freq >= 0);
-  gcc_assert (freq <= CGRAPH_FREQ_MAX);
+  gcc_checking_assert (freq >= 0);
+  gcc_checking_assert (freq <= CGRAPH_FREQ_MAX);
 
   edge->call_stmt = call_stmt;
   push_cfun (DECL_STRUCT_FUNCTION (caller->decl));
@@ -894,7 +899,7 @@ symbol_table::create_edge (cgraph_node *caller, cgraph_node *callee,
 
 cgraph_edge *
 cgraph_node::create_edge (cgraph_node *callee,
-			  gcall *call_stmt, gcov_type count, int freq)
+			  gcall *call_stmt, profile_count count, int freq)
 {
   cgraph_edge *edge = symtab->create_edge (this, callee, call_stmt, count,
 					   freq, false);
@@ -931,7 +936,7 @@ cgraph_allocate_init_indirect_info (void)
 
 cgraph_edge *
 cgraph_node::create_indirect_edge (gcall *call_stmt, int ecf_flags,
-				   gcov_type count, int freq,
+				   profile_count count, int freq,
 				   bool compute_indirect_info)
 {
   cgraph_edge *edge = symtab->create_edge (this, NULL, call_stmt,
@@ -1047,7 +1052,7 @@ cgraph_edge::remove (void)
    Return direct edge created.  */
 
 cgraph_edge *
-cgraph_edge::make_speculative (cgraph_node *n2, gcov_type direct_count,
+cgraph_edge::make_speculative (cgraph_node *n2, profile_count direct_count,
 			       int direct_frequency)
 {
   cgraph_node *n = caller;
@@ -1303,24 +1308,29 @@ cgraph_edge::redirect_call_stmt_to_callee (void)
       else
 	{
 	  if (dump_file)
-	    fprintf (dump_file,
-		     "Expanding speculative call of %s -> %s count: "
-		     "%" PRId64"\n",
-		     e->caller->dump_name (),
-		     e->callee->dump_name (),
-		     (int64_t)e->count);
+	    {
+	      fprintf (dump_file,
+		       "Expanding speculative call of %s -> %s count: ",
+		       e->caller->dump_name (),
+		       e->callee->dump_name ());
+	      e->count.dump (dump_file);
+	      fprintf (dump_file, "\n");
+	    }
 	  gcc_assert (e2->speculative);
 	  push_cfun (DECL_STRUCT_FUNCTION (e->caller->decl));
+
+	  profile_probability prob = e->count.probability_in (e->count
+							      + e2->count);
+	  if (prob.initialized_p ())
+	    ;
+	  else if (e->frequency || e2->frequency)
+	    prob = profile_probability::probability_in_gcov_type
+		     (e->frequency, e->frequency + e2->frequency).guessed ();
+	  else 
+	    prob = profile_probability::even ();
 	  new_stmt = gimple_ic (e->call_stmt,
 				dyn_cast<cgraph_node *> (ref->referred),
-				e->count || e2->count
-				?  RDIV (e->count * REG_BR_PROB_BASE,
-					 e->count + e2->count)
-				: e->frequency || e2->frequency
-				? RDIV (e->frequency * REG_BR_PROB_BASE,
-					e->frequency + e2->frequency)
-				: REG_BR_PROB_BASE / 2,
-				e->count, e->count + e2->count);
+				prob, e->count, e->count + e2->count);
 	  e->speculative = false;
 	  e->caller->set_call_stmt_including_clones (e->call_stmt, new_stmt,
 						     false);
@@ -1591,7 +1601,7 @@ cgraph_update_edges_for_call_stmt_node (cgraph_node *node,
     {
       cgraph_edge *e = node->get_edge (old_stmt);
       cgraph_edge *ne = NULL;
-      gcov_type count;
+      profile_count count;
       int frequency;
 
       if (e)
@@ -2033,8 +2043,12 @@ cgraph_edge::dump_edge_flags (FILE *f)
     fprintf (f, "(call_stmt_cannot_inline_p) ");
   if (indirect_inlining_edge)
     fprintf (f, "(indirect_inlining) ");
-  if (count)
-    fprintf (f, "(%" PRId64"x) ", (int64_t)count);
+  if (count.initialized_p ())
+    {
+      fprintf (f, "(");
+      count.dump (f);
+      fprintf (f, ")");
+    }
   if (frequency)
     fprintf (f, "(%.2f per call) ", frequency / (double)CGRAPH_FREQ_BASE);
   if (can_throw_external)
@@ -2085,9 +2099,11 @@ cgraph_node::dump (FILE *f)
       fprintf (f, "\n");
     }
   fprintf (f, "  Function flags:");
-  if (count)
-    fprintf (f, " executed %" PRId64"x",
-	     (int64_t)count);
+  if (count.initialized_p ())
+    {
+      fprintf (f, " count: ");
+      count.dump (f);
+    }
   if (origin)
     fprintf (f, " nested in: %s", origin->asm_name ());
   if (gimple_has_body_p (decl))
@@ -2163,10 +2179,13 @@ cgraph_node::dump (FILE *f)
   
   fprintf (f, "  Called by: ");
 
+  profile_count sum = profile_count::zero ();
   for (edge = callers; edge; edge = edge->next_caller)
     {
       fprintf (f, "%s ", edge->caller->dump_name ());
       edge->dump_edge_flags (f);
+      if (edge->count.initialized_p ())
+	sum += edge->count;
     }
 
   fprintf (f, "\n  Calls: ");
@@ -2176,6 +2195,36 @@ cgraph_node::dump (FILE *f)
       edge->dump_edge_flags (f);
     }
   fprintf (f, "\n");
+
+  if (count.initialized_p ())
+    {
+      bool ok = true;
+      bool min = false;
+      ipa_ref *ref;
+
+      FOR_EACH_ALIAS (this, ref)
+	if (dyn_cast <cgraph_node *> (ref->referring)->count.initialized_p ())
+	  sum += dyn_cast <cgraph_node *> (ref->referring)->count;
+  
+      if (global.inlined_to
+	  || (symtab->state < EXPANSION
+	      && ultimate_alias_target () == this && only_called_directly_p ()))
+	ok = !count.differs_from_p (sum);
+      else if (count > profile_count::from_gcov_type (100)
+	       && count < sum.apply_scale (99, 100))
+	ok = false, min = true;
+      if (!ok)
+	{
+	  fprintf (f, "   Invalid sum of caller counts ");
+	  sum.dump (f);
+	  if (min)
+	    fprintf (f, ", should be at most ");
+	  else
+	    fprintf (f, ", should be ");
+	  count.dump (f);
+	  fprintf (f, "\n");
+	}
+    }
 
   for (edge = indirect_calls; edge; edge = edge->next_callee)
     {
@@ -2273,7 +2322,8 @@ cgraph_node::get_availability (symtab_node *ref)
     avail = AVAIL_AVAILABLE;
   else if (transparent_alias)
     ultimate_alias_target (&avail, ref);
-  else if (lookup_attribute ("ifunc", DECL_ATTRIBUTES (decl)))
+  else if (lookup_attribute ("ifunc", DECL_ATTRIBUTES (decl))
+	   || lookup_attribute ("noipa", DECL_ATTRIBUTES (decl)))
     avail = AVAIL_INTERPOSABLE;
   else if (!externally_visible)
     avail = AVAIL_AVAILABLE;
@@ -2720,10 +2770,7 @@ cgraph_edge::cannot_lead_to_return_p (void)
 bool
 cgraph_edge::maybe_hot_p (void)
 {
-  /* TODO: Export profile_status from cfun->cfg to cgraph_node.  */
-  if (profile_info
-      && opt_for_fn (caller->decl, flag_branch_probabilities)
-      && !maybe_hot_count_p (NULL, count))
+  if (!maybe_hot_count_p (NULL, count))
     return false;
   if (caller->frequency == NODE_FREQUENCY_UNLIKELY_EXECUTED
       || (callee
@@ -2736,6 +2783,10 @@ cgraph_edge::maybe_hot_p (void)
   if (opt_for_fn (caller->decl, optimize_size))
     return false;
   if (caller->frequency == NODE_FREQUENCY_HOT)
+    return true;
+  /* If profile is now known yet, be conservative.
+     FIXME: this predicate is used by early inliner and can do better there.  */
+  if (symtab->state < IPA_SSA)
     return true;
   if (caller->frequency == NODE_FREQUENCY_EXECUTED_ONCE
       && frequency < CGRAPH_FREQ_BASE * 3 / 2)

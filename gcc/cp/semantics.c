@@ -40,7 +40,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-iterator.h"
 #include "omp-general.h"
 #include "convert.h"
+#include "stringpool.h"
+#include "attribs.h"
 #include "gomp-constants.h"
+#include "predict.h"
 
 /* There routines provide a modular interface to perform many parsing
    operations.  They may therefore be used during actual parsing, or
@@ -630,6 +633,7 @@ finish_goto_stmt (tree destination)
 
   check_goto (destination);
 
+  add_stmt (build_predict_expr (PRED_GOTO, NOT_TAKEN));
   return add_stmt (build_stmt (input_location, GOTO_EXPR, destination));
 }
 
@@ -733,7 +737,10 @@ finish_if_stmt_cond (tree cond, tree if_stmt)
   if (IF_STMT_CONSTEXPR_P (if_stmt)
       && require_potential_rvalue_constant_expression (cond)
       && !value_dependent_expression_p (cond))
-    cond = cxx_constant_value (cond, NULL_TREE);
+    {
+      cond = instantiate_non_dependent_expr (cond);
+      cond = cxx_constant_value (cond, NULL_TREE);
+    }
   finish_cond (&IF_COND (if_stmt), cond);
   add_stmt (if_stmt);
   THEN_CLAUSE (if_stmt) = push_stmt_list ();
@@ -2913,7 +2920,7 @@ begin_class_definition (tree t)
       if (ns && TREE_CODE (ns) == NAMESPACE_DECL
 	  && DECL_CONTEXT (ns) == std_node
 	  && DECL_NAME (ns)
-	  && !strcmp (IDENTIFIER_POINTER (DECL_NAME (ns)), "decimal"))
+	  && id_equal (DECL_NAME (ns), "decimal"))
 	{
 	  const char *n = TYPE_NAME_STRING (t);
 	  if ((strcmp (n, "decimal32") == 0)
@@ -3034,9 +3041,9 @@ finish_member_declaration (tree decl)
   if (DECL_LANG_SPECIFIC (decl) && DECL_LANGUAGE (decl) == lang_c)
     SET_DECL_LANGUAGE (decl, lang_cplusplus);
 
-  /* Put functions on the TYPE_METHODS list and everything else on the
-     TYPE_FIELDS list.  Note that these are built up in reverse order.
-     We reverse them (to obtain declaration order) in finish_struct.  */
+  /* Put the decl on the TYPE_FIELDS list.  Note that this is built up
+     in reverse order.  We reverse it (to obtain declaration order) in
+     finish_struct.  */
   if (DECL_DECLARES_FUNCTION_P (decl))
     {
       /* We also need to add this function to the
@@ -3044,8 +3051,8 @@ finish_member_declaration (tree decl)
       if (add_method (current_class_type, decl, false))
 	{
 	  gcc_assert (TYPE_MAIN_VARIANT (current_class_type) == current_class_type);
-	  DECL_CHAIN (decl) = TYPE_METHODS (current_class_type);
-	  TYPE_METHODS (current_class_type) = decl;
+	  DECL_CHAIN (decl) = TYPE_FIELDS (current_class_type);
+	  TYPE_FIELDS (current_class_type) = decl;
 
 	  maybe_add_class_template_decl_list (current_class_type, decl,
 					      /*friend_p=*/0);
@@ -3493,7 +3500,7 @@ finish_id_expression (tree id_expression,
 	      && (!TYPE_P (scope)
 		  || (!dependent_type_p (scope)
 		      && !(identifier_p (id_expression)
-			   && IDENTIFIER_TYPENAME_P (id_expression)
+			   && IDENTIFIER_CONV_OP_P (id_expression)
 			   && dependent_type_p (TREE_TYPE (id_expression))))))
 	    {
 	      /* If the qualifying type is non-dependent (and the name
@@ -4586,7 +4593,7 @@ handle_omp_array_sections_1 (tree c, tree t, vec<tree> &types,
 	}
       if (!VAR_P (t) && TREE_CODE (t) != PARM_DECL)
 	{
-	  if (processing_template_decl)
+	  if (processing_template_decl && TREE_CODE (t) != OVERLOAD)
 	    return NULL_TREE;
 	  if (DECL_P (t))
 	    error_at (OMP_CLAUSE_LOCATION (c),
@@ -4731,9 +4738,9 @@ handle_omp_array_sections_1 (tree c, tree t, vec<tree> &types,
 	  && TREE_CODE (TYPE_MAX_VALUE (TYPE_DOMAIN (type)))
 			== INTEGER_CST)
 	{
-	  tree size = size_binop (PLUS_EXPR,
-				  TYPE_MAX_VALUE (TYPE_DOMAIN (type)),
-				  size_one_node);
+	  tree size
+	    = fold_convert (sizetype, TYPE_MAX_VALUE (TYPE_DOMAIN (type)));
+	  size = size_binop (PLUS_EXPR, size, size_one_node);
 	  if (TREE_CODE (low_bound) == INTEGER_CST)
 	    {
 	      if (tree_int_cst_lt (size, low_bound))
@@ -5791,7 +5798,7 @@ finish_omp_declare_simd_methods (tree t)
   if (processing_template_decl)
     return;
 
-  for (tree x = TYPE_METHODS (t); x; x = DECL_CHAIN (x))
+  for (tree x = TYPE_FIELDS (t); x; x = DECL_CHAIN (x))
     {
       if (TREE_CODE (TREE_TYPE (x)) != METHOD_TYPE)
 	continue;
@@ -6106,7 +6113,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	  if (!VAR_P (t) && TREE_CODE (t) != PARM_DECL
 	      && (!field_ok || TREE_CODE (t) != FIELD_DECL))
 	    {
-	      if (processing_template_decl)
+	      if (processing_template_decl && TREE_CODE (t) != OVERLOAD)
 		break;
 	      if (DECL_P (t))
 		error ("%qD is not a variable in clause %qs", t,
@@ -6178,7 +6185,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	      && ((ort & C_ORT_OMP_DECLARE_SIMD) != C_ORT_OMP
 		  || TREE_CODE (t) != FIELD_DECL))
 	    {
-	      if (processing_template_decl)
+	      if (processing_template_decl && TREE_CODE (t) != OVERLOAD)
 		break;
 	      if (DECL_P (t))
 		error ("%qD is not a variable in clause %<firstprivate%>", t);
@@ -6221,7 +6228,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	      && ((ort & C_ORT_OMP_DECLARE_SIMD) != C_ORT_OMP
 		  || TREE_CODE (t) != FIELD_DECL))
 	    {
-	      if (processing_template_decl)
+	      if (processing_template_decl && TREE_CODE (t) != OVERLOAD)
 		break;
 	      if (DECL_P (t))
 		error ("%qD is not a variable in clause %<lastprivate%>", t);
@@ -6584,7 +6591,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	    }
 	  if (!VAR_P (t) && TREE_CODE (t) != PARM_DECL)
 	    {
-	      if (processing_template_decl)
+	      if (processing_template_decl && TREE_CODE (t) != OVERLOAD)
 		break;
 	      if (DECL_P (t))
 		error ("%qD is not a variable in %<aligned%> clause", t);
@@ -6666,7 +6673,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	    remove = true;
 	  else if (!VAR_P (t) && TREE_CODE (t) != PARM_DECL)
 	    {
-	      if (processing_template_decl)
+	      if (processing_template_decl && TREE_CODE (t) != OVERLOAD)
 		break;
 	      if (DECL_P (t))
 		error ("%qD is not a variable in %<depend%> clause", t);
@@ -6797,7 +6804,7 @@ finish_omp_clauses (tree clauses, enum c_omp_region_type ort)
 	    }
 	  if (!VAR_P (t) && TREE_CODE (t) != PARM_DECL)
 	    {
-	      if (processing_template_decl)
+	      if (processing_template_decl && TREE_CODE (t) != OVERLOAD)
 		break;
 	      if (OMP_CLAUSE_CODE (c) == OMP_CLAUSE_MAP
 		  && (OMP_CLAUSE_MAP_KIND (c) == GOMP_MAP_POINTER
@@ -9069,52 +9076,34 @@ finish_decltype_type (tree expr, bool id_expression_or_member_access_p,
 }
 
 /* Called from trait_expr_value to evaluate either __has_nothrow_assign or 
-   __has_nothrow_copy, depending on assign_p.  */
+   __has_nothrow_copy, depending on assign_p.  Returns true iff all
+   the copy {ctor,assign} fns are nothrow.  */
 
 static bool
 classtype_has_nothrow_assign_or_copy_p (tree type, bool assign_p)
 {
-  tree fns;
+  tree fns = NULL_TREE;
 
   if (assign_p)
-    {
-      int ix;
-      ix = lookup_fnfields_1 (type, cp_assignment_operator_id (NOP_EXPR));
-      if (ix < 0)
-	return false;
-      fns = (*CLASSTYPE_METHOD_VEC (type))[ix];
-    } 
+    fns = lookup_fnfields_slot (type, cp_assignment_operator_id (NOP_EXPR));
   else if (TYPE_HAS_COPY_CTOR (type))
-    {
-      /* If construction of the copy constructor was postponed, create
-	 it now.  */
-      if (CLASSTYPE_LAZY_COPY_CTOR (type))
-	lazily_declare_fn (sfk_copy_constructor, type);
-      if (CLASSTYPE_LAZY_MOVE_CTOR (type))
-	lazily_declare_fn (sfk_move_constructor, type);
-      fns = CLASSTYPE_CONSTRUCTORS (type);
-    }
-  else
-    return false;
+    fns = lookup_fnfields_slot (type, ctor_identifier);
 
+  bool saw_copy = false;
   for (ovl_iterator iter (fns); iter; ++iter)
     {
       tree fn = *iter;
- 
-      if (assign_p)
-	{
-	  if (copy_fn_p (fn) == 0)
-	    continue;
-	}
-      else if (copy_fn_p (fn) <= 0)
-	continue;
 
-      maybe_instantiate_noexcept (fn);
-      if (!TYPE_NOTHROW_P (TREE_TYPE (fn)))
-	return false;
+      if (copy_fn_p (fn) > 0)
+	{
+	  saw_copy = true;
+	  maybe_instantiate_noexcept (fn);
+	  if (!TYPE_NOTHROW_P (TREE_TYPE (fn)))
+	    return false;
+	}
     }
 
-  return true;
+  return saw_copy;
 }
 
 /* Actually evaluates the trait.  */
@@ -9398,7 +9387,7 @@ apply_deduced_return_type (tree fco, tree return_type)
     }
 
   if (DECL_CONV_FN_P (fco))
-    DECL_NAME (fco) = mangle_conv_op_name_for_type (return_type);
+    DECL_NAME (fco) = make_conv_op_name (return_type);
 
   TREE_TYPE (fco) = change_return_type (return_type, TREE_TYPE (fco));
 

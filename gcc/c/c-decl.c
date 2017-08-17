@@ -53,6 +53,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "builtins.h"
 #include "spellcheck-tree.h"
 #include "gcc-rich-location.h"
+#include "asan.h"
 
 /* In grokdeclarator, distinguish syntactic contexts of declarators.  */
 enum decl_context
@@ -1556,11 +1557,10 @@ pushtag (location_t loc, tree name, tree type)
 	  && (TYPE_MAIN_VARIANT (TREE_TYPE (b->decl))
 	      != TYPE_MAIN_VARIANT (type)))
 	{
-	  warning_at (loc, OPT_Wc___compat,
-		      ("using %qD as both a typedef and a tag is "
-		       "invalid in C++"),
-		      b->decl);
-	  if (b->locus != UNKNOWN_LOCATION)
+	  if (warning_at (loc, OPT_Wc___compat,
+			  ("using %qD as both a typedef and a tag is "
+			   "invalid in C++"), b->decl)
+	      && b->locus != UNKNOWN_LOCATION)
 	    inform (b->locus, "originally defined here");
 	}
     }
@@ -3385,8 +3385,14 @@ implicitly_declare (location_t loc, tree functionid)
 		  const char *header
 		    = header_for_builtin_fn (DECL_FUNCTION_CODE (decl));
 		  if (header != NULL && warned)
-		    inform (loc, "include %qs or provide a declaration of %qD",
-			    header, decl);
+		    {
+		      rich_location richloc (line_table, loc);
+		      maybe_add_include_fixit (&richloc, header);
+		      inform_at_rich_loc
+			(&richloc,
+			 "include %qs or provide a declaration of %qD",
+			 header, decl);
+		    }
 		  newtype = TREE_TYPE (decl);
 		}
 	    }
@@ -6044,9 +6050,9 @@ grokdeclarator (const struct c_declarator *declarator,
 		       with known value.  */
 		    this_size_varies = size_varies = true;
 		    warn_variable_length_array (name, size);
-		    if (flag_sanitize & SANITIZE_VLA
-		        && decl_context == NORMAL
-			&& do_ubsan_in_current_function ())
+		    if (sanitize_flags_p (SANITIZE_VLA)
+			&& current_function_decl != NULL_TREE
+			&& decl_context == NORMAL)
 		      {
 			/* Evaluate the array size only once.  */
 			size = save_expr (size);
@@ -6589,11 +6595,10 @@ grokdeclarator (const struct c_declarator *declarator,
 		  || (current_scope == file_scope && B_IN_EXTERNAL_SCOPE (b)))
 	      && TYPE_MAIN_VARIANT (b->decl) != TYPE_MAIN_VARIANT (type))
 	    {
-	      warning_at (declarator->id_loc, OPT_Wc___compat,
-			  ("using %qD as both a typedef and a tag is "
-			   "invalid in C++"),
-			  decl);
-	      if (b->locus != UNKNOWN_LOCATION)
+	      if (warning_at (declarator->id_loc, OPT_Wc___compat,
+			      ("using %qD as both a typedef and a tag is "
+			       "invalid in C++"), decl)
+		  && b->locus != UNKNOWN_LOCATION)
 		inform (b->locus, "originally defined here");
 	    }
 	}
@@ -7453,6 +7458,9 @@ start_struct (location_t loc, enum tree_code code, tree name,
     ref = lookup_tag (code, name, true, &refloc);
   if (ref && TREE_CODE (ref) == code)
     {
+      if (TYPE_STUB_DECL (ref))
+	refloc = DECL_SOURCE_LOCATION (TYPE_STUB_DECL (ref));
+
       if (TYPE_SIZE (ref))
 	{
 	  if (code == UNION_TYPE)
@@ -7550,10 +7558,9 @@ grokfield (location_t loc,
 	 that took root before someone noticed the bug...  */
 
       tree type = declspecs->type;
-      bool type_ok = RECORD_OR_UNION_TYPE_P (type);
       bool ok = false;
 
-      if (type_ok
+      if (RECORD_OR_UNION_TYPE_P (type)
 	  && (flag_ms_extensions
 	      || flag_plan9_extensions
 	      || !declspecs->typedef_p))
@@ -8185,7 +8192,10 @@ start_enum (location_t loc, struct c_enum_contents *the_enum, tree name)
   /* Update type location to the one of the definition, instead of e.g.
      a forward declaration.  */
   else if (TYPE_STUB_DECL (enumtype))
-    DECL_SOURCE_LOCATION (TYPE_STUB_DECL (enumtype)) = loc;
+    {
+      enumloc = DECL_SOURCE_LOCATION (TYPE_STUB_DECL (enumtype));
+      DECL_SOURCE_LOCATION (TYPE_STUB_DECL (enumtype)) = loc;
+    }
 
   if (C_TYPE_BEING_DEFINED (enumtype))
     error_at (loc, "nested redefinition of %<enum %E%>", name);
@@ -8463,7 +8473,7 @@ build_enumerator (location_t decl_loc, location_t loc,
   /* Set basis for default for next value.  */
   the_enum->enum_next_value
     = build_binary_op (EXPR_LOC_OR_LOC (value, input_location),
-		       PLUS_EXPR, value, integer_one_node, 0);
+		       PLUS_EXPR, value, integer_one_node, false);
   the_enum->enum_overflow = tree_int_cst_lt (the_enum->enum_next_value, value);
 
   /* Now create a declaration for the enum value name.  */

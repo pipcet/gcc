@@ -26,6 +26,8 @@
 #include "target.h"
 #include "rtl.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "attribs.h"
 #include "df.h"
 #include "memmodel.h"
 #include "tm_p.h"
@@ -3453,8 +3455,7 @@ microblaze_expand_conditional_branch (machine_mode mode, rtx operands[])
 }
 
 void
-microblaze_expand_conditional_branch_reg (enum machine_mode mode,
-                                          rtx operands[])
+microblaze_expand_conditional_branch_reg (machine_mode mode, rtx operands[])
 {
   enum rtx_code code = GET_CODE (operands[0]);
   rtx cmp_op0 = operands[1];

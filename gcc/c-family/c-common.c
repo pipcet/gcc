@@ -3133,7 +3133,8 @@ pointer_int_sum (location_t loc, enum tree_code resultcode,
 	 can result in a sum or difference with different type args.  */
       ptrop = build_binary_op (EXPR_LOCATION (TREE_OPERAND (intop, 1)),
 			       subcode, ptrop,
-			       convert (int_type, TREE_OPERAND (intop, 1)), 1);
+			       convert (int_type, TREE_OPERAND (intop, 1)),
+			       true);
       intop = convert (int_type, TREE_OPERAND (intop, 0));
     }
 
@@ -3306,7 +3307,7 @@ c_common_truthvalue_conversion (location_t location, tree expr)
 						TREE_OPERAND (expr, 0)),
 		c_common_truthvalue_conversion (location,
 						TREE_OPERAND (expr, 1)),
-			      0);
+			      false);
       goto ret;
 
     case NEGATE_EXPR:
@@ -3457,7 +3458,7 @@ c_common_truthvalue_conversion (location_t location, tree expr)
 	c_common_truthvalue_conversion
 	       (location,
 		build_unary_op (location, IMAGPART_EXPR, t, false)),
-	       0));
+	       false));
       goto ret;
     }
 
@@ -3466,10 +3467,10 @@ c_common_truthvalue_conversion (location_t location, tree expr)
       tree fixed_zero_node = build_fixed (TREE_TYPE (expr),
 					  FCONST0 (TYPE_MODE
 						   (TREE_TYPE (expr))));
-      return build_binary_op (location, NE_EXPR, expr, fixed_zero_node, 1);
+      return build_binary_op (location, NE_EXPR, expr, fixed_zero_node, true);
     }
   else
-    return build_binary_op (location, NE_EXPR, expr, integer_zero_node, 1);
+    return build_binary_op (location, NE_EXPR, expr, integer_zero_node, true);
 
  ret:
   protected_set_expr_location (expr, location);
@@ -4181,10 +4182,14 @@ c_common_nodes_and_builtins (void)
   if (c_dialect_cxx ())
     {
       /* For C++, make fileptr_type_node a distinct void * type until
-	 FILE type is defined.  */
-      fileptr_type_node = build_variant_type_copy (ptr_type_node);
-      /* Likewise for const struct tm*.  */
-      const_tm_ptr_type_node = build_variant_type_copy (const_ptr_type_node);
+	 FILE type is defined.  Likewise for const struct tm*.  */
+      for (unsigned i = 0;
+	   i < sizeof (builtin_structptr_types)
+	       / sizeof (builtin_structptr_type);
+	   ++i)
+	builtin_structptr_types[i].node =
+	  build_variant_type_copy (builtin_structptr_types[i].base);
+
     }
 
   record_builtin_type (RID_VOID, NULL, void_type_node);
@@ -5945,12 +5950,13 @@ catenate_strings (const char *lhs, const char *rhs_start, int rhs_size)
   return result;
 }
 
-/* Issue the error given by GMSGID, indicating that it occurred before
-   TOKEN, which had the associated VALUE.  */
+/* Issue the error given by GMSGID at RICHLOC, indicating that it occurred
+   before TOKEN, which had the associated VALUE.  */
 
 void
 c_parse_error (const char *gmsgid, enum cpp_ttype token_type,
-	       tree value, unsigned char token_flags)
+	       tree value, unsigned char token_flags,
+	       rich_location *richloc)
 {
 #define catenate_messages(M1, M2) catenate_strings ((M1), (M2), sizeof (M2))
 
@@ -5991,7 +5997,7 @@ c_parse_error (const char *gmsgid, enum cpp_ttype token_type,
       else
 	message = catenate_messages (gmsgid, " before %s'\\x%x'");
 
-      error (message, prefix, val);
+      error_at_rich_loc (richloc, message, prefix, val);
       free (message);
       message = NULL;
     }
@@ -6019,7 +6025,7 @@ c_parse_error (const char *gmsgid, enum cpp_ttype token_type,
   else if (token_type == CPP_NAME)
     {
       message = catenate_messages (gmsgid, " before %qE");
-      error (message, value);
+      error_at_rich_loc (richloc, message, value);
       free (message);
       message = NULL;
     }
@@ -6032,16 +6038,16 @@ c_parse_error (const char *gmsgid, enum cpp_ttype token_type,
   else if (token_type < N_TTYPES)
     {
       message = catenate_messages (gmsgid, " before %qs token");
-      error (message, cpp_type2name (token_type, token_flags));
+      error_at_rich_loc (richloc, message, cpp_type2name (token_type, token_flags));
       free (message);
       message = NULL;
     }
   else
-    error (gmsgid);
+    error_at_rich_loc (richloc, gmsgid);
 
   if (message)
     {
-      error (message);
+      error_at_rich_loc (richloc, message);
       free (message);
     }
 #undef catenate_messages
@@ -6479,6 +6485,9 @@ sync_resolve_size (tree function, vec<tree, va_gc> *params, bool fetch)
 
   type = TREE_TYPE (type);
   if (!INTEGRAL_TYPE_P (type) && !POINTER_TYPE_P (type))
+    goto incompatible;
+
+  if (!COMPLETE_TYPE_P (type))
     goto incompatible;
 
   if (fetch && TREE_CODE (type) == BOOLEAN_TYPE)
@@ -7994,6 +8003,153 @@ c_flt_eval_method (bool maybe_c11_only_p)
     return c_c11_flt_eval_method ();
   else
     return c_ts18661_flt_eval_method ();
+}
+
+#if CHECKING_P
+
+namespace selftest {
+
+/* Run all of the tests within c-family.  */
+
+void
+c_family_tests (void)
+{
+  c_format_c_tests ();
+}
+
+} // namespace selftest
+
+#endif /* #if CHECKING_P */
+
+/* Attempt to locate a suitable location within FILE for a
+   #include directive to be inserted before.  FILE should
+   be a string from libcpp (pointer equality is used).
+   LOC is the location of the relevant diagnostic.
+
+   Attempt to return the location within FILE immediately
+   after the last #include within that file, or the start of
+   that file if it has no #include directives.
+
+   Return UNKNOWN_LOCATION if no suitable location is found,
+   or if an error occurs.  */
+
+static location_t
+try_to_locate_new_include_insertion_point (const char *file, location_t loc)
+{
+  /* Locate the last ordinary map within FILE that ended with a #include.  */
+  const line_map_ordinary *last_include_ord_map = NULL;
+
+  /* ...and the next ordinary map within FILE after that one.  */
+  const line_map_ordinary *last_ord_map_after_include = NULL;
+
+  /* ...and the first ordinary map within FILE.  */
+  const line_map_ordinary *first_ord_map_in_file = NULL;
+
+  /*  Get ordinary map containing LOC (or its expansion).  */
+  const line_map_ordinary *ord_map_for_loc = NULL;
+  loc = linemap_resolve_location (line_table, loc, LRK_MACRO_EXPANSION_POINT,
+				  &ord_map_for_loc);
+  gcc_assert (ord_map_for_loc);
+
+  for (unsigned int i = 0; i < LINEMAPS_ORDINARY_USED (line_table); i++)
+    {
+      const line_map_ordinary *ord_map
+	= LINEMAPS_ORDINARY_MAP_AT (line_table, i);
+
+      const line_map_ordinary *from = INCLUDED_FROM (line_table, ord_map);
+      if (from)
+	if (from->to_file == file)
+	  {
+	    last_include_ord_map = from;
+	    last_ord_map_after_include = NULL;
+	  }
+
+      if (ord_map->to_file == file)
+	{
+	  if (!first_ord_map_in_file)
+	    first_ord_map_in_file = ord_map;
+	  if (last_include_ord_map && !last_ord_map_after_include)
+	    last_ord_map_after_include = ord_map;
+	}
+
+      /* Stop searching when reaching the ord_map containing LOC,
+	 as it makes no sense to provide fix-it hints that appear
+	 after the diagnostic in question.  */
+      if (ord_map == ord_map_for_loc)
+	break;
+    }
+
+  /* Determine where to insert the #include.  */
+  const line_map_ordinary *ord_map_for_insertion;
+
+  /* We want the next ordmap in the file after the last one that's a
+     #include, but failing that, the start of the file.  */
+  if (last_ord_map_after_include)
+    ord_map_for_insertion = last_ord_map_after_include;
+  else
+    ord_map_for_insertion = first_ord_map_in_file;
+
+  if (!ord_map_for_insertion)
+    return UNKNOWN_LOCATION;
+
+  /* The "start_location" is column 0, meaning "the whole line".
+     rich_location and edit_context can't cope with this, so use
+     column 1 instead.  */
+  location_t col_0 = ord_map_for_insertion->start_location;
+  return linemap_position_for_loc_and_offset (line_table, col_0, 1);
+}
+
+/* A map from filenames to sets of headers added to them, for
+   ensuring idempotency within maybe_add_include_fixit.  */
+
+/* The values within the map.  We need string comparison as there's
+   no guarantee that two different diagnostics that are recommending
+   adding e.g. "<stdio.h>" are using the same buffer.  */
+
+typedef hash_set <const char *, nofree_string_hash> per_file_includes_t;
+
+/* The map itself.  We don't need string comparison for the filename keys,
+   as they come from libcpp.  */
+
+typedef hash_map <const char *, per_file_includes_t *> added_includes_t;
+static added_includes_t *added_includes;
+
+/* Attempt to add a fix-it hint to RICHLOC, adding "#include HEADER\n"
+   in a suitable location within the file of RICHLOC's primary
+   location.
+
+   This function is idempotent: a header will be added at most once to
+   any given file.  */
+
+void
+maybe_add_include_fixit (rich_location *richloc, const char *header)
+{
+  location_t loc = richloc->get_loc ();
+  const char *file = LOCATION_FILE (loc);
+  if (!file)
+    return;
+
+  /* Idempotency: don't add the same header more than once to a given file.  */
+  if (!added_includes)
+    added_includes = new added_includes_t ();
+  per_file_includes_t *&set = added_includes->get_or_insert (file);
+  if (set)
+    if (set->contains (header))
+      /* ...then we've already added HEADER to that file.  */
+      return;
+  if (!set)
+    set = new per_file_includes_t ();
+  set->add (header);
+
+  /* Attempt to locate a suitable place for the new directive.  */
+  location_t include_insert_loc
+    = try_to_locate_new_include_insertion_point (file, loc);
+  if (include_insert_loc == UNKNOWN_LOCATION)
+    return;
+
+  char *text = xasprintf ("#include %s\n", header);
+  richloc->add_fixit_insert_before (include_insert_loc, text);
+  free (text);
 }
 
 #include "gt-c-family-c-common.h"

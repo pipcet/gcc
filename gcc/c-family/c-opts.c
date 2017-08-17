@@ -957,16 +957,18 @@ c_common_post_options (const char **pfilename)
 
   if (flag_extern_tls_init)
     {
-#if !defined (ASM_OUTPUT_DEF) || !SUPPORTS_WEAK
-      /* Lazy TLS initialization for a variable in another TU requires
-	 alias and weak reference support. */
-      if (flag_extern_tls_init > 0)
-	sorry ("external TLS initialization functions not supported "
-	       "on this target");
-      flag_extern_tls_init = 0;
-#else
-      flag_extern_tls_init = 1;
-#endif
+      if (!TARGET_SUPPORTS_ALIASES || !SUPPORTS_WEAK)
+	{
+	  /* Lazy TLS initialization for a variable in another TU requires
+	     alias and weak reference support.  */
+	  if (flag_extern_tls_init > 0)
+	    sorry ("external TLS initialization functions not supported "
+		   "on this target");
+
+	  flag_extern_tls_init = 0;
+	}
+      else
+	flag_extern_tls_init = 1;
     }
 
   if (num_in_fnames > 1)
@@ -1150,6 +1152,8 @@ c_common_finish (void)
 	 output stream.  */
       if (!deps_file)
 	deps_stream = out_stream;
+      else if (deps_file[0] == '-' && deps_file[1] == '\0')
+	deps_stream = stdout;
       else
 	{
 	  deps_stream = fopen (deps_file, deps_append ? "a": "w");
@@ -1163,7 +1167,7 @@ c_common_finish (void)
      with cpp_destroy ().  */
   cpp_finish (parse_in, deps_stream);
 
-  if (deps_stream && deps_stream != out_stream
+  if (deps_stream && deps_stream != out_stream && deps_stream != stdout
       && (ferror (deps_stream) || fclose (deps_stream)))
     fatal_error (input_location, "closing dependency file %s: %m", deps_file);
 

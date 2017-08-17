@@ -31,6 +31,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "memmodel.h"
 #include "tm_p.h"
 #include "stringpool.h"
+#include "attribs.h"
 #include "optabs.h"
 #include "regs.h"
 #include "emit-rtl.h"
@@ -2182,6 +2183,13 @@ xtensa_option_override (void)
   int regno;
   machine_mode mode;
 
+  /* Use CONST16 in the absence of L32R.
+     Set it in the TARGET_OPTION_OVERRIDE to avoid dependency on xtensa
+     configuration in the xtensa-common.c  */
+
+  if (!TARGET_L32R)
+    target_flags |= MASK_CONST16;
+
   if (!TARGET_BOOLEANS && TARGET_HARD_FLOAT)
     error ("boolean registers required for the floating-point option");
 
@@ -4078,8 +4086,6 @@ xtensa_invalid_within_doloop (const rtx_insn *insn)
 
 /* Optimize LOOP.  */
 
-#if TARGET_LOOPS
-
 static bool
 hwloop_optimize (hwloop_info loop)
 {
@@ -4266,14 +4272,9 @@ static struct hw_doloop_hooks xtensa_doloop_hooks =
 static void
 xtensa_reorg_loops (void)
 {
-  reorg_loops (false, &xtensa_doloop_hooks);
+  if (TARGET_LOOPS)
+    reorg_loops (false, &xtensa_doloop_hooks);
 }
-#else
-static inline void
-xtensa_reorg_loops (void)
-{
-}
-#endif
 
 /* Implement the TARGET_MACHINE_DEPENDENT_REORG pass.  */
 

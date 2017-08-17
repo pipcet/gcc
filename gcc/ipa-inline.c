@@ -117,14 +117,17 @@ along with GCC; see the file COPYING3.  If not see
 #include "auto-profile.h"
 #include "builtins.h"
 #include "fibonacci_heap.h"
+#include "stringpool.h"
+#include "attribs.h"
+#include "asan.h"
 
 typedef fibonacci_heap <sreal, cgraph_edge> edge_heap_t;
 typedef fibonacci_node <sreal, cgraph_edge> edge_heap_node_t;
 
 /* Statistics we collect about inlining algorithm.  */
 static int overall_size;
-static gcov_type max_count;
-static gcov_type spec_rem;
+static profile_count max_count;
+static profile_count spec_rem;
 
 /* Pre-computed constants 1/CGRAPH_FREQ_BASE and 1/100. */
 static sreal cgraph_freq_base_rec, percent_rec;
@@ -257,17 +260,11 @@ report_inline_failed_reason (struct cgraph_edge *e)
 static bool
 sanitize_attrs_match_for_inline_p (const_tree caller, const_tree callee)
 {
-  /* Don't care if sanitizer is disabled */
-  if (!(flag_sanitize & SANITIZE_ADDRESS))
-    return true;
-
   if (!caller || !callee)
     return true;
 
-  return !!lookup_attribute ("no_sanitize_address",
-      DECL_ATTRIBUTES (caller)) == 
-      !!lookup_attribute ("no_sanitize_address",
-      DECL_ATTRIBUTES (callee));
+  return sanitize_flags_p (SANITIZE_ADDRESS, caller)
+    == sanitize_flags_p (SANITIZE_ADDRESS, callee);
 }
 
 /* Used for flags where it is safe to inline when caller's value is
@@ -325,6 +322,11 @@ can_inline_edge_p (struct cgraph_edge *e, bool report,
   if (!callee->definition)
     {
       e->inline_failed = CIF_BODY_NOT_AVAILABLE;
+      inlinable = false;
+    }
+  if (!early && !opt_for_fn (callee->decl, optimize))
+    {
+      e->inline_failed = CIF_FUNCTION_NOT_OPTIMIZED;
       inlinable = false;
     }
   else if (callee->calls_comdat_local)
@@ -407,6 +409,7 @@ can_inline_edge_p (struct cgraph_edge *e, bool report,
 	 Not even for always_inline declared functions.  */
      else if (check_match (flag_wrapv)
 	      || check_match (flag_trapv)
+	      || check_match (flag_pcc_struct_return)
 	      /* When caller or callee does FP math, be sure FP codegen flags
 		 compatible.  */
 	      || ((caller_info->fp_expressions && callee_info->fp_expressions)
@@ -637,8 +640,10 @@ compute_uninlined_call_time (struct cgraph_edge *edge,
 			 ? edge->caller->global.inlined_to
 			 : edge->caller);
 
-  if (edge->count && caller->count)
-    uninlined_call_time *= (sreal)edge->count / caller->count;
+  if (edge->count > profile_count::zero ()
+      && caller->count > profile_count::zero ())
+    uninlined_call_time *= (sreal)edge->count.to_gcov_type ()
+			   / caller->count.to_gcov_type ();
   if (edge->frequency)
     uninlined_call_time *= cgraph_freq_base_rec * edge->frequency;
   else
@@ -660,8 +665,9 @@ compute_inlined_call_time (struct cgraph_edge *edge,
 			 : edge->caller);
   sreal caller_time = ipa_fn_summaries->get (caller)->time;
 
-  if (edge->count && caller->count)
-    time *= (sreal)edge->count / caller->count;
+  if (edge->count > profile_count::zero ()
+      && caller->count > profile_count::zero ())
+    time *= (sreal)edge->count.to_gcov_type () / caller->count.to_gcov_type ();
   if (edge->frequency)
     time *= cgraph_freq_base_rec * edge->frequency;
   else
@@ -718,7 +724,7 @@ want_inline_small_function_p (struct cgraph_edge *e, bool report)
      promote non-inline functions to inline and we increase
      MAX_INLINE_INSNS_SINGLE 16-fold for inline functions.  */
   else if ((!DECL_DECLARED_INLINE_P (callee->decl)
-	   && (!e->count || !e->maybe_hot_p ()))
+	   && (!e->count.initialized_p () || !e->maybe_hot_p ()))
 	   && ipa_fn_summaries->get (callee)->min_size
 		- ipa_call_summaries->get (e)->call_stmt_size
 	      > MAX (MAX_INLINE_INSNS_SINGLE, MAX_INLINE_INSNS_AUTO))
@@ -726,7 +732,8 @@ want_inline_small_function_p (struct cgraph_edge *e, bool report)
       e->inline_failed = CIF_MAX_INLINE_INSNS_AUTO_LIMIT;
       want_inline = false;
     }
-  else if ((DECL_DECLARED_INLINE_P (callee->decl) || e->count)
+  else if ((DECL_DECLARED_INLINE_P (callee->decl)
+	    || e->count > profile_count::zero ())
 	   && ipa_fn_summaries->get (callee)->min_size
 		- ipa_call_summaries->get (e)->call_stmt_size
 	      > 16 * MAX_INLINE_INSNS_SINGLE)
@@ -836,7 +843,7 @@ want_inline_self_recursive_call_p (struct cgraph_edge *edge,
       reason = "recursive call is cold";
       want_inline = false;
     }
-  else if (max_count && !outer_node->count)
+  else if (outer_node->count == profile_count::zero ())
     {
       reason = "not executed in profile";
       want_inline = false;
@@ -874,14 +881,15 @@ want_inline_self_recursive_call_p (struct cgraph_edge *edge,
       int i;
       for (i = 1; i < depth; i++)
 	max_prob = max_prob * max_prob / CGRAPH_FREQ_BASE;
-      if (max_count
-	  && (edge->count * CGRAPH_FREQ_BASE / outer_node->count
+      if (max_count > profile_count::zero () && edge->count > profile_count::zero ()
+	  && (edge->count.to_gcov_type () * CGRAPH_FREQ_BASE
+	      / outer_node->count.to_gcov_type ()
 	      >= max_prob))
 	{
 	  reason = "profile of recursive call is too large";
 	  want_inline = false;
 	}
-      if (!max_count
+      if (max_count == profile_count::zero ()
 	  && (edge->frequency * CGRAPH_FREQ_BASE / caller_freq
 	      >= max_prob))
 	{
@@ -907,14 +915,16 @@ want_inline_self_recursive_call_p (struct cgraph_edge *edge,
      methods.  */
   else
     {
-      if (max_count
-	  && (edge->count * 100 / outer_node->count
+      if (max_count > profile_count::zero () && edge->count.initialized_p ()
+	  && (edge->count.to_gcov_type () * 100
+	      / outer_node->count.to_gcov_type ()
 	      <= PARAM_VALUE (PARAM_MIN_INLINE_RECURSIVE_PROBABILITY)))
 	{
 	  reason = "profile of recursive call is too small";
 	  want_inline = false;
 	}
-      else if (!max_count
+      else if ((max_count == profile_count::zero ()
+	        || !edge->count.initialized_p ())
 	       && (edge->frequency * 100 / caller_freq
 	           <= PARAM_VALUE (PARAM_MIN_INLINE_RECURSIVE_PROBABILITY)))
 	{
@@ -937,7 +947,8 @@ check_callers (struct cgraph_node *node, void *has_hot_call)
   struct cgraph_edge *e;
    for (e = node->callers; e; e = e->next_caller)
      {
-       if (!opt_for_fn (e->caller->decl, flag_inline_functions_called_once))
+       if (!opt_for_fn (e->caller->decl, flag_inline_functions_called_once)
+	   || !opt_for_fn (e->caller->decl, optimize))
 	 return true;
        if (!can_inline_edge_p (e, true))
          return true;
@@ -1058,7 +1069,8 @@ edge_badness (struct cgraph_edge *edge, bool dump)
      Again use negative value to make calls with profile appear hotter
      then calls without.
   */
-  else if (opt_for_fn (caller->decl, flag_guess_branch_prob) || caller->count)
+  else if (opt_for_fn (caller->decl, flag_guess_branch_prob)
+	   || caller->count > profile_count::zero ())
     {
       sreal numerator, denominator;
       int overall_growth;
@@ -1068,9 +1080,9 @@ edge_badness (struct cgraph_edge *edge, bool dump)
 		   - inlined_time);
       if (numerator == 0)
 	numerator = ((sreal) 1 >> 8);
-      if (caller->count)
-	numerator *= caller->count;
-      else if (opt_for_fn (caller->decl, flag_branch_probabilities))
+      if (caller->count > profile_count::zero ())
+	numerator *= caller->count.to_gcov_type ();
+      else if (caller->count.initialized_p ())
 	numerator = numerator >> 11;
       denominator = growth;
 
@@ -1155,7 +1167,8 @@ edge_badness (struct cgraph_edge *edge, bool dump)
 		   " %i (compensated)\n",
 		   badness.to_double (),
 		  (double)edge->frequency / CGRAPH_FREQ_BASE,
-		   edge->count, caller->count,
+		   edge->count.initialized_p () ? edge->count.to_gcov_type () : -1,
+		   caller->count.initialized_p () ? caller->count.to_gcov_type () : -1,
 		   compute_uninlined_call_time (edge,
 						unspec_edge_time).to_double (),
 		   compute_inlined_call_time (edge, edge_time).to_double (),
@@ -1417,8 +1430,10 @@ lookup_recursive_calls (struct cgraph_node *node, struct cgraph_node *where,
       {
 	/* When profile feedback is available, prioritize by expected number
 	   of calls.  */
-        heap->insert (!max_count ? -e->frequency
-		      : -(e->count / ((max_count + (1<<24) - 1) / (1<<24))),
+        heap->insert (!(max_count > 0) || !e->count.initialized_p () ? -e->frequency
+		      : -(e->count.to_gcov_type ()
+			/ ((max_count.to_gcov_type () + (1<<24) - 1)
+			   / (1<<24))),
 		      e);
       }
   for (e = where->callees; e; e = e->next_callee)
@@ -1506,10 +1521,11 @@ recursive_inlining (struct cgraph_edge *edge,
 	{
 	  fprintf (dump_file,
 		   "   Inlining call of depth %i", depth);
-	  if (node->count)
+	  if (node->count > profile_count::zero ())
 	    {
 	      fprintf (dump_file, " called approx. %.2f times per call",
-		       (double)curr->count / node->count);
+		       (double)curr->count.to_gcov_type ()
+		       / node->count.to_gcov_type ());
 	    }
 	  fprintf (dump_file, "\n");
 	}
@@ -1731,7 +1747,7 @@ inline_small_functions (void)
   /* Compute overall unit size and other global parameters used by badness
      metrics.  */
 
-  max_count = 0;
+  max_count = profile_count::uninitialized ();
   ipa_reduced_postorder (order, true, true, NULL);
   free (order);
 
@@ -1739,7 +1755,8 @@ inline_small_functions (void)
     if (!node->global.inlined_to)
       {
 	if (!node->alias && node->analyzed
-	    && (node->has_gimple_body_p () || node->thunk.thunk_p))
+	    && (node->has_gimple_body_p () || node->thunk.thunk_p)
+	    && opt_for_fn (node->decl, optimize))
 	  {
 	    struct ipa_fn_summary *info = ipa_fn_summaries->get (node);
 	    struct ipa_dfs_info *dfs = (struct ipa_dfs_info *) node->aux;
@@ -1761,17 +1778,18 @@ inline_small_functions (void)
 		int id = dfs->scc_no + 1;
 		for (n2 = node; n2;
 		     n2 = ((struct ipa_dfs_info *) node->aux)->next_cycle)
-		  {
-		    struct ipa_fn_summary *info2 = ipa_fn_summaries->get (n2);
-		    if (info2->scc_no)
-		      break;
-		    info2->scc_no = id;
-		  }
+		  if (opt_for_fn (n2->decl, optimize))
+		    {
+		      struct ipa_fn_summary *info2 = ipa_fn_summaries->get (n2);
+		      if (info2->scc_no)
+			break;
+		      info2->scc_no = id;
+		    }
 	      }
 	  }
 
 	for (edge = node->callers; edge; edge = edge->next_caller)
-	  if (max_count < edge->count)
+	  if (!(max_count >= edge->count))
 	    max_count = edge->count;
       }
   ipa_free_postorder_info ();
@@ -1793,6 +1811,9 @@ inline_small_functions (void)
       bool update = false;
       struct cgraph_edge *next = NULL;
       bool has_speculative = false;
+
+      if (!opt_for_fn (node->decl, optimize))
+	continue;
 
       if (dump_file)
 	fprintf (dump_file, "Enqueueing calls in %s.\n", node->dump_name ());
@@ -1835,7 +1856,7 @@ inline_small_functions (void)
     }
 
   gcc_assert (in_lto_p
-	      || !max_count
+	      || !(max_count > 0)
 	      || (profile_info && flag_branch_probabilities));
 
   while (!edge_heap.empty ())
@@ -1880,9 +1901,7 @@ inline_small_functions (void)
 	 Increases of badness are handled lazilly; when we see key with out
 	 of date value on it, we re-insert it now.  */
       current_badness = edge_badness (edge, false);
-      /* Disable checking for profile because roundoff errors may cause slight
-         deviations in the order.  */
-      gcc_assert (max_count || cached_badness == current_badness);
+      gcc_assert (cached_badness == current_badness);
       gcc_assert (current_badness >= badness);
 #else
       current_badness = edge_badness (edge, false);
@@ -1927,9 +1946,12 @@ inline_small_functions (void)
 		   : -1,
 		   badness.to_double (),
 		   edge->frequency / (double)CGRAPH_FREQ_BASE);
-	  if (edge->count)
-	    fprintf (dump_file," Called %" PRId64"x\n",
-		     edge->count);
+	  if (edge->count.initialized_p ())
+	    {
+	      fprintf (dump_file, " Called ");
+	      edge->count.dump (dump_file);
+	      fprintf (dump_file, "times\n");
+            }
 	  if (dump_flags & TDF_DETAILS)
 	    edge_badness (edge, true);
 	}
@@ -2027,7 +2049,7 @@ inline_small_functions (void)
       update_caller_keys (&edge_heap, where, updated_nodes, NULL);
       /* Offline copy count has possibly changed, recompute if profile is
 	 available.  */
-      if (max_count)
+      if (max_count > profile_count::zero ())
         {
 	  struct cgraph_node *n = cgraph_node::get (edge->callee->decl);
 	  if (n != edge->callee && n->analyzed)
@@ -2040,8 +2062,8 @@ inline_small_functions (void)
 	  fprintf (dump_file,
 		   " Inlined %s into %s which now has time %f and size %i, "
 		   "net change of %+i.\n",
-		   edge->callee->name (),
-		   edge->caller->name (),
+		   xstrdup_for_dump (edge->callee->name ()),
+		   xstrdup_for_dump (edge->caller->name ()),
 		   ipa_fn_summaries->get (edge->caller)->time.to_double (),
 		   ipa_fn_summaries->get (edge->caller)->size,
 		   overall_size - old_size);
@@ -2233,7 +2255,8 @@ dump_overall_stats (void)
       {
 	sreal time = ipa_fn_summaries->get (node)->time;
 	sum += time;
-	sum_weighted += time * node->count;
+	if (node->count.initialized_p ())
+	  sum_weighted += time * node->count.to_gcov_type ();
       }
   fprintf (dump_file, "Overall time estimate: "
 	   "%f weighted by profile: "
@@ -2263,56 +2286,59 @@ dump_inline_stats (void)
       {
 	if (e->inline_failed)
 	  {
-	    reason[(int) e->inline_failed][0] += e->count;
+	    if (e->count.initialized_p ())
+	      reason[(int) e->inline_failed][0] += e->count.to_gcov_type ();
 	    reason[(int) e->inline_failed][1] += e->frequency;
 	    reason[(int) e->inline_failed][2] ++;
-	    if (DECL_VIRTUAL_P (e->callee->decl))
+	    if (DECL_VIRTUAL_P (e->callee->decl)
+		&& e->count.initialized_p ())
 	      {
 		if (e->indirect_inlining_edge)
-		  noninlined_virt_indir_cnt += e->count;
+		  noninlined_virt_indir_cnt += e->count.to_gcov_type ();
 		else
-		  noninlined_virt_cnt += e->count;
+		  noninlined_virt_cnt += e->count.to_gcov_type ();
 	      }
-	    else
+	    else if (e->count.initialized_p ())
 	      {
 		if (e->indirect_inlining_edge)
-		  noninlined_indir_cnt += e->count;
+		  noninlined_indir_cnt += e->count.to_gcov_type ();
 		else
-		  noninlined_cnt += e->count;
+		  noninlined_cnt += e->count.to_gcov_type ();
 	      }
 	  }
-	else
+	else if (e->count.initialized_p ())
 	  {
 	    if (e->speculative)
 	      {
 		if (DECL_VIRTUAL_P (e->callee->decl))
-		  inlined_speculative_ply += e->count;
+		  inlined_speculative_ply += e->count.to_gcov_type ();
 		else
-		  inlined_speculative += e->count;
+		  inlined_speculative += e->count.to_gcov_type ();
 	      }
 	    else if (DECL_VIRTUAL_P (e->callee->decl))
 	      {
 		if (e->indirect_inlining_edge)
-		  inlined_virt_indir_cnt += e->count;
+		  inlined_virt_indir_cnt += e->count.to_gcov_type ();
 		else
-		  inlined_virt_cnt += e->count;
+		  inlined_virt_cnt += e->count.to_gcov_type ();
 	      }
 	    else
 	      {
 		if (e->indirect_inlining_edge)
-		  inlined_indir_cnt += e->count;
+		  inlined_indir_cnt += e->count.to_gcov_type ();
 		else
-		  inlined_cnt += e->count;
+		  inlined_cnt += e->count.to_gcov_type ();
 	      }
 	  }
       }
     for (e = node->indirect_calls; e; e = e->next_callee)
-      if (e->indirect_info->polymorphic)
-	indirect_poly_cnt += e->count;
-      else
-	indirect_cnt += e->count;
+      if (e->indirect_info->polymorphic
+	  & e->count.initialized_p ())
+	indirect_poly_cnt += e->count.to_gcov_type ();
+      else if (e->count.initialized_p ())
+	indirect_cnt += e->count.to_gcov_type ();
   }
-  if (max_count)
+  if (max_count.initialized_p ())
     {
       fprintf (dump_file,
 	       "Inlined %" PRId64 " + speculative "
@@ -2331,9 +2357,9 @@ dump_inline_stats (void)
 	       inlined_indir_cnt, inlined_virt_cnt, inlined_virt_indir_cnt,
 	       noninlined_cnt, noninlined_indir_cnt, noninlined_virt_cnt,
 	       noninlined_virt_indir_cnt, indirect_cnt, indirect_poly_cnt);
-      fprintf (dump_file,
-	       "Removed speculations %" PRId64 "\n",
-	       spec_rem);
+      fprintf (dump_file, "Removed speculations ");
+      spec_rem.dump (dump_file);
+      fprintf (dump_file, "\n");
     }
   dump_overall_stats ();
   fprintf (dump_file, "\nWhy inlining failed?\n");
@@ -2356,9 +2382,6 @@ ipa_inline (void)
   int i;
   int cold;
   bool remove_functions = false;
-
-  if (!optimize)
-    return 0;
 
   cgraph_freq_base_rec = (sreal) 1 / (sreal) CGRAPH_FREQ_BASE;
   percent_rec = (sreal) 1 / (sreal) 100;
@@ -2455,6 +2478,10 @@ ipa_inline (void)
 	  struct cgraph_edge *edge, *next;
 	  bool update=false;
 
+	  if (!opt_for_fn (node->decl, optimize)
+	      || !opt_for_fn (node->decl, flag_inline_functions_called_once))
+	    continue;
+
 	  for (edge = node->callees; edge; edge = next)
 	    {
 	      next = edge->next_callee;
@@ -2487,8 +2514,7 @@ ipa_inline (void)
     }
 
   /* Free ipa-prop structures if they are no longer needed.  */
-  if (optimize)
-    ipa_free_all_structures_after_iinln ();
+  ipa_free_all_structures_after_iinln ();
 
   if (dump_file)
     {

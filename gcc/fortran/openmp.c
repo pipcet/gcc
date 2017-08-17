@@ -2295,7 +2295,8 @@ gfc_match_oacc_routine (void)
 	  if (st)
 	    {
 	      sym = st->n.sym;
-	      if (strcmp (sym->name, gfc_current_ns->proc_name->name) == 0)
+	      if (gfc_current_ns->proc_name != NULL
+		  && strcmp (sym->name, gfc_current_ns->proc_name->name) == 0)
 	        sym = NULL;
 	    }
 
@@ -4381,7 +4382,7 @@ resolve_omp_clauses (gfc_code *code, gfc_omp_clauses *omp_clauses,
 		    else
 		      resolve_oacc_data_clauses (n->sym, n->where, name);
 		  }
-		else if (list != OMP_CLAUSE_DEPEND
+		else if (list != OMP_LIST_DEPEND
 			 && n->sym->as
 			 && n->sym->as->type == AS_ASSUMED_SIZE)
 		  gfc_error ("Assumed size array %qs in %s clause at %L",

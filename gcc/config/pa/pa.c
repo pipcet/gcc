@@ -29,6 +29,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "df.h"
 #include "tm_p.h"
 #include "stringpool.h"
+#include "attribs.h"
 #include "optabs.h"
 #include "regs.h"
 #include "emit-rtl.h"
@@ -10723,7 +10724,8 @@ pa_expand_compare_and_swap_loop (rtx mem, rtx old_reg, rtx new_reg, rtx seq)
 
   /* Mark this jump predicted not taken.  */
   emit_cmp_and_jump_insns (success, const0_rtx, EQ, const0_rtx,
-                           GET_MODE (success), 1, label, 0);
+                           GET_MODE (success), 1, label,
+			   profile_probability::guessed_never ());
   return true;
 }
 

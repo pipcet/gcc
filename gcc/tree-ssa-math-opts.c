@@ -1946,7 +1946,9 @@ make_pass_cse_sincos (gcc::context *ctxt)
    - a range which gives the difference between the highest and lowest accessed
      memory location to make such a symbolic number;
    - the address SRC of the source element of lowest address as a convenience
-     to easily get BASE_ADDR + offset + lowest bytepos.
+     to easily get BASE_ADDR + offset + lowest bytepos;
+   - number of expressions N_OPS bitwise ored together to represent
+     approximate cost of the computation.
 
    Note 1: the range is different from size as size reflects the size of the
    type of the current expression.  For instance, for an array char a[],
@@ -1968,6 +1970,7 @@ struct symbolic_number {
   tree alias_set;
   tree vuse;
   unsigned HOST_WIDE_INT range;
+  int n_ops;
 };
 
 #define BITS_PER_MARKER 8
@@ -2083,6 +2086,7 @@ init_symbolic_number (struct symbolic_number *n, tree src)
     return false;
   n->range = size;
   n->n = CMPNOP;
+  n->n_ops = 1;
 
   if (size < 64 / BITS_PER_MARKER)
     n->n &= ((uint64_t) 1 << (size * BITS_PER_MARKER)) - 1;
@@ -2293,6 +2297,7 @@ perform_symbolic_merge (gimple *source_stmt1, struct symbolic_number *n1,
 	return NULL;
     }
   n->n = n1->n | n2->n;
+  n->n_ops = n1->n_ops + n2->n_ops;
 
   return source_stmt;
 }
@@ -2588,7 +2593,7 @@ find_bswap_or_nop (gimple *stmt, struct symbolic_number *n, bool *bswap)
     return NULL;
 
   /* Useless bit manipulation performed by code.  */
-  if (!n->base_addr && n->n == cmpnop)
+  if (!n->base_addr && n->n == cmpnop && n->n_ops == 1)
     return NULL;
 
   n->range *= BITS_PER_UNIT;
@@ -2746,6 +2751,36 @@ bswap_replace (gimple *cur_stmt, gimple *ins_stmt, tree fndecl,
 	  gsi_insert_before (&gsi, load_stmt, GSI_SAME_STMT);
 	}
       src = val_tmp;
+    }
+  else if (!bswap)
+    {
+      gimple *g;
+      if (!useless_type_conversion_p (TREE_TYPE (tgt), TREE_TYPE (src)))
+	{
+	  if (!is_gimple_val (src))
+	    return false;
+	  g = gimple_build_assign (tgt, NOP_EXPR, src);
+	}
+      else
+	g = gimple_build_assign (tgt, src);
+      if (n->range == 16)
+	nop_stats.found_16bit++;
+      else if (n->range == 32)
+	nop_stats.found_32bit++;
+      else
+	{
+	  gcc_assert (n->range == 64);
+	  nop_stats.found_64bit++;
+	}
+      if (dump_file)
+	{
+	  fprintf (dump_file,
+		   "%d bit reshuffle in target endianness found at: ",
+		   (int) n->range);
+	  print_gimple_stmt (dump_file, cur_stmt, 0);
+	}
+      gsi_replace (&gsi, g, true);
+      return true;
     }
   else if (TREE_CODE (src) == BIT_FIELD_REF)
     src = TREE_OPERAND (src, 0);
@@ -3108,6 +3143,93 @@ is_widening_mult_p (gimple *stmt,
     }
 
   return true;
+}
+
+/* Check to see if the CALL statement is an invocation of copysign
+   with 1. being the first argument.  */
+static bool
+is_copysign_call_with_1 (gimple *call)
+{
+  gcall *c = dyn_cast <gcall *> (call);
+  if (! c)
+    return false;
+
+  enum combined_fn code = gimple_call_combined_fn (c);
+
+  if (code == CFN_LAST)
+    return false;
+
+  if (builtin_fn_p (code))
+    {
+      switch (as_builtin_fn (code))
+	{
+	CASE_FLT_FN (BUILT_IN_COPYSIGN):
+	CASE_FLT_FN_FLOATN_NX (BUILT_IN_COPYSIGN):
+	  return real_onep (gimple_call_arg (c, 0));
+	default:
+	  return false;
+	}
+    }
+
+  if (internal_fn_p (code))
+    {
+      switch (as_internal_fn (code))
+	{
+	case IFN_COPYSIGN:
+	  return real_onep (gimple_call_arg (c, 0));
+	default:
+	  return false;
+	}
+    }
+
+   return false;
+}
+
+/* Try to expand the pattern x * copysign (1, y) into xorsign (x, y).
+   This only happens when the the xorsign optab is defined, if the
+   pattern is not a xorsign pattern or if expansion fails FALSE is
+   returned, otherwise TRUE is returned.  */
+static bool
+convert_expand_mult_copysign (gimple *stmt, gimple_stmt_iterator *gsi)
+{
+  tree treeop0, treeop1, lhs, type;
+  location_t loc = gimple_location (stmt);
+  lhs = gimple_assign_lhs (stmt);
+  treeop0 = gimple_assign_rhs1 (stmt);
+  treeop1 = gimple_assign_rhs2 (stmt);
+  type = TREE_TYPE (lhs);
+  machine_mode mode = TYPE_MODE (type);
+
+  if (HONOR_SNANS (type) || !has_single_use (lhs))
+    return false;
+
+  if (TREE_CODE (treeop0) == SSA_NAME && TREE_CODE (treeop1) == SSA_NAME)
+    {
+      gimple *call0 = SSA_NAME_DEF_STMT (treeop0);
+      if (!is_copysign_call_with_1 (call0))
+	{
+	  call0 = SSA_NAME_DEF_STMT (treeop1);
+	  if (!is_copysign_call_with_1 (call0))
+	    return false;
+
+	  treeop1 = treeop0;
+	}
+
+	if (optab_handler (xorsign_optab, mode) == CODE_FOR_nothing)
+	  return false;
+
+	gcall *c = as_a<gcall*> (call0);
+	treeop0 = gimple_call_arg (c, 1);
+
+	gcall *call_stmt
+	  = gimple_build_call_internal (IFN_XORSIGN, 2, treeop1, treeop0);
+	gimple_set_lhs (call_stmt, lhs);
+	gimple_set_location (call_stmt, loc);
+	gsi_replace (gsi, call_stmt, true);
+	return true;
+    }
+
+  return false;
 }
 
 /* Process a single gimple statement STMT, which has a MULT_EXPR as
@@ -3842,7 +3964,7 @@ static bool
 divmod_candidate_p (gassign *stmt)
 {
   tree type = TREE_TYPE (gimple_assign_lhs (stmt));
-  enum machine_mode mode = TYPE_MODE (type);
+  machine_mode mode = TYPE_MODE (type);
   optab divmod_optab, div_optab;
 
   if (TYPE_UNSIGNED (type))
@@ -4079,6 +4201,7 @@ pass_optimize_widening_mul::execute (function *fun)
 		{
 		case MULT_EXPR:
 		  if (!convert_mult_to_widen (stmt, &gsi)
+		      && !convert_expand_mult_copysign (stmt, &gsi)
 		      && convert_mult_to_fma (stmt,
 					      gimple_assign_rhs1 (stmt),
 					      gimple_assign_rhs2 (stmt)))

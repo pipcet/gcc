@@ -754,14 +754,14 @@ input_cfg (struct lto_input_block *ib, struct data_in *data_in,
 	  unsigned int dest_index;
 	  unsigned int edge_flags;
 	  basic_block dest;
-	  int probability;
-	  gcov_type count;
+	  profile_probability probability;
+	  profile_count count;
 	  edge e;
 
 	  dest_index = streamer_read_uhwi (ib);
-	  probability = (int) streamer_read_hwi (ib);
-	  count = apply_scale ((gcov_type) streamer_read_gcov_count (ib),
-                               count_materialization_scale);
+	  probability = profile_probability::stream_in (ib);
+	  count = profile_count::stream_in (ib).apply_scale
+			 (count_materialization_scale, REG_BR_PROB_BASE);
 	  edge_flags = streamer_read_uhwi (ib);
 
 	  dest = BASIC_BLOCK_FOR_FN (fn, dest_index);
@@ -1141,6 +1141,10 @@ input_function (tree fn_decl, struct data_in *data_in,
 		      break;
 		    case IFN_UBSAN_OBJECT_SIZE:
 		      if ((flag_sanitize & SANITIZE_OBJECT_SIZE) == 0)
+			remove = true;
+		      break;
+		    case IFN_UBSAN_PTR:
+		      if ((flag_sanitize & SANITIZE_POINTER_OVERFLOW) == 0)
 			remove = true;
 		      break;
 		    case IFN_ASAN_MARK:

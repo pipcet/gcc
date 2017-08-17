@@ -93,6 +93,9 @@ struct die_struct;
 /* Nonzero if this is an indirect call by descriptor.  */
 #define ECF_BY_DESCRIPTOR	  (1 << 14)
 
+/* Nonzero if this is a cold function.  */
+#define ECF_COLD		  (1 << 15)
+
 /* Call argument flags.  */
 /* Nonzero if the argument is not dereferenced recursively, thus only
    directly reachable memory is read or written.  */
@@ -624,6 +627,10 @@ enum tree_index {
   TI_BOOLEAN_TYPE,
   TI_FILEPTR_TYPE,
   TI_CONST_TM_PTR_TYPE,
+  TI_FENV_T_PTR_TYPE,
+  TI_CONST_FENV_T_PTR_TYPE,
+  TI_FEXCEPT_T_PTR_TYPE,
+  TI_CONST_FEXCEPT_T_PTR_TYPE,
   TI_POINTER_SIZED_TYPE,
 
   TI_POINTER_BOUNDS_TYPE,
@@ -1545,7 +1552,7 @@ struct GTY(()) tree_type_non_common {
   tree values;
   tree minval;
   tree maxval;
-  tree binfo;
+  tree lang_1;
 };
 
 struct GTY (()) tree_binfo {

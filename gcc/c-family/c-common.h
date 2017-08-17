@@ -960,7 +960,7 @@ extern tree build_real_imag_expr (location_t, enum tree_code, tree);
    a variant of the C language.  They are used in c-common.c.  */
 
 extern tree build_unary_op (location_t, enum tree_code, tree, bool);
-extern tree build_binary_op (location_t, enum tree_code, tree, tree, int);
+extern tree build_binary_op (location_t, enum tree_code, tree, tree, bool);
 extern tree perform_integral_promotions (tree);
 
 /* These functions must be defined by each front-end which implements
@@ -1124,7 +1124,8 @@ extern void builtin_define_with_int_value (const char *, HOST_WIDE_INT);
 extern void builtin_define_type_sizeof (const char *, tree);
 extern void c_stddef_cpp_builtins (void);
 extern void fe_file_change (const line_map_ordinary *);
-extern void c_parse_error (const char *, enum cpp_ttype, tree, unsigned char);
+extern void c_parse_error (const char *, enum cpp_ttype, tree, unsigned char,
+			   rich_location *richloc);
 
 /* In c-ppoutput.c  */
 extern void init_pp_output (FILE *);
@@ -1539,6 +1540,8 @@ extern bool maybe_warn_shift_overflow (location_t, tree, tree);
 extern void warn_duplicated_cond_add_or_warn (location_t, tree, vec<tree> **);
 extern bool diagnose_mismatched_attributes (tree, tree);
 extern tree do_warn_duplicated_branches_r (tree *, int *, void *);
+extern void warn_for_multistatement_macros (location_t, location_t,
+					    location_t, enum rid);
 
 /* In c-attribs.c.  */
 extern bool attribute_takes_identifier_p (const_tree);
@@ -1552,11 +1555,18 @@ extern enum flt_eval_method
 excess_precision_mode_join (enum flt_eval_method, enum flt_eval_method);
 
 extern int c_flt_eval_method (bool ts18661_p);
+extern void add_no_sanitize_value (tree node, unsigned int flags);
+
+extern void maybe_add_include_fixit (rich_location *, const char *);
 
 #if CHECKING_P
 namespace selftest {
+  /* Declarations for specific families of tests within c-family,
+     by source file, in alphabetical order.  */
   extern void c_format_c_tests (void);
-  extern void run_c_tests (void);
+
+  /* The entrypoint for running all of the above tests.  */
+  extern void c_family_tests (void);
 } // namespace selftest
 #endif /* #if CHECKING_P */
 
