@@ -1,3 +1,161 @@
+2017-08-18  Peter Bergner  <bergner@vnet.ibm.com>
+
+	PR target/80210
+	* config/rs6000/rs6000.c (rs6000_activate_target_options): New function.
+	(rs6000_set_current_function): Rewrite function to use it.
+
+2017-08-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR c/53037
+	* print-tree.c (print_node): Support DECL_WARN_IF_NOT_ALIGN
+	and TYPE_WARN_IF_NOT_ALIGN.
+	* stor-layout.c (do_type_align): Merge DECL_WARN_IF_NOT_ALIGN.
+	(handle_warn_if_not_align): New.
+	(place_union_field): Call handle_warn_if_not_align.
+	(place_field): Call handle_warn_if_not_align.  Copy
+	TYPE_WARN_IF_NOT_ALIGN.
+	(finish_builtin_struct): Copy TYPE_WARN_IF_NOT_ALIGN.
+	(layout_type): Likewise.
+	* tree-core.h (tree_type_common): Add warn_if_not_align.  Set
+	spare to 18.
+	(tree_decl_common): Add warn_if_not_align.
+	* tree.c (build_range_type_1): Copy TYPE_WARN_IF_NOT_ALIGN.
+	* tree.h (TYPE_WARN_IF_NOT_ALIGN): New.
+	(SET_TYPE_WARN_IF_NOT_ALIGN): Likewise.
+	(DECL_WARN_IF_NOT_ALIGN): Likewise.
+	(SET_DECL_WARN_IF_NOT_ALIGN): Likewise.
+	* doc/extend.texi: Document warn_if_not_aligned attribute.
+	* doc/invoke.texi: Document -Wif-not-aligned and
+	-Wpacked-not-aligned.
+
+2017-08-17  Martin Liska  <mliska@suse.cz>
+
+	PR bootstrap/81864
+	* tree-loop-distribution.c (ddrs_table): Change type to pointer
+	type.
+	(get_data_dependence): Use it as pointer type.
+	(distribute_loop): Likewise.
+
+2017-08-17  Bill Schmidt  <wschmidt@linux.vnet.ibm.com>
+
+	* config/rs6000/altivec.md (UNSPEC_VMRGOW_DIRECT): New constant.
+	(p8_vmrgew_v4sf_direct): Generalize to p8_vmrgew_<mode>_direct.
+	(p8_vmrgow_<mode>_direct): New define_insn.
+	* config/rs6000/rs6000.c (altivec_expand_vec_perm_const): Properly
+	handle endianness for vmrgew and vmrgow permute patterns.
+
+2017-08-17  Peter Bergner  <bergner@vnet.ibm.com>
+
+	* config/rs6000/altivec.md (VParity): Remove TARGET_VSX_TIMODE.
+	* config/rs6000/rs6000-cpus.def: Remove comment.
+	(ISA_2_7_MASKS_SERVER): Delete OPTION_MASK_VSX_TIMODE;
+	(POWERPC_MASKS): Likewise.
+	* config/rs6000/rs6000.c (rs6000_hard_regno_mode_ok): Remove unneeded
+	use of TARGET_VSX_TIMODE.
+	(rs6000_setup_reg_addr_masks): Change TARGET_VSX_TIMODE to TARGET_VSX.
+	(rs6000_init_hard_regno_mode_ok): Remove unneeded uses of
+	TARGET_VSX_TIMODE.  Change use of TARGET_VSX_TIMODE to TARGET_VSX.
+	(rs6000_option_override_internal): Remove dead code.
+	(rs6000_legitimize_address): Change TARGET_VSX_TIMODE to TARGET_VSX.
+	(rs6000_legitimize_reload_address): Likewise.
+	(rs6000_legitimate_address_p): Likewise.
+	(rs6000_opt_masks): Delete "vsx-timode".
+	(rs6000_disable_incompatible_switches): Remove mention of -mvsx-timode
+	from function comment.
+	* config/rs6000/rs6000.h (MASK_VSX_TIMODE): Delete.
+	* config/rs6000/rs6000.md (FMOVE128_GPR): Remove TARGET_VSX_TIMODE.
+	(V16QI, V8HI, V4SI, V4SF, V2DI, V2DF, V1TI): Remove useless empty
+	condition.
+	* config/rs6000/rs6000.opt (mvsx-timode): Replace with stub.
+	* config/rs6000/vector.md (VEC_IP): Remove TARGET_VSX_TIMODE.
+	* config/rs6000/vsx.md (VSX_LE_128): Likewise.
+	(VSX_TI): Likewise.
+	(VSX_M): Likewise.
+	(define_peephole2): Likewise.
+
+2017-08-17  Martin Sebor  <msebor@redhat.com>
+
+	PR c/81859
+	* pretty-print.c (pp_format): Use strnlen in %.*s to avoid reading
+	past the end of an array.
+	(test_pp_format): Add test cases.
+
+2017-08-17  Richard Sandiford  <richard.sandiford@linaro.org>
+
+	* internal-fn.def (CLRSB, CLZ, CTZ, FFS, PARITY, POPCOUNT): Add
+	missing ECF_NOTHROW flags.
+
+2017-08-17  Peter Bergner  <bergner@vnet.ibm.com>
+
+	PR target/72804
+	* config/rs6000/vsx.md (*vsx_le_permute_<mode>): Add support for
+	operands residing in integer registers.
+	(*vsx_le_perm_load_<mode>): Likewise.
+	(*vsx_le_perm_store_<mode>): Likewise.
+	(define_peephole2): Add peepholes to optimize the above.
+
+2017-08-17  Marek Polacek  <polacek@redhat.com>
+
+	PR middle-end/81814
+	* fold-const.c (operand_equal_for_comparison_p): Remove code that used
+	to mimic what shorten_compare did.  Change the return type to bool.
+	(fold_cond_expr_with_comparison): Update call to
+	operand_equal_for_comparison_p.
+	(fold_ternary_loc): Likewise.
+
+2017-08-17  Jackson Woodruff  <jackson.woodruff@arm.com>
+
+	* aarch64-simd.md (mov<mode>): No longer force zero immediate into
+	register.
+	(*aarch64_simd_mov<mode>): Add new case for stp	using zero immediate.
+
+2017-08-17  Richard Biener  <rguenther@suse.de>
+
+	* tree-ssa-structalias.c (solve_graph): When propagating
+	to successors update the graphs succ edges and avoid duplicate work.
+
+2017-08-17  Maxim Ostapenko  <m.ostapenko@samsung.com>
+
+	PR target/81861
+	* config/i386/i386.c (ix86_option_override_internal): Save target
+	specific options after ix86_stack_protector_guard_reg was changed.
+
+2017-08-17  Richard Biener  <rguenther@suse.de>
+
+	PR tree-optimization/81827
+	* tree-ssa-structalias.c (struct variable_info): Add is_reg_var
+	flag.
+	(new_var_info): Initialize it conservatively.
+	(get_call_vi): Mark register vars.
+	(new_scalar_tmp_constraint_exp): Likewise.
+	(handle_rhs_call): Likewise.
+	(handle_const_call): Likewise.
+	(create_function_info_for): Likewise.
+	(solve_constraints): Sort varinfos to separate register from
+	non-register vars to pack points-to solution bitmaps during
+	iteration.
+
+2017-08-17  Marek Polacek  <polacek@redhat.com>
+
+	* gimplify.c (gimplify_adjust_omp_clauses): Compare with 0 instead of
+	1.
+
+2017-08-17  Richard Biener  <rguenther@suse.de>
+
+	* tree-vrp.c (vrp_int_const_binop): Do not set *overflow_p
+	to true when overflow is undefined and we saturated the
+	result.
+
+2017-08-17  Alan Modra  <amodra@gmail.com>
+
+	PR target/80938
+	* config/rs6000/rs6000.c (rs6000_savres_strategy): Revert 2017-08-09.
+	Don't use store multiple if only one reg needs saving.
+	(interesting_frame_related_regno): New function.
+	(rs6000_frame_related): Don't emit frame info for regs that
+	don't need saving.
+	(rs6000_emit_epilogue): Likewise.
+
 2017-08-16  Nathan Sidwell  <nathan@acm.org>
 
 	* tree-core.h (tree_type_non_common): Rename binfo to lang_1.
@@ -181,6 +339,12 @@
 	TARGET_GASISR_PROLOGUES.
 	* config/avr/avr.c (avr_option_override): Same.
 	(avr_pass_pre_proep::execute): Same.
+
+2017-08-13  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR target/81820
+	* config/i386/i386.c (ix86_finalize_stack_frame_flags): Replace
+	frame pointer with stack pointer - UNITS_PER_WORD in debug insns.
 
 2017-08-13  Uros Bizjak  <ubizjak@gmail.com>
 

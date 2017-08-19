@@ -95,6 +95,8 @@
 #include "varasm.h"
 #include "print-rtl.h"
 #include "tree-pass.h"
+#include "stringpool.h"
+#include "attribs.h"
 
 #define N_ARGREG_PASSED 2
 #define N_ARGREG_GLOBAL 2

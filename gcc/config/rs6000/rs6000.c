@@ -2056,7 +2056,7 @@ rs6000_hard_regno_mode_ok (int regno, machine_mode mode)
       && (VECTOR_MEM_VSX_P (mode)
 	  || FLOAT128_VECTOR_P (mode)
 	  || reg_addr[mode].scalar_in_vmx_p
-	  || (TARGET_VSX_TIMODE && mode == TImode)
+	  || mode == TImode
 	  || (TARGET_VADDUQM && mode == V1TImode)))
     {
       if (FP_REGNO_P (regno))
@@ -2937,7 +2937,7 @@ rs6000_setup_reg_addr_masks (void)
 	  else if ((addr_mask != 0) && !indexed_only_p
 		   && msize == 16 && TARGET_P9_DFORM_VECTOR
 		   && (ALTIVEC_OR_VSX_VECTOR_MODE (m2)
-		       || (m2 == TImode && TARGET_VSX_TIMODE)))
+		       || (m2 == TImode && TARGET_VSX)))
 	    {
 	      addr_mask |= RELOAD_REG_OFFSET;
 	      if (rc == RELOAD_REG_FPR || rc == RELOAD_REG_VMX)
@@ -3142,7 +3142,7 @@ rs6000_init_hard_regno_mode_ok (bool global_init_p)
     }
 
   /* Allow TImode in VSX register and set the VSX memory macros.  */
-  if (TARGET_VSX && TARGET_VSX_TIMODE)
+  if (TARGET_VSX)
     {
       rs6000_vector_mem[TImode] = VECTOR_VSX;
       rs6000_vector_align[TImode] = align64;
@@ -3203,9 +3203,7 @@ rs6000_init_hard_regno_mode_ok (bool global_init_p)
       rs6000_constraints[RS6000_CONSTRAINT_ws] = VSX_REGS;	/* DFmode  */
       rs6000_constraints[RS6000_CONSTRAINT_wv] = ALTIVEC_REGS;	/* DFmode  */
       rs6000_constraints[RS6000_CONSTRAINT_wi] = VSX_REGS;	/* DImode  */
-
-      if (TARGET_VSX_TIMODE)
-	rs6000_constraints[RS6000_CONSTRAINT_wt] = VSX_REGS;	/* TImode  */
+      rs6000_constraints[RS6000_CONSTRAINT_wt] = VSX_REGS;	/* TImode  */
     }
 
   /* Add conditional constraints based on various options, to allow us to
@@ -3327,7 +3325,7 @@ rs6000_init_hard_regno_mode_ok (bool global_init_p)
 	      reg_addr[SDmode].reload_load  = CODE_FOR_reload_sd_di_load;
 	    }
 
-	  if (TARGET_VSX_TIMODE)
+	  if (TARGET_VSX)
 	    {
 	      reg_addr[TImode].reload_store  = CODE_FOR_reload_ti_di_store;
 	      reg_addr[TImode].reload_load   = CODE_FOR_reload_ti_di_load;
@@ -3411,7 +3409,7 @@ rs6000_init_hard_regno_mode_ok (bool global_init_p)
 	      reg_addr[SDmode].reload_load  = CODE_FOR_reload_sd_si_load;
 	    }
 
-	  if (TARGET_VSX_TIMODE)
+	  if (TARGET_VSX)
 	    {
 	      reg_addr[TImode].reload_store  = CODE_FOR_reload_ti_si_store;
 	      reg_addr[TImode].reload_load   = CODE_FOR_reload_ti_si_load;
@@ -4326,13 +4324,6 @@ rs6000_option_override_internal (bool global_init_p)
 	}
     }
 
-  if (TARGET_VSX_TIMODE && !TARGET_VSX)
-    {
-      if (rs6000_isa_flags_explicit & OPTION_MASK_VSX_TIMODE)
-	error ("%qs requires %qs", "-mvsx-timode", "-mvsx");
-      rs6000_isa_flags &= ~OPTION_MASK_VSX_TIMODE;
-    }
-
   if (TARGET_DFP && !TARGET_HARD_FLOAT)
     {
       if (rs6000_isa_flags_explicit & OPTION_MASK_DFP)
@@ -4550,11 +4541,6 @@ rs6000_option_override_internal (bool global_init_p)
 	    (OPTION_MASK_P9_DFORM_SCALAR | OPTION_MASK_P9_DFORM_VECTOR);
 	}
     }
-
-  /* Enable -mvsx-timode by default if VSX.  */
-  if (TARGET_VSX && !TARGET_VSX_TIMODE
-      && (rs6000_isa_flags_explicit & OPTION_MASK_VSX_TIMODE) == 0)
-    rs6000_isa_flags |= OPTION_MASK_VSX_TIMODE;
 
   /* Set -mallow-movmisalign to explicitly on if we have full ISA 2.07
      support. If we only have ISA 2.06 support, and the user did not specify
@@ -8760,7 +8746,7 @@ rs6000_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	 pointer, so it works with both GPRs and VSX registers.  */
       /* Make sure both operands are registers.  */
       else if (GET_CODE (x) == PLUS
-	       && (mode != TImode || !TARGET_VSX_TIMODE))
+	       && (mode != TImode || !TARGET_VSX))
 	return gen_rtx_PLUS (Pmode,
 			     force_reg (Pmode, XEXP (x, 0)),
 			     force_reg (Pmode, XEXP (x, 1)));
@@ -9653,7 +9639,7 @@ rs6000_legitimize_reload_address (rtx x, machine_mode mode,
       && mode != TDmode
       && mode != IFmode
       && mode != KFmode
-      && (mode != TImode || !TARGET_VSX_TIMODE)
+      && (mode != TImode || !TARGET_VSX)
       && mode != PTImode
       && (mode != DImode || TARGET_POWERPC64)
       && ((mode != DFmode && mode != DDmode) || TARGET_POWERPC64
@@ -9821,10 +9807,10 @@ rs6000_legitimate_address_p (machine_mode mode, rtx x, bool reg_ok_strict)
      go into VSX registers, so we allow REG+REG, while TImode seems
      somewhat split, in that some uses are GPR based, and some VSX based.  */
   /* FIXME: We could loosen this by changing the following to
-       if (mode == TImode && TARGET_QUAD_MEMORY && TARGET_VSX_TIMODE)
+       if (mode == TImode && TARGET_QUAD_MEMORY && TARGET_VSX)
      but currently we cannot allow REG+REG addressing for TImode.  See
      PR72827 for complete details on how this ends up hoodwinking DSE.  */
-  if (mode == TImode && TARGET_VSX_TIMODE)
+  if (mode == TImode && TARGET_VSX)
     return 0;
   /* If not REG_OK_STRICT (before reload) let pass any stack offset.  */
   if (! reg_ok_strict
@@ -24445,20 +24431,36 @@ rs6000_savres_strategy (rs6000_stack_t *info,
 	   && flag_shrink_wrap_separate
 	   && optimize_function_for_speed_p (cfun)))
     {
-      /* Prefer store multiple for saves over out-of-line routines,
-	 since the store-multiple instruction will always be smaller.  */
-      strategy |= SAVE_INLINE_GPRS | SAVE_MULTIPLE;
+      int count = 0;
+      for (int i = info->first_gp_reg_save; i < 32; i++)
+	if (save_reg_p (i))
+	  count++;
 
-      /* The situation is more complicated with load multiple.  We'd
-	 prefer to use the out-of-line routines for restores, since the
-	 "exit" out-of-line routines can handle the restore of LR and the
-	 frame teardown.  However if doesn't make sense to use the
-	 out-of-line routine if that is the only reason we'd need to save
-	 LR, and we can't use the "exit" out-of-line gpr restore if we
-	 have saved some fprs; In those cases it is advantageous to use
-	 load multiple when available.  */
-      if (info->first_fp_reg_save != 64 || !lr_save_p)
-	strategy |= REST_INLINE_GPRS | REST_MULTIPLE;
+      if (count <= 1)
+	/* Don't use store multiple if only one reg needs to be
+	   saved.  This can occur for example when the ABI_V4 pic reg
+	   (r30) needs to be saved to make calls, but r31 is not
+	   used.  */
+	strategy |= SAVE_INLINE_GPRS | REST_INLINE_GPRS;
+      else
+	{
+	  /* Prefer store multiple for saves over out-of-line
+	     routines, since the store-multiple instruction will
+	     always be smaller.  */
+	  strategy |= SAVE_INLINE_GPRS | SAVE_MULTIPLE;
+
+	  /* The situation is more complicated with load multiple.
+	     We'd prefer to use the out-of-line routines for restores,
+	     since the "exit" out-of-line routines can handle the
+	     restore of LR and the frame teardown.  However if doesn't
+	     make sense to use the out-of-line routine if that is the
+	     only reason we'd need to save LR, and we can't use the
+	     "exit" out-of-line gpr restore if we have saved some
+	     fprs; In those cases it is advantageous to use load
+	     multiple when available.  */
+	  if (info->first_fp_reg_save != 64 || !lr_save_p)
+	    strategy |= REST_INLINE_GPRS | REST_MULTIPLE;
+	}
     }
 
   /* Using the "exit" out-of-line routine does not improve code size
@@ -24466,21 +24468,6 @@ rs6000_savres_strategy (rs6000_stack_t *info,
      or two gprs.  */
   else if (!lr_save_p && info->first_gp_reg_save > 29)
     strategy |= SAVE_INLINE_GPRS | REST_INLINE_GPRS;
-
-  /* We can only use save multiple if we need to save all the registers from
-     first_gp_reg_save.  Otherwise, the CFI gets messed up (we save some
-     register we do not restore).  */
-  if (strategy & SAVE_MULTIPLE)
-    {
-      int i;
-
-      for (i = info->first_gp_reg_save; i < 32; i++)
-	if (fixed_reg_p (i) || !save_reg_p (i))
-	  {
-	    strategy &= ~SAVE_MULTIPLE;
-	    break;
-	  }
-    }
 
   /* Don't ever restore fixed regs.  */
   if ((strategy & (REST_INLINE_GPRS | REST_MULTIPLE)) != REST_INLINE_GPRS)
@@ -25654,6 +25641,38 @@ output_probe_stack_range (rtx reg1, rtx reg2)
   return "";
 }
 
+/* This function is called when rs6000_frame_related is processing
+   SETs within a PARALLEL, and returns whether the REGNO save ought to
+   be marked RTX_FRAME_RELATED_P.  The PARALLELs involved are those
+   for out-of-line register save functions, store multiple, and the
+   Darwin world_save.  They may contain registers that don't really
+   need saving.  */
+
+static bool
+interesting_frame_related_regno (unsigned int regno)
+{
+  /* Saves apparently of r0 are actually saving LR.  It doesn't make
+     sense to substitute the regno here to test save_reg_p (LR_REGNO).
+     We *know* LR needs saving, and dwarf2cfi.c is able to deduce that
+     (set (mem) (r0)) is saving LR from a prior (set (r0) (lr)) marked
+     as frame related.  */
+  if (regno == 0)
+    return true;
+  /* If we see CR2 then we are here on a Darwin world save.  Saves of
+     CR2 signify the whole CR is being saved.  This is a long-standing
+     ABI wart fixed by ELFv2.  As for r0/lr there is no need to check
+     that CR needs to be saved.  */
+  if (regno == CR2_REGNO)
+    return true;
+  /* Omit frame info for any user-defined global regs.  If frame info
+     is supplied for them, frame unwinding will restore a user reg.
+     Also omit frame info for any reg we don't need to save, as that
+     bloats frame info and can cause problems with shrink wrapping.
+     Since global regs won't be seen as needing to be saved, both of
+     these conditions are covered by save_reg_p.  */
+  return save_reg_p (regno);
+}
+
 /* Add to 'insn' a note which is PATTERN (INSN) but with REG replaced
    with (plus:P (reg 1) VAL), and with REG2 replaced with REPL2 if REG2
    is not NULL.  It would be nice if dwarf2out_frame_debug_expr could
@@ -25688,13 +25707,8 @@ rs6000_frame_related (rtx_insn *insn, rtx reg, HOST_WIDE_INT val,
 	    {
 	      rtx set = XVECEXP (pat, 0, i);
 
-	      /* If this PARALLEL has been emitted for out-of-line
-		 register save functions, or store multiple, then omit
-		 eh_frame info for any user-defined global regs.  If
-		 eh_frame info is supplied, frame unwinding will
-		 restore a user reg.  */
 	      if (!REG_P (SET_SRC (set))
-		  || !fixed_reg_p (REGNO (SET_SRC (set))))
+		  || interesting_frame_related_regno (REGNO (SET_SRC (set))))
 		RTX_FRAME_RELATED_P (set) = 1;
 	    }
       RTX_FRAME_RELATED_P (insn) = 1;
@@ -25731,9 +25745,8 @@ rs6000_frame_related (rtx_insn *insn, rtx reg, HOST_WIDE_INT val,
 	      set = simplify_replace_rtx (set, reg2, repl2);
 	    XVECEXP (pat, 0, i) = set;
 
-	    /* Omit eh_frame info for any user-defined global regs.  */
 	    if (!REG_P (SET_SRC (set))
-		|| !fixed_reg_p (REGNO (SET_SRC (set))))
+		|| interesting_frame_related_regno (REGNO (SET_SRC (set))))
 	      RTX_FRAME_RELATED_P (set) = 1;
 	  }
     }
@@ -27956,7 +27969,8 @@ rs6000_emit_epilogue (int sibcall)
 	  RTVEC_ELT (p, j++)
 	    = gen_frame_load (reg,
 			      frame_reg_rtx, info->gp_save_offset + reg_size * i);
-	  if (flag_shrink_wrap)
+	  if (flag_shrink_wrap
+	      && save_reg_p (info->first_gp_reg_save + i))
 	    cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg, cfa_restores);
 	}
       for (i = 0; info->first_altivec_reg_save + i <= LAST_ALTIVEC_REGNO; i++)
@@ -27965,7 +27979,8 @@ rs6000_emit_epilogue (int sibcall)
 	  RTVEC_ELT (p, j++)
 	    = gen_frame_load (reg,
 			      frame_reg_rtx, info->altivec_save_offset + 16 * i);
-	  if (flag_shrink_wrap)
+	  if (flag_shrink_wrap
+	      && save_reg_p (info->first_altivec_reg_save + i))
 	    cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg, cfa_restores);
 	}
       for (i = 0; info->first_fp_reg_save + i <= 63; i++)
@@ -27975,7 +27990,8 @@ rs6000_emit_epilogue (int sibcall)
 				 info->first_fp_reg_save + i);
 	  RTVEC_ELT (p, j++)
 	    = gen_frame_load (reg, frame_reg_rtx, info->fp_save_offset + 8 * i);
-	  if (flag_shrink_wrap)
+	  if (flag_shrink_wrap
+	      && save_reg_p (info->first_fp_reg_save + i))
 	    cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg, cfa_restores);
 	}
       RTVEC_ELT (p, j++)
@@ -28096,7 +28112,8 @@ rs6000_emit_epilogue (int sibcall)
 	    && (flag_shrink_wrap
 		|| (offset_below_red_zone_p
 		    (info->altivec_save_offset
-		     + 16 * (i - info->first_altivec_reg_save)))))
+		     + 16 * (i - info->first_altivec_reg_save))))
+	    && save_reg_p (i))
 	  {
 	    rtx reg = gen_rtx_REG (V4SImode, i);
 	    cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg, cfa_restores);
@@ -28308,7 +28325,8 @@ rs6000_emit_epilogue (int sibcall)
       for (i = info->first_altivec_reg_save; i <= LAST_ALTIVEC_REGNO; ++i)
 	if (((strategy & REST_INLINE_VRS) == 0
 	     || (info->vrsave_mask & ALTIVEC_REG_BIT (i)) != 0)
-	    && (DEFAULT_ABI == ABI_V4 || flag_shrink_wrap))
+	    && (DEFAULT_ABI == ABI_V4 || flag_shrink_wrap)
+	    && save_reg_p (i))
 	  {
 	    rtx reg = gen_rtx_REG (V4SImode, i);
 	    cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg, cfa_restores);
@@ -28654,7 +28672,8 @@ rs6000_emit_epilogue (int sibcall)
 
 	  RTVEC_ELT (p, elt++)
 	    = gen_frame_load (reg, sp_reg_rtx, info->fp_save_offset + 8 * i);
-	  if (flag_shrink_wrap)
+	  if (flag_shrink_wrap
+	      && save_reg_p (info->first_fp_reg_save + i))
 	    cfa_restores = alloc_reg_note (REG_CFA_RESTORE, reg, cfa_restores);
 	}
 
@@ -35263,9 +35282,13 @@ altivec_expand_vec_perm_const (rtx operands[4])
       (BYTES_BIG_ENDIAN ? CODE_FOR_altivec_vmrglw_direct
        : CODE_FOR_altivec_vmrghw_direct),
       {  8,  9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31 } },
-    { OPTION_MASK_P8_VECTOR, CODE_FOR_p8_vmrgew_v4si,
+    { OPTION_MASK_P8_VECTOR,
+      (BYTES_BIG_ENDIAN ? CODE_FOR_p8_vmrgew_v4sf_direct
+       : CODE_FOR_p8_vmrgow_v4sf_direct),
       {  0,  1,  2,  3, 16, 17, 18, 19,  8,  9, 10, 11, 24, 25, 26, 27 } },
-    { OPTION_MASK_P8_VECTOR, CODE_FOR_p8_vmrgow,
+    { OPTION_MASK_P8_VECTOR,
+      (BYTES_BIG_ENDIAN ? CODE_FOR_p8_vmrgow_v4sf_direct
+       : CODE_FOR_p8_vmrgew_v4sf_direct),
       {  4,  5,  6,  7, 20, 21, 22, 23, 12, 13, 14, 15, 28, 29, 30, 31 } }
   };
 
@@ -36152,7 +36175,6 @@ static struct rs6000_opt_mask const rs6000_opt_masks[] =
   { "toc-fusion",		OPTION_MASK_TOC_FUSION,		false, true  },
   { "update",			OPTION_MASK_NO_UPDATE,		true , true  },
   { "vsx",			OPTION_MASK_VSX,		false, true  },
-  { "vsx-timode",		OPTION_MASK_VSX_TIMODE,		false, true  },
 #ifdef OPTION_MASK_64BIT
 #if TARGET_AIX_OS
   { "aix64",			OPTION_MASK_64BIT,		false, false },
@@ -36642,23 +36664,30 @@ rs6000_pragma_target_parse (tree args, tree pop_target)
 /* Remember the last target of rs6000_set_current_function.  */
 static GTY(()) tree rs6000_previous_fndecl;
 
+/* Restore target's globals from NEW_TREE and invalidate the
+   rs6000_previous_fndecl cache.  */
+
+static void
+rs6000_activate_target_options (tree new_tree)
+{
+  cl_target_option_restore (&global_options, TREE_TARGET_OPTION (new_tree));
+  if (TREE_TARGET_GLOBALS (new_tree))
+    restore_target_globals (TREE_TARGET_GLOBALS (new_tree));
+  else if (new_tree == target_option_default_node)
+    restore_target_globals (&default_target_globals);
+  else
+    TREE_TARGET_GLOBALS (new_tree) = save_target_globals_default_opts ();
+  rs6000_previous_fndecl = NULL_TREE;
+}
+
 /* Establish appropriate back-end context for processing the function
    FNDECL.  The argument might be NULL to indicate processing at top
    level, outside of any function scope.  */
 static void
 rs6000_set_current_function (tree fndecl)
 {
-  tree old_tree = (rs6000_previous_fndecl
-		   ? DECL_FUNCTION_SPECIFIC_TARGET (rs6000_previous_fndecl)
-		   : NULL_TREE);
-
-  tree new_tree = (fndecl
-		   ? DECL_FUNCTION_SPECIFIC_TARGET (fndecl)
-		   : NULL_TREE);
-
   if (TARGET_DEBUG_TARGET)
     {
-      bool print_final = false;
       fprintf (stderr, "\n==================== rs6000_set_current_function");
 
       if (fndecl)
@@ -36671,58 +36700,60 @@ rs6000_set_current_function (tree fndecl)
 	fprintf (stderr, ", prev_fndecl (%p)", (void *)rs6000_previous_fndecl);
 
       fprintf (stderr, "\n");
+    }
+
+  /* Only change the context if the function changes.  This hook is called
+     several times in the course of compiling a function, and we don't want to
+     slow things down too much or call target_reinit when it isn't safe.  */
+  if (fndecl == rs6000_previous_fndecl)
+    return;
+
+  tree old_tree;
+  if (rs6000_previous_fndecl == NULL_TREE)
+    old_tree = target_option_current_node;
+  else if (DECL_FUNCTION_SPECIFIC_TARGET (rs6000_previous_fndecl))
+    old_tree = DECL_FUNCTION_SPECIFIC_TARGET (rs6000_previous_fndecl);
+  else
+    old_tree = target_option_default_node;
+
+  tree new_tree;
+  if (fndecl == NULL_TREE)
+    {
+      if (old_tree != target_option_current_node)
+	new_tree = target_option_current_node;
+      else
+	new_tree = NULL_TREE;
+    }
+  else
+    {
+      new_tree = DECL_FUNCTION_SPECIFIC_TARGET (fndecl);
+      if (new_tree == NULL_TREE)
+	new_tree = target_option_default_node;
+    }
+
+  if (TARGET_DEBUG_TARGET)
+    {
       if (new_tree)
 	{
 	  fprintf (stderr, "\nnew fndecl target specific options:\n");
 	  debug_tree (new_tree);
-	  print_final = true;
 	}
 
       if (old_tree)
 	{
 	  fprintf (stderr, "\nold fndecl target specific options:\n");
 	  debug_tree (old_tree);
-	  print_final = true;
 	}
 
-      if (print_final)
+      if (old_tree != NULL_TREE || new_tree != NULL_TREE)
 	fprintf (stderr, "--------------------\n");
     }
 
-  /* Only change the context if the function changes.  This hook is called
-     several times in the course of compiling a function, and we don't want to
-     slow things down too much or call target_reinit when it isn't safe.  */
-  if (fndecl && fndecl != rs6000_previous_fndecl)
-    {
-      rs6000_previous_fndecl = fndecl;
-      if (old_tree == new_tree)
-	;
+  if (new_tree && old_tree != new_tree)
+    rs6000_activate_target_options (new_tree);
 
-      else if (new_tree && new_tree != target_option_default_node)
-	{
-	  cl_target_option_restore (&global_options,
-				    TREE_TARGET_OPTION (new_tree));
-	  if (TREE_TARGET_GLOBALS (new_tree))
-	    restore_target_globals (TREE_TARGET_GLOBALS (new_tree));
-	  else
-	    TREE_TARGET_GLOBALS (new_tree)
-	      = save_target_globals_default_opts ();
-	}
-
-      else if (old_tree && old_tree != target_option_default_node)
-	{
-	  new_tree = target_option_current_node;
-	  cl_target_option_restore (&global_options,
-				    TREE_TARGET_OPTION (new_tree));
-	  if (TREE_TARGET_GLOBALS (new_tree))
-	    restore_target_globals (TREE_TARGET_GLOBALS (new_tree));
-	  else if (new_tree == target_option_default_node)
-	    restore_target_globals (&default_target_globals);
-	  else
-	    TREE_TARGET_GLOBALS (new_tree)
-	      = save_target_globals_default_opts ();
-	}
-    }
+  if (fndecl)
+    rs6000_previous_fndecl = fndecl;
 }
 
 
@@ -36861,7 +36892,7 @@ rs6000_print_builtin_options (FILE *file, int indent, const char *string,
 
 /* If the user used -mno-vsx, we need turn off all of the implicit ISA 2.06,
    2.07, and 3.0 options that relate to the vector unit (-mdirect-move,
-   -mvsx-timode, -mupper-regs-df).
+   -mupper-regs-df, etc.).
 
    If the user used -mno-power8-vector, we need to turn off all of the implicit
    ISA 2.07 and 3.0 options that relate to the vector unit.

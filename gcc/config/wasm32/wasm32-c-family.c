@@ -1,3 +1,6 @@
+#include "stringpool.h"
+#include "attribs.h"
+
 static hash_set<tree> wasm32_jsexport_declared;
 static hash_set<tree> wasm32_jsexport_exported;
 

@@ -1,3 +1,36 @@
+2017-08-18  David Malcolm  <dmalcolm@redhat.com>
+
+	PR c++/81514
+	* name-lookup.c (maybe_suggest_missing_header): Convert return
+	type from void to bool; return true iff a suggestion was offered.
+	(suggest_alternative_in_explicit_scope): Move call to
+	maybe_suggest_missing_header to before use of best_match, and
+	return true if the former offers a suggestion.
+
+2017-08-18  H.J. Lu  <hongjiu.lu@intel.com>
+
+	PR c/53037
+	* decl.c (duplicate_decls): Also merge DECL_WARN_IF_NOT_ALIGN.
+	* decl2.c (grokbitfield): Don't allow bit-field with
+	warn_if_not_aligned type.
+
+2017-08-17  Nathan Sidwell  <nathan@acm.org>
+
+	* cp-tree.def (TEMPLATE_TEMPLATE_PARM): Remove stale comment.
+	* cp-tree.h (ENUM_TEMPLATE_INFO): Delete.
+	(TYPE_TEMPLATE_INFO): Simplify.
+	(SET_TYPE_TEMPLATE_INFO): Simplify.
+
+	* lex.c (maybe_add_lang_type_raw): BOUND_TEMPLATE_TEMPLATE_PARMs
+	don't need lang_type.
+	(cxx_make_type): Use maybe_add_lang_type_raw return value.
+	* mangle.c (CLASSTYPE_TEMPLATE_ID_P): Don't rely on
+	TYPE_LANG_SPECIFIC.
+
+	* cp-tree.h (struct lang_type): Remove template_info field.
+	(CLASSTYPE_TEMPLATE_INFO): Use TYPE_LANG_SLOT_1.
+	(TEMPLATE_TEMPLATE_PARM_TEMPLATE_INFO): Likewise.
+
 2017-08-14  Martin Sebor  <msebor@redhat.com>
 
 	PR c/81117
