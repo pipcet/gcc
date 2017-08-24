@@ -52,15 +52,6 @@ static access_kind access_in_type (tree, tree);
 static tree dfs_get_pure_virtuals (tree, void *);
 
 
-/* Variables for gathering statistics.  */
-static int n_fields_searched;
-static int n_calls_lookup_field, n_calls_lookup_field_1;
-static int n_calls_lookup_fnfields, n_calls_lookup_fnfields_1;
-static int n_calls_get_base_type;
-static int n_outer_fields_searched;
-static int n_contexts_saved;
-
-
 /* Data for lookup_base and its workers.  */
 
 struct lookup_base_data_s
@@ -361,128 +352,6 @@ dcast_base_hint (tree subtype, tree target)
    If the member is ambiguously referenced, return `error_mark_node'.
    Otherwise, return a DECL with the indicated name.  If WANT_TYPE is
    true, type declarations are preferred.  */
-
-/* Do a 1-level search for NAME as a member of TYPE.  The caller must
-   figure out whether it can access this field.  (Since it is only one
-   level, this is reasonable.)  */
-
-tree
-lookup_field_1 (tree type, tree name, bool want_type)
-{
-  tree field;
-
-  gcc_assert (identifier_p (name));
-
-  if (TREE_CODE (type) == TEMPLATE_TYPE_PARM
-      || TREE_CODE (type) == BOUND_TEMPLATE_TEMPLATE_PARM
-      || TREE_CODE (type) == TYPENAME_TYPE)
-    /* The TYPE_FIELDS of a TEMPLATE_TYPE_PARM and
-       BOUND_TEMPLATE_TEMPLATE_PARM are not fields at all;
-       instead TYPE_FIELDS is the TEMPLATE_PARM_INDEX.  (Miraculously,
-       the code often worked even when we treated the index as a list
-       of fields!)
-       The TYPE_FIELDS of TYPENAME_TYPE is its TYPENAME_TYPE_FULLNAME.  */
-    return NULL_TREE;
-
-  if (CLASSTYPE_SORTED_FIELDS (type))
-    {
-      tree *fields = &CLASSTYPE_SORTED_FIELDS (type)->elts[0];
-      int lo = 0, hi = CLASSTYPE_SORTED_FIELDS (type)->len;
-      int i;
-
-      while (lo < hi)
-	{
-	  i = (lo + hi) / 2;
-
-	  if (GATHER_STATISTICS)
-	    n_fields_searched++;
-
-	  if (DECL_NAME (fields[i]) > name)
-	    hi = i;
-	  else if (DECL_NAME (fields[i]) < name)
-	    lo = i + 1;
-	  else
-	    {
-	      field = NULL_TREE;
-
-	      /* We might have a nested class and a field with the
-		 same name; we sorted them appropriately via
-		 field_decl_cmp, so just look for the first or last
-		 field with this name.  */
-	      if (want_type)
-		{
-		  do
-		    field = fields[i--];
-		  while (i >= lo && DECL_NAME (fields[i]) == name);
-		  if (!DECL_DECLARES_TYPE_P (field))
-		    field = NULL_TREE;
-		}
-	      else
-		{
-		  do
-		    field = fields[i++];
-		  while (i < hi && DECL_NAME (fields[i]) == name);
-		}
-
-	      if (field)
-	      	{
-	      	  field = strip_using_decl (field);
-	      	  if (is_overloaded_fn (field))
-	      	    field = NULL_TREE;
-	      	}
-
-	      return field;
-	    }
-	}
-      return NULL_TREE;
-    }
-
-  field = TYPE_FIELDS (type);
-
-  if (GATHER_STATISTICS)
-    n_calls_lookup_field_1++;
-
-  for (field = TYPE_FIELDS (type); field; field = DECL_CHAIN (field))
-    {
-      tree decl = field;
-
-      if (DECL_DECLARES_FUNCTION_P (decl))
-	/* Functions are kep separately, at the moment.  */
-	continue;
-
-      if (GATHER_STATISTICS)
-	n_fields_searched++;
-
-      gcc_assert (DECL_P (field));
-      if (DECL_NAME (field) == NULL_TREE
-	  && ANON_AGGR_TYPE_P (TREE_TYPE (field)))
-	{
-	  tree temp = lookup_field_1 (TREE_TYPE (field), name, want_type);
-	  if (temp)
-	    return temp;
-	}
-
-      if (TREE_CODE (decl) == USING_DECL
-	  && DECL_NAME (decl) == name)
-	{
-	  decl = strip_using_decl (decl);
-	  if (is_overloaded_fn (decl))
-	    continue;
-	}
-
-      if (DECL_NAME (decl) == name
-	  && (!want_type || DECL_DECLARES_TYPE_P (decl)))
-	return decl;
-    }
-  /* Not found.  */
-  if (name == vptr_identifier)
-    {
-      /* Give the user what s/he thinks s/he wants.  */
-      if (TYPE_POLYMORPHIC_P (type))
-	return TYPE_VFIELD (type);
-    }
-  return NULL_TREE;
-}
 
 /* Return the FUNCTION_DECL, RECORD_TYPE, UNION_TYPE, or
    NAMESPACE_DECL corresponding to the innermost non-block scope.  */
@@ -1124,38 +993,21 @@ lookup_field_r (tree binfo, void *data)
 	nval = dep_using;
     }
 
+  /* If we're looking up a type (as with an elaborated type specifier)
+     we ignore all non-types we find.  */
+  if (lfi->want_type && nval && !DECL_DECLARES_TYPE_P (nval))
+    {
+      nval = NULL_TREE;
+      if (CLASSTYPE_NESTED_UTDS (type))
+	if (binding_entry e = binding_table_find (CLASSTYPE_NESTED_UTDS (type),
+						  lfi->name))
+	  nval = TYPE_MAIN_DECL (e->type);
+    }
+
   /* If there is no declaration with the indicated name in this type,
      then there's nothing to do.  */
   if (!nval)
     goto done;
-
-  /* If we're looking up a type (as with an elaborated type specifier)
-     we ignore all non-types we find.  */
-  if (lfi->want_type && !DECL_DECLARES_TYPE_P (nval))
-    {
-      if (lfi->name == TYPE_IDENTIFIER (type))
-	{
-	  /* If the aggregate has no user defined constructors, we allow
-	     it to have fields with the same name as the enclosing type.
-	     If we are looking for that name, find the corresponding
-	     TYPE_DECL.  */
-	  for (nval = TREE_CHAIN (nval); nval; nval = TREE_CHAIN (nval))
-	    if (DECL_NAME (nval) == lfi->name
-		&& TREE_CODE (nval) == TYPE_DECL)
-	      break;
-	}
-      else
-	nval = NULL_TREE;
-      if (!nval && CLASSTYPE_NESTED_UTDS (type) != NULL)
-	{
-	  binding_entry e = binding_table_find (CLASSTYPE_NESTED_UTDS (type),
-						lfi->name);
-	  if (e != NULL)
-	    nval = TYPE_MAIN_DECL (e->type);
-	  else
-	    goto done;
-	}
-    }
 
   /* If the lookup already found a match, and the new value doesn't
      hide the old one, we might have an ambiguity.  */
@@ -1292,9 +1144,6 @@ lookup_member (tree xbasetype, tree name, int protect, bool want_type,
   if (!basetype_path)
     return NULL_TREE;
 
-  if (GATHER_STATISTICS)
-    n_calls_lookup_field++;
-
   memset (&lfi, 0, sizeof (lfi));
   lfi.type = type;
   lfi.name = name;
@@ -1374,7 +1223,6 @@ class lookup_field_fuzzy_info
   lookup_field_fuzzy_info (bool want_type_p) :
     m_want_type_p (want_type_p), m_candidates () {}
 
-  void fuzzy_lookup_fnfields (tree type);
   void fuzzy_lookup_field (tree type);
 
   /* If true, we are looking for types, not data members.  */
@@ -1382,27 +1230,6 @@ class lookup_field_fuzzy_info
   /* The result: a vec of identifiers.  */
   auto_vec<tree> m_candidates;
 };
-
-/* Locate all methods within TYPE, append them to m_candidates.  */
-
-void
-lookup_field_fuzzy_info::fuzzy_lookup_fnfields (tree type)
-{
-  vec<tree, va_gc> *method_vec;
-  tree fn;
-  size_t i;
-
-  if (!CLASS_TYPE_P (type))
-    return;
-
-  method_vec = CLASSTYPE_METHOD_VEC (type);
-  if (!method_vec)
-    return;
-
-  for (i = 0; vec_safe_iterate (method_vec, i, &fn); ++i)
-    if (fn)
-      m_candidates.safe_push (OVL_NAME (fn));
-}
 
 /* Locate all fields within TYPE, append them to m_candidates.  */
 
@@ -1432,11 +1259,6 @@ lookup_field_fuzzy_r (tree binfo, void *data)
   lookup_field_fuzzy_info *lffi = (lookup_field_fuzzy_info *) data;
   tree type = BINFO_TYPE (binfo);
 
-  /* First, look for functions.  */
-  if (!lffi->m_want_type_p)
-    lffi->fuzzy_lookup_fnfields (type);
-
-  /* Look for data member and types.  */
   lffi->fuzzy_lookup_field (type);
 
   return NULL_TREE;
@@ -1530,166 +1352,6 @@ lookup_fnfields (tree xbasetype, tree name, int protect)
     return NULL_TREE;
 
   return rval;
-}
-
-/* Return the conversion operators in CLASS_TYPE corresponding to
-   "operator TYPE ()".  Only CLASS_TYPE itself is searched; this
-   routine does not scan the base classes of CLASS_TYPE.  */
-
-static tree
-lookup_conversion_operator (tree class_type, tree type)
-{
-  tree tpls = NULL_TREE;
-
-  if (TYPE_HAS_CONVERSION (class_type))
-    {
-      tree fns;
-      vec<tree, va_gc> *methods = CLASSTYPE_METHOD_VEC (class_type);
-
-      for (int i = CLASSTYPE_FIRST_CONVERSION_SLOT;
-	   vec_safe_iterate (methods, i, &fns); ++i)
-	{
-	  /* All the conversion operators come near the beginning of
-	     the class.  Therefore, if FN is not a conversion
-	     operator, there is no matching conversion operator in
-	     CLASS_TYPE.  */
-	  tree fn = OVL_FIRST (fns);
-	  if (!DECL_CONV_FN_P (fn))
-	    break;
-
-	  if (TREE_CODE (fn) == TEMPLATE_DECL)
-	    /* All the templated conversion functions are on the same
-	       slot, so remember it.  */
-	    tpls = fns;
-	  else if (same_type_p (DECL_CONV_FN_TYPE (fn), type))
-	    return fns;
-	}
-    }
-
-  return tpls;
-}
-
-/* TYPE is a class type. Return the member functions in the method
-   vector with name NAME.  Does not lazily declare implicitly-declared
-   member functions.  */
-
-tree
-lookup_fnfields_slot_nolazy (tree type, tree name)
-{
-  vec<tree, va_gc> *method_vec = CLASSTYPE_METHOD_VEC (type);
-  if (!method_vec)
-    return NULL_TREE;
-
-  if (GATHER_STATISTICS)
-    n_calls_lookup_fnfields_1++;
-
-  if (IDENTIFIER_CONV_OP_P (name))
-    return lookup_conversion_operator (type, TREE_TYPE (name));
-
-  /* Skip the conversion operators.  */
-  int i;
-  tree fns;
-  for (i = CLASSTYPE_FIRST_CONVERSION_SLOT;
-       vec_safe_iterate (method_vec, i, &fns);
-       ++i)
-    if (!DECL_CONV_FN_P (OVL_FIRST (fns)))
-      break;
-
-  /* If the type is complete, use binary search.  */
-  if (COMPLETE_TYPE_P (type))
-    {
-      int lo;
-      int hi;
-
-      lo = i;
-      hi = method_vec->length ();
-      while (lo < hi)
-	{
-	  i = (lo + hi) / 2;
-
-	  if (GATHER_STATISTICS)
-	    n_outer_fields_searched++;
-
-	  fns = (*method_vec)[i];
-	  tree fn_name = OVL_NAME (fns);
-	  if (fn_name > name)
-	    hi = i;
-	  else if (fn_name < name)
-	    lo = i + 1;
-	  else
-	    return fns;
-	}
-    }
-  else
-    for (; vec_safe_iterate (method_vec, i, &fns); ++i)
-      {
-	if (GATHER_STATISTICS)
-	  n_outer_fields_searched++;
-	if (OVL_NAME (fns) == name)
-	  return fns;
-      }
-
-  return NULL_TREE;
-}
-
-/* TYPE is a class type. Return the overloads in
-   the method vector with name NAME.  Lazily create ctors etc.  */
-
-tree
-lookup_fnfields_slot (tree type, tree name)
-{
-  type = complete_type (type);
-
-  if (COMPLETE_TYPE_P (type))
-    {
-      if (IDENTIFIER_CTOR_P (name))
-	{
-	  if (CLASSTYPE_LAZY_DEFAULT_CTOR (type))
-	    lazily_declare_fn (sfk_constructor, type);
-	  if (CLASSTYPE_LAZY_COPY_CTOR (type))
-	    lazily_declare_fn (sfk_copy_constructor, type);
-	  if (CLASSTYPE_LAZY_MOVE_CTOR (type))
-	    lazily_declare_fn (sfk_move_constructor, type);
-	}
-      else if (name == cp_assignment_operator_id (NOP_EXPR))
-	{
-	  if (CLASSTYPE_LAZY_COPY_ASSIGN (type))
-	    lazily_declare_fn (sfk_copy_assignment, type);
-	  if (CLASSTYPE_LAZY_MOVE_ASSIGN (type))
-	    lazily_declare_fn (sfk_move_assignment, type);
-	}
-      else if (IDENTIFIER_DTOR_P (name))
-	{
-	  if (CLASSTYPE_LAZY_DESTRUCTOR (type))
-	    lazily_declare_fn (sfk_destructor, type);
-	}
-    }
-
-  return lookup_fnfields_slot_nolazy (type, name);
-}
-
-/* Collect all the conversion operators of KLASS.  */
-
-tree
-lookup_all_conversions (tree klass)
-{
-  tree lkp = NULL_TREE;
-
-  if (vec<tree, va_gc> *methods = CLASSTYPE_METHOD_VEC (klass))
-    {
-      tree ovl;
-      for (int idx = CLASSTYPE_FIRST_CONVERSION_SLOT;
-	   methods->iterate (idx, &ovl); ++idx)
-	{
-	  if (!DECL_CONV_FN_P (OVL_FIRST (ovl)))
-	    /* There are no more conversion functions.  */
-	    break;
-
-	  lkp = lookup_add (ovl, lkp);
-	}
-    }
-
-  return lkp;
 }
 
 /* DECL is the result of a qualified name lookup.  QUALIFYING_SCOPE is
@@ -2558,33 +2220,6 @@ note_debug_info_needed (tree type)
   dfs_walk_all (TYPE_BINFO (type), dfs_debug_mark, NULL, 0);
 }
 
-void
-print_search_statistics (void)
-{
-  if (! GATHER_STATISTICS)
-    {
-      fprintf (stderr, "no search statistics\n");
-      return;
-    }
-
-  fprintf (stderr, "%d fields searched in %d[%d] calls to lookup_field[_1]\n",
-	   n_fields_searched, n_calls_lookup_field, n_calls_lookup_field_1);
-  fprintf (stderr, "%d fnfields searched in %d calls to lookup_fnfields\n",
-	   n_outer_fields_searched, n_calls_lookup_fnfields);
-  fprintf (stderr, "%d calls to get_base_type\n", n_calls_get_base_type);
-}
-
-void
-reinit_search_statistics (void)
-{
-  n_fields_searched = 0;
-  n_calls_lookup_field = 0, n_calls_lookup_field_1 = 0;
-  n_calls_lookup_fnfields = 0, n_calls_lookup_fnfields_1 = 0;
-  n_calls_get_base_type = 0;
-  n_outer_fields_searched = 0;
-  n_contexts_saved = 0;
-}
-
 /* Helper for lookup_conversions_r.  TO_TYPE is the type converted to
    by a conversion op in base BINFO.  VIRTUAL_DEPTH is nonzero if
    BINFO is morally virtual, and VIRTUALNESS is nonzero if virtual

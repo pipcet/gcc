@@ -6071,6 +6071,7 @@ extern void push_switch				(tree);
 extern void pop_switch				(void);
 extern tree make_lambda_name			(void);
 extern int decls_match				(tree, tree);
+extern bool maybe_version_functions		(tree, tree);
 extern tree duplicate_decls			(tree, tree, bool);
 extern tree declare_local_label			(tree);
 extern tree define_label			(location_t, tree);
@@ -6562,11 +6563,7 @@ extern tree lookup_base                         (tree, tree, base_access,
 extern tree dcast_base_hint			(tree, tree);
 extern int accessible_p				(tree, tree, bool);
 extern int accessible_in_template_p		(tree, tree);
-extern tree lookup_field_1			(tree, tree, bool);
 extern tree lookup_field			(tree, tree, int, bool);
-extern tree lookup_fnfields_slot		(tree, tree);
-extern tree lookup_fnfields_slot_nolazy		(tree, tree);
-extern tree lookup_all_conversions		(tree);
 extern tree lookup_fnfields			(tree, tree, int);
 extern tree lookup_member			(tree, tree, int, bool,
 						 tsubst_flags_t,
@@ -6577,8 +6574,6 @@ extern int look_for_overrides			(tree, tree);
 extern void get_pure_virtuals			(tree);
 extern void maybe_suppress_debug_info		(tree);
 extern void note_debug_info_needed		(tree);
-extern void print_search_statistics		(void);
-extern void reinit_search_statistics		(void);
 extern tree current_scope			(void);
 extern int at_function_scope_p			(void);
 extern bool at_class_scope_p			(void);
