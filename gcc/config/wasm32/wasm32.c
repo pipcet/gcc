@@ -1877,7 +1877,7 @@ wasm32_operators[] = {
   },
   {
     FIX, DFmode, SImode,
-    NULL, "i32.trunc_s/f64",
+    NULL, "call $truncdfsi",
     1
   },
   {
