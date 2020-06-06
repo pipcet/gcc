@@ -1,0 +1,113 @@
+; Options for the WASM64 port of the compiler.
+; Options for the ARM port of the compiler.
+
+; Copyright (C) 2005-2016 Free Software Foundation, Inc.
+;
+; This file is part of GCC.
+;
+; GCC is free software; you can redistribute it and/or modify it under
+; the terms of the GNU General Public License as published by the Free
+; Software Foundation; either version 3, or (at your option) any later
+; version.
+;
+; GCC is distributed in the hope that it will be useful, but WITHOUT ANY
+; WARRANTY; without even the implied warranty of MERCHANTABILITY or
+; FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+; for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with GCC; see the file COPYING3.  If not see
+; <http://www.gnu.org/licenses/>.
+
+HeaderInclude
+config/wasm64/wasm64-opts.h
+
+mabort-on-noreturn
+Target Report Mask(ABORT_NORETURN) Init(0)
+Generate a call to abort if a noreturn function returns.
+
+mall-frame-regs
+Target Report Mask(ALL_FRAME_REGS) Init(0)
+Always create all registers on the frame to ease debugging.
+
+mbogotics=
+Target RejectNegative ToLower Joined Enum(wasm64_bogotics_type) Var(bogotics_type) Init(BOGOTICS_NONE)
+Count and report BogoTICS, and enable regular interrupts.
+
+Enum
+Name(wasm64_bogotics_type) Type(enum wasm64_bogotics_type)
+Bogotics to count:
+
+EnumValue
+Enum(wasm64_bogotics_type) String(none) Value(BOGOTICS_NONE)
+
+EnumValue
+Enum(wasm64_bogotics_type) String(all) Value(BOGOTICS_ALL)
+
+EnumValue
+Enum(wasm64_bogotics_type) String(backwards) Value(BOGOTICS_BACKWARDS)
+
+mbreakpoints=
+Target RejectNegative ToLower Joined Enum(wasm64_breakpoints_type) Var(breakpoints_type) Init(BP_NONE)
+How many simulated breakpoints to support.
+
+Enum
+Name(wasm64_breakpoints_type) Type(enum wasm64_breakpoints_type)
+Breakpoints to support:
+
+EnumValue
+Enum(wasm64_breakpoints_type) String(none) Value(BP_NONE)
+
+EnumValue
+Enum(wasm64_breakpoints_type) String(single) Value(BP_SINGLE)
+
+EnumValue
+Enum(wasm64_breakpoints_type) String(many) Value(BP_MANY)
+
+EnumValue
+Enum(wasm64_breakpoints_type) String(plethora) Value(BP_PLETHORA)
+
+mmaxcond=
+Target Joined Separate UInteger Var(max_conditional_insns) Init(2)
+Maximum number of insns to execute conditionally.
+
+mmaxreg=
+Target Joined Separate UInteger Var(max_regs_enabled) Init(8)
+
+mmaxrpi=
+Target Joined Separate UInteger Var(max_rpi) Init(2)
+Maximum number of registers per insn
+
+mpc=
+Target RejectNegative ToLower Joined Enum(wasm64_pc_type) Var(pc_type) Init(PC_LAX)
+Whether to keep the PC register updated at a performance cost.
+
+Enum
+Name(wasm64_pc_type) Type(enum wasm64_pc_type)
+
+EnumValue
+Enum(wasm64_pc_type) String(strict) Value(PC_STRICT)
+
+EnumValue
+Enum(wasm64_pc_type) String(lax) Value(PC_LAX)
+
+EnumValue
+Enum(wasm64_pc_type) String(medium) Value(PC_MEDIUM)
+
+minterrupts
+Target Var(use_interrupts) Init(0)
+
+mrv
+Target Var(use_rv_register) Init(1)
+
+mbranch_cost=
+Target Joined Var(my_branch_cost) UInteger Init(5)
+
+mmemory_cost=
+Target Joined Var(my_memory_cost) UInteger Init(4)
+
+mregister_cost=
+Target Joined Var(my_register_cost) UInteger Init(2)
+
+mcmov
+Target Var(my_use_cmov) Init(0)

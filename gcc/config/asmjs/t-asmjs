@@ -1,0 +1,32 @@
+MULTILIB_OPTIONS     =
+MULTILIB_DIRNAMES    = asmjs
+MULTILIB_EXCEPTIONS  =
+MULTILIB_MATCHES     =
+
+install-driver: install-macros install-import-macros
+
+install-macros: config/asmjs/asmjs-macros.s installdirs
+	$(mkinstalldirs) $(DESTDIR)$(libsubdir)/gas-macros
+	$(INSTALL_DATA) $< $(DESTDIR)$(libsubdir)/gas-macros/asmjs-macros.s
+
+install-import-macros: config/asmjs/asmjs-import-macros.s installdirs
+	$(mkinstalldirs) $(DESTDIR)$(libsubdir)/gas-macros
+	$(INSTALL_DATA) $< $(DESTDIR)$(libsubdir)/gas-macros/asmjs-import-macros.s
+
+gas-macros/asmjs-macros.s: config/asmjs/asmjs-macros.s
+	-if [ -d gas-macros ]; then true; else mkdir gas-macros; chmod a+rx gas-macros; fi
+	cat $< > $@
+
+gas-macros/asmjs-import-macros.s: config/asmjs/asmjs-import-macros.s
+	-if [ -d gas-macros ]; then true; else mkdir gas-macros; chmod a+rx gas-macros; fi
+	cat $< > $@
+
+asmjs-c.o: $(srcdir)/config/asmjs/asmjs-c.c
+	  $(COMPILE) $<
+	  $(POSTCOMPILE)
+
+asmjs-cxx.o: $(srcdir)/config/asmjs/asmjs-cxx.c
+	  $(COMPILE) $<
+	  $(POSTCOMPILE)
+
+GCC_PASSES += gas-macros/asmjs-macros.s gas-macros/asmjs-import-macros.s

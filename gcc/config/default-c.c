@@ -30,4 +30,4 @@ along with GCC; see the file COPYING3.  If not see
    architecture), create a separate tm_c.h for only the relevant
    definitions.  */
 
-struct gcc_targetcm targetcm = TARGETCM_INITIALIZER;
+//struct gcc_targetcm targetcm = TARGETCM_INITIALIZER;

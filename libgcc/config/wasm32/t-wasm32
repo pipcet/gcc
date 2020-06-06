@@ -1,0 +1,21 @@
+LIB2ADD += $(srcdir)/config/wasm32/unorddf2.c $(srcdir)/config/wasm32/unordsf2.c $(srcdir)/config/wasm32/floatdisf.c $(srcdir)/config/wasm32/syscall.S $(srcdir)/config/wasm32/indcall.S $(srcdir)/config/wasm32/eh_return.S $(srcdir)/config/wasm32/trace.S $(srcdir)/config/wasm32/trunc.S $(srcdir)/config/wasm32/one_cmplsi2.S $(srcdir)/config/wasm32/one_cmpldi2.c $(srcdir)/config/wasm32/sync.c $(srcdir)/config/wasm32/trampoline.c
+
+CUSTOM_CRTSTUFF = yes
+SYNC = yes
+
+crtbegin$(objext): $(srcdir)/config/wasm32/crtstuff.c
+	$(crt_compile) $(CRTSTUFF_T_CFLAGS) -c $< -DCRT_BEGIN
+
+crtend$(objext): $(srcdir)/config/wasm32/crtstuff.c
+	$(crt_compile) $(CRTSTUFF_T_CFLAGS) -c $< -DCRT_END
+
+# These are versions of crtbegin and crtend for shared libraries.
+crtbeginS$(objext): $(srcdir)/config/wasm32/crtstuff.c
+	$(crt_compile) $(CRTSTUFF_T_CFLAGS_S) -c $< -DCRT_BEGIN -DCRTSTUFFS_O
+
+crtendS$(objext): $(srcdir)/config/wasm32/crtstuff.c
+	$(crt_compile) $(CRTSTUFF_T_CFLAGS_S) -c $< -DCRT_END -DCRTSTUFFS_O
+
+# This is a version of crtbegin for -static links.
+crtbeginT$(objext): $(srcdir)/config/wasm32/crtstuff.c
+	$(crt_compile) $(CRTSTUFF_T_CFLAGS) -c $< -DCRT_BEGIN -DCRTSTUFFT_O

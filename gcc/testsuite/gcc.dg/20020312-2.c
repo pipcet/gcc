@@ -122,6 +122,8 @@ extern void abort (void);
 /* No pic register.  */
 #elif defined(__PRU__)
 /* No pic register.  */
+#elif defined (__WASM32__)
+/* No pic register.  */
 #else
 # error "Modify the test for your target."
 #endif

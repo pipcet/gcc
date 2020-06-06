@@ -1461,7 +1461,7 @@ cselib_hash_rtx (rtx x, int create, machine_mode memmode)
 	  break;
 
 	default:
-	  gcc_unreachable ();
+	  break;
 	}
     }
 

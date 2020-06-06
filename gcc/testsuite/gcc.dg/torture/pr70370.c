@@ -1,4 +1,5 @@
 /* { dg-do compile } */
+/* { dg-skip-if "asm requires register allocation" { wasm32-*-* } "*" "" } */
 
 _Complex float
 test1 (_Complex float f)
