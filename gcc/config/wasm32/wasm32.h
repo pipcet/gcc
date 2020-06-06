@@ -144,11 +144,8 @@
     1, 0, 0, 0,                                 \
    }
 
-#define HARD_REGNO_NREGS(regno, mode) wasm32_hard_regno_nregs(regno, mode)
 #define REGMODE_NATURAL_SIZE(mode) wasm32_regmode_natural_size(mode)
-#define HARD_REGNO_MODE_OK(regno, mode) wasm32_hard_regno_mode_ok(regno, mode)
 #define HARD_REGNO_RENAME_OK(from, to) wasm32_hard_regno_rename_ok(from, to)
-#define MODES_TIEABLE_P(mode1, mode2) wasm32_modes_tieable_p(mode1, mode2)
 
 #define N_REG_CLASSES  (int) LIM_REG_CLASSES
 #define REG_CLASS_NAMES { "NO_REGS", "PC_REGS", "SP_REGS", "FLOAT_REGS", "GENERAL_REGS", "THREAD_REGS", "ALL_REGS", }
@@ -171,7 +168,6 @@
 #define STACK_GROWS_DOWNWARD 1
 #define STACK_PUSH_CODE PRE_DEC
 #define FRAME_GROWS_DOWNWARD 1
-#define STARTING_FRAME_OFFSET 0
 
 /* Offset of first parameter from the argument pointer register value.  */
 #define FIRST_PARM_OFFSET(FNDECL) wasm32_first_parm_offset(FNDECL)
@@ -217,9 +213,6 @@ typedef struct {
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS) \
   wasm32_init_cumulative_args(&(CUM), FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS)
 
-#define FUNCTION_ARG_OFFSET(MODE, TYPE) wasm32_function_arg_offset(MODE, TYPE)
-#define FUNCTION_ARG_PADDING(mode, type) (upward)
-
 #define EXIT_IGNORE_STACK 1
 
 #define FUNCTION_PROFILER(STREAM, LABELNO)	        \
@@ -236,8 +229,6 @@ typedef struct {
 
 /* Nonzero if access to memory by bytes is slow and undesirable.  */
 #define SLOW_BYTE_ACCESS 0
-
-#define SLOW_UNALIGNED_ACCESS(MODE, ALIGN) 1
 
 #define NO_FUNCTION_CSE true
 //#define LOGICAL_OP_NON_SHORT_CIRCUIT 1
@@ -385,8 +376,6 @@ typedef struct {
 /* Max number of bytes we can move from memory to memory
    in one reasonably fast instruction. XXX SIMD */
 #define MOVE_MAX 4
-/* All integers have the same format so truncation is easy.  */
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC)  1
 /* The machine modes of pointers and functions */
 #define Pmode  SImode
 #define FUNCTION_MODE  QImode /* XXX */
