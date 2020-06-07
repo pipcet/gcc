@@ -3296,6 +3296,7 @@ BINARY_OPERATOR (operator ^, bit_xor)
 BINARY_OPERATOR (operator +, add)
 BINARY_OPERATOR (operator -, sub)
 BINARY_OPERATOR (operator *, mul)
+BINARY_OPERATOR (operator /, sdiv_trunc)
 SHIFT_OPERATOR (operator <<, lshift)
 
 #undef UNARY_OPERATOR
@@ -3308,13 +3309,6 @@ inline WI_SIGNED_SHIFT_RESULT (T1, T2)
 operator >> (const T1 &x, const T2 &y)
 {
   return wi::arshift (x, y);
-}
-
-template <typename T1, typename T2>
-inline WI_SIGNED_SHIFT_RESULT (T1, T2)
-operator / (const T1 &x, const T2 &y)
-{
-  return wi::sdiv_trunc (x, y);
 }
 
 template <typename T1, typename T2>

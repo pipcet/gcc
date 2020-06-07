@@ -76,6 +76,7 @@ __guard_setup (void)
   if (__stack_chk_guard != 0)
     return;
 
+#if 0
 #if defined (_WIN32) && !defined (__CYGWIN__)
   HCRYPTPROV hprovider = 0;
   if (CryptAcquireContext(&hprovider, NULL, NULL, PROV_RSA_FULL,
@@ -100,6 +101,9 @@ __guard_setup (void)
         return;
     }
 
+#endif
+#else
+  return
 #endif
   /* If a random generator can't be used, the protector switches the guard
      to the "terminator canary".  */

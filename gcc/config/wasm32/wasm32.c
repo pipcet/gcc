@@ -36,7 +36,9 @@
 #include "input.h"
 #include "alias.h"
 #include "symtab.h"
+#include "wide-int.h"
 #include "poly-int.h"
+#include "poly-int-types.h"
 #include "inchash.h"
 #include "tree-core.h"
 #include "stor-layout.h"
@@ -2854,7 +2856,8 @@ wasm32_hard_regno_nregs (unsigned int regno, machine_mode mode)
       && mode == DFmode)
     return 1;
   else
-    return (GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1) / UNITS_PER_WORD;
+    return ((GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1).to_constant () /
+	    UNITS_PER_WORD);
 }
 
 static int
@@ -3213,7 +3216,7 @@ wasm32_expand_prologue ()
 {
   poly_int64 size = get_frame_size () + crtl->outgoing_args_size;
   rtx sp = gen_rtx_REG (SImode, SP_REG);
-  size = (size + 7) & -8;
+  size = (size.to_constant () + 7) & -8;
   int regsize = wasm32_function_regsize (NULL_TREE);
   last_regsize = regsize;
   rtx insn;
@@ -3234,8 +3237,8 @@ wasm32_expand_prologue ()
       add_reg_note (insn, REG_CFA_OFFSET, gen_rtx_SET (gen_rtx_MEM (SImode, plus_constant (Pmode, sp, 72)), gen_rtx_REG (SImode, A3_REG)));
     }
 
-  if (size != 0)
-    RTX_FRAME_RELATED_P (emit_move_insn (sp, gen_rtx_PLUS (SImode, sp, gen_rtx_CONST_INT (SImode, -size)))) = 0;
+  if (size.to_constant () != 0)
+    RTX_FRAME_RELATED_P (emit_move_insn (sp, gen_rtx_PLUS (SImode, sp, gen_rtx_CONST_INT (SImode, (-size).to_constant ())))) = 0;
 
   return NULL;
 }
