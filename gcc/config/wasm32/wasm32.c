@@ -33,11 +33,10 @@
 #include "machmode.h"
 #include "memmodel.h"
 #include "vec.h"
-#include "double-int.h"
 #include "input.h"
 #include "alias.h"
 #include "symtab.h"
-#include "wide-int.h"
+#include "poly-int.h"
 #include "inchash.h"
 #include "tree-core.h"
 #include "stor-layout.h"
@@ -46,6 +45,7 @@
 #include "rtl.h"
 #include "predict.h"
 #include "dominance.h"
+#include "function.h"
 #include "cfg.h"
 #include "cfgrtl.h"
 #include "cfganal.h"
@@ -70,7 +70,6 @@
 #include "df.h"
 #include "intl.h"
 #include "libfuncs.h"
-#include "params.h"
 #include "opts.h"
 #include "dumpfile.h"
 #include "gimple-expr.h"
@@ -89,8 +88,6 @@
 #include "stmt.h"
 #include "expr.h"
 #include "optabs.h"
-#include "tree-chkp.h"
-#include "rtl-chkp.h"
 #include "print-tree.h"
 #include "varasm.h"
 #include "print-rtl.h"
@@ -507,13 +504,12 @@ wasm32_function_arg_offset (machine_mode mode ATTRIBUTE_UNUSED,
 }
 
 static void
-wasm32_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
-			     const_tree type ATTRIBUTE_UNUSED,
-			     bool named ATTRIBUTE_UNUSED)
+wasm32_function_arg_advance (cumulative_args_t cum_v,
+			     const function_arg_info& info)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
 
-  switch (mode)
+  switch (info.mode)
     {
     case QImode:
     case HImode:
@@ -525,13 +521,12 @@ wasm32_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
 }
 
 static rtx
-wasm32_function_incoming_arg (cumulative_args_t pcum_v, machine_mode mode,
-			     const_tree type ATTRIBUTE_UNUSED,
-			     bool named ATTRIBUTE_UNUSED)
+wasm32_function_incoming_arg (cumulative_args_t pcum_v,
+			      const function_arg_info &info)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (pcum_v);
 
-  switch (mode)
+  switch (info.mode)
     {
     case VOIDmode:
       return const0_rtx;
@@ -539,10 +534,10 @@ wasm32_function_incoming_arg (cumulative_args_t pcum_v, machine_mode mode,
     case HImode:
     case SImode:
       if (cum->n_areg < N_ARGREG_PASSED && !cum->is_stackcall)
-	return gen_rtx_REG (mode, R0_REG + cum->n_areg);
+	return gen_rtx_REG (info.mode, R0_REG + cum->n_areg);
       else if (cum->n_areg < N_ARGREG_PASSED + N_ARGREG_GLOBAL
 	       && !cum->is_stackcall)
-	return gen_rtx_REG (mode, A0_REG + cum->n_areg - N_ARGREG_PASSED);
+	return gen_rtx_REG (info.mode, A0_REG + cum->n_areg - N_ARGREG_PASSED);
       return NULL_RTX;
     case SFmode:
     case DFmode:
@@ -554,13 +549,12 @@ wasm32_function_incoming_arg (cumulative_args_t pcum_v, machine_mode mode,
 }
 
 static rtx
-wasm32_function_arg (cumulative_args_t pcum_v, machine_mode mode,
-		    const_tree type ATTRIBUTE_UNUSED,
-		    bool named ATTRIBUTE_UNUSED)
+wasm32_function_arg (cumulative_args_t pcum_v,
+		     const function_arg_info &info)
 {
   CUMULATIVE_ARGS *cum = get_cumulative_args (pcum_v);
 
-  switch (mode)
+  switch (info.mode)
     {
     case VOIDmode:
       return const0_rtx;
@@ -568,10 +562,10 @@ wasm32_function_arg (cumulative_args_t pcum_v, machine_mode mode,
     case HImode:
     case SImode:
       if (cum->n_areg < N_ARGREG_PASSED && !cum->is_stackcall)
-	return gen_rtx_REG (mode, R0_REG + cum->n_areg);
+	return gen_rtx_REG (info.mode, R0_REG + cum->n_areg);
       else if (cum->n_areg < N_ARGREG_PASSED + N_ARGREG_GLOBAL
 	       && !cum->is_stackcall)
-	return gen_rtx_REG (mode, A0_REG + cum->n_areg - N_ARGREG_PASSED);
+	return gen_rtx_REG (info.mode, A0_REG + cum->n_areg - N_ARGREG_PASSED);
       return NULL_RTX;
     case SFmode:
     case DFmode:
@@ -1032,17 +1026,17 @@ wasm32_handle_export_attribute (tree * node, tree attr_name ATTRIBUTE_UNUSED,
 static const struct attribute_spec
 wasm32_attribute_table[] =
 {
-  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
+  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, affects_type_identity, handler,
        affects_type_identity } */
   /* stackcall, no regparms but argument count on the stack */
-  { "stackcall", 0, 0, false, true, true, wasm32_handle_cconv_attribute, true },
-  { "rawcall", 0, 0, false, true, true, wasm32_handle_cconv_attribute, true },
-  { "regparm", 1, 1, false, true, true, wasm32_handle_cconv_attribute, true },
+  { "stackcall", 0, 0, false, true, true, true, wasm32_handle_cconv_attribute, NULL },
+  { "rawcall", 0, 0, false, true, true, true, wasm32_handle_cconv_attribute, NULL },
+  { "regparm", 1, 1, false, true, true, true, wasm32_handle_cconv_attribute, NULL },
 
-  { "jsexport", 0, 2, false, false, false, wasm32_handle_jsexport_attribute, false },
-  { "import", 1, 2, true, false, false, wasm32_handle_import_attribute, false },
-  { "export", 0, 1, true, false, false, wasm32_handle_export_attribute, false },
-  { NULL, 0, 0, false, false, false, NULL, false }
+  { "jsexport", 0, 2, false, false, false, false, wasm32_handle_jsexport_attribute, NULL },
+  { "import", 1, 2, true, false, false, false, wasm32_handle_import_attribute, NULL },
+  { "export", 0, 1, true, false, false, false, wasm32_handle_export_attribute, NULL},
+  { NULL, 0, 0, false, false, false, false, NULL, NULL }
 };
 
 bool
@@ -2860,7 +2854,7 @@ wasm32_hard_regno_nregs (unsigned int regno, machine_mode mode)
       && mode == DFmode)
     return 1;
   else
-    return (GET_MODE_SIZE(mode) + UNITS_PER_WORD - 1)/UNITS_PER_WORD;
+    return (GET_MODE_SIZE (mode) + UNITS_PER_WORD - 1) / UNITS_PER_WORD;
 }
 
 static int
@@ -2886,19 +2880,12 @@ wasm32_expand_builtin_va_start (tree valist, rtx nextarg)
 {
   rtx va_r = expand_expr (valist, NULL_RTX, VOIDmode, EXPAND_WRITE);
   convert_move (va_r, gen_rtx_PLUS (SImode, nextarg, gen_rtx_CONST_INT (SImode, 0)), 0);
-
-  /* We do not have any valid bounds for the pointer, so
-     just store zero bounds for it.  */
-  if (chkp_function_instrumented_p (current_function_decl))
-    chkp_expand_bounds_reset_for_mem (valist,
-				      make_tree (TREE_TYPE (valist),
-						 nextarg));
 }
 
-int
+poly_int64
 wasm32_return_pops_args (tree fundecl ATTRIBUTE_UNUSED,
 			 tree funtype ATTRIBUTE_UNUSED,
-			 int size ATTRIBUTE_UNUSED)
+			 poly_int64 size ATTRIBUTE_UNUSED)
 {
   return 0;
 }
@@ -3224,7 +3211,7 @@ wasm32_expand_call (rtx retval, rtx address, rtx callarg1 ATTRIBUTE_UNUSED)
 rtx
 wasm32_expand_prologue ()
 {
-  HOST_WIDE_INT size = get_frame_size () + crtl->outgoing_args_size;
+  poly_int64 size = get_frame_size () + crtl->outgoing_args_size;
   rtx sp = gen_rtx_REG (SImode, SP_REG);
   size = (size + 7) & -8;
   int regsize = wasm32_function_regsize (NULL_TREE);
