@@ -2800,6 +2800,14 @@ wasm32_output_aligned_bss (FILE *stream, const_tree tree ATTRIBUTE_UNUSED, const
 bool
 wasm32_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 {
+  return mode == SImode || mode == DFmode;
+}
+
+
+#if 0
+bool
+wasm32_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
+{
   if (regno >= FIRST_PSEUDO_REGISTER)
     return false;
 
@@ -2810,6 +2818,7 @@ wasm32_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 
   return true;
 }
+#endif
 
 bool
 wasm32_hard_regno_rename_ok (unsigned int from, unsigned int to)

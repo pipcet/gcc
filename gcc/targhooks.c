@@ -1791,7 +1791,7 @@ default_register_move_cost (machine_mode mode ATTRIBUTE_UNUSED,
                             reg_class_t to ATTRIBUTE_UNUSED)
 {
 #ifndef REGISTER_MOVE_COST
-  return 2;
+  return 4;
 #else
   return REGISTER_MOVE_COST (MACRO_MODE (mode),
 			     (enum reg_class) from, (enum reg_class) to);
