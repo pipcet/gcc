@@ -110,8 +110,8 @@
 
 (define_insn "*assignsf"
   [(match_operator 2 "set_operator"
-      [(match_operand:SF 0 "nonimmediate_operand" "=m")
-       (match_operand:SF 1 "general_operand" "mi")])]
+      [(match_operand:SF 0 "nonimmediate_operand" "=rm")
+       (match_operand:SF 1 "general_operand" "rmi")])]
   ""
   "%O2")
 
@@ -219,7 +219,7 @@
 
 (define_insn "*truncdfsf"
   [(match_operator 2 "set_operator"
-      [(match_operand:SF 0 "nonimmediate_operand" "=m")
+      [(match_operand:SF 0 "nonimmediate_operand" "=rm")
        (float_truncate:SF (match_operand:DF 1 "general_operand" "rmi"))])]
   ""
   "%O2")

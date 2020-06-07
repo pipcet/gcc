@@ -50,6 +50,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifdef HAVE_STRING_H
 # include <string.h>
 #endif
+#include <stddef.h>
 
 #if !(!defined __USE_ISOC11				\
       || (defined __cplusplus && __cplusplus <= 201103L))
@@ -61,32 +62,5 @@ extern void __chk_fail (void) __attribute__((__noreturn__));
 char *
 __gets_chk (char *s, size_t slen)
 {
-  char *ret, *buf;
-
-  if (slen >= (size_t) INT_MAX)
-    return gets (s);
-
-  if (slen <= 8192)
-    buf = alloca (slen + 1);
-  else
-    buf = malloc (slen + 1);
-  if (buf == NULL)
-    return gets (s);
-
-  ret = fgets (buf, (int) (slen + 1), stdin);
-  if (ret != NULL)
-    {
-      size_t len = strlen (buf);
-      if (len > 0 && buf[len - 1] == '\n')
-        --len;
-      if (len == slen)
-        __chk_fail ();
-      memcpy (s, buf, len);
-      s[len] = '\0';
-      ret = s;
-    }
-
-  if (slen > 8192)
-    free (buf);
-  return ret;
+  return NULL;
 }

@@ -37,6 +37,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #ifdef HAVE_STRING_H
 # include <string.h>
 #endif
+#include <stddef.h>
 
 extern void __chk_fail (void) __attribute__((__noreturn__));
 
