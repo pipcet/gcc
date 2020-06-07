@@ -132,18 +132,6 @@
       1, 1, 1, 1,				\
    }
 
-#define CALL_REALLY_USED_REGISTERS		\
-  { 0, 0, 0, 1,					\
-    1, 1, 1, 1,	         			\
-    0, 0, 0, 0,					\
-    0, 0, 0, 0,					\
-    0, 0, 0, 0,					\
-    0, 0, 0, 0,					\
-    0, 0, 0, 0,					\
-    0, 0, 0, 0,					\
-    1, 0, 0, 0,                                 \
-   }
-
 #define REGMODE_NATURAL_SIZE(mode) wasm32_regmode_natural_size(mode)
 #define HARD_REGNO_RENAME_OK(from, to) wasm32_hard_regno_rename_ok(from, to)
 

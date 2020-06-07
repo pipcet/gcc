@@ -1,14 +1,14 @@
 #include "stringpool.h"
 #include "attribs.h"
 
-static hash_set<tree> wasm32_jsexport_declared;
-static hash_set<tree> wasm32_jsexport_exported;
+static hash_set<tree> *wasm32_jsexport_declared;
+static hash_set<tree> *wasm32_jsexport_exported;
 
 void
 wasm32_jsexport_init(void)
 {
-  wasm32_jsexport_declared = hash_set<tree>();
-  wasm32_jsexport_exported = hash_set<tree>();
+  wasm32_jsexport_declared = new hash_set<tree>();
+  wasm32_jsexport_exported = new hash_set<tree>();
 }
 
 const char *
@@ -36,10 +36,10 @@ wasm32_jsexport_declare_type (tree type, struct wasm32_jsexport_opts *opts,
       type = TYPE_CANONICAL (type);
   }
 
-  if (wasm32_jsexport_declared.add(type))
+  if (wasm32_jsexport_declared->add(type))
     return;
 
-  wasm32_jsexport_declared.add(origtype);
+  wasm32_jsexport_declared->add(origtype);
 
   if (TREE_CODE (type) == RECORD_TYPE) {
     struct wasm32_jsexport_decl ret;
@@ -70,7 +70,7 @@ void
 wasm32_jsexport_record_type (tree type, struct wasm32_jsexport_opts *opts,
 			     vec<struct wasm32_jsexport_decl> *decls)
 {
-  if (wasm32_jsexport_exported.add (type))
+  if (wasm32_jsexport_exported->add (type))
     return;
 
   const char *jsname = opts->jsname;
