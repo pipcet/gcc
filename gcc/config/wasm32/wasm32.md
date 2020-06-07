@@ -110,8 +110,8 @@
 
 (define_insn "*assignsf"
   [(match_operator 2 "set_operator"
-      [(match_operand:SF 0 "nonimmediate_operand" "=rm")
-       (match_operand:SF 1 "general_operand" "rmi")])]
+      [(match_operand:SF 0 "nonimmediate_operand" "=m")
+       (match_operand:SF 1 "general_operand" "mi")])]
   ""
   "%O2")
 

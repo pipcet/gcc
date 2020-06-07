@@ -489,6 +489,8 @@ struct GTY(()) machine_function
 #define TARGET_HAVE_TLS 1
 #define TARGET_HAVE_NAMED_SECTIONS 1
 
+#define TARGET_HARD_REGNO_MODE_OK wasm32_hard_regno_mode_ok
+
 #define TARGET_ASM_CONSTRUCTOR default_elf_init_array_asm_out_constructor
 #define TARGET_ASM_DESTRUCTOR default_elf_fini_array_asm_out_destructor
 #define TARGET_ASM_NAMED_SECTION wasm32_asm_named_section
