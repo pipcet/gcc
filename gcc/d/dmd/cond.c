@@ -122,7 +122,7 @@ static void lowerArrayAggregate(StaticForeach *sfe, Scope *sc)
 
 static Expression *wrapAndCall(Loc loc, Statement *s)
 {
-    TypeFunction *tf = new TypeFunction(new Parameters(), NULL, 0, LINKdefault, 0);
+    TypeFunction *tf = new TypeFunction(ParameterList(), NULL, LINKdefault, 0);
     FuncLiteralDeclaration *fd = new FuncLiteralDeclaration(loc, loc, tf, TOKreserved, NULL);
     fd->fbody = s;
     FuncExp *fe = new FuncExp(loc, fd);
@@ -407,7 +407,7 @@ DebugCondition::DebugCondition(Module *mod, unsigned level, Identifier *ident)
 // Helper for printing dependency information
 void printDepsConditional(Scope *sc, DVCondition* condition, const char* depType)
 {
-    if (!global.params.moduleDeps || global.params.moduleDepsFile)
+    if (!global.params.moduleDeps || global.params.moduleDepsFile.length)
         return;
     OutBuffer *ob = global.params.moduleDeps;
     Module* imod = sc ? sc->instantiatingModule() : condition->mod;
