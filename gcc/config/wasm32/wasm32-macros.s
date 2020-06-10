@@ -241,18 +241,18 @@ __wasm_element_\()\name:
         .byte 0
         .popsection
         .pushsection .wasm.global
-        .byte 0x7f
-        .byte 0
-        .byte 0x41
-        rleb128_32 \name
-        .byte 0x0b
+        .byte 0x7f		; type i32
+        .byte 0			; not mutable
+        .byte 0x41		; i32.const
+        rleb128_32 \name	; value
+        .byte 0x0b		; end of block
         .pushsection .space.export
         .byte 0
         .popsection
         .pushsection .wasm.export
         lstring "entry"
-        .byte 3
-        rleb128_32 3b
+        .byte 3 		; global
+        rleb128_32 3b		; index of this global
         .popsection
         .endif
         .if 1
