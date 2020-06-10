@@ -7,7 +7,7 @@
         nextcase
         end
         i32.const 8288
-        get_local $r0
+        local.get $r0
         i32.const -1
         i32.xor
         i32.store a=2 0

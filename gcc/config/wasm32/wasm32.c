@@ -1287,7 +1287,7 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	  else if (REGNO (x) >= A0_REG && REGNO (x) <= A3_REG)
 	    asm_fprintf (stream, "i32.store a=2 0");
 	  else
-	    asm_fprintf (stream, "set_local $%s", reg_names[REGNO (x)]);
+	    asm_fprintf (stream, "local.set $%s", reg_names[REGNO (x)]);
 	}
       else
 	{
@@ -1297,7 +1297,7 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	    asm_fprintf (stream, "i32.const %d\n\ti32.load a=2 0",
 			 8296 + 8*(REGNO (x)-A0_REG));
 	  else
-	    asm_fprintf (stream, "get_local $%s", reg_names[REGNO (x)]);
+	    asm_fprintf (stream, "local.get $%s", reg_names[REGNO (x)]);
 	}
       break;
     }
@@ -1423,7 +1423,7 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	  && (attrs = DECL_ATTRIBUTES (decl))
 	  && (import_attr = lookup_attribute ("import", attrs)))
 	{
-	  asm_fprintf (stream, "get_global __wasm_import_global_");
+	  asm_fprintf (stream, "global.get __wasm_import_global_");
 	  assemble_name (stream, name);
 	}
       else if (decl && TREE_CODE (decl) == FUNCTION_DECL
@@ -1437,7 +1437,7 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	{
 	  if (flag_pic)
 	    {
-	      asm_fprintf (stream, "get_global $got\n");
+	      asm_fprintf (stream, "global.get $got\n");
 	      asm_fprintf (stream, "\ti32.const ");
 	      assemble_name (stream, name);
 	      asm_fprintf (stream, "@got\n");
@@ -1454,7 +1454,7 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	{
 	  if (flag_pic || !SYMBOL_REF_LOCAL_P (x))
 	    {
-	      asm_fprintf (stream, "get_global $got\n");
+	      asm_fprintf (stream, "global.get $got\n");
 	      asm_fprintf (stream, "\ti32.const ");
 	      assemble_name (stream, name);
 	      asm_fprintf (stream, "@gotcode\n");
@@ -1878,22 +1878,22 @@ wasm32_operators[] = {
   },
   {
     UNSIGNED_FIX, DFmode, SImode,
-    NULL, "i32.trunc_u/f64",
+    NULL, "i32.trunc_f64_u",
     1
   },
   {
     FLOAT, SImode, DFmode,
-    NULL, "f64.convert_s/i32",
+    NULL, "f64.convert_i32_s",
     1
   },
   {
     FLOAT_EXTEND, SFmode, DFmode,
-    NULL, "f64.promote/f32",
+    NULL, "f64.promote_f32",
     1
   },
   {
     FLOAT_TRUNCATE, DFmode, SFmode,
-    NULL, "f32.demote/f64",
+    NULL, "f32.demote_f64",
     1
   },
   {
@@ -2213,27 +2213,27 @@ wasm32_function_regstore (FILE *stream,
 
   asm_fprintf (stream, "\tnextcase\n");
   asm_fprintf (stream, "\tend\n");
-  asm_fprintf (stream, "\ti32.const 3\n\tget_local $rp\n\ti32.and\n\ti32.const 1\n\ti32.ne\n\tif[]\n\tget_local $rp\n\treturn\n\tend\n");
-  asm_fprintf (stream, "\tget_local $sp\n\ti32.const -16\n\ti32.add\n\tget_local $fp\n\ti32.store a=2 0\n");
-  asm_fprintf (stream, "\tget_local $sp\n\ti32.const -8\n\ti32.add\n\tget_global $gpo\n\tget_local $dpc\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.add\n\ti32.store a=2 0\n", cooked_name);
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $fp\n\ti32.const %d\n\ti32.add\n\ti32.store a=2 0\n", size, total_size);
+  asm_fprintf (stream, "\ti32.const 3\n\tlocal.get $rp\n\ti32.and\n\ti32.const 1\n\ti32.ne\n\tif[]\n\tlocal.get $rp\n\treturn\n\tend\n");
+  asm_fprintf (stream, "\tlocal.get $sp\n\ti32.const -16\n\ti32.add\n\tlocal.get $fp\n\ti32.store a=2 0\n");
+  asm_fprintf (stream, "\tlocal.get $sp\n\ti32.const -8\n\ti32.add\n\tglobal.get $gpo\n\tlocal.get $dpc\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.add\n\ti32.store a=2 0\n", cooked_name);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tlocal.get $fp\n\ti32.const %d\n\ti32.add\n\ti32.store a=2 0\n", size, total_size);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_global $plt\n\ti32.const %s\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tglobal.get $plt\n\ti32.const %s\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $dpc\n\ti32.store a=2 0\n", size);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tlocal.get $dpc\n\ti32.store a=2 0\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_global $gpo\n\tget_local $dpc\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tglobal.get $gpo\n\tlocal.get $dpc\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
   size += 4;
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_global $gpo\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tglobal.get $gpo\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
   size += 4;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $sp\n\ti32.store a=2 0\n", size);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tlocal.get $sp\n\ti32.store a=2 0\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\ti32.const %d\n\ti32.store a=2 0\n", size, mask);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\ti32.const %d\n\ti32.store a=2 0\n", size, mask);
   size += 8;
 
   int i;
@@ -2243,21 +2243,21 @@ wasm32_function_regstore (FILE *stream,
 	{
 	  if (wasm32_regno_reg_class (i) == FLOAT_REGS)
 	    {
-	      asm_fprintf(stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $%s\n\tf64.store a=3 0\n",
+	      asm_fprintf(stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tlocal.get $%s\n\tf64.store a=3 0\n",
 			  size, reg_names[i]);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-		asm_fprintf(stream, "\ti32.const %d\n\tget_local $fp\n\ti32.add\n\tget_local $%s\n\ti32.store a=2 0\n",
+		asm_fprintf(stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tlocal.get $%s\n\ti32.store a=2 0\n",
 			    size, reg_names[i]);
 	      size += 8;
 	    }
 	}
     }
 
-  asm_fprintf (stream, "\tget_local $rp\n");
+  asm_fprintf (stream, "\tlocal.get $rp\n");
   asm_fprintf (stream, "\treturn\n\tend\n");
   return size;
 }
@@ -2272,16 +2272,16 @@ wasm32_function_regload (FILE *stream,
 
   size += 8;
 
-  //asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $pc0\n", size);
+  //asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $pc0\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $dpc\n", size);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $dpc\n", size);
   size += 8;
 
-  //asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $rpc\n", size);
+  //asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $rpc\n", size);
   size += 8;
 
-  asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $sp\n", size);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $sp\n", size);
   size += 8;
 
   size += 8;
@@ -2293,19 +2293,19 @@ wasm32_function_regload (FILE *stream,
 	{
 	  if (wasm32_regno_reg_class (i) == FLOAT_REGS)
 	    {
-	      asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\tf64.load a=3 0\n\tset_local $%s\n", size, reg_names[i]);
+	      asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\tf64.load a=3 0\n\tlocal.set $%s\n", size, reg_names[i]);
 	      size += 8;
 	    }
 	  else
 	    {
 	      if (i >= 8)
-		asm_fprintf (stream, "\ti32.const %d\n\tget_local $rp\n\ti32.add\n\ti32.load a=2 0\n\tset_local $%s\n", size, reg_names[i]);
+		asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $%s\n", size, reg_names[i]);
 	      size += 8;
 	    }
 	}
     }
 
-  asm_fprintf (stream, "\tget_local $rp\n\tset_local $fp\n");
+  asm_fprintf (stream, "\tlocal.get $rp\n\tlocal.set $fp\n");
   asm_fprintf (stream, "\tjump2\n");
 
   if (size != total_size)
@@ -2344,12 +2344,12 @@ save_stack_args (const char *sig)
   stacksize &= -8;
 
   char *templ;
-  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+  output_asm_insn ("global.get __wasm_stack_pointer", operands);
   asprintf (&templ, "i32.const %d", -stacksize);
   output_asm_insn (templ, operands);
   free (templ);
   output_asm_insn ("i32.add", operands);
-  output_asm_insn ("set_global __wasm_stack_pointer", operands);
+  output_asm_insn ("global.set __wasm_stack_pointer", operands);
 
   stacksize = stackret ? 4 : 0;
   local_index = 0;
@@ -2358,24 +2358,24 @@ save_stack_args (const char *sig)
       switch (sig[sigindex])
 	{
 	case 'i':
-	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  output_asm_insn ("global.get __wasm_stack_pointer", operands);
 	  asprintf (&templ, "i32.const %d", stacksize);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  asprintf (&templ, "get_local %d", local_index);
+	  asprintf (&templ, "local.get %d", local_index);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.store a=2 0", operands);
 	  stacksize += 4;
 	  break;
 	case 'f':
-	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  output_asm_insn ("global.get __wasm_stack_pointer", operands);
 	  asprintf (&templ, "i32.const %d", stacksize);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  asprintf (&templ, "get_local %d", local_index);
+	  asprintf (&templ, "local.get %d", local_index);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("f32.store a=2 0", operands);
@@ -2383,12 +2383,12 @@ save_stack_args (const char *sig)
 	  break;
 	case 'd':
 	  stacksize += stacksize & 4;
-	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  output_asm_insn ("global.get __wasm_stack_pointer", operands);
 	  asprintf (&templ, "i32.const %d", stacksize);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  asprintf (&templ, "get_local %d", local_index);
+	  asprintf (&templ, "local.get %d", local_index);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("f64.store a=2 0", operands);
@@ -2396,12 +2396,12 @@ save_stack_args (const char *sig)
 	  break;
 	case 'l':
 	  stacksize += stacksize & 4;
-	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  output_asm_insn ("global.get __wasm_stack_pointer", operands);
 	  asprintf (&templ, "i32.const %d", stacksize);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  asprintf (&templ, "get_local %d", local_index);
+	  asprintf (&templ, "local.get %d", local_index);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i64.store a=2 0", operands);
@@ -2439,12 +2439,12 @@ load_stack_rets (const char *sig)
     }
 
   char *templ;
-  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+  output_asm_insn ("global.get __wasm_stack_pointer", operands);
   asprintf (&templ, "i32.const %d", -stacksize);
   output_asm_insn (templ, operands);
   free (templ);
   output_asm_insn ("i32.add", operands);
-  output_asm_insn ("set_global __wasm_stack_pointer", operands);
+  output_asm_insn ("global.set __wasm_stack_pointer", operands);
 
   stacksize = stackret ? 4 : 0;
   local_index = 0;
@@ -2453,24 +2453,24 @@ load_stack_rets (const char *sig)
       switch (sig[sigindex])
 	{
 	case 'i':
-	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  output_asm_insn ("global.get __wasm_stack_pointer", operands);
 	  asprintf (&templ, "i32.const %d", stacksize);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  asprintf (&templ, "get_local %d", local_index);
+	  asprintf (&templ, "local.get %d", local_index);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.store a=2 0", operands);
 	  stacksize += 4;
 	  break;
 	case 'f':
-	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  output_asm_insn ("global.get __wasm_stack_pointer", operands);
 	  asprintf (&templ, "i32.const %d", stacksize);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  asprintf (&templ, "get_local %d", local_index);
+	  asprintf (&templ, "local.get %d", local_index);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("f32.store a=2 0", operands);
@@ -2478,12 +2478,12 @@ load_stack_rets (const char *sig)
 	  break;
 	case 'd':
 	  stacksize += stacksize & 4;
-	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  output_asm_insn ("global.get __wasm_stack_pointer", operands);
 	  asprintf (&templ, "i32.const %d", stacksize);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  asprintf (&templ, "get_local %d", local_index);
+	  asprintf (&templ, "local.get %d", local_index);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("f64.store a=2 0", operands);
@@ -2491,12 +2491,12 @@ load_stack_rets (const char *sig)
 	  break;
 	case 'l':
 	  stacksize += stacksize & 4;
-	  output_asm_insn ("get_global __wasm_stack_pointer", operands);
+	  output_asm_insn ("global.get __wasm_stack_pointer", operands);
 	  asprintf (&templ, "i32.const %d", stacksize);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i32.add", operands);
-	  asprintf (&templ, "get_local %d", local_index);
+	  asprintf (&templ, "local.get %d", local_index);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	  output_asm_insn ("i64.store a=2 0", operands);
@@ -2541,11 +2541,11 @@ wasm32_start_function (FILE *f, const char *name, tree decl)
 	case 'l':
 	case 'f':
 	case 'd':
-	  asm_fprintf (f, "\tget_global __wasm_stack_pointer\n");
+	  asm_fprintf (f, "\tglobal.get __wasm_stack_pointer\n");
 	  break;
 	}
       asm_fprintf (f, "\ti32.const -1\n");
-      asm_fprintf (f, "\tget_global __wasm_stack_pointer\n");
+      asm_fprintf (f, "\tglobal.get __wasm_stack_pointer\n");
       asm_fprintf (f, "\ti32.const 0\n");
       asm_fprintf (f, "\ti32.const 0\n");
       asm_fprintf (f, "\ti32.const 0\n");
@@ -2599,7 +2599,7 @@ wasm32_end_function (FILE *f, const char *name, tree decl ATTRIBUTE_UNUSED)
     cooked_name++;
 
   asm_fprintf (f, "\tnextcase\n");
-  asm_fprintf (f, "\tget_local $sp\n\tset_local $rp\n");
+  asm_fprintf (f, "\tlocal.get $sp\n\tlocal.set $rp\n");
   wasm32_function_regload (f, decl);
   wasm32_function_regstore (f, decl, cooked_name);
 
@@ -2963,7 +2963,7 @@ load_stack_args (const char *sig)
     {
       char *templ;
 
-      output_asm_insn ("get_local $sp", operands);
+      output_asm_insn ("local.get $sp", operands);
       if (sig[sigindex] == 'd' ||
 	  sig[sigindex] == 'l')
 	stackoff += (stackoff & 4);
@@ -3012,16 +3012,16 @@ output_call (rtx *operands, bool immediate, bool value)
 	}
       else if (stackret)
 	{
-	  output_asm_insn ("get_local $sp", operands);
+	  output_asm_insn ("local.get $sp", operands);
 	  output_asm_insn ("i32.load a=2 0", operands);
 	}
 
       load_stack_args (sig);
 
-      output_asm_insn ("get_local $sp", operands);
+      output_asm_insn ("local.get $sp", operands);
       output_asm_insn ("i32.const -16", operands);
       output_asm_insn ("i32.add", operands);
-      output_asm_insn ("set_global __wasm_stack_pointer", operands);
+      output_asm_insn ("global.set __wasm_stack_pointer", operands);
 
       if (immediate)
 	{
@@ -3086,9 +3086,9 @@ output_call (rtx *operands, bool immediate, bool value)
       return "";
     }
   output_asm_insn ("i32.const -1", operands);
-  output_asm_insn ("get_local $sp", operands);
-  output_asm_insn ("get_local $r0", operands);
-  output_asm_insn ("get_local $r1", operands);
+  output_asm_insn ("local.get $sp", operands);
+  output_asm_insn ("local.get $r0", operands);
+  output_asm_insn ("local.get $r1", operands);
   output_asm_insn ("i32.const 0", operands);
   output_asm_insn ("i32.const 0", operands);
 
@@ -3125,12 +3125,12 @@ output_call (rtx *operands, bool immediate, bool value)
 		       operands);
     }
 
-  output_asm_insn ("tee_local $rp", operands);
+  output_asm_insn ("local.tee $rp", operands);
   output_asm_insn ("i32.const 3", operands);
   output_asm_insn ("i32.and", operands);
   output_asm_insn ("if[]", operands);
   output_asm_insn (".dpc .LI%=", operands);
-  output_asm_insn ("set_local $dpc", operands);
+  output_asm_insn ("local.set $dpc", operands);
   output_asm_insn ("throw1", operands);
   output_asm_insn ("end", operands);
 
@@ -3278,7 +3278,7 @@ const char *
 wasm32_expand_ret_insn()
 {
   char buf[1024];
-  snprintf (buf, 1022, "i32.const %d\n\tget_local $fp\n\ti32.add\n\treturn\n\t.set __wasm32_fallthrough, 0",
+  snprintf (buf, 1022, "i32.const %d\n\tlocal.get $fp\n\ti32.add\n\treturn\n\t.set __wasm32_fallthrough, 0",
 	    wasm32_function_regsize (NULL_TREE));
 
   return ggc_strdup (buf);
@@ -3474,25 +3474,25 @@ wasm32_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
 
   if (stackcall)
     {
-      asm_fprintf (f, "\tget_local $sp\n\ti32.const %d\n\ti32.add\n\tset_local %s\n", structret ? 20 : 16, r);
-      asm_fprintf (f, "\tget_local %s\n\ti32.load a=2 0\n\tset_local %s\n", r, r);
+      asm_fprintf (f, "\tlocal.get $sp\n\ti32.const %d\n\ti32.add\n\tlocal.set %s\n", structret ? 20 : 16, r);
+      asm_fprintf (f, "\tlocal.get %s\n\ti32.load a=2 0\n\tlocal.set %s\n", r, r);
     }
 
-  asm_fprintf (f, "\tget_local %s\n\ti32.const %d\n\ti32.add\n\tset_local %s\n",
+  asm_fprintf (f, "\tlocal.get %s\n\ti32.const %d\n\ti32.add\n\tlocal.set %s\n",
 	       r, (int) delta, r);
   if (vcall_offset)
     {
-      asm_fprintf (f, "\ti32.const $rv\n\tget_local %s\n\ti32.load a=2 0\n\ti32.store a=2 0\n", r);
+      asm_fprintf (f, "\ti32.const $rv\n\tlocal.get %s\n\ti32.load a=2 0\n\ti32.store a=2 0\n", r);
       asm_fprintf (f, "\ti32.const $rv\n\ti32.const $rv\n\ti32.load a=2 0\n\ti32.const %d\n\ti32.add\n\ti32.store a=2 0\n", (int)vcall_offset);
       asm_fprintf (f, "\ti32.const $rv\n\ti32.const $rv\n\ti32.load a=2 0\n\ti32.load a=2 0\n\ti32.store a=2 0\n");
-      asm_fprintf (f, "\tget_local %s\n\ti32.const $rv\n\ti32.load a=2 0\n\ti32.add\n\tset_local %s\n",
+      asm_fprintf (f, "\tlocal.get %s\n\ti32.const $rv\n\ti32.load a=2 0\n\ti32.add\n\tlocal.set %s\n",
 		   r, r);
     }
 
   if (stackcall)
-    asm_fprintf (f, "\tget_local $sp\n\ti32.const %d\n\ti32.add\n\tget_local %s\n\ti32.store a=2 0\n", structret ? 20 : 16, r);
+    asm_fprintf (f, "\tlocal.get $sp\n\ti32.const %d\n\ti32.add\n\tlocal.get %s\n\ti32.store a=2 0\n", structret ? 20 : 16, r);
 
-  asm_fprintf (f, "\ti32.const -1\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %s@plt{__sigchar_FiiiiiiiE}\n\treturn\n",
+  asm_fprintf (f, "\ti32.const -1\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %s@plt{__sigchar_FiiiiiiiE}\n\treturn\n",
 	       tname);
 }
 

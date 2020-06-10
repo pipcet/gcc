@@ -307,12 +307,12 @@
 (define_insn "*jump"
   [(set (pc) (label_ref (match_operand 0)))]
   ""
-  ".dpc %l0\n\tset_local $dpc\n\tjump")
+  ".dpc %l0\n\tlocal.set $dpc\n\tjump")
 
 (define_insn "*jump"
   [(set (pc) (match_operand:SI 0 "general_operand" "rmi"))]
   ""
-  "%O0\n\ti32.const __wasm_pc_base_%@\n\ti32.sub\n\tset_local $dpc\n\tjump")
+  "%O0\n\ti32.const __wasm_pc_base_%@\n\ti32.sub\n\tlocal.set $dpc\n\tjump")
 
 (define_expand "jump"
   [
@@ -361,7 +361,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "%O0\n\tif[]\n\t.dpc %l3\n\tset_local $dpc\n\tjump1\n\tend")
+  "%O0\n\tif[]\n\t.dpc %l3\n\tlocal.set $dpc\n\tjump1\n\tend")
 
 (define_expand "cbranchsi4"
   [(set (pc) (if_then_else
@@ -383,7 +383,7 @@
               (label_ref (match_operand 3))
               (pc))])]
   "1"
-  "%O0\n\tif[]\n\t.dpc %l3\n\tset_local $dpc\n\tjump1\n\tend")
+  "%O0\n\tif[]\n\t.dpc %l3\n\tlocal.set $dpc\n\tjump1\n\tend")
 
 (define_expand "cbranchdf4"
   [(set (pc) (if_then_else
@@ -804,7 +804,7 @@
    [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")]
      UNSPECV_EH_RETURN)]
    ""
-   "get_local $fp\n\tget_local $sp\n\t%O0\n\tcall $eh_return\n\treturn")
+   "local.get $fp\n\tlocal.get $sp\n\t%O0\n\tcall $eh_return\n\treturn")
 
 (define_insn "*nonlocal_goto"
   [(unspec_volatile [(match_operand:SI 0 "register_operand" "r")
@@ -872,7 +872,7 @@
                           ] UNSPECV_THUNK_GOTO))
    ]
   ""
-  "i32.const 0\n\tget_local $sp1\n\tget_local $r0\n\tget_local $r1\n\tget_local $dpc\n\tget_local $pc0\n\ti32.add\n\t%0\n\tcall %L0\n\treturn")
+  "i32.const 0\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\tlocal.get $dpc\n\tlocal.get $pc0\n\ti32.add\n\t%0\n\tcall %L0\n\treturn")
 
 
 (define_insn "*stack_push"
@@ -884,4 +884,4 @@
    [(set (reg:SI R0_REG)
          (unspec_volatile:SI [(const_int 0)] UNSPECV_STACK_POP))]
    ""
-   "set_local $r0")
+   "local.set $r0")

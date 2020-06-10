@@ -17,139 +17,139 @@ __str_\module:
         .global \name
 	defun \name, FiiiiiiiE
         nextcase
-	get_local $sp
+	local.get $sp
 	i32.const -56
 	i32.add
-	set_local $sp
-	get_local $sp
-	set_local $fp
+	local.set $sp
+	local.get $sp
+	local.set $fp
 	.labeldef_internal .LL2\()\@
 	i32.const __str_\module
-	set_local $r0
+	local.set $r0
 	i32.const __str_\name
-	set_local $r1
-	get_local $pc0
+	local.set $r1
+	local.get $pc0
 	.dpc .LLimp\()\@
-	tee_local $dpc
-	get_local $sp
+	local.tee $dpc
+	local.get $sp
         i32.const 56
         i32.add
-	get_local $r0
-	get_local $r1
+	local.get $r0
+	local.get $r1
 	i32.const 3
 	call $syscall
-	set_local $r0
+	local.set $r0
 	.labeldef_internal .LLimp\()\@
-        get_local $r0
-        tee_local $rp
+        local.get $r0
+        local.tee $rp
         i32.const 3
         i32.and
         if[]
         .dpc .LL2\()\@
-        set_local $dpc
+        local.set $dpc
         throw1
         end
-	get_local $r0
+	local.get $r0
 	i32.const 3
 	i32.and
-	set_local $r0
-	get_local $r0
+	local.set $r0
+	local.get $r0
 	i32.const 0
 	i32.ne
 	if[]
 	.dpc .LL2\()\@
-	set_local $dpc
+	local.set $dpc
 	jump1
 	end
 	i32.const 56
-	get_local $fp
+	local.get $fp
 	i32.add
 	return
 	nextcase
-	get_local $sp
-	set_local $rp
+	local.get $sp
+	local.set $rp
 	i32.const 8
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $pc0
+	local.set $pc0
 	i32.const 16
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $dpc
+	local.set $dpc
 	i32.const 24
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $rpc
+	local.set $rpc
 	i32.const 32
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $sp
+	local.set $sp
 	i32.const 48
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $r0
-	get_local $rp
-	set_local $fp
+	local.set $r0
+	local.get $rp
+	local.set $fp
 	jump2
 	nextcase
 	end
 	i32.const 3
-	get_local $rp
+	local.get $rp
 	i32.and
 	i32.const 1
 	i32.ne
 	if[]
-	get_local $rp
+	local.get $rp
 	return
 	end
-	get_local $sp
+	local.get $sp
 	i32.const -16
 	i32.add
-	get_local $fp
+	local.get $fp
 	i32.store a=2 0
 	i32.const 0
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $fp
+	local.get $fp
 	i32.const 56
 	i32.add
 	i32.store a=2 0
 	i32.const 8
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $pc0
+	local.get $pc0
 	i32.store a=2 0
 	i32.const 16
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $dpc
+	local.get $dpc
 	i32.store a=2 0
 	i32.const 24
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $rpc
+	local.get $rpc
 	i32.store a=2 0
 	i32.const 32
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $sp
+	local.get $sp
 	i32.store a=2 0
 	i32.const 40
-	get_local $fp
+	local.get $fp
 	i32.add
 	i32.const 16
 	i32.store a=2 0
 	i32.const 48
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $r0
+	local.get $r0
 	i32.store a=2 0
-	get_local $rp
+	local.get $rp
 	return
 	end
 	endefun \name
@@ -173,147 +173,147 @@ __str_\module:
         .global \name
 	defun \name, FiiiiiiiE
         nextcase
-	get_local $sp
+	local.get $sp
 	i32.const -56
 	i32.add
-	set_local $sp
-	get_local $sp
-	set_local $fp
+	local.set $sp
+	local.get $sp
+	local.set $fp
 	.labeldef_internal .LL2\()\@
-        get_global $got
+        global.get $got
 	i32.const __str_\module@got
         i32.add
         i32.load a=2 0
-	set_local $r0
-        get_global $got
+	local.set $r0
+        global.get $got
 	i32.const __str_\name@got
         i32.add
         i32.load a=2 0
-	set_local $r1
-	get_local $pc0
+	local.set $r1
+	local.get $pc0
 	.dpc .LLimp\()\@
-	tee_local $dpc
-	get_local $sp
+	local.tee $dpc
+	local.get $sp
         i32.const 56
         i32.add
-	get_local $r0
-	get_local $r1
+	local.get $r0
+	local.get $r1
 	i32.const 3
 	call $syscall
-	set_local $r0
+	local.set $r0
 	.labeldef_internal .LLimp\()\@
-        get_local $r0
-        tee_local $rp
+        local.get $r0
+        local.tee $rp
         i32.const 3
         i32.and
         if[]
         .dpc .LL2\()\@
-        set_local $dpc
+        local.set $dpc
         throw1
         end
-	get_local $r0
+	local.get $r0
 	i32.const 3
 	i32.and
-	set_local $r0
-	get_local $r0
+	local.set $r0
+	local.get $r0
 	i32.const 0
 	i32.ne
 	if[]
 	.dpc .LL2\()\@
-	set_local $dpc
+	local.set $dpc
 	jump1
 	end
 	i32.const 56
-	get_local $fp
+	local.get $fp
 	i32.add
 	return
 	nextcase
-	get_local $sp
-	set_local $rp
+	local.get $sp
+	local.set $rp
 	i32.const 8
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $pc0
+	local.set $pc0
 	i32.const 16
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $dpc
+	local.set $dpc
 	i32.const 24
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $rpc
+	local.set $rpc
 	i32.const 32
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $sp
+	local.set $sp
 	i32.const 48
-	get_local $rp
+	local.get $rp
 	i32.add
 	i32.load a=2 0
-	set_local $r0
-	get_local $rp
-	set_local $fp
+	local.set $r0
+	local.get $rp
+	local.set $fp
 	jump2
 	nextcase
 	end
 	i32.const 3
-	get_local $rp
+	local.get $rp
 	i32.and
 	i32.const 1
 	i32.ne
 	if[]
-	get_local $rp
+	local.get $rp
 	return
 	end
-	get_local $sp
+	local.get $sp
 	i32.const -16
 	i32.add
-	get_local $fp
+	local.get $fp
 	i32.store a=2 0
 	i32.const 0
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $fp
+	local.get $fp
 	i32.const 56
 	i32.add
 	i32.store a=2 0
 	i32.const 8
-	get_local $fp
+	local.get $fp
 	i32.add
-        get_global $plt
+        global.get $plt
         i32.const \name
         i32.add
 	i32.store a=2 0
 	i32.const 16
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $dpc
+	local.get $dpc
 	i32.store a=2 0
 	i32.const 24
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $rpc
+	local.get $rpc
 	i32.store a=2 0
 	i32.const 32
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $sp
+	local.get $sp
 	i32.store a=2 0
 	i32.const 40
-	get_local $fp
+	local.get $fp
 	i32.add
 	i32.const 16
 	i32.store a=2 0
 	i32.const 48
-	get_local $fp
+	local.get $fp
 	i32.add
-	get_local $r0
+	local.get $r0
 	i32.store a=2 0
-	get_local $rp
+	local.get $rp
 	return
 	end
 	endefun \name
