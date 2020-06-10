@@ -60816,6 +60816,9 @@ fi
 done
 
     ;;
+  wasm32-*)
+    SECTION_FLAGS='-ffunction-sections -fdata-sections'
+    ;; 
   *-netbsd* | *-openbsd*)
     SECTION_FLAGS='-ffunction-sections -fdata-sections'
 
