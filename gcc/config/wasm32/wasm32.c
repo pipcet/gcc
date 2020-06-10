@@ -2688,7 +2688,7 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
     {
       fprintf (asm_out_file, "\t.section\t%s\n", name);
       if (flags & SECTION_CODE)
-	fprintf (asm_out_file, "\t.pushsection .wasm.code.%%S,2*__wasm_counter+1\n");
+	fprintf (asm_out_file, "\t.pushsection .wasm.code.%%S,2*__wasm_counter+1,\"ax\"\n");
       return;
     }
 
@@ -2747,7 +2747,7 @@ wasm32_asm_named_section (const char *name, unsigned int flags,
   putc ('\n', asm_out_file);
 
   if (flags & SECTION_CODE)
-    fprintf (asm_out_file, "\t.pushsection .wasm.code.%%S,2*__wasm_counter+1\n");
+    fprintf (asm_out_file, "\t.pushsection .wasm.code.%%S,2*__wasm_counter+1,\"ax\"\n");
 }
 
 void
@@ -2800,7 +2800,9 @@ wasm32_output_aligned_bss (FILE *stream, const_tree tree ATTRIBUTE_UNUSED, const
 bool
 wasm32_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 {
-  return mode == SImode || mode == DFmode;
+  if (regno >= 24 && regno <= 31)
+    return mode == DFmode;
+  return mode == SImode;
 }
 
 

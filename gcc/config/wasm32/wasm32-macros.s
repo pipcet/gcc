@@ -65,7 +65,7 @@
 	.popsection
 	.pushsection .wasm.element.%S,"x"
 	.popsection
-	.pushsection .wasm.code.%S,2*__wasm_counter+1
+	.pushsection .wasm.code.%S,2*__wasm_counter+1,"ax"
 	.else
 	.pushsection .space.code.%S,"x"
 	.popsection
@@ -75,7 +75,7 @@
 	.popsection
 	.pushsection .wasm.element.%S,"x"
 	.popsection
-	.pushsection .wasm.code.%S
+	.pushsection .wasm.code.%S,"ax"
 	.endif
         .endm
 
@@ -351,7 +351,7 @@ __wasm_function__\name\():
         .set __wasm_counter, __wasm_counter + 1
         .set __wasm_blocks, 0
         .popsection
-        .pushsection .wasm.code.%S,2*__wasm_counter+1
+        .pushsection .wasm.code.%S,2*__wasm_counter+1,"ax"
 __wasm_code_\name\():
         .endm
 
@@ -400,7 +400,7 @@ __wasm_code_\name\():
         .local __wasm_body_ast_\name\()
 2:
         .popsection
-        .pushsection .wasm.code.%S,2*__wasm_counter
+        .pushsection .wasm.code.%S,2*__wasm_counter,"ax"
 
 __wasm_body_header_\name\():
         .type __wasm_body_header_\name\(), @object
