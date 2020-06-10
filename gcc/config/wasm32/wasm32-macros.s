@@ -49,7 +49,7 @@
         .set $f7, 30
         ;; in-memory per-thread globals
         .set $rv, 8288
-        ;; per-instance immutable get_global globals
+        ;; per-instance immutable global.get globals
         .set $got, 0
         .set $plt, 1
         .set $gpo, 2
@@ -81,11 +81,11 @@
 
         .macro .flush
         .dpc .LFl\@
-        set_local $dpc
-        get_local $fp
+        local.set $dpc
+        local.get $fp
         i32.const 1
         i32.or
-        set_local $rp
+        local.set $rp
         throw
         .wasmtextlabeldpcdef .LFl\@
         .endm
@@ -411,9 +411,9 @@ __wasm_body_header_\name\():
 __wasm_body_ast_\name\():
         .ifne __wasm_blocks
         i32.const -16
-        get_local $sp1
+        local.get $sp1
         i32.add
-        set_local $sp
+        local.set $sp
         .endif
         .ifne __wasm_blocks
         .local __wasm_body_blocks_\name\()
@@ -425,7 +425,7 @@ __wasm_body_blocks_\name:
         block[]
         .endr
         .set __wasm_body_blocks_\name\()_sym, __wasm_blocks
-        get_local $dpc
+        local.get $dpc
         .byte 0x0e
         rleb128_32 __wasm_blocks-1
         rleb128_32 __wasm_blocks-1
@@ -445,7 +445,7 @@ __wasm_body_blocks_\name:
         .macro nextcase
         .ifne __wasm_in_defun
         .dpc 1f
-        set_local $dpc
+        local.set $dpc
         jump
         end
         .set __wasm_blocks, __wasm_blocks + 1
