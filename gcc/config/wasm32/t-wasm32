@@ -13,9 +13,12 @@ install-import-macros: config/wasm32/wasm32-import-macros.s installdirs
 	$(mkinstalldirs) $(DESTDIR)$(libsubdir)/gas-macros
 	$(INSTALL_DATA) $< $(DESTDIR)$(libsubdir)/gas-macros/wasm32-import-macros.s
 
-install-wasm32-headers: config/wasm32/wasm32-headers.o
+install-wasm32-headers: wasm32-headers.o
 	$(mkinstalldirs) $(DESTDIR)$(libsubdir)
 	$(INSTALL_DATA) $< $(DESTDIR)$(libsubdir)/wasm32-headers.o
+
+wasm32-headers.o: config/wasm32/wasm32-headers.S
+	$(AS_FOR_TARGET) -c -o $@ $<
 
 gas-macros/wasm32-macros.s: config/wasm32/wasm32-macros.s
 	-if [ -d gas-macros ]; then true; else mkdir gas-macros; chmod a+rx gas-macros; fi
