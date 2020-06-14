@@ -1,3 +1,4 @@
+#NO_APP
         .local __wasm_counter
         .local __wasm_block
         .local __wasm_blocks

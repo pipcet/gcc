@@ -1,4 +1,5 @@
 #NO_APP
+	.globl $syscall
         .macro .import3 module extname name
         .pushsection .str.lib,"ams",1
         .data
