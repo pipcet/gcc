@@ -36,4 +36,4 @@ wasm32-cxx.o: $(srcdir)/config/wasm32/wasm32-cxx.c
 	  $(COMPILE) $<
 	  $(POSTCOMPILE)
 
-GCC_PASSES += gas-macros/wasm32-macros.s gas-macros/wasm32-import-macros.s
+GCC_PASSES += gas-macros/wasm32-macros.s gas-macros/wasm32-import-macros.s wasm32-headers.o
