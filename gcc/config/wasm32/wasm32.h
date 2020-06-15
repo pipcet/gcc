@@ -30,7 +30,7 @@
 #define STARTFILE_SPEC "crti%O%s %{!shared:crtbegin%O%s} %{shared:crtbegin%O%s}"
 #define ENDFILE_SPEC "%{!shared:crtend%O%s} %{shared:crtend%O%s} crtn%O%s"
 
-#define WASM32_LINK_SPEC "%{shared:-shared} %{!static: %{rdynamic:-export-dynamic}} %{static:-static}"
+#define WASM32_LINK_SPEC "%{shared:-shared} %{!static: %{rdynamic:-export-dynamic}} %{static:-static} -rpath-link $ORIGIN"
 
 #undef LINK_SPEC
 #define LINK_SPEC WASM32_LINK_SPEC
