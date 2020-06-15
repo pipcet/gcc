@@ -17,7 +17,7 @@ install-wasm32-headers: wasm32-headers.o
 	$(mkinstalldirs) $(DESTDIR)$(libsubdir)
 	$(INSTALL_DATA) $< $(DESTDIR)$(libsubdir)/wasm32-headers.o
 
-wasm32-headers.o: config/wasm32/wasm32-headers.S
+wasm32-headers.o: config/wasm32/wasm32-headers.S gas-macros/wasm32-macros.s gas-macros/wasm32-import-macros.s
 	$(AS_FOR_TARGET) -c -o $@ $<
 
 gas-macros/wasm32-macros.s: config/wasm32/wasm32-macros.s
