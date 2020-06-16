@@ -246,6 +246,7 @@ __wasm_element_\()\name:
         .byte 0x41		; i32.const
         rleb128_32 \name	; value
         .byte 0x0b		; end of block
+	.popsection
         .pushsection .space.export
         .byte 0
         .popsection
