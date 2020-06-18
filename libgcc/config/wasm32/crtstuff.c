@@ -1,4 +1,5 @@
 #ifdef CRT_BEGIN
+#if 0
 
 asm(".globl __wasm_null\n\t"
     ".text\n\t"
@@ -58,6 +59,7 @@ asm(".pushsection .space.global_index.import\n\t"
     ".byte 0\n\t"
     ".popsection\n\t");
 
+#endif
 #endif
 
 #include "../../crtstuff.c"
