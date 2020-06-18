@@ -15299,8 +15299,6 @@ esac
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $dynamic_linker" >&5
 $as_echo "$dynamic_linker" >&6; }
 test "$dynamic_linker" = no && can_build_shared=no
-dynamic_linker = yes
-can_build_shared = yes
 
 variables_saved_for_relink="PATH $shlibpath_var $runpath_var"
 if test "$GCC" = yes; then
