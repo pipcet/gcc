@@ -61,6 +61,8 @@
 	.popsection
 	.pushsection .space.function_index.%S,"x"
 	.popsection
+	.pushsection .space.function.%S,"x"
+	.popsection
 	.pushsection .space.element.%S,"x"
 	.popsection
 	.pushsection .wasm.element.%S,"x"
@@ -70,6 +72,8 @@
 	.pushsection .space.code.%S,"x"
 	.popsection
 	.pushsection .space.function_index.%S,"x"
+	.popsection
+	.pushsection .space.function.%S,"x"
 	.popsection
 	.pushsection .space.element.%S,"x"
 	.popsection
