@@ -1440,7 +1440,7 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	      asm_fprintf (stream, "global.get $got\n");
 	      asm_fprintf (stream, "\ti32.const ");
 	      assemble_name (stream, name);
-	      asm_fprintf (stream, "%got\n");
+	      asm_fprintf (stream, "%%got\n");
 	      asm_fprintf (stream, "\ti32.add\n\t");
 	      asm_fprintf (stream, "i32.load a=2 0");
 	    }
@@ -1457,7 +1457,7 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	      asm_fprintf (stream, "global.get $got\n");
 	      asm_fprintf (stream, "\ti32.const ");
 	      assemble_name (stream, name);
-	      asm_fprintf (stream, "%gotcode\n");
+	      asm_fprintf (stream, "%%gotcode\n");
 	      asm_fprintf (stream, "\ti32.add\n\t");
 	      asm_fprintf (stream, "i32.load a=2 0");
 	    }
@@ -3042,7 +3042,7 @@ output_call (rtx *operands, bool immediate, bool value)
 	  else
 	    {
 	      char *templ;
-	      asprintf (&templ, "call %%L0%plt{__sigchar_%s}", sig);
+	      asprintf (&templ, "call %%L0%%plt{__sigchar_%s}", sig);
 	      output_asm_insn (templ, operands);
 	      free (templ);
 	    }
@@ -3112,7 +3112,7 @@ output_call (rtx *operands, bool immediate, bool value)
       else
 	{
 	  char *templ;
-	  asprintf (&templ, "call %%L0%plt{__sigchar_%s}", sig);
+	  asprintf (&templ, "call %%L0%%plt{__sigchar_%s}", sig);
 	  output_asm_insn (templ, operands);
 	  free (templ);
 	}
@@ -3492,7 +3492,7 @@ wasm32_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
   if (stackcall)
     asm_fprintf (f, "\tlocal.get $sp\n\ti32.const %d\n\ti32.add\n\tlocal.get %s\n\ti32.store a=2 0\n", structret ? 20 : 16, r);
 
-  asm_fprintf (f, "\ti32.const -1\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %s%plt{__sigchar_FiiiiiiiE}\n\treturn\n",
+  asm_fprintf (f, "\ti32.const -1\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %s%%plt{__sigchar_FiiiiiiiE}\n\treturn\n",
 	       tname);
 }
 
