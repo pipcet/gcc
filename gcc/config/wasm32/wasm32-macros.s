@@ -56,19 +56,19 @@
 
         .macro text_section
         .text
-	ensure_text_section
 	.ifdef __wasm_counter
 	.pushsection .wasm.code.%S,2*__wasm_counter+1,"ax"
 	.else
 	.pushsection .wasm.code.%S,"ax"
 	.endif
+	ensure_text_section
 	.endm
 
 	.macro ensure_text_section
 	.previous
 	.pushsection .space.name.function.%S,"a"
 	.popsection
-	.pushsection .space.name.local.function.%S,"a"
+	.pushsection .space.name.local.%S,"a"
 	.popsection
 	.pushsection .wasm.name.function.%S,"a"
 	.popsection
