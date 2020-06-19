@@ -56,6 +56,10 @@
 
         .macro text_section
         .text
+	ensure_text_section
+	.endm
+
+	.macro ensure_text_section
 	.ifdef __wasm_counter
 	.pushsection .space.code.%S,"x"
 	.popsection
@@ -201,6 +205,7 @@ __sigchar_\sig:
         ;; .wasm.code..text.f     <--      top
         ;; .text.f
         .macro defun name, sig, raw = 0
+	ensure_text_section
         .set __wasm_in_defun, 1
         createsig \sig
         .local __wasm_body_blocks_\name\()_sym
