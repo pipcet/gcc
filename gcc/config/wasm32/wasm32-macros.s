@@ -213,19 +213,19 @@ __sigchar_\sig:
         .popsection
         .pushsection .space.code.%S,"x"
         .reloc .,R_WASM32_CODE_POINTER,__wasm_code_\name
-        .reloc .,R_WASM32_INDEX,__wasm_local_name_\()\name
+        .reloc .,R_WASM32_INDEX,__wasm_local_name_\name
 6:
         .byte 0
         .popsection
         .pushsection .space.element.%S
         .reloc .,R_WASM32_CODE_POINTER,__wasm_element_\name
-        .reloc .,R_WASM32_INDEX,__wasm_local_name_\()\name
+        .reloc .,R_WASM32_INDEX,__wasm_local_name_\name
 7:
         .byte 0
         .popsection
         .pushsection .wasm.element.%S
-__wasm_element_\()\name:
-        rleb128_32 __wasm_local_name_\()\name
+__wasm_element_\name:
+        rleb128_32 __wasm_local_name_\name
         .popsection
         .pushsection .space.function_index.%S,"x"
         .type \name, @function
@@ -237,14 +237,14 @@ __wasm_element_\()\name:
         .reloc .,R_WASM32_INDEX,__wasm_name_local_\name
         .endif
         .reloc .,R_WASM32_INDEX,__wasm_name_function_\name
-\name\():
-__wasm_local_name_\()\name:
+\name:
+__wasm_local_name_\name:
         .byte 0x00
-        .set __wasm_function_index, __wasm_local_name_\name\()
+        .set __wasm_function_index, __wasm_local_name_\name
         .popsection
         .pushsection .space.pc.%S,""
         .set __wasm_pc_base, .
-        .set __wasm_pc_base_\()\name, .
+        .set __wasm_pc_base_\name, .
         .popsection
         .ifeqs "\name","_start"
         .pushsection .space.global_index
@@ -359,7 +359,7 @@ __wasm_name_local2_\name:
         .endif
         .endif
         .pushsection .wasm.function.%S
-__wasm_function__\name\():
+__wasm_function__\name:
         rleb128_32 __sigchar_\sig
         .popsection
 
@@ -367,7 +367,7 @@ __wasm_function__\name\():
         .set __wasm_blocks, 0
         .popsection
         .pushsection .wasm.code.%S,2*__wasm_counter+1,"ax"
-__wasm_code_\name\():
+__wasm_code_\name:
         .endm
 
         .macro jump
@@ -411,19 +411,19 @@ __wasm_code_\name\():
         .endm
 
         .macro endefun name, raw = 0, ints = 17, floats = 8
-        .local __wasm_body_header_\name\()
-        .local __wasm_body_ast_\name\()
+        .local __wasm_body_header_\name
+        .local __wasm_body_ast_\name
 2:
         .popsection
         .pushsection .wasm.code.%S,2*__wasm_counter,"ax"
 
-__wasm_body_header_\name\():
-        .type __wasm_body_header_\name\(), @object
+__wasm_body_header_\name:
+        .type __wasm_body_header_\name, @object
         rleb128_32 2b - 1f
 1:
         function_header \ints, 0, 0, \floats
-        .size __wasm_body_header_\name\(), . - __wasm_body_header_\name\()
-__wasm_body_ast_\name\():
+        .size __wasm_body_header_\name, . - __wasm_body_header_\name
+__wasm_body_ast_\name:
         .ifne __wasm_blocks
         i32.const -16
         local.get $sp1
@@ -431,7 +431,7 @@ __wasm_body_ast_\name\():
         local.set $sp
         .endif
         .ifne __wasm_blocks
-        .local __wasm_body_blocks_\name\()
+        .local __wasm_body_blocks_\name
         .local __wasm_body_blocks_\name\()_sym
         block[]
         loop[]
