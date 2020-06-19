@@ -1,6 +1,4 @@
 #ifdef CRT_BEGIN
-#if 0
-
 asm(".globl __wasm_null\n\t"
     ".text\n\t"
     "createsig FvE\n\t"
@@ -37,6 +35,8 @@ asm(".globl __wasm_null\n\t"
     ".byte 0\n\t"
     ".popsection\n\t"
     ".endif\n\t");
+
+#if 0
 
 asm("\t.pushsection .space.global\n"
     "\t.byte 0\n"
