@@ -57,34 +57,15 @@
         .macro text_section
         .text
 	ensure_text_section
+	.ifdef __wasm_counter
+	.pushsection .wasm.code.%S,2*__wasm_counter+1,"ax"
+	.else
+	.pushsection .wasm.code.%S,"ax"
+	.endif
 	.endm
 
 	.macro ensure_text_section
-	.ifdef __wasm_counter
-	.pushsection .space.code.%S,"x"
-	.popsection
-	.pushsection .space.function_index.%S,"x"
-	.popsection
-	.pushsection .space.function.%S,"x"
-	.popsection
-	.pushsection .space.element.%S,"x"
-	.popsection
-	.pushsection .wasm.element.%S,"x"
-	.popsection
-	.pushsection .wasm.code.%S,2*__wasm_counter+1,"ax"
-	.else
-	.pushsection .space.code.%S,"x"
-	.popsection
-	.pushsection .space.function_index.%S,"x"
-	.popsection
-	.pushsection .space.function.%S,"x"
-	.popsection
-	.pushsection .space.element.%S,"x"
-	.popsection
-	.pushsection .wasm.element.%S,"x"
-	.popsection
-	.pushsection .wasm.code.%S,"ax"
-	.endif
+	.previous
 	.pushsection .space.name.function.%S,"a"
 	.popsection
 	.pushsection .space.name.local.function.%S,"a"
@@ -97,6 +78,17 @@
 	.popsection
 	.pushsection .space.pc.%S,"a"
 	.popsection
+	.pushsection .space.code.%S,"x"
+	.popsection
+	.pushsection .space.function_index.%S,"x"
+	.popsection
+	.pushsection .space.function.%S,"x"
+	.popsection
+	.pushsection .space.element.%S,"x"
+	.popsection
+	.pushsection .wasm.element.%S,"x"
+	.popsection
+	.previous
         .endm
 
         .macro .flush
