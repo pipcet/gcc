@@ -81,6 +81,18 @@
 	.popsection
 	.pushsection .wasm.code.%S,"ax"
 	.endif
+	.pushsection .space.name.function.%S,"a"
+	.popsection
+	.pushsection .space.name.local.function.%S,"a"
+	.popsection
+	.pushsection .wasm.name.function.%S,"a"
+	.popsection
+	.pushsection .wasm.name.local.%S,"a"
+	.popsection
+	.pushsection .wasm.function.%S,"a"
+	.popsection
+	.pushsection .space.pc.%S,"a"
+	.popsection
         .endm
 
         .macro .flush
