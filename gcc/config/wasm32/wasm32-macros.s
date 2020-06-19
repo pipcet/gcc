@@ -213,19 +213,19 @@ __sigchar_\sig:
         .popsection
         .pushsection .space.code.%S,"x"
         .reloc .,R_WASM32_CODE_POINTER,__wasm_code_\name
-        .reloc .,R_WASM32_INDEX,\name
+        .reloc .,R_WASM32_INDEX,__wasm_local_name_\()\name
 6:
         .byte 0
         .popsection
         .pushsection .space.element.%S
         .reloc .,R_WASM32_CODE_POINTER,__wasm_element_\name
-        .reloc .,R_WASM32_INDEX,\name
+        .reloc .,R_WASM32_INDEX,__wasm_local_name_\()\name
 7:
         .byte 0
         .popsection
         .pushsection .wasm.element.%S
 __wasm_element_\()\name:
-        rleb128_32 \name
+        rleb128_32 __wasm_local_name_\()\name
         .popsection
         .pushsection .space.function_index.%S,"x"
         .type \name, @function
@@ -238,8 +238,9 @@ __wasm_element_\()\name:
         .endif
         .reloc .,R_WASM32_INDEX,__wasm_name_function_\name
 \name\():
+__wasm_local_name_\()\name:
         .byte 0x00
-        .set __wasm_function_index, \name\()
+        .set __wasm_function_index, __wasm_local_name_\name\()
         .popsection
         .pushsection .space.pc.%S,""
         .set __wasm_pc_base, .
@@ -257,7 +258,7 @@ __wasm_element_\()\name:
         .byte 0x7f		; type i32
         .byte 0			; not mutable
         .byte 0x41		; i32.const
-        rleb128_32 \name	; value
+        rleb128_32 __wasm_local_name_\name	; value
         .byte 0x0b		; end of block
 	.popsection
         .pushsection .space.export
@@ -273,12 +274,12 @@ __wasm_element_\()\name:
         .pushsection .space.name.function.%S
 __wasm_name_function_\name:
         .reloc .,R_WASM32_CODE_POINTER,__wasm_name_function2_\name
-        .reloc .,R_WASM32_INDEX,\name
+        .reloc .,R_WASM32_INDEX,__wasm_local_name_\name
         .byte 0
         .popsection
         .pushsection .wasm.name.function.%S
 __wasm_name_function2_\name:
-        rleb128_32 \name
+        rleb128_32 __wasm_local_name_\name
         lstring \name
         .popsection
         .ifeq \raw
@@ -290,7 +291,7 @@ __wasm_name_local_\name:
         .popsection
         .pushsection .wasm.name.local.%S
 __wasm_name_local2_\name:
-        rleb128_32 \name
+        rleb128_32 __wasm_local_name_\name
         .byte 31
         .byte 0
         lstring dpc
