@@ -1,5 +1,6 @@
 /* Copyright (C) 2000  Free Software Foundation  */
 /* Contributed by Alexandre Oliva <aoliva@redhat.com> */
+/* { dg-skip-if "No 8-bit registers" { wasm32-*-* } } */
 
 int
 foo () 
