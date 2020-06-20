@@ -2,6 +2,7 @@
 
         .globl __one_cmplsi2
 
+	text_section
         defun __one_cmplsi2 FiiiiiiiE
         nextcase
         nextcase
