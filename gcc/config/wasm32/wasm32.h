@@ -191,7 +191,7 @@
 #define CALL_POPS_ARGS wasm32_call_pops_args
 
 typedef struct {
-  int n_areg;
+  int n_areg; // XXX used??
   int n_vreg; // XXX unused
   int is_stackcall;
   int n_max_areg;
