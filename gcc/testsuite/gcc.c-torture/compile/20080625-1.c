@@ -1,5 +1,5 @@
 /* { dg-require-effective-target int32plus } */
-/* { dg-skip-if "Array too big" { "pdp11-*-*" } { "-mint32" } } */
+/* { dg-skip-if "Array too big" { "pdp11-*-*" } { "-mint32" } { "wasm32-*-*" } } */
 
 struct peakbufStruct {
     unsigned int lnum [5000];
