@@ -49,30 +49,7 @@ if [info exists TORTURE_OPTIONS] {
     # Also note that -finline-functions is explicitly included in one of the
     # items below, even though -O3 is also specified, because some ports may
     # choose to disable inlining functions by default, even when optimizing.
-    set C_TORTURE_OPTIONS [list \
-	{ -O0 } \
-	{ -O1 } \
-	{ -O2 } \
-	{ -O3 -fomit-frame-pointer -funroll-loops -fpeel-loops -ftracer -finline-functions } \
-	{ -O3 -g } \
-	{ -Os } \
-	{ -Og -g } ]
-
-    if [check_effective_target_lto] {
-        # When having plugin test both slim and fat LTO and plugin/nonplugin
-        # path.
-        if [check_linker_plugin_available] {
-          set LTO_TORTURE_OPTIONS [list \
-    	      { -O2 -flto -fno-use-linker-plugin -flto-partition=none } \
-	      { -O2 -flto -fuse-linker-plugin -fno-fat-lto-objects }
-          ]
-        } else {
-          set LTO_TORTURE_OPTIONS [list \
-	      { -O2 -flto -flto-partition=none } \
-	      { -O2 -flto }
-          ]
-        }
-    }
+    set C_TORTURE_OPTIONS [list { -O2 } ]
 }
 
 if [info exists ADDITIONAL_TORTURE_OPTIONS] {
