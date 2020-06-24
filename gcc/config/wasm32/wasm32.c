@@ -3460,17 +3460,20 @@ wasm32_this_parameter (tree function)
    deciding where on the stack the this argument lives.
  */
 static void
-wasm32_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
+wasm32_asm_output_mi_thunk (FILE *f, tree thunk_fndecl, HOST_WIDE_INT delta,
 			    HOST_WIDE_INT vcall_offset, tree function)
 {
   const char *tname = XSTR (XEXP (DECL_RTL (function), 0), 0);
-  const char *name = XSTR (XEXP (DECL_RTL (thunk), 0), 0);
+  const char *name = XSTR (XEXP (DECL_RTL (thunk_fndecl), 0), 0);
   bool stackcall = wasm32_is_stackcall (TREE_TYPE (function));
   bool structret = aggregate_value_p (TREE_TYPE (TREE_TYPE (function)), TREE_TYPE (function));
   const char *r = (structret && !stackcall) ? "$r1" : "$r0";
+  const char *fnname = IDENTIFIER_POINTER (DECL_ASSEMBLER_NAME (thunk_fndecl));
 
   tname += tname[0] == '*';
   name += name[0] == '*';
+
+  assemble_start_function (thunk_fndecl, fnname);
 
   if (stackcall)
     {
@@ -3494,6 +3497,8 @@ wasm32_asm_output_mi_thunk (FILE *f, tree thunk, HOST_WIDE_INT delta,
 
   asm_fprintf (f, "\ti32.const -1\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %s@plt{__sigchar_FiiiiiiiE}\n\treturn\n",
 	       tname);
+
+  assemble_end_function (thunk_fndecl, fnname);
 }
 
 #undef TARGET_ASM_GLOBALIZE_LABEL
