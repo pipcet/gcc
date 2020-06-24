@@ -11352,7 +11352,7 @@ linux*oldld* | linux*aout* | linux*coff*)
 # project, but have not yet been accepted: they are GCC-local changes
 # for the time being.  (See
 # https://lists.gnu.org/archive/html/libtool-patches/2018-05/msg00000.html)
-linux* | k*bsd*-gnu | kopensolaris*-gnu | uclinuxfdpiceabi)
+none* | linux* | k*bsd*-gnu | kopensolaris*-gnu | uclinuxfdpiceabi)
   version_type=linux
   need_lib_prefix=no
   need_version=no
@@ -11610,6 +11610,7 @@ esac
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $dynamic_linker" >&5
 $as_echo "$dynamic_linker" >&6; }
 test "$dynamic_linker" = no && can_build_shared=no
+can_build_shared=yes
 
 variables_saved_for_relink="PATH $shlibpath_var $runpath_var"
 if test "$GCC" = yes; then
@@ -15041,7 +15042,7 @@ linux*oldld* | linux*aout* | linux*coff*)
 # project, but have not yet been accepted: they are GCC-local changes
 # for the time being.  (See
 # https://lists.gnu.org/archive/html/libtool-patches/2018-05/msg00000.html)
-linux* | k*bsd*-gnu | kopensolaris*-gnu | uclinuxfdpiceabi)
+none | linux* | k*bsd*-gnu | kopensolaris*-gnu | uclinuxfdpiceabi)
   version_type=linux
   need_lib_prefix=no
   need_version=no
