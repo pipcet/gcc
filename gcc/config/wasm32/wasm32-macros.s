@@ -412,7 +412,7 @@ __wasm_code_\name:
 
 	.globl $debug
 	.macro check_bp
-	.if 1
+	.if 0
 	local.get $dpc
 	call $debug
 	if[]
