@@ -410,6 +410,17 @@ __wasm_code_\name:
         .endif
         .endm
 
+	.globl $debug
+	.macro check_bp
+	.if 1
+	local.get $dpc
+	call $debug
+	if[]
+	throw1
+	end
+	.endif
+	.endm
+
         .macro endefun name, raw = 0, ints = 17, floats = 8
         .local __wasm_body_header_\name
         .local __wasm_body_ast_\name
@@ -435,6 +446,7 @@ __wasm_body_ast_\name:
         .local __wasm_body_blocks_\name\()_sym
         block[]
         loop[]
+	check_bp
 __wasm_body_blocks_\name:
         .rept __wasm_blocks
         block[]
