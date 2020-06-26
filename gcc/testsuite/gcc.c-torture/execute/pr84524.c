@@ -1,4 +1,5 @@
 /* PR target/84524 */
+/* { dg-skip-if "no 16-bit registers" { wasm32-*-* } } */
 
 __attribute__((noipa)) void
 foo (unsigned short *x)
