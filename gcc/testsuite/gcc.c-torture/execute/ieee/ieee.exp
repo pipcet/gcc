@@ -67,13 +67,19 @@ gcc_init
 # main test loop
 #
 
-foreach src [lsort [glob -nocomplain $srcdir/$subdir/*.c]] {
-    # If we're only testing specific files and this isn't one of them, skip it.
-    if ![runtest_file_p $runtests $src] then {
-	continue
-    }
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    c-torture-execute [lsort $testtotest] $additional_flags
+} else {
+    foreach src [lsort [glob -nocomplain $srcdir/$subdir/*.c]] {
+	# If we're only testing specific files and this isn't one of them, skip it.
+	if ![runtest_file_p $runtests $src] then {
+	    continue
+	}
 
-    c-torture-execute $src $additional_flags
+	c-torture-execute $src $additional_flags
+    }
 }
 
 # All done.
