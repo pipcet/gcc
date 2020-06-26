@@ -28,7 +28,13 @@ asan_init
 
 # Main loop.
 if [check_effective_target_fsanitize_address] {
-  gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.c $srcdir/c-c++-common/asan/*.c]] "" ""
+  if { [info exists env(testtotest)] } {
+      set testtotest $::env(testtotest)
+      set testtotest "${srcdir}/${testtotest}"
+      gcc-dg-runtest [lsort $testtotest] "" ""
+  } else {
+      gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.c]] "" ""
+  }
 }
 
 # All done.
