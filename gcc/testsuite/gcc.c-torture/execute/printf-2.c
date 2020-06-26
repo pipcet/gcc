@@ -4,7 +4,7 @@
    { dg-require-effective-target unwrapped }
    { dg-require-effective-target fileio }
    { dg-prune-output "warning: warning: \[^\n\r\]* possibly used unsafely" }
-   { dg-skip-if "requires io" { avr-*-* } }
+   { dg-skip-if "requires io" { avr-*-* wasm32-*-* } }
    { dg-skip-if "requires io" { freestanding } } */
 
 #include <stdio.h>
