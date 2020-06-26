@@ -26,6 +26,11 @@ if ![info exists DEFAULT_CFLAGS] then {
 }
 
 dg-init
-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] \
-    "" $DEFAULT_CFLAGS
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    dg-runtest [lsort $testtotest] "" $DEFAULT_CFLAGS
+} else {
+    dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] "" $DEFAULT_CFLAGS
+}
 dg-finish
