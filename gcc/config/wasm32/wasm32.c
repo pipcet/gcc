@@ -2151,6 +2151,12 @@ wasm32_file_start (void)
   default_file_start ();
 }
 
+void
+wasm32_file_end (void)
+{
+  fputs ("\twasm_fini\n", asm_out_file);
+}
+
 static unsigned
 wasm32_function_regmask (tree decl ATTRIBUTE_UNUSED)
 {

@@ -15,6 +15,7 @@
         .local $f0, $f1, $f2, $f3, $f4, $f5, $f6, $f7
         .local $rv
         .set __wasm_counter, 0
+	.set __wasm_in_defun, 0
         ;; local/"register" names. The first six are arguments.
         .set $dpc, 0
         .set $sp1, 1
@@ -224,7 +225,7 @@ __sigchar_\sig:
         .byte 0
         .popsection
         .pushsection .wasm.element.%S
-__wasm_element_\name:
+	.set __wasm_element_\name, .
         rleb128_32 __wasm_local_name_\name
         .popsection
         .pushsection .space.function_index.%S,"x"
@@ -238,7 +239,7 @@ __wasm_element_\name:
         .endif
         .reloc .,R_WASM32_INDEX,__wasm_name_function_\name
 \name:
-__wasm_local_name_\name:
+	.set __wasm_local_name_\name, .
         .byte 0x00
         .set __wasm_function_index, __wasm_local_name_\name
         .popsection
@@ -272,25 +273,25 @@ __wasm_local_name_\name:
         .endif
         .if 1
         .pushsection .space.name.function.%S
-__wasm_name_function_\name:
+	.set __wasm_name_function_\name, .
         .reloc .,R_WASM32_CODE_POINTER,__wasm_name_function2_\name
         .reloc .,R_WASM32_INDEX,__wasm_local_name_\name
         .byte 0
         .popsection
         .pushsection .wasm.name.function.%S
-__wasm_name_function2_\name:
+	.set __wasm_name_function2_\name, .
         rleb128_32 __wasm_local_name_\name
         lstring \name
         .popsection
         .ifeq \raw
         .pushsection .space.name.local.%S
-__wasm_name_local_\name:
+	.set __wasm_name_local_\name, .
         .reloc .,R_WASM32_CODE_POINTER,__wasm_name_local2_\name
         .reloc .,R_WASM32_INDEX,\name
         .byte 0
         .popsection
         .pushsection .wasm.name.local.%S
-__wasm_name_local2_\name:
+	.set __wasm_name_local2_\name, .
         rleb128_32 __wasm_local_name_\name
         .byte 31
         .byte 0
@@ -359,7 +360,7 @@ __wasm_name_local2_\name:
         .endif
         .endif
         .pushsection .wasm.function.%S
-__wasm_function__\name:
+	.set __wasm_function__\name, .
         rleb128_32 __sigchar_\sig
         .popsection
 
@@ -367,7 +368,8 @@ __wasm_function__\name:
         .set __wasm_blocks, 0
         .popsection
         .pushsection .wasm.code.%S,2*__wasm_counter+1,"ax"
-__wasm_code_\name:
+	.set __wasm_code_\name, .
+	.set __wasm_last_case, .
         .endm
 
         .macro jump
@@ -428,13 +430,13 @@ __wasm_code_\name:
         .popsection
         .pushsection .wasm.code.%S,2*__wasm_counter,"ax"
 
-__wasm_body_header_\name:
+	.set __wasm_body_header_\name, .
         .type __wasm_body_header_\name, @object
         rleb128_32 2b - 1f
 1:
         function_header \ints, 0, 0, \floats
         .size __wasm_body_header_\name, . - __wasm_body_header_\name
-__wasm_body_ast_\name:
+	.set __wasm_body_ast_\name, .
         .ifne __wasm_blocks
         i32.const -16
         local.get $sp1
@@ -442,12 +444,11 @@ __wasm_body_ast_\name:
         local.set $sp
         .endif
         .ifne __wasm_blocks
-        .local __wasm_body_blocks_\name
         .local __wasm_body_blocks_\name\()_sym
         block[]
         loop[]
 	check_bp
-__wasm_body_blocks_\name:
+	.set __wasm_body_blocks_\name, .
         .rept __wasm_blocks
         block[]
         .endr
@@ -461,19 +462,23 @@ __wasm_body_blocks_\name:
         rleb128_32 __wasm_block
         .set __wasm_block, __wasm_block + 1
         .endr
+	.set __wasm_block, undefined
         rleb128_32 0
         end
         .else
         .set __wasm_body_blocks_\name\()_sym, __wasm_blocks
         .endif
         .set __wasm_in_defun, 0
+	.set __wasm_blocks, undefined
+	.set __wasm_depth, undefined
         .endm
 
         .macro nextcase
-        .ifne __wasm_in_defun
+        .if __wasm_in_defun
+	.ifne __wasm_last_case - .
         .dpc 1f
+	.set __wasm_last_case, .
         local.set $dpc
-        jump
         end
         .set __wasm_blocks, __wasm_blocks + 1
         .previous
@@ -482,6 +487,7 @@ __wasm_body_blocks_\name:
 1:
         .popsection
         .previous
+	.endif
         .endif
         .endm
 
@@ -493,9 +499,6 @@ __wasm_body_blocks_\name:
 0:
         .popsection
         .set __wasm_function_index, 0b
-        .endif
-        .ifndef __wasm_blocks
-        .set __wasm_blocks, 0
         .endif
         .pushsection .space.pc.%S
 \label:
@@ -553,7 +556,7 @@ __wasm_body_blocks_\name:
         .pushsection .space.global_index.import
         .type __wasm_import_global_\symbol, @object
         .size __wasm_import_global_\symbol, 1
-__wasm_import_global_\symbol:
+	.set __wasm_import_global_\symbol, .
         .byte 0
         .popsection
         .endm
@@ -590,3 +593,48 @@ __wasm_import_global_\symbol:
         .byte 3
         rleb128_32 0b
         .endm
+
+	.macro wasm_fini
+	.set __wasm_in_defun, undefined
+	.set __wasm_blocks, undefined
+	.set __wasm_block, undefined
+	.set __wasm_last_case, undefined
+	.set __wasm_counter, undefined
+        .set $dpc, undefined
+        .set $sp1, undefined
+        .set $r0, undefined
+        .set $r1, undefined
+        .set $rpc, undefined
+        .set $pc0, undefined
+        .set $rp, undefined
+        .set $fp, undefined
+        .set $sp, undefined
+        .set $r2, undefined
+        .set $r3, undefined
+        .set $r4, undefined
+        .set $r5, undefined
+        .set $r6, undefined
+        .set $r7, undefined
+        .set $i0, undefined
+        .set $i1, undefined
+        .set $i2, undefined
+        .set $i3, undefined
+        .set $i4, undefined
+        .set $i5, undefined
+        .set $i6, undefined
+        .set $i7, undefined
+        .set $f0, undefined
+        .set $f1, undefined
+        .set $f2, undefined
+        .set $f3, undefined
+        .set $f4, undefined
+        .set $f5, undefined
+        .set $f6, undefined
+        .set $f7, undefined
+        ;; in-memory per-thread globals
+        .set $rv, undefined
+        ;; per-instance immutable global.get globals
+        .set $got, undefined
+        .set $plt, undefined
+        .set $gpo, undefined
+	.endm

@@ -475,6 +475,8 @@ enum reg_class
 
 #undef TARGET_ASM_FILE_START
 #define TARGET_ASM_FILE_START wasm32_file_start
+#undef TARGET_ASM_FILE_END
+#define TARGET_ASM_FILE_NED wasm32_file_end
 
 #if defined HOST_WIDE_INT
 struct GTY(()) machine_function

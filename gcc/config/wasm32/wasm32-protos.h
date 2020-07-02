@@ -31,6 +31,7 @@ extern bool wasm32_function_value_regno_p(unsigned int regno);
 extern bool wasm32_promote_prototypes(const_tree fntype);
 
 extern void wasm32_file_start (void);
+extern void wasm32_file_end (void);
 extern void wasm32_start_function (FILE *stream, const char *fnname,
 				  tree decl ATTRIBUTE_UNUSED);
 extern void wasm32_end_function (FILE *stream, const char *fnname,
