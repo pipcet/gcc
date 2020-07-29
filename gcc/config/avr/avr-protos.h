@@ -46,6 +46,7 @@ extern void avr_init_cumulative_args (CUMULATIVE_ARGS*, tree, rtx, tree);
 #endif /* TREE_CODE */
 
 #ifdef RTX_CODE
+extern bool mov_clobbers_cc (rtx_insn *insn, rtx operands[]);
 extern const char *output_movqi (rtx_insn *insn, rtx operands[], int *l);
 extern const char *output_movhi (rtx_insn *insn, rtx operands[], int *l);
 extern const char *output_movsisf (rtx_insn *insn, rtx operands[], int *l);
@@ -88,7 +89,7 @@ extern int avr_epilogue_uses (int regno);
 extern void avr_output_addr_vec (rtx_insn*, rtx);
 extern const char *avr_out_sbxx_branch (rtx_insn *insn, rtx operands[]);
 extern const char* avr_out_bitop (rtx, rtx*, int*);
-extern const char* avr_out_plus (rtx, rtx*, int* =NULL, int* =NULL, bool =true);
+extern const char* avr_out_plus (rtx, rtx*, int* =NULL, bool =true);
 extern const char* avr_out_round (rtx_insn *, rtx*, int* =NULL);
 extern const char* avr_out_addto_sp (rtx*, int*);
 extern const char* avr_out_xload (rtx_insn *, rtx*, int*);

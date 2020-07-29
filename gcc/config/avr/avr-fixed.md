@@ -59,24 +59,24 @@
 (define_insn "fract<FIXED_B:mode><FIXED_A:mode>2"
   [(set (match_operand:FIXED_A 0 "register_operand" "=r")
         (fract_convert:FIXED_A
-         (match_operand:FIXED_B 1 "register_operand" "r")))]
+         (match_operand:FIXED_B 1 "register_operand" "r")))
+   (clobber (reg:CC REG_CC))]
   "<FIXED_B:MODE>mode != <FIXED_A:MODE>mode"
   {
     return avr_out_fract (insn, operands, true, NULL);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "sfract")])
+  [(set_attr "adjust_len" "sfract")])
 
 (define_insn "fractuns<FIXED_B:mode><FIXED_A:mode>2"
   [(set (match_operand:FIXED_A 0 "register_operand" "=r")
         (unsigned_fract_convert:FIXED_A
-         (match_operand:FIXED_B 1 "register_operand" "r")))]
+         (match_operand:FIXED_B 1 "register_operand" "r")))
+   (clobber (reg:CC REG_CC))]
   "<FIXED_B:MODE>mode != <FIXED_A:MODE>mode"
   {
     return avr_out_fract (insn, operands, false, NULL);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "ufract")])
+  [(set_attr "adjust_len" "ufract")])
 
 ;******************************************************************************
 ;** Saturated Addition and Subtraction
@@ -95,26 +95,26 @@
 (define_insn "<code_stdname><mode>3"
   [(set (match_operand:ALL124S 0 "register_operand"                          "=??d,d")
         (ss_addsub:ALL124S (match_operand:ALL124S 1 "register_operand" "<abelian>0,0")
-                           (match_operand:ALL124S 2 "nonmemory_operand"         "r,Ynn")))]
+                           (match_operand:ALL124S 2 "nonmemory_operand"         "r,Ynn")))
+   (clobber (reg:CC REG_CC))]
   ""
   {
     return avr_out_plus (insn, operands);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "plus")])
+  [(set_attr "adjust_len" "plus")])
 
 ;; "usadduqq3"  "usadduhq3"  "usadduha3" "usaddusq3"  "usaddusa3"
 ;; "ussubuqq3"  "ussubuhq3"  "ussubuha3" "ussubusq3"  "ussubusa3"
 (define_insn "<code_stdname><mode>3"
   [(set (match_operand:ALL124U 0 "register_operand"                          "=??r,d")
         (us_addsub:ALL124U (match_operand:ALL124U 1 "register_operand" "<abelian>0,0")
-                           (match_operand:ALL124U 2 "nonmemory_operand"         "r,Ynn")))]
+                           (match_operand:ALL124U 2 "nonmemory_operand"         "r,Ynn")))
+   (clobber (reg:CC REG_CC))]
   ""
   {
     return avr_out_plus (insn, operands);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "plus")])
+  [(set_attr "adjust_len" "plus")])
 
 ;******************************************************************************
 ;** Saturated Negation and Absolute Value
@@ -136,27 +136,28 @@
 
 (define_insn "ssnegqq2"
   [(set (match_operand:QQ 0 "register_operand"            "=r")
-        (ss_neg:QQ (match_operand:QQ 1 "register_operand"  "0")))]
+        (ss_neg:QQ (match_operand:QQ 1 "register_operand"  "0")))
+   (clobber (reg:CC REG_CC))]
   ""
   "neg %0\;brvc 0f\;dec %0\;0:"
-  [(set_attr "cc" "clobber")
-   (set_attr "length" "3")])
+  [(set_attr "length" "3")])
 
 (define_insn "ssabsqq2"
   [(set (match_operand:QQ 0 "register_operand"            "=r")
-        (ss_abs:QQ (match_operand:QQ 1 "register_operand"  "0")))]
+        (ss_abs:QQ (match_operand:QQ 1 "register_operand"  "0")))
+   (clobber (reg:CC REG_CC))]
   ""
   "sbrc %0,7\;neg %0\;sbrc %0,7\;dec %0"
-  [(set_attr "cc" "clobber")
-   (set_attr "length" "4")])
+  [(set_attr "length" "4")])
 
 ;; "ssneghq2"  "ssnegha2"  "ssnegsq2"  "ssnegsa2"
 ;; "ssabshq2"  "ssabsha2"  "ssabssq2"  "ssabssa2"
 (define_expand "<code_stdname><mode>2"
   [(set (match_dup 2)
         (match_operand:ALL24S 1 "register_operand" ""))
-   (set (match_dup 2)
-        (ss_abs_neg:ALL24S (match_dup 2)))
+   (parallel [(set (match_dup 2)
+		   (ss_abs_neg:ALL24S (match_dup 2)))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL24S 0 "register_operand" "")
         (match_dup 2))]
   ""
@@ -168,21 +169,21 @@
 ;; "*ssabshq2"  "*ssabsha2"
 (define_insn "*<code_stdname><mode>2"
   [(set (reg:ALL2S 24)
-        (ss_abs_neg:ALL2S (reg:ALL2S 24)))]
+        (ss_abs_neg:ALL2S (reg:ALL2S 24)))
+   (clobber (reg:CC REG_CC))]
   ""
   "%~call __<code_stdname>_2"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; "*ssnegsq2"  "*ssnegsa2"
 ;; "*ssabssq2"  "*ssabssa2"
 (define_insn "*<code_stdname><mode>2"
   [(set (reg:ALL4S 22)
-        (ss_abs_neg:ALL4S (reg:ALL4S 22)))]
+        (ss_abs_neg:ALL4S (reg:ALL4S 22)))
+   (clobber (reg:CC REG_CC))]
   ""
   "%~call __<code_stdname>_4"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;******************************************************************************
 ; mul
@@ -203,20 +204,20 @@
 (define_insn "mulqq3_enh"
   [(set (match_operand:QQ 0 "register_operand"         "=r")
         (mult:QQ (match_operand:QQ 1 "register_operand" "a")
-                 (match_operand:QQ 2 "register_operand" "a")))]
+                 (match_operand:QQ 2 "register_operand" "a")))
+   (clobber (reg:CC REG_CC))]
   "AVR_HAVE_MUL"
   "fmuls %1,%2\;dec r1\;brvs 0f\;inc r1\;0:\;mov %0,r1\;clr __zero_reg__"
-  [(set_attr "length" "6")
-   (set_attr "cc" "clobber")])
+  [(set_attr "length" "6")])
 
 (define_insn "muluqq3_enh"
   [(set (match_operand:UQQ 0 "register_operand"          "=r")
         (mult:UQQ (match_operand:UQQ 1 "register_operand" "r")
-                  (match_operand:UQQ 2 "register_operand" "r")))]
+                  (match_operand:UQQ 2 "register_operand" "r")))
+   (clobber (reg:CC REG_CC))]
   "AVR_HAVE_MUL"
   "mul %1,%2\;mov %0,r1\;clr __zero_reg__"
-  [(set_attr "length" "3")
-   (set_attr "cc" "clobber")])
+  [(set_attr "length" "3")])
 
 (define_expand "mulqq3_nomul"
   [(set (reg:QQ 24)
@@ -228,7 +229,8 @@
                    (mult:QQ (reg:QQ 24)
                             (reg:QQ 25)))
               (clobber (reg:QI 22))
-              (clobber (reg:HI 24))])
+              (clobber (reg:HI 24))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:QQ 0 "register_operand" "")
         (reg:QQ 23))]
   "!AVR_HAVE_MUL"
@@ -247,7 +249,8 @@
                    (mult:HI (zero_extend:HI (reg:QI 22))
                             (zero_extend:HI (reg:QI 24))))
               (clobber (reg:QI 21))
-              (clobber (reg:HI 22))])
+              (clobber (reg:HI 22))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:UQQ 0 "register_operand" "")
         (reg:UQQ 25))]
   "!AVR_HAVE_MUL"
@@ -260,11 +263,11 @@
         (mult:QQ (reg:QQ 24)
                  (reg:QQ 25)))
    (clobber (reg:QI 22))
-   (clobber (reg:HI 24))]
+   (clobber (reg:HI 24))
+   (clobber (reg:CC REG_CC))]
   "!AVR_HAVE_MUL"
   "%~call __mulqq3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 
 ;; "mulhq3" "muluhq3"
@@ -278,7 +281,8 @@
    (parallel [(set (reg:ALL2QA 24)
                    (mult:ALL2QA (reg:ALL2QA 18)
                                 (reg:ALL2QA 26)))
-              (clobber (reg:HI 22))])
+              (clobber (reg:HI 22))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL2QA 0 "register_operand" "")
         (reg:ALL2QA 24))]
   "AVR_HAVE_MUL"
@@ -292,11 +296,11 @@
   [(set (reg:ALL2QA 24)
         (mult:ALL2QA (reg:ALL2QA 18)
                      (reg:ALL2QA 26)))
-   (clobber (reg:HI 22))]
+   (clobber (reg:HI 22))
+   (clobber (reg:CC REG_CC))]
   "AVR_HAVE_MUL"
   "%~call __mul<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 
 ;; On the enhanced core, don't clobber either input and use a separate output
@@ -307,9 +311,10 @@
         (match_operand:ALL4A 1 "register_operand" ""))
    (set (reg:ALL4A 20)
         (match_operand:ALL4A 2 "register_operand" ""))
-   (set (reg:ALL4A 24)
-        (mult:ALL4A (reg:ALL4A 16)
-                    (reg:ALL4A 20)))
+   (parallel [(set (reg:ALL4A 24)
+		   (mult:ALL4A (reg:ALL4A 16)
+			       (reg:ALL4A 20)))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL4A 0 "register_operand" "")
         (reg:ALL4A 24))]
   "AVR_HAVE_MUL"
@@ -321,11 +326,11 @@
 (define_insn "*mul<mode>3.call"
   [(set (reg:ALL4A 24)
         (mult:ALL4A (reg:ALL4A 16)
-                    (reg:ALL4A 20)))]
+                    (reg:ALL4A 20)))
+   (clobber (reg:CC REG_CC))]
   "AVR_HAVE_MUL"
   "%~call __mul<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ; / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / /
 ; div
@@ -341,7 +346,8 @@
    (parallel [(set (reg:ALL1Q 24)
                    (usdiv:ALL1Q (reg:ALL1Q 25)
                                 (reg:ALL1Q 22)))
-              (clobber (reg:QI 25))])
+              (clobber (reg:QI 25))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL1Q 0 "register_operand" "")
         (reg:ALL1Q 24))]
   ""
@@ -355,11 +361,11 @@
   [(set (reg:ALL1Q 24)
         (usdiv:ALL1Q (reg:ALL1Q 25)
                      (reg:ALL1Q 22)))
-   (clobber (reg:QI 25))]
+   (clobber (reg:QI 25))
+   (clobber (reg:CC REG_CC))]
   ""
   "%~call __<code><mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; "divhq3" "udivuhq3"
 ;; "divha3" "udivuha3"
@@ -372,7 +378,8 @@
                    (usdiv:ALL2QA (reg:ALL2QA 26)
                                  (reg:ALL2QA 22)))
               (clobber (reg:HI 26))
-              (clobber (reg:QI 21))])
+              (clobber (reg:QI 21))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL2QA 0 "register_operand" "")
         (reg:ALL2QA 24))]
   ""
@@ -387,11 +394,11 @@
         (usdiv:ALL2QA (reg:ALL2QA 26)
                       (reg:ALL2QA 22)))
    (clobber (reg:HI 26))
-   (clobber (reg:QI 21))]
+   (clobber (reg:QI 21))
+   (clobber (reg:CC REG_CC))]
   ""
   "%~call __<code><mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; Note the first parameter gets passed in already offset by 2 bytes
 
@@ -405,7 +412,8 @@
                    (usdiv:ALL4A (reg:ALL4A 24)
                                 (reg:ALL4A 18)))
               (clobber (reg:HI 26))
-              (clobber (reg:HI 30))])
+              (clobber (reg:HI 30))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL4A 0 "register_operand" "")
         (reg:ALL4A 22))]
   ""
@@ -419,11 +427,11 @@
         (usdiv:ALL4A (reg:ALL4A 24)
                      (reg:ALL4A 18)))
    (clobber (reg:HI 26))
-   (clobber (reg:HI 30))]
+   (clobber (reg:HI 30))
+   (clobber (reg:CC REG_CC))]
   ""
   "%~call __<code><mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 
 ;******************************************************************************
@@ -441,7 +449,8 @@
    (parallel [(set (match_dup 3)
                    (unspec:ALL124QA [(match_dup 4)
                                      (reg:QI 24)] UNSPEC_ROUND))
-              (clobber (match_dup 4))])
+              (clobber (match_dup 4))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL124QA 0 "register_operand" "")
         (match_dup 3))
    (use (match_operand:HI 2 "nonmemory_operand" ""))]
@@ -479,13 +488,13 @@
         (unspec:ALL124QA [(match_operand:ALL124QA 1 "register_operand" "0")
                           (match_operand:HI 2 "const_int_operand"      "n")
                           (const_int 0)]
-                         UNSPEC_ROUND))]
+                         UNSPEC_ROUND))
+   (clobber (reg:CC REG_CC))]
   ""
   {
     return avr_out_round (insn, operands);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "round")])
+  [(set_attr "adjust_len" "round")])
 
 
 ;; "*roundqq3.libgcc"  "*rounduqq3.libgcc"
@@ -493,11 +502,11 @@
   [(set (reg:ALL1Q 24)
         (unspec:ALL1Q [(reg:ALL1Q 22)
                        (reg:QI 24)] UNSPEC_ROUND))
-   (clobber (reg:ALL1Q 22))]
+   (clobber (reg:ALL1Q 22))
+   (clobber (reg:CC REG_CC))]
   ""
   "%~call __round<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; "*roundhq3.libgcc"  "*rounduhq3.libgcc"
 ;; "*roundha3.libgcc"  "*rounduha3.libgcc"
@@ -505,11 +514,11 @@
   [(set (reg:ALL2QA 24)
         (unspec:ALL2QA [(reg:ALL2QA 22)
                         (reg:QI 24)] UNSPEC_ROUND))
-   (clobber (reg:ALL2QA 22))]
+   (clobber (reg:ALL2QA 22))
+   (clobber (reg:CC REG_CC))]
   ""
   "%~call __round<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; "*roundsq3.libgcc"  "*roundusq3.libgcc"
 ;; "*roundsa3.libgcc"  "*roundusa3.libgcc"
@@ -517,8 +526,8 @@
   [(set (reg:ALL4QA 22)
         (unspec:ALL4QA [(reg:ALL4QA 18)
                         (reg:QI 24)] UNSPEC_ROUND))
-   (clobber (reg:ALL4QA 18))]
+   (clobber (reg:ALL4QA 18))
+   (clobber (reg:CC REG_CC))]
   ""
   "%~call __round<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
