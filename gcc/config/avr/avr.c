@@ -3770,6 +3770,17 @@ avr_out_xload (rtx_insn *insn ATTRIBUTE_UNUSED, rtx *op, int *plen)
   return "";
 }
 
+machine_mode
+select_cc_mode (enum rtx_code op, rtx x, rtx y)
+{
+  if ((GET_CODE (x) == PLUS || GET_CODE (x) == MINUS
+       || GET_CODE (x) == NEG || GET_CODE (x) == ASHIFT)
+      && y == const0_rtx)
+    return CCNZmode;
+
+  return CCmode;
+}
+
 bool movqi_r_mr_clobbers_cc (rtx_insn *, rtx [])
 {
   return true;
@@ -8112,6 +8123,23 @@ avr_out_plus_symbol (rtx *xop, enum rtx_code code, int *plen)
 }
 
 
+static rtx
+last_set (const rtx_insn * insn)
+{
+  const_rtx pat = PATTERN (insn);
+  if (GET_CODE (pat) == PARALLEL)
+    {
+      for (int i = XVECLEN (pat, 0) - 1; i >= 0; i--)
+	{
+	  rtx sub = XVECEXP (pat, 0, i);
+	  if (GET_CODE (sub) == SET)
+	    return sub;
+	}
+    }
+
+  return NULL_RTX;
+}
+
 /* Prepare operands of addition/subtraction to be used with avr_out_plus_1.
 
    INSN is a single_set insn or an insn pattern with a binary operation as
@@ -8136,7 +8164,7 @@ avr_out_plus (rtx insn, rtx *xop, int *plen, bool out_label)
 {
   int len_plus, len_minus;
   rtx op[4];
-  rtx xpattern = INSN_P (insn) ? single_set (as_a <rtx_insn *> (insn)) : insn;
+  rtx xpattern = INSN_P (insn) ? last_set (as_a <rtx_insn *> (insn)) : insn;
   rtx xdest = SET_DEST (xpattern);
   machine_mode mode = GET_MODE (xdest);
   scalar_int_mode imode = int_mode_for_mode (mode).require ();
@@ -13268,9 +13296,6 @@ avr_emit_cpymemhi (rtx *xop)
   a_src  = XEXP (xop[1], 0);
   a_dest = XEXP (xop[0], 0);
 
-  if (GET_CODE (a_src) == PLUS || GET_CODE (a_dest) == PLUS)
-    return false;
-
   if (PSImode == GET_MODE (a_src))
     {
       gcc_assert (as == ADDR_SPACE_MEMX);
@@ -13310,8 +13335,22 @@ avr_emit_cpymemhi (rtx *xop)
         Z = source address
         X = destination address  */
 
-  emit_move_insn (lpm_addr_reg_rtx, addr1);
-  emit_move_insn (gen_rtx_REG (HImode, REG_X), a_dest);
+  if (GET_CODE (a_src) == PLUS)
+    {
+      emit_insn (gen_addhi3 (lpm_addr_reg_rtx,
+			     XEXP (a_src, 0),
+			     XEXP (a_src, 1)));
+    }
+  else
+    emit_move_insn (lpm_addr_reg_rtx, addr1);
+  if (GET_CODE (a_dest) == PLUS)
+    {
+      emit_insn (gen_addhi3 (gen_rtx_REG (HImode, REG_X),
+			     XEXP (a_dest, 0),
+			     XEXP (a_dest, 1)));
+    }
+  else
+    emit_move_insn (gen_rtx_REG (HImode, REG_X), a_dest);
 
   /* FIXME: Register allocator does a bad job and might spill address
         register(s) inside the loop leading to additional move instruction

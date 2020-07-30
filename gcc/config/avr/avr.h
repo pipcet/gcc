@@ -155,6 +155,7 @@ FIXME: DRIVER_SELF_SPECS has changed.
 
 #define WCHAR_TYPE_SIZE 16
 
+#define TARGET_FLAGS_REGNUM 36
 #define FIRST_PSEUDO_REGISTER 37
 
 #define GENERAL_REGNO_P(N)	IN_RANGE (N, 2, 31)
@@ -502,6 +503,7 @@ typedef struct avr_args
    understandable.  */
 #define CC_NO_CARRY CC_NO_OVERFLOW
 
+#define SELECT_CC_MODE(OP, X, Y) select_cc_mode ((OP), (X), (Y))
 
 /* Output assembler code to FILE to increment profiler label # LABELNO
    for profiling a function entry.  */
