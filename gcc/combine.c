@@ -3307,6 +3307,7 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 	 result of simplification.  */
       if (op1 == const0_rtx)
 	{
+#if 0
 	  /* If a single use of the CC is found, prepare to modify it
 	     when SELECT_CC_MODE returns a new CC-class mode, or when
 	     the above simplify_compare_const() returned a new comparison
@@ -3365,6 +3366,7 @@ try_combine (rtx_insn *i3, rtx_insn *i2, rtx_insn *i1, rtx_insn *i0,
 	  if (! rtx_equal_p (i2src, op0))
 	    i2pat = gen_rtx_SET (i2dest, op0);
 	  i2_is_used = 1;
+#endif
 	}
     }
 
