@@ -604,12 +604,18 @@ avr_optimize_casesi (rtx_insn *insns[5], rtx *xop)
 							gen_rtx_LABEL_REF (VOIDmode, xop[4]),
 							pc_rtx));
   rtx clobber_scratch = gen_rtx_CLOBBER (VOIDmode, xop[11]);
-  rtvec vec = gen_rtvec (2, jump, clobber_scratch);
+  rtx clobber_cc = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, REG_CC));
   emit_insn (gen_add (reg, reg, gen_int_mode (-low_idx, mode)));
   if (QImode == mode)
-    emit_jump_insn (jump);
+    {
+      rtvec vec = gen_rtvec (2, jump, clobber_cc);
+      emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
+    }
   else if (HImode == mode)
-    emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
+    {
+      rtvec vec = gen_rtvec (3, jump, clobber_scratch, clobber_cc);
+      emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
+    }
   else
     gcc_unreachable ();
 
@@ -3824,6 +3830,10 @@ mov_clobbers_cc (rtx_insn *insn, rtx operands[])
       return false;
     }
 
+  if (REG_P (dest) && CONSTANT_P (src)
+      && test_hard_reg_class (LD_REGS, dest))
+    return false;
+
   switch (GET_MODE_SIZE (GET_MODE (dest)))
     {
     case 1:
@@ -5780,16 +5790,33 @@ avr_frame_pointer_required_p (void)
           || get_frame_size () > 0);
 }
 
+rtx_insn *next_real_nonmov_insn (rtx_insn *insn)
+{
+  do
+    {
+      insn = next_real_insn (insn);
+    }
+  while (insn && INSN_P (insn)
+	 && GET_CODE (PATTERN (insn)) == SET
+	 && SET_DEST (PATTERN (insn)) != pc_rtx);
+
+  return insn;
+}
+
 /* Returns the condition of compare insn INSN, or UNKNOWN.  */
 
 static RTX_CODE
 compare_condition (rtx_insn *insn)
 {
-  rtx_insn *next = next_real_insn (insn);
+  rtx_insn *next = next_real_nonmov_insn (insn);
 
   if (next && JUMP_P (next))
     {
       rtx pat = PATTERN (next);
+      if (GET_CODE (pat) == PARALLEL)
+	pat = XVECEXP (pat, 0, 0);
+      if (GET_CODE (pat) != SET)
+	return UNKNOWN;
       rtx src = SET_SRC (pat);
 
       if (IF_THEN_ELSE == GET_CODE (src))
@@ -11890,6 +11917,28 @@ avr_reorg_remove_redundant_compare (rtx_insn *insn1)
   return true;
 }
 
+void
+avr_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
+			     bool op0_preserve)
+{
+  return;
+  if (*code == GTU)
+    {
+      if (CONST_INT_P (*op1))
+	{
+	  *op1 = plus_constant (GET_MODE (*op0), *op1, 1);
+	  *code = GEU;
+	}
+    }
+  else if (*code == GT)
+    {
+      if (CONST_INT_P (*op1))
+	{
+	  *op1 = plus_constant (GET_MODE (*op0), *op1, 1);
+	  *code = GE;
+	}
+    }
+}
 
 /* Implement `TARGET_MACHINE_DEPENDENT_REORG'.  */
 /* Optimize conditional jumps.  */
@@ -11916,8 +11965,10 @@ avr_reorg (void)
 	{
           /* Now we work under compare insn with difficult branch.  */
 
-	  rtx_insn *next = next_real_insn (insn);
+	  rtx_insn *next = next_real_nonmov_insn (insn);
           rtx pat = PATTERN (next);
+	  if (GET_CODE (pat) == PARALLEL)
+	    pat = XVECEXP (pat, 0, 0);
 
           pattern = SET_SRC (pattern);
 
@@ -12053,7 +12104,30 @@ avr_2word_insn_p (rtx_insn *insn)
   switch (INSN_CODE (insn))
     {
     default:
-      return false;
+      {
+        rtx set  = single_set (insn);
+	if (!set)
+	  return false;
+        rtx src  = SET_SRC (set);
+        rtx dest = SET_DEST (set);
+	if (GET_MODE_SIZE (GET_MODE (dest)) != 1)
+	  return false;
+
+        /* Factor out LDS and STS from movqi_insn.  */
+
+        if (MEM_P (dest)
+            && (REG_P (src) || src == CONST0_RTX (GET_MODE (dest))))
+          {
+            return CONSTANT_ADDRESS_P (XEXP (dest, 0));
+          }
+        else if (REG_P (dest)
+                 && MEM_P (src))
+          {
+            return CONSTANT_ADDRESS_P (XEXP (src, 0));
+          }
+
+        return false;
+      }
 
     case CODE_FOR_call_insn:
     case CODE_FOR_call_value_insn:

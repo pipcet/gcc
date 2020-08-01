@@ -504,6 +504,7 @@ typedef struct avr_args
 #define CC_NO_CARRY CC_NO_OVERFLOW
 
 #define SELECT_CC_MODE(OP, X, Y) select_cc_mode ((OP), (X), (Y))
+#define TARGET_CANONICALIZE_COMPARISON avr_canonicalize_comparison
 
 /* Output assembler code to FILE to increment profiler label # LABELNO
    for profiling a function entry.  */
@@ -521,7 +522,7 @@ extern const char *avr_double_lib (int, const char**);
   { "double-lib", avr_double_lib },                     \
   { "device-specs-file", avr_devicespecs_file },
 
-/* Driver self specs has lmited functionality w.r.t. '%s' for dynamic specs.
+/* Driver self specs has limited functionality w.r.t. '%s' for dynamic specs.
    Apply '%s' to a static string to inflate the file (directory) name which
    is used to diagnose problems with reading the specs file.  */
 

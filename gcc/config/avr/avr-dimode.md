@@ -322,12 +322,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define_expand "conditional_jump"
-  [(set (pc)
-        (if_then_else
-         (match_operator 0 "ordered_comparison_operator" [(reg:CC REG_CC)
-                                                          (const_int 0)])
-         (label_ref (match_operand 1 "" ""))
-         (pc)))]
+  [(parallel [(set (pc)
+		   (if_then_else
+		    (match_operator 0 "ordered_comparison_operator" [(reg:CC REG_CC)
+								     (const_int 0)])
+		    (label_ref (match_operand 1 "" ""))
+		    (pc)))
+	      (clobber (reg:CC REG_CC))])]
   "avr_have_dimode")
 
 ;; "cbranchdi4"
