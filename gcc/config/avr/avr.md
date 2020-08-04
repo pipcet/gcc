@@ -4759,26 +4759,26 @@
 
 ; Optimize negated tests into reverse compare if overflow is undefined.
 (define_insn "*negated_tstqi"
-  [(set (cc0)
-        (compare (neg:QI (match_operand:QI 0 "register_operand" "r"))
-                 (const_int 0)))]
-  "!flag_wrapv && !flag_trapv"
+  [(set (reg:CC REG_CC)
+        (compare:CC (neg:QI (match_operand:QI 0 "register_operand" "r"))
+                    (const_int 0)))]
+  "!flag_wrapv && !flag_trapv && reload_completed"
   "cp __zero_reg__,%0"
   [(set_attr "length" "1")])
 
 (define_insn "*reversed_tstqi"
-  [(set (cc0)
-        (compare (const_int 0)
-                 (match_operand:QI 0 "register_operand" "r")))]
-  ""
+  [(set (reg:CC REG_CC)
+        (compare:CC (const_int 0)
+                    (match_operand:QI 0 "register_operand" "r")))]
+  "reload_completed"
   "cp __zero_reg__,%0"
 [(set_attr "length" "2")])
 
 (define_insn "*negated_tsthi"
-  [(set (cc0)
-        (compare (neg:HI (match_operand:HI 0 "register_operand" "r"))
-                 (const_int 0)))]
-  "!flag_wrapv && !flag_trapv"
+  [(set (reg:CC REG_CC)
+        (compare:CC (neg:HI (match_operand:HI 0 "register_operand" "r"))
+                    (const_int 0)))]
+  "!flag_wrapv && !flag_trapv && reload_completed"
   "cp __zero_reg__,%A0
 	cpc __zero_reg__,%B0"
 [(set_attr "length" "2")])
@@ -4790,33 +4790,33 @@
         (compare:CC (const_int 0)
                     (match_operand:HI 0 "register_operand" "r")))
    (clobber (match_scratch:QI 1 "=X"))]
-  ""
+  "reload_completed"
   "cp __zero_reg__,%A0
 	cpc __zero_reg__,%B0"
 [(set_attr "length" "2")])
 
 (define_insn "*negated_tstpsi"
-        (compare (neg:PSI (match_operand:PSI 0 "register_operand" "r"))
-                 (const_int 0)))]
-  "!flag_wrapv && !flag_trapv"
   [(set (reg:CC REG_CC)
+        (compare:CC (neg:PSI (match_operand:PSI 0 "register_operand" "r"))
+                    (const_int 0)))]
+  "!flag_wrapv && !flag_trapv && reload_completed"
   "cp __zero_reg__,%A0\;cpc __zero_reg__,%B0\;cpc __zero_reg__,%C0"
   [(set_attr "length" "3")])
 
 (define_insn "*reversed_tstpsi"
-  [(set (cc0)
-        (compare (const_int 0)
-                 (match_operand:PSI 0 "register_operand" "r")))
+  [(set (reg:CC REG_CC)
+        (compare:CC (const_int 0)
+                    (match_operand:PSI 0 "register_operand" "r")))
    (clobber (match_scratch:QI 1 "=X"))]
-  ""
+  "reload_completed"
   "cp __zero_reg__,%A0\;cpc __zero_reg__,%B0\;cpc __zero_reg__,%C0"
   [(set_attr "length" "3")])
 
 (define_insn "*negated_tstsi"
-  [(set (cc0)
-        (compare (neg:SI (match_operand:SI 0 "register_operand" "r"))
-                 (const_int 0)))]
-  "!flag_wrapv && !flag_trapv"
+  [(set (reg:CC REG_CC)
+        (compare:CC (neg:SI (match_operand:SI 0 "register_operand" "r"))
+                    (const_int 0)))]
+  "!flag_wrapv && !flag_trapv && reload_completed"
   "cp __zero_reg__,%A0
 	cpc __zero_reg__,%B0
 	cpc __zero_reg__,%C0
@@ -4827,11 +4827,11 @@
 ;; "*reversed_tstsq" "*reversed_tstusq"
 ;; "*reversed_tstsa" "*reversed_tstusa"
 (define_insn "*reversed_tst<mode>"
-  [(set (cc0)
-        (compare (match_operand:ALL4 0 "const0_operand"   "Y00")
-                 (match_operand:ALL4 1 "register_operand" "r")))
+  [(set (reg:CC REG_CC)
+        (compare:CC (match_operand:ALL4 0 "const0_operand"   "Y00")
+                    (match_operand:ALL4 1 "register_operand" "r")))
    (clobber (match_scratch:QI 2 "=X"))]
-  ""
+  "reload_completed"
   "cp __zero_reg__,%A1
 	cpc __zero_reg__,%B1
 	cpc __zero_reg__,%C1
@@ -4853,27 +4853,27 @@
   [(set_attr "length" "1,1,1")])
 
 (define_insn "*cmpqi_sign_extend"
-  [(set (cc0)
-        (compare (sign_extend:HI (match_operand:QI 0 "register_operand" "d"))
-                 (match_operand:HI 1 "s8_operand"                       "n")))]
-  ""
+  [(set (reg:CC REG_CC)
+        (compare:CC (sign_extend:HI (match_operand:QI 0 "register_operand" "d"))
+                    (match_operand:HI 1 "s8_operand"                       "n")))]
+  "reload_completed"
   "cpi %0,lo8(%1)"
   [(set_attr "length" "1")])
 
 
 (define_insn "*cmphi.zero-extend.0"
-  [(set (cc0)
-        (compare (zero_extend:HI (match_operand:QI 0 "register_operand" "r"))
-                 (match_operand:HI 1 "register_operand" "r")))]
-  ""
+  [(set (reg:CC REG_CC)
+        (compare:CC (zero_extend:HI (match_operand:QI 0 "register_operand" "r"))
+                    (match_operand:HI 1 "register_operand" "r")))]
+  "reload_completed"
   "cp %0,%A1\;cpc __zero_reg__,%B1"
   [(set_attr "length" "2")])
 
 (define_insn "*cmphi.zero-extend.1"
-  [(set (cc0)
-        (compare (match_operand:HI 0 "register_operand" "r")
-                 (zero_extend:HI (match_operand:QI 1 "register_operand" "r"))))]
-  ""
+  [(set (reg:CC REG_CC)
+        (compare:CC (match_operand:HI 0 "register_operand" "r")
+                    (zero_extend:HI (match_operand:QI 1 "register_operand" "r"))))]
+  "reload_completed"
   "cp %A0,%1\;cpc %B0,__zero_reg__"
   [(set_attr "length" "2")])
 
@@ -4915,11 +4915,11 @@
    (set_attr "adjust_len" "tsthi,tsthi,*,*,*,compare,compare")])
 
 (define_insn "*cmppsi"
-  [(set (cc0)
-        (compare (match_operand:PSI 0 "register_operand"  "r,r,d ,r  ,d,r")
-                 (match_operand:PSI 1 "nonmemory_operand" "L,r,s ,s  ,M,n")))
+  [(set (reg:CC REG_CC)
+        (compare:CC (match_operand:PSI 0 "register_operand"  "r,r,d ,r  ,d,r")
+                    (match_operand:PSI 1 "nonmemory_operand" "L,r,s ,s  ,M,n")))
    (clobber (match_scratch:QI 2                          "=X,X,&d,&d ,X,&d"))]
-  ""
+  "reload_completed"
   {
     switch (which_alternative)
       {
@@ -4951,7 +4951,7 @@
         (compare:CC (match_operand:ALL4 0 "register_operand"  "r  ,r ,d,r ,r")
                     (match_operand:ALL4 1 "nonmemory_operand" "Y00,r ,M,M ,n Ynn")))
    (clobber (match_scratch:QI 2                           "=X  ,X ,X,&d,&d"))]
-  ""
+  "reload_completed"
   {
     if (0 == which_alternative)
       return avr_out_tstsi (insn, operands, NULL);
