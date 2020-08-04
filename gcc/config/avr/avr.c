@@ -12108,21 +12108,25 @@ avr_2word_insn_p (rtx_insn *insn)
 	  return false;
         rtx src  = SET_SRC (set);
         rtx dest = SET_DEST (set);
-	if (GET_MODE_SIZE (GET_MODE (dest)) != 1)
-	  return false;
+	if (GET_MODE_SIZE (GET_MODE (dest)) == 1)
+	  {
+	    return false;
 
-        /* Factor out LDS and STS from movqi_insn.  */
+	    /* Factor out LDS and STS from movqi_insn.  */
 
-        if (MEM_P (dest)
-            && (REG_P (src) || src == CONST0_RTX (GET_MODE (dest))))
-          {
-            return CONSTANT_ADDRESS_P (XEXP (dest, 0));
-          }
-        else if (REG_P (dest)
-                 && MEM_P (src))
-          {
-            return CONSTANT_ADDRESS_P (XEXP (src, 0));
-          }
+	    if (MEM_P (dest)
+		&& (REG_P (src) || src == CONST0_RTX (GET_MODE (dest))))
+	      {
+		return CONSTANT_ADDRESS_P (XEXP (dest, 0));
+	      }
+	    else if (REG_P (dest)
+		     && MEM_P (src))
+	      {
+		return CONSTANT_ADDRESS_P (XEXP (src, 0));
+	      }
+	  }
+	else if (src == pc_rtx)
+	  return true;
 
         return false;
       }

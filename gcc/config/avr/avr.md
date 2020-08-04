@@ -5470,8 +5470,26 @@
 
 ;; Convert sign tests to bit 7/15/31 tests that match the above insns.
 (define_peephole2
-  [(set (reg:CC REG_CC) (compare (match_operand:QI 0 "register_operand" "")
-                      	(const_int 0)))
+  [(set (reg:CC REG_CC) (compare:CC (match_operand:QI 0 "register_operand" "")
+                      		    (const_int 0)))
+   (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
+				      (label_ref (match_operand 1 "" ""))
+				      (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  [(set (pc) (if_then_else (eq (zero_extract:HI (match_dup 0)
+                                                (const_int 1)
+                                                (const_int 7))
+                               (const_int 0))
+                           (label_ref (match_dup 1))
+                           (pc)))])
+
+;; Convert sign tests to bit 7/15/31 tests that match the above insns.
+(define_peephole2
+  [(parallel [(set (reg:CC REG_CC)
+		   (compare:CC (match_operand:QI 0 "register_operand" "")
+                      	       (const_int 0)))
+	      (clobber (match_operand:QI 2))])
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
 				      (label_ref (match_operand 1 "" ""))
 				      (pc)))
@@ -5485,11 +5503,12 @@
                            (pc)))])
 
 (define_peephole2
-  [(set (reg:CC REG_CC) (compare (match_operand:QI 0 "register_operand" "")
-                       (const_int 0)))
-   (set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
-                           (label_ref (match_operand 1 "" ""))
-                           (pc)))]
+  [(set (reg:CC REG_CC) (compare:CC (match_operand:QI 0 "register_operand" "")
+				    (const_int 0)))
+   (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
+				      (label_ref (match_operand 1 "" ""))
+				      (pc)))
+	      (clobber (reg:CC REG_CC))])]
   ""
   [(set (pc) (if_then_else (ne (zero_extract:HI (match_dup 0)
 						(const_int 1)
@@ -5500,22 +5519,42 @@
 
 (define_peephole2
   [(parallel [(set (reg:CC REG_CC)
-                   (compare (match_operand:HI 0 "register_operand" "")
-                            (const_int 0)))
+		   (compare:CC (match_operand:QI 0 "register_operand" "")
+			       (const_int 0)))
+	      (clobber (match_operand:QI 2))])
+   (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
+				      (label_ref (match_operand 1 "" ""))
+				      (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  [(set (pc) (if_then_else (ne (zero_extract:HI (match_dup 0)
+						(const_int 1)
+                                                (const_int 7))
+			       (const_int 0))
+			   (label_ref (match_dup 1))
+			   (pc)))])
+
+(define_peephole2
+  [(parallel [(set (reg:CC REG_CC)
+                   (compare:CC (match_operand:HI 0 "register_operand" "")
+                               (const_int 0)))
               (clobber (match_operand:HI 2 ""))])
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
-                           (pc)))])]
+                           (pc)))
+	      (clobber (reg:CC REG_CC))])]
   ""
   [(set (pc) (if_then_else (eq (and:HI (match_dup 0) (const_int -32768))
                                (const_int 0))
                            (label_ref (match_dup 1))
                            (pc)))])
 
+;; does this happen?  (match_scratch:HI) isn't allocated in very many
+;; places...
 (define_peephole2
   [(parallel [(set (reg:CC REG_CC)
-                   (compare (match_operand:HI 0 "register_operand" "")
-                            (const_int 0)))
+                   (compare:CC (match_operand:HI 0 "register_operand" "")
+                               (const_int 0)))
               (clobber (match_operand:HI 2 ""))])
    (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
@@ -5528,8 +5567,23 @@
 
 (define_peephole2
   [(parallel [(set (reg:CC REG_CC)
-                   (compare (match_operand:SI 0 "register_operand" "")
-                            (const_int 0)))
+                   (compare:CC (match_operand:HI 0 "register_operand" "")
+                               (const_int 0)))
+              (clobber (match_operand:QI 2 ""))])
+   (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
+                           (label_ref (match_operand 1 "" ""))
+                           (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  [(set (pc) (if_then_else (ne (and:HI (match_dup 0) (const_int -32768))
+                               (const_int 0))
+                           (label_ref (match_dup 1))
+                           (pc)))])
+
+(define_peephole2
+  [(parallel [(set (reg:CC REG_CC)
+                   (compare:CC (match_operand:SI 0 "register_operand" "")
+                               (const_int 0)))
               (clobber (match_operand:SI 2 ""))])
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
@@ -5543,8 +5597,8 @@
 
 (define_peephole2
   [(parallel [(set (reg:CC REG_CC)
-                   (compare (match_operand:SI 0 "register_operand" "")
-                            (const_int 0)))
+                   (compare:CC (match_operand:SI 0 "register_operand" "")
+                               (const_int 0)))
               (clobber (match_operand:SI 2 ""))])
    (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
@@ -5568,8 +5622,7 @@
                                       [(reg:CC REG_CC)
                                        (const_int 0)])
                       (label_ref (match_operand 0 "" ""))
-                      (pc)))
-   (clobber (reg:CC REG_CC))]
+                      (pc)))]
   ""
   {
     return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
@@ -5596,8 +5649,7 @@
                                       [(reg:CCNZ REG_CC)
                                        (const_int 0)])
                       (label_ref (match_operand 0 "" ""))
-                      (pc)))
-   (clobber (reg:CC REG_CC))]
+                      (pc)))]
   ""
   {
     return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
@@ -5635,7 +5687,7 @@
   }
   [(set_attr "type" "branch")])
 
-(define_insn "branch_unspec_nocc"
+(define_insn "*branch_unspec_nocc"
   [(set (pc)
         (unspec [(if_then_else (match_operator 1 "simple_comparison_operator"
                                                [(reg:CC REG_CC)
@@ -5661,15 +5713,14 @@
                         [(reg:CC REG_CC)
                          (const_int 0)])
                       (label_ref (match_operand 0 "" ""))
-                      (pc)))
-   (clobber (reg:CC REG_CC))]
+                      (pc)))]
   ""
   {
     return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
   }
   [(set_attr "type" "branch1")])
 
-(define_insn "difficult_branch_nocc"
+(define_insn "*difficult_branch_nocc"
   [(set (pc)
         (if_then_else (match_operator 1 "difficult_comparison_operator"
                         [(reg:CC REG_CC)
@@ -5691,6 +5742,19 @@
                                       [(reg:CC REG_CC)
                                        (const_int 0)])
                       (pc)
+                      (label_ref (match_operand 0 "" ""))))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
+  }
+  [(set_attr "type" "branch1")])
+
+(define_insn "*rvbranch_nocc"
+  [(set (pc)
+        (if_then_else (match_operator 1 "simple_comparison_operator"
+                                      [(reg:CC REG_CC)
+                                       (const_int 0)])
+                      (pc)
                       (label_ref (match_operand 0 "" ""))))
    (clobber (reg:CC REG_CC))]
   ""
@@ -5700,6 +5764,19 @@
   [(set_attr "type" "branch1")])
 
 (define_insn "difficult_rvbranch"
+  [(set (pc)
+        (if_then_else (match_operator 1 "difficult_comparison_operator"
+                                      [(reg:CC REG_CC)
+                                       (const_int 0)])
+                      (pc)
+                      (label_ref (match_operand 0 "" ""))))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
+  }
+  [(set_attr "type" "branch")])
+
+(define_insn "*difficult_rvbranch_nocc"
   [(set (pc)
         (if_then_else (match_operator 1 "difficult_comparison_operator"
                                       [(reg:CC REG_CC)
@@ -5740,38 +5817,38 @@
 ;; Operand 1 not used on the AVR.
 ;; Operand 2 is 1 for tail-call, 0 otherwise.
 (define_expand "call"
-  [(parallel[(call (match_operand:HI 0 "call_insn_operand" "")
-                   (match_operand:HI 1 "general_operand" ""))
-             (use (const_int 0))
-	     (clobber (reg:CC REG_CC))])])
+  [(parallel [(call (match_operand:HI 0 "call_insn_operand" "")
+                    (match_operand:HI 1 "general_operand" ""))
+              (use (const_int 0))
+	      (clobber (reg:CC REG_CC))])])
 
 ;; Operand 1 not used on the AVR.
 ;; Operand 2 is 1 for tail-call, 0 otherwise.
 (define_expand "sibcall"
-  [(parallel[(call (match_operand:HI 0 "call_insn_operand" "")
-                   (match_operand:HI 1 "general_operand" ""))
-             (use (const_int 1))
-	     (clobber (reg:CC REG_CC))])])
+  [(parallel [(call (match_operand:HI 0 "call_insn_operand" "")
+                    (match_operand:HI 1 "general_operand" ""))
+              (use (const_int 1))
+	      (clobber (reg:CC REG_CC))])])
 
 ;; call value
 
 ;; Operand 2 not used on the AVR.
 ;; Operand 3 is 1 for tail-call, 0 otherwise.
 (define_expand "call_value"
-  [(parallel[(set (match_operand 0 "register_operand" "")
-		  (call (match_operand:HI 1 "call_insn_operand" "")
-			(match_operand:HI 2 "general_operand" "")))
-	     (use (const_int 0))
-	     (clobber (reg:CC REG_CC))])])
+  [(parallel [(set (match_operand 0 "register_operand" "")
+	 	   (call (match_operand:HI 1 "call_insn_operand" "")
+			 (match_operand:HI 2 "general_operand" "")))
+	      (use (const_int 0))
+	      (clobber (reg:CC REG_CC))])])
 
 ;; Operand 2 not used on the AVR.
 ;; Operand 3 is 1 for tail-call, 0 otherwise.
 (define_expand "sibcall_value"
-  [(parallel[(set (match_operand 0 "register_operand" "")
-		  (call (match_operand:HI 1 "call_insn_operand" "")
-			(match_operand:HI 2 "general_operand" "")))
-	     (use (const_int 1))
-	     (clobber (reg:CC REG_CC))])])
+  [(parallel [(set (match_operand 0 "register_operand" "")
+		   (call (match_operand:HI 1 "call_insn_operand" "")
+			 (match_operand:HI 2 "general_operand" "")))
+	      (use (const_int 1))
+	      (clobber (reg:CC REG_CC))])])
 
 (define_insn "call_insn"
   [(call (mem:HI (match_operand:HI 0 "nonmemory_operand" "z,s,z,s"))
