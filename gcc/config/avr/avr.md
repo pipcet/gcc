@@ -5641,9 +5641,10 @@
   [(parallel [(set (match_operand:SI 0 "d_register_operand" "")
                    (plus:SI (match_dup 0)
                             (const_int -1)))
-              (clobber (scratch:QI))])
-   (parallel [(set (cc0)
-                   (compare (match_dup 0)
+              (clobber (scratch:QI))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:CC REG_CC)
+                   (compare:CC (match_dup 0)
                             (const_int -1)))
               (clobber (match_operand:QI 1 "d_register_operand" ""))])
    (set (pc)
@@ -5682,11 +5683,12 @@
   })
 
 (define_peephole ; "*dec-and-branchhi!=-1"
-  [(set (match_operand:HI 0 "d_register_operand" "")
-        (plus:HI (match_dup 0)
-                 (const_int -1)))
-   (parallel [(set (cc0)
-                   (compare (match_dup 0)
+  [(parallel [(set (match_operand:HI 0 "d_register_operand" "")
+		   (plus:HI (match_dup 0)
+			    (const_int -1)))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:CC REG_CC)
+                   (compare:CC (match_dup 0)
                             (const_int -1)))
               (clobber (match_operand:QI 1 "d_register_operand" ""))])
    (set (pc)
@@ -5725,16 +5727,18 @@
   [(parallel [(set (match_operand:HI 0 "d_register_operand" "")
                    (plus:HI (match_dup 0)
                             (const_int -1)))
-              (clobber (scratch:QI))])
-   (parallel [(set (cc0)
-                   (compare (match_dup 0)
-                            (const_int -1)))
+              (clobber (scratch:QI))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:CC REG_CC)
+                   (compare:CC (match_dup 0)
+                               (const_int -1)))
               (clobber (match_operand:QI 1 "d_register_operand" ""))])
-   (set (pc)
-        (if_then_else (eqne (cc0)
-                            (const_int 0))
-                      (label_ref (match_operand 2 "" ""))
-                      (pc)))]
+   (parallel [(set (pc)
+		   (if_then_else (eqne (reg:CC REG_CC)
+				       (const_int 0))
+				 (label_ref (match_operand 2 "" ""))
+				 (pc)))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     const char *op;
@@ -5766,16 +5770,18 @@
   [(parallel [(set (match_operand:HI 0 "l_register_operand" "")
                    (plus:HI (match_dup 0)
                             (const_int -1)))
-              (clobber (match_operand:QI 3 "d_register_operand" ""))])
-   (parallel [(set (cc0)
-                   (compare (match_dup 0)
-                            (const_int -1)))
+              (clobber (match_operand:QI 3 "d_register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:CC REG_CC)
+                   (compare:CC (match_dup 0)
+                               (const_int -1)))
               (clobber (match_operand:QI 1 "d_register_operand" ""))])
-   (set (pc)
-        (if_then_else (eqne (cc0)
-                            (const_int 0))
-                      (label_ref (match_operand 2 "" ""))
-                      (pc)))]
+   (parallel [(set (pc)
+		   (if_then_else (eqne (reg:CC REG_CC)
+				       (const_int 0))
+				 (label_ref (match_operand 2 "" ""))
+				 (pc)))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     const char *op;
@@ -5804,14 +5810,15 @@
   [(set (match_operand:QI 0 "d_register_operand" "")
         (plus:QI (match_dup 0)
                  (const_int -1)))
-   (set (pc)
-        (if_then_else (eqne (cc0)
-                            (const_int 0))
-                      (label_ref (match_operand 1 "" ""))
-                      (pc)))]
    (set (reg:CC REG_CC)
         (compare:CC (match_dup 0)
                     (const_int -1)))
+   (parallel [(set (pc)
+		   (if_then_else (eqne (reg:CC REG_CC)
+				       (const_int 0))
+				 (label_ref (match_operand 1 "" ""))
+				 (pc)))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     const char *op;
