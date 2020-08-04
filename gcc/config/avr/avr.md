@@ -1331,6 +1331,24 @@
 	dec %0\;dec %0"
   [(set_attr "length" "1,1,1,1,2,2")])
 
+(define_insn "*add<mode>3_cc"
+  [(set (reg:CCNZ REG_CC)
+	(compare:CCNZ (plus:ALL1 (match_operand:ALL1 1 "register_operand" "%0,0    ,0  ,0  ,0  ,0")
+				 (match_operand:ALL1 2 "nonmemory_operand" "r,n Ynn,Y01,Ym1,Y02,Ym2"))
+		      (const_int 0)))
+   (set (match_operand:ALL1 0 "register_operand"            "=r,d    ,r  ,r  ,r  ,r")
+        (plus:ALL1 (match_dup 1)
+                   (match_dup 2)))]
+  ""
+  "@
+	add %0,%2
+	subi %0,lo8(-(%2))
+	inc %0
+	dec %0
+	inc %0\;inc %0
+	dec %0\;dec %0"
+  [(set_attr "length" "1,1,1,1,2,2")])
+
 ;; "addhi3"
 ;; "addhq3" "adduhq3"
 ;; "addha3" "adduha3"
