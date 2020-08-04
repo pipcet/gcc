@@ -6129,6 +6129,7 @@ out_shift_with_cnt (const char *templ, rtx_insn *insn, rtx operands[],
   if (CONST_INT_P (operands[2]))
     {
       bool scratch = (GET_CODE (PATTERN (insn)) == PARALLEL
+		      && XVECLEN (PATTERN (insn), 0) > 2
                       && REG_P (operands[3]));
       int count = INTVAL (operands[2]);
       int max_len = 10;  /* If larger than this, always use a loop.  */
@@ -6325,7 +6326,8 @@ ashlhi3_out (rtx_insn *insn, rtx operands[], int *len)
 {
   if (CONST_INT_P (operands[2]))
     {
-      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL);
+      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL) &&
+	XVECLEN (PATTERN (insn), 0) > 2;
       int ldi_ok = test_hard_reg_class (LD_REGS, operands[0]);
       int k;
       int *t = len;
@@ -6806,7 +6808,8 @@ ashrhi3_out (rtx_insn *insn, rtx operands[], int *len)
 {
   if (CONST_INT_P (operands[2]))
     {
-      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL);
+      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL) &&
+	XVECLEN (PATTERN (insn), 0) > 2;
       int ldi_ok = test_hard_reg_class (LD_REGS, operands[0]);
       int k;
       int *t = len;
@@ -7220,7 +7223,8 @@ lshrhi3_out (rtx_insn *insn, rtx operands[], int *len)
 {
   if (CONST_INT_P (operands[2]))
     {
-      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL);
+      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL) &&
+	XVECLEN (PATTERN (insn), 0) > 2;
       int ldi_ok = test_hard_reg_class (LD_REGS, operands[0]);
       int k;
       int *t = len;
