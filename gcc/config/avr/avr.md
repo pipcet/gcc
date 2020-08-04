@@ -5393,12 +5393,13 @@
 
 ;; Convert sign tests to bit 7/15/31 tests that match the above insns.
 (define_peephole2
-   (set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
-                           (label_ref (match_operand 1 "" ""))
-                           (pc)))]
-  ""
   [(set (reg:CC REG_CC) (compare (match_operand:QI 0 "register_operand" "")
                       	(const_int 0)))
+   (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
+				      (label_ref (match_operand 1 "" ""))
+				      (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  "true || reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
   [(set (pc) (if_then_else (eq (zero_extract:HI (match_dup 0)
                                                 (const_int 1)
                                                 (const_int 7))
@@ -5407,12 +5408,11 @@
                            (pc)))])
 
 (define_peephole2
-  [(set (reg:CC REG_CC) (compare (match_operand:QI 0 "register_operand" "")
-                                 (const_int 0)))
-   (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
-				      (label_ref (match_operand 1 "" ""))
-				      (pc)))
-	      (clobber (reg:CC REG_CC))])]
+  [(set (cc0) (compare (match_operand:QI 0 "register_operand" "")
+                       (const_int 0)))
+   (set (pc) (if_then_else (lt (cc0) (const_int 0))
+                           (label_ref (match_operand 1 "" ""))
+                           (pc)))]
   "true || reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
   [(set (pc) (if_then_else (ne (zero_extract:HI (match_dup 0)
 						(const_int 1)
@@ -5428,8 +5428,7 @@
               (clobber (match_operand:HI 2 ""))])
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
-                           (pc)))
-	      (clobber (reg:CC REG_CC))])]
+                           (pc)))]
   "true || reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
   [(set (pc) (if_then_else (eq (and:HI (match_dup 0) (const_int -32768))
                                (const_int 0))
@@ -5443,8 +5442,7 @@
               (clobber (match_operand:HI 2 ""))])
    (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
-                           (pc)))
-	      (clobber (reg:CC REG_CC))])]
+                           (pc)))]
   "true || reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
   [(set (pc) (if_then_else (ne (and:HI (match_dup 0) (const_int -32768))
                                (const_int 0))
@@ -5458,8 +5456,7 @@
               (clobber (match_operand:SI 2 ""))])
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
-                           (pc)))
-	      (clobber (reg:CC REG_CC))])]
+                           (pc)))]
   "true || reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
   [(set (pc) (if_then_else (eq (and:SI (match_dup 0) (match_dup 2))
                                (const_int 0))
