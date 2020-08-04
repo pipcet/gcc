@@ -12110,8 +12110,6 @@ avr_2word_insn_p (rtx_insn *insn)
         rtx dest = SET_DEST (set);
 	if (GET_MODE_SIZE (GET_MODE (dest)) == 1)
 	  {
-	    return false;
-
 	    /* Factor out LDS and STS from movqi_insn.  */
 
 	    if (MEM_P (dest)
