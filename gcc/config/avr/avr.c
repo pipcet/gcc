@@ -3730,6 +3730,85 @@ avr_out_xload (rtx_insn *insn ATTRIBUTE_UNUSED, rtx *op, int *plen)
   return "";
 }
 
+machine_mode
+select_cc_mode (enum rtx_code op, rtx x, rtx y)
+{
+  if ((GET_CODE (x) == PLUS || GET_CODE (x) == MINUS
+       || GET_CODE (x) == NEG || GET_CODE (x) == ASHIFT)
+      && y == const0_rtx)
+    return CCNZmode;
+
+  if ((GET_CODE (x) == AND || GET_CODE (x) == IOR
+       || GET_CODE (x) == XOR)
+      && y == const0_rtx)
+    return CCNZmode;
+
+  return CCmode;
+}
+
+bool movqi_r_mr_clobbers_cc (rtx_insn *, rtx [])
+{
+  return true;
+}
+
+bool movqi_mr_r_clobbers_cc (rtx_insn *, rtx [])
+{
+  return true;
+}
+
+bool reload_in_const_clobbers_cc (rtx_insn *, rtx [])
+{
+  return true;
+}
+
+bool lpm_clobbers_cc (rtx_insn *, rtx [])
+{
+  return true;
+}
+
+bool
+mov_clobbers_cc (rtx_insn *insn, rtx operands[])
+{
+  rtx dest = operands[0];
+  rtx src = operands[1];
+
+  if (avr_mem_flash_p (src) || avr_mem_flash_p (dest))
+    return lpm_clobbers_cc (insn, operands);
+
+  if (REG_P (dest) && REG_P (src))
+    {
+      if ((test_hard_reg_class (STACK_REG, src)
+	   || test_hard_reg_class (STACK_REG, dest))
+	  && GET_MODE_SIZE (GET_MODE (dest)) > 1)
+	return true;
+      return false;
+    }
+
+  if (REG_P (dest) && CONSTANT_P (src)
+      && test_hard_reg_class (LD_REGS, dest))
+    return false;
+
+  switch (GET_MODE_SIZE (GET_MODE (dest)))
+    {
+    case 1:
+      {
+	if (REG_P (dest) && REG_P (src))
+	  return false;
+	else if (REG_P (dest) && MEM_P (src))
+	  return movqi_r_mr_clobbers_cc (insn, operands);
+	else if (MEM_P (dest) && REG_P (src))
+	  return movqi_mr_r_clobbers_cc (insn, operands);
+	else if (REG_P (dest) && CONSTANT_P (src))
+	  return reload_in_const_clobbers_cc (insn, operands);
+      }
+    case 2:
+    case 3:
+    case 4:
+      {
+      }
+    }
+  return true; // XXX
+}
 
 const char*
 output_movqi (rtx_insn *insn, rtx operands[], int *plen)
