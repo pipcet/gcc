@@ -5328,13 +5328,13 @@
 ;; "cbranchqi4"
 ;; "cbranchqq4"  "cbranchuqq4"
 (define_expand "cbranch<mode>4"
-  [(parallel [(set (pc)
-		   (if_then_else
-		    (match_operator 0 "ordered_comparison_operator"
-				    [(match_operand:ALL1 1 "register_operand" "r,r,d")
-				     (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i")])
-		    (label_ref (match_operand 3 "" ""))
-		    (pc)))])])
+  [(set (pc)
+	(if_then_else
+	 (match_operator 0 "ordered_comparison_operator"
+			 [(match_operand:ALL1 1 "register_operand" "r,r,d")
+			  (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i")])
+	 (label_ref (match_operand 3 "" ""))
+	 (pc)))])
 
 (define_insn_and_split "*cbranch<mode>4_insn"
   [(set (pc)
@@ -5572,9 +5572,9 @@
                    (compare:CC (match_operand:HI 0 "register_operand" "")
                                (const_int 0)))
               (clobber (match_operand:HI 2 ""))])
-   (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
+   (set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
-                           (pc)))])]
+                           (pc)))]
   ""
   [(set (pc) (if_then_else (ne (and:HI (match_dup 0) (const_int -32768))
                                (const_int 0))
@@ -5601,9 +5601,9 @@
                    (compare:CC (match_operand:SI 0 "register_operand" "")
                                (const_int 0)))
               (clobber (match_operand:SI 2 ""))])
-   (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
+   (set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
-                           (pc)))])]
+                           (pc)))]
   ""
   [(set (pc) (if_then_else (eq (and:SI (match_dup 0) (match_dup 2))
                                (const_int 0))
