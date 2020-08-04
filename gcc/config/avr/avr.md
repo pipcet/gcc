@@ -5023,8 +5023,33 @@
                       (const_int 2)
                       (if_then_else (match_test "!AVR_HAVE_JMP_CALL")
                                     (const_int 2)
-                                    (const_int 4))))
                                     (const_int 4))))])
+
+(define_peephole2
+  [(parallel [(set (reg:CCNZ REG_CC)
+		   (compare:CCNZ (and:QI (match_operand:QI 0 "register_operand")
+					 (match_operand:QI 1 "single_one_operand"))
+				 (const_int 0)))
+	      (set (match_dup 0)
+		   (and:QI (match_dup 0)
+			   (match_dup 1)))])
+   (parallel [(set (pc)
+		   (if_then_else (match_operator 4 "eqne_operator"
+						 [(reg:CCNZ REG_CC)
+						  (const_int 0)])
+				 (match_operand 2 "" "")
+				 (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  "peep2_reg_dead_p (2, operands[0])"
+  [(set (pc)
+	(if_then_else
+	 (match_op_dup 4 [(zero_extract:QI (match_dup 0)
+					   (const_int 1)
+					   (match_dup 3))
+			  (const_int 0)])
+	 (match_dup 2)
+	 (pc)))]
+  "operands[3] = GEN_INT (exact_log2 (0xff & INTVAL (operands[1])));")
 
 ;; Same test based on bitwise AND.  Keep this in case gcc changes patterns.
 ;; or for old peepholes.
