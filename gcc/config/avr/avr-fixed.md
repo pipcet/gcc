@@ -155,8 +155,9 @@
 (define_expand "<code_stdname><mode>2"
   [(set (match_dup 2)
         (match_operand:ALL24S 1 "register_operand" ""))
-   (set (match_dup 2)
-        (ss_abs_neg:ALL24S (match_dup 2)))
+   (parallel [(set (match_dup 2)
+		   (ss_abs_neg:ALL24S (match_dup 2)))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL24S 0 "register_operand" "")
         (match_dup 2))]
   ""
@@ -310,9 +311,10 @@
         (match_operand:ALL4A 1 "register_operand" ""))
    (set (reg:ALL4A 20)
         (match_operand:ALL4A 2 "register_operand" ""))
-   (set (reg:ALL4A 24)
-        (mult:ALL4A (reg:ALL4A 16)
-                    (reg:ALL4A 20)))
+   (parallel [(set (reg:ALL4A 24)
+		   (mult:ALL4A (reg:ALL4A 16)
+			       (reg:ALL4A 20)))
+	      (clobber (reg:CC REG_CC))])
    (set (match_operand:ALL4A 0 "register_operand" "")
         (reg:ALL4A 24))]
   "AVR_HAVE_MUL"
