@@ -5485,9 +5485,9 @@
                            (pc)))])
 
 (define_peephole2
-  [(set (cc0) (compare (match_operand:QI 0 "register_operand" "")
+  [(set (reg:CC REG_CC) (compare (match_operand:QI 0 "register_operand" "")
                        (const_int 0)))
-   (set (pc) (if_then_else (lt (cc0) (const_int 0))
+   (set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
                            (pc)))]
   "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
@@ -6326,14 +6326,15 @@
 
 
 (define_peephole ; "*cpse.eq"
-  [(set (pc)
-	(if_then_else (eq (cc0)
-                          (const_int 0))
-                      (label_ref (match_operand 0 "" ""))
-                      (pc)))
-   (set (reg:CC REG_CC)
+  [(set (reg:CC REG_CC)
         (compare:CC (match_operand:ALL1 1 "register_operand" "r,r")
-                    (match_operand:ALL1 2 "reg_or_0_operand" "r,Y00")))]
+                    (match_operand:ALL1 2 "reg_or_0_operand" "r,Y00")))
+   (parallel [(set (pc)
+		   (if_then_else (eq (reg:CC REG_CC)
+				     (const_int 0))
+				 (label_ref (match_operand 0 "" ""))
+				 (pc)))
+	      (clobber (reg:CC REG_CC))])]
   "jump_over_one_insn_p (insn, operands[0])"
   "@
 	cpse %1,%2
