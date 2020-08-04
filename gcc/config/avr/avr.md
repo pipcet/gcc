@@ -701,6 +701,25 @@
   [(set_attr "length" "1,1,5,5,1,1,4")
    (set_attr "adjust_len" "mov8")])
 
+(define_insn "*mov<mode>_insn_clobber"
+  [(set (match_operand:ALL1 0 "nonimmediate_operand" "=r    ,d    ,Qm   ,r ,q,r,*r")
+        (match_operand:ALL1 1 "nox_general_operand"   "r Y00,n Ynn,r Y00,Qm,r,q,i"))
+   (clobber (reg:CC REG_CC))]
+  "register_operand (operands[0], <MODE>mode)
+    || reg_or_0_operand (operands[1], <MODE>mode)"
+  {
+    return output_movqi (insn, operands, NULL);
+  }
+  [(set_attr "length" "1,1,5,5,1,1,4")
+   (set_attr "adjust_len" "mov8")])
+
+(define_split
+  [(set (match_operand 0 "nonimmediate_operand")
+	(match_operand 1 "nox_general_operand"))]
+  "reload_completed && mov_clobbers_cc (insn, operands)"
+  [(parallel [(set (match_dup 0) (match_dup 1))
+	      (clobber (reg:CC REG_CC))])])
+
 ;; This is used in peephole2 to optimize loading immediate constants
 ;; if a scratch register from LD_REGS happens to be available.
 
