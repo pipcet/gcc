@@ -890,8 +890,7 @@
   "AVR_HAVE_MOVW
    && REGNO (operands[2]) == REGNO (operands[0]) - 1
    && REGNO (operands[3]) == REGNO (operands[1]) - 1"
-  [(set (match_dup 4)
-        (match_dup 5))]
+  [(set (match_dup 4) (match_dup 5))]
   {
     operands[4] = gen_rtx_REG (HImode, REGNO (operands[2]));
     operands[5] = gen_rtx_REG (HImode, REGNO (operands[3]));
@@ -3722,7 +3721,7 @@
     operands[4] = lo_first ? dst_hi : dst_lo;
     operands[5] = lo_first ? src_hi : src_lo;
   })
-  
+
 (define_split
   [(set (match_operand:HI 0 "register_operand")
         (match_operand:HI 1 "reg_or_0_operand"))]
@@ -5900,7 +5899,7 @@
 ;;   "casesi_<mode>_sequence" (used to recog + extract casesi
 ;;   sequences in pass .avr-casesi) and propagate all adjustments
 ;;   also to that pattern and the code of the extra pass.
-  
+
 (define_expand "casesi"
   [(parallel [(set (match_dup 5)
                    (plus:SI (match_operand:SI 0 "register_operand")
