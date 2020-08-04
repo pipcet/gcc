@@ -1452,6 +1452,37 @@
   [(set_attr "length" "2")
    (set_attr "adjust_len" "plus")])
 
+;; work out why this is needed?
+;; X = C + Y  ==>  X = Y; X = X + C
+(define_peephole2
+  [(parallel [(set (match_operand:ALL2 0 "d_register_operand" "")
+		   (match_operand:ALL2 1 "const_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (match_dup 0)
+		   (plus:ALL2 (match_dup 0)
+			      (match_operand:ALL2 2 "register_operand" "")))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  [(parallel [(set (match_dup 0) (match_dup 2))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (match_dup 0)
+		   (plus:ALL2 (match_dup 0) (match_dup 1)))
+	      (clobber (reg:CC REG_CC))])])
+
+(define_peephole2
+  [(set (match_operand:ALL2 0 "d_register_operand" "")
+  	(match_operand:ALL2 1 "const_operand" ""))
+   (parallel [(set (match_dup 0)
+		   (plus:ALL2 (match_dup 0)
+			      (match_operand:ALL2 2 "l_register_operand" "")))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  [(parallel [(set (match_dup 0) (match_dup 2))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (match_dup 0)
+		   (plus:ALL2 (match_dup 0) (match_dup 1)))
+	      (clobber (reg:CC REG_CC))])])
+
 ;; Adding a constant to NO_LD_REGS might have lead to a reload of
 ;; that constant to LD_REGS.  We don't add a scratch to *addhi3
 ;; itself because that insn is special to reload.
