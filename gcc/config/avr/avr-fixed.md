@@ -64,8 +64,7 @@
   {
     return avr_out_fract (insn, operands, true, NULL);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "sfract")])
+  [(set_attr "adjust_len" "sfract")])
 
 (define_insn "fractuns<FIXED_B:mode><FIXED_A:mode>2"
   [(set (match_operand:FIXED_A 0 "register_operand" "=r")
@@ -75,8 +74,7 @@
   {
     return avr_out_fract (insn, operands, false, NULL);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "ufract")])
+  [(set_attr "adjust_len" "ufract")])
 
 ;******************************************************************************
 ;** Saturated Addition and Subtraction
@@ -100,8 +98,7 @@
   {
     return avr_out_plus (insn, operands);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "plus")])
+  [(set_attr "adjust_len" "plus")])
 
 ;; "usadduqq3"  "usadduhq3"  "usadduha3" "usaddusq3"  "usaddusa3"
 ;; "ussubuqq3"  "ussubuhq3"  "ussubuha3" "ussubusq3"  "ussubusa3"
@@ -113,8 +110,7 @@
   {
     return avr_out_plus (insn, operands);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "plus")])
+  [(set_attr "adjust_len" "plus")])
 
 ;******************************************************************************
 ;** Saturated Negation and Absolute Value
@@ -139,16 +135,14 @@
         (ss_neg:QQ (match_operand:QQ 1 "register_operand"  "0")))]
   ""
   "neg %0\;brvc 0f\;dec %0\;0:"
-  [(set_attr "cc" "clobber")
-   (set_attr "length" "3")])
+  [(set_attr "length" "3")])
 
 (define_insn "ssabsqq2"
   [(set (match_operand:QQ 0 "register_operand"            "=r")
         (ss_abs:QQ (match_operand:QQ 1 "register_operand"  "0")))]
   ""
   "sbrc %0,7\;neg %0\;sbrc %0,7\;dec %0"
-  [(set_attr "cc" "clobber")
-   (set_attr "length" "4")])
+  [(set_attr "length" "4")])
 
 ;; "ssneghq2"  "ssnegha2"  "ssnegsq2"  "ssnegsa2"
 ;; "ssabshq2"  "ssabsha2"  "ssabssq2"  "ssabssa2"
@@ -171,8 +165,7 @@
         (ss_abs_neg:ALL2S (reg:ALL2S 24)))]
   ""
   "%~call __<code_stdname>_2"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; "*ssnegsq2"  "*ssnegsa2"
 ;; "*ssabssq2"  "*ssabssa2"
@@ -181,8 +174,7 @@
         (ss_abs_neg:ALL4S (reg:ALL4S 22)))]
   ""
   "%~call __<code_stdname>_4"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;******************************************************************************
 ; mul
@@ -206,8 +198,7 @@
                  (match_operand:QQ 2 "register_operand" "a")))]
   "AVR_HAVE_MUL"
   "fmuls %1,%2\;dec r1\;brvs 0f\;inc r1\;0:\;mov %0,r1\;clr __zero_reg__"
-  [(set_attr "length" "6")
-   (set_attr "cc" "clobber")])
+  [(set_attr "length" "6")])
 
 (define_insn "muluqq3_enh"
   [(set (match_operand:UQQ 0 "register_operand"          "=r")
@@ -215,8 +206,7 @@
                   (match_operand:UQQ 2 "register_operand" "r")))]
   "AVR_HAVE_MUL"
   "mul %1,%2\;mov %0,r1\;clr __zero_reg__"
-  [(set_attr "length" "3")
-   (set_attr "cc" "clobber")])
+  [(set_attr "length" "3")])
 
 (define_expand "mulqq3_nomul"
   [(set (reg:QQ 24)
@@ -263,8 +253,7 @@
    (clobber (reg:HI 24))]
   "!AVR_HAVE_MUL"
   "%~call __mulqq3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 
 ;; "mulhq3" "muluhq3"
@@ -295,8 +284,7 @@
    (clobber (reg:HI 22))]
   "AVR_HAVE_MUL"
   "%~call __mul<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 
 ;; On the enhanced core, don't clobber either input and use a separate output
@@ -324,8 +312,7 @@
                     (reg:ALL4A 20)))]
   "AVR_HAVE_MUL"
   "%~call __mul<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ; / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / /
 ; div
@@ -358,8 +345,7 @@
    (clobber (reg:QI 25))]
   ""
   "%~call __<code><mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; "divhq3" "udivuhq3"
 ;; "divha3" "udivuha3"
@@ -390,8 +376,7 @@
    (clobber (reg:QI 21))]
   ""
   "%~call __<code><mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; Note the first parameter gets passed in already offset by 2 bytes
 
@@ -422,8 +407,7 @@
    (clobber (reg:HI 30))]
   ""
   "%~call __<code><mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 
 ;******************************************************************************
@@ -484,8 +468,7 @@
   {
     return avr_out_round (insn, operands);
   }
-  [(set_attr "cc" "clobber")
-   (set_attr "adjust_len" "round")])
+  [(set_attr "adjust_len" "round")])
 
 
 ;; "*roundqq3.libgcc"  "*rounduqq3.libgcc"
@@ -496,8 +479,7 @@
    (clobber (reg:ALL1Q 22))]
   ""
   "%~call __round<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; "*roundhq3.libgcc"  "*rounduhq3.libgcc"
 ;; "*roundha3.libgcc"  "*rounduha3.libgcc"
@@ -508,8 +490,7 @@
    (clobber (reg:ALL2QA 22))]
   ""
   "%~call __round<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])
 
 ;; "*roundsq3.libgcc"  "*roundusq3.libgcc"
 ;; "*roundsa3.libgcc"  "*roundusa3.libgcc"
@@ -520,5 +501,4 @@
    (clobber (reg:ALL4QA 18))]
   ""
   "%~call __round<mode>3"
-  [(set_attr "type" "xcall")
-   (set_attr "cc" "clobber")])
+  [(set_attr "type" "xcall")])

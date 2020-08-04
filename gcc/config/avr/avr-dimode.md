@@ -101,8 +101,7 @@
                    (reg:ALL8 ACC_B)))]
   "avr_have_dimode"
   "%~call __adddi3"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "call")])
 
 (define_insn "adddi3_const8_insn"
   [(set (reg:DI ACC_A)
@@ -110,8 +109,7 @@
                  (sign_extend:DI (reg:QI REG_X))))]
   "avr_have_dimode"
   "%~call __adddi3_s8"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "call")])
 
 ;; "adddi3_const_insn"
 ;; "adddq3_const_insn" "addudq3_const_insn"
@@ -126,8 +124,7 @@
   {
     return avr_out_plus (insn, operands);
   }
-  [(set_attr "adjust_len" "plus")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "plus")])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -173,8 +170,7 @@
                     (reg:ALL8 ACC_B)))]
   "avr_have_dimode"
   "%~call __subdi3"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "set_czn")])
+  [(set_attr "adjust_len" "call")])
 
 ;; "subdi3_const_insn"
 ;; "subdq3_const_insn" "subudq3_const_insn"
@@ -188,8 +184,7 @@
   {
     return avr_out_plus (insn, operands);
   }
-  [(set_attr "adjust_len" "plus")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "plus")])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Signed Saturating Addition and Subtraction
@@ -226,8 +221,7 @@
                          (reg:ALL8S ACC_B)))]
   "avr_have_dimode"
   "%~call __<code_stdname><mode>3"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "call")])
 
 (define_insn "<code_stdname><mode>3_const_insn"
   [(set (reg:ALL8S ACC_A)
@@ -237,8 +231,7 @@
   {
     return avr_out_plus (insn, operands);
   }
-  [(set_attr "adjust_len" "plus")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "plus")])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Unsigned Saturating Addition and Subtraction
@@ -275,8 +268,7 @@
                          (reg:ALL8U ACC_B)))]
   "avr_have_dimode"
   "%~call __<code_stdname><mode>3"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "call")])
 
 (define_insn "<code_stdname><mode>3_const_insn"
   [(set (reg:ALL8U ACC_A)
@@ -286,8 +278,7 @@
   {
     return avr_out_plus (insn, operands);
   }
-  [(set_attr "adjust_len" "plus")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "plus")])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Negation
@@ -311,8 +302,7 @@
         (neg:DI (reg:DI ACC_A)))]
   "avr_have_dimode"
   "%~call __negdi2"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "call")])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -374,8 +364,7 @@
                  (reg:ALL8 ACC_B)))]
   "avr_have_dimode"
   "%~call __cmpdi2"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "compare")])
+  [(set_attr "adjust_len" "call")])
 
 (define_insn "compare_const8_di2"
   [(set (cc0)
@@ -383,8 +372,7 @@
                  (sign_extend:DI (reg:QI REG_X))))]
   "avr_have_dimode"
   "%~call __cmpdi2_s8"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "compare")])
+  [(set_attr "adjust_len" "call")])
 
 ;; "compare_const_di2"
 ;; "compare_const_dq2" "compare_const_udq2"
@@ -400,8 +388,7 @@
   {
     return avr_out_compare64 (insn, operands, NULL);
   }
-  [(set_attr "adjust_len" "compare64")
-   (set_attr "cc" "compare")])
+  [(set_attr "adjust_len" "compare64")])
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -450,8 +437,7 @@
                         (reg:QI 16)))]
   "avr_have_dimode"
   "%~call __<code_stdname>di3"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "call")])
 
 ;; "umulsidi3"
 ;; "mulsidi3"
@@ -484,5 +470,4 @@
   "avr_have_dimode
    && AVR_HAVE_MUL"
   "%~call __<extend_u>mulsidi3"
-  [(set_attr "adjust_len" "call")
-   (set_attr "cc" "clobber")])
+  [(set_attr "adjust_len" "call")])
