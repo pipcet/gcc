@@ -5026,11 +5026,16 @@
 
 ;; "cmpqi3"
 ;; "cmpqq3" "cmpuqq3"
-(define_insn "cmp<mode>3"
-  [(set (cc0)
-        (compare (match_operand:ALL1 0 "register_operand"  "r  ,r,d")
-                 (match_operand:ALL1 1 "nonmemory_operand" "Y00,r,i")))]
-  ""
+(define_expand "cmp<mode>3"
+  [(set (reg:CC REG_CC)
+	(compare:CC (match_operand:ALL1 0 "register_operand" "r,r,d")
+		    (match_operand:ALL1 1 "nonmemory_operand" "Y00,r,i")))])
+
+(define_insn "*cmp<mode>3"
+  [(set (reg:CC REG_CC)
+        (compare:CC (match_operand:ALL1 0 "register_operand"  "r  ,r,d")
+                    (match_operand:ALL1 1 "nonmemory_operand" "Y00,r,i")))]
+  "reload_completed"
   "@
 	tst %0
 	cp %0,%1
@@ -5065,12 +5070,52 @@
 ;; "cmphi3"
 ;; "cmphq3" "cmpuhq3"
 ;; "cmpha3" "cmpuha3"
-(define_insn "cmp<mode>3"
-  [(set (cc0)
-        (compare (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
-                 (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+(define_expand "cmp<mode>3"
+  [(parallel [(set (reg:CC REG_CC)
+		   (compare:CC (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
+			       (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+	      (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))])])
+
+(define_insn "cmp<mode>3_insn"
+  [(set (reg:CC REG_CC)
+        (compare:CC (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
+                    (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
    (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))]
-  ""
+  "reload_completed"
+  {
+    switch (which_alternative)
+      {
+      case 0:
+      case 1:
+        return avr_out_tsthi (insn, operands, NULL);
+
+      case 2:
+        return "cp %A0,%A1\;cpc %B0,%B1";
+
+      case 3:
+        if (<MODE>mode != HImode)
+          break;
+        return reg_unused_after (insn, operands[0])
+               ? "subi %A0,lo8(%1)\;sbci %B0,hi8(%1)"
+               : "ldi %2,hi8(%1)\;cpi %A0,lo8(%1)\;cpc %B0,%2";
+
+      case 4:
+        if (<MODE>mode != HImode)
+          break;
+        return "ldi %2,lo8(%1)\;cp %A0,%2\;ldi %2,hi8(%1)\;cpc %B0,%2";
+      }
+
+    return avr_out_compare (insn, operands, NULL);
+  }
+  [(set_attr "length" "1,2,2,3,4,2,4")
+   (set_attr "adjust_len" "tsthi,tsthi,*,*,*,compare,compare")])
+
+(define_insn "*cmp<mode>3"
+  [(set (reg:CC REG_CC)
+        (compare:CC (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
+                    (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+   (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))]
+  "reload_completed"
   {
     switch (which_alternative)
       {
