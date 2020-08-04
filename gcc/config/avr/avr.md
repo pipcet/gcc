@@ -729,6 +729,20 @@
               (clobber (match_dup 2))
 	      (clobber (reg:CC REG_CC))])])
 
+(define_peephole2
+  [(match_scratch:QI 2 "d")
+   (parallel [(set (match_operand:ALL1 0 "l_register_operand" "")
+		   (match_operand:ALL1 1 "const_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
+  ; No need for a clobber reg for 0x0, 0x01 or 0xff
+  "!satisfies_constraint_Y00 (operands[1])
+   && !satisfies_constraint_Y01 (operands[1])
+   && !satisfies_constraint_Ym1 (operands[1])"
+  [(parallel [(set (match_dup 0)
+                   (match_dup 1))
+              (clobber (match_dup 2))
+	      (clobber (reg:CC REG_CC))])])
+
 ;;============================================================================
 ;; move word (16 bit)
 
@@ -809,6 +823,23 @@
     operands[5] = gen_rtx_REG (HImode, REGNO (operands[1]));
   })
 
+(define_peephole2 ; movw
+  [(parallel [(set (match_operand:ALL1 0 "even_register_operand" "")
+		   (match_operand:ALL1 1 "even_register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (match_operand:ALL1 2 "odd_register_operand" "")
+		   (match_operand:ALL1 3 "odd_register_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
+  "AVR_HAVE_MOVW
+   && REGNO (operands[0]) == REGNO (operands[2]) - 1
+   && REGNO (operands[1]) == REGNO (operands[3]) - 1"
+  [(parallel [(set (match_dup 4) (match_dup 5))
+	      (clobber (reg:CC REG_CC))])]
+  {
+    operands[4] = gen_rtx_REG (HImode, REGNO (operands[0]));
+    operands[5] = gen_rtx_REG (HImode, REGNO (operands[1]));
+  })
+
 (define_peephole2 ; movw_r
   [(set (match_operand:ALL1 0 "odd_register_operand" "")
         (match_operand:ALL1 1 "odd_register_operand" ""))
@@ -819,6 +850,23 @@
    && REGNO (operands[3]) == REGNO (operands[1]) - 1"
   [(set (match_dup 4)
         (match_dup 5))]
+  {
+    operands[4] = gen_rtx_REG (HImode, REGNO (operands[2]));
+    operands[5] = gen_rtx_REG (HImode, REGNO (operands[3]));
+  })
+
+(define_peephole2 ; movw_r
+  [(parallel [(set (match_operand:ALL1 0 "odd_register_operand" "")
+		   (match_operand:ALL1 1 "odd_register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (match_operand:ALL1 2 "even_register_operand" "")
+		   (match_operand:ALL1 3 "even_register_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
+  "AVR_HAVE_MOVW
+   && REGNO (operands[2]) == REGNO (operands[0]) - 1
+   && REGNO (operands[3]) == REGNO (operands[1]) - 1"
+  [(parallel [(set (match_dup 4) (match_dup 5))
+	      (clobber (reg:CC REG_CC))])]
   {
     operands[4] = gen_rtx_REG (HImode, REGNO (operands[2]));
     operands[5] = gen_rtx_REG (HImode, REGNO (operands[3]));
@@ -873,6 +921,19 @@
                    (match_dup 1))
               (clobber (match_dup 2))])])
 
+(define_peephole2 ; *reload_inpsi
+  [(match_scratch:QI 2 "d")
+   (parallel [(set (match_operand:PSI 0 "l_register_operand" "")
+		   (match_operand:PSI 1 "immediate_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (match_dup 2)]
+  "operands[1] != const0_rtx
+   && operands[1] != constm1_rtx"
+  [(parallel [(set (match_dup 0)
+                   (match_dup 1))
+              (clobber (match_dup 2))
+	      (clobber (reg:CC REG_CC))])])
+
 ;; '*' because it is not used in rtl generation.
 (define_insn "*reload_inpsi"
   [(set (match_operand:PSI 0 "register_operand" "=r")
@@ -910,6 +971,18 @@
   [(parallel [(set (match_dup 0)
                    (match_dup 1))
               (clobber (match_dup 2))])])
+
+(define_peephole2 ; *reload_insi
+  [(match_scratch:QI 2 "d")
+   (parallel [(set (match_operand:ALL4 0 "l_register_operand" "")
+		   (match_operand:ALL4 1 "immediate_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (match_dup 2)]
+  "operands[1] != CONST0_RTX (<MODE>mode)"
+  [(parallel [(set (match_dup 0)
+                   (match_dup 1))
+              (clobber (match_dup 2))
+	      (clobber (reg:CC REG_CC))])])
 
 ;; '*' because it is not used in rtl generation.
 ;; "*reload_insi"
@@ -978,6 +1051,18 @@
   }
   [(set_attr "length" "8")
    (set_attr "adjust_len" "reload_in32")])
+
+(define_peephole2 ; *reload_insf
+  [(match_scratch:QI 2 "d")
+   (parallel [(set (match_operand:SF 0 "l_register_operand" "")
+		   (match_operand:SF 1 "const_double_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (match_dup 2)]
+  "operands[1] != CONST0_RTX (SFmode)"
+  [(parallel [(set (match_dup 0)
+                   (match_dup 1))
+              (clobber (match_dup 2))
+	      (clobber (reg:CC REG_CC))])])
 
 ;;=========================================================================
 ;; move string (like memcpy)
