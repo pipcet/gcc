@@ -9238,9 +9238,24 @@ avr_rotate_bytes (rtx operands[])
       dst = simplify_gen_subreg (move_mode, operands[0], mode, 1);
       if (!rtx_equal_p (dst, src))
         {
-          emit_move_insn (dst, gen_rtx_XOR (QImode, dst, src));
-          emit_move_insn (src, gen_rtx_XOR (QImode, src, dst));
-          emit_move_insn (dst, gen_rtx_XOR (QImode, dst, src));
+	  rtx xor_op = gen_rtx_XOR (QImode, dst, src);
+	  rtx set = gen_rtx_SET (dst, xor_op);
+	  rtx ccc = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, REG_CC));
+
+	  emit_insn (gen_rtx_PARALLEL (VOIDmode,
+				       gen_rtvec (2, set, ccc)));
+	  xor_op = gen_rtx_XOR (QImode, src, dst);
+	  set = gen_rtx_SET (src, xor_op);
+	  ccc = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, REG_CC));
+
+	  emit_insn (gen_rtx_PARALLEL (VOIDmode,
+				       gen_rtvec (2, set, ccc)));
+	  xor_op = gen_rtx_XOR (QImode, dst, src);
+	  set = gen_rtx_SET (dst, xor_op);
+	  ccc = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, REG_CC));
+
+	  emit_insn (gen_rtx_PARALLEL (VOIDmode,
+				       gen_rtvec (2, set, ccc)));
         }
     }
   else

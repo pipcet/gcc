@@ -3566,8 +3566,12 @@
       {
         /*; Support rotate left/right by 1  */
 
-        emit_move_insn (operands[0],
-                        gen_rtx_ROTATE (<MODE>mode, operands[1], operands[2]));
+	rtx rotation = gen_rtx_ROTATE (<MODE>mode, operands[1], operands[2]);
+	rtx move = gen_rtx_SET (operands[0], rotation);
+	rtx clobber_cc = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode,
+								 REG_CC));
+	emit_insn (gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, move,
+							     clobber_cc)));
         DONE;
       }
     else
