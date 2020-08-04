@@ -98,7 +98,8 @@
 (define_insn "add<mode>3_insn"
   [(set (reg:ALL8 ACC_A)
         (plus:ALL8 (reg:ALL8 ACC_A)
-                   (reg:ALL8 ACC_B)))]
+                   (reg:ALL8 ACC_B)))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   "%~call __adddi3"
   [(set_attr "adjust_len" "call")])
@@ -106,7 +107,8 @@
 (define_insn "adddi3_const8_insn"
   [(set (reg:DI ACC_A)
         (plus:DI (reg:DI ACC_A)
-                 (sign_extend:DI (reg:QI REG_X))))]
+                 (sign_extend:DI (reg:QI REG_X))))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   "%~call __adddi3_s8"
   [(set_attr "adjust_len" "call")])
@@ -118,7 +120,8 @@
 (define_insn "add<mode>3_const_insn"
   [(set (reg:ALL8 ACC_A)
         (plus:ALL8 (reg:ALL8 ACC_A)
-                   (match_operand:ALL8 0 "const_operand" "n Ynn")))]
+                   (match_operand:ALL8 0 "const_operand" "n Ynn")))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode
    && !s8_operand (operands[0], VOIDmode)"
   {
@@ -167,7 +170,8 @@
 (define_insn "sub<mode>3_insn"
   [(set (reg:ALL8 ACC_A)
         (minus:ALL8 (reg:ALL8 ACC_A)
-                    (reg:ALL8 ACC_B)))]
+                    (reg:ALL8 ACC_B)))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   "%~call __subdi3"
   [(set_attr "adjust_len" "call")])
@@ -179,7 +183,8 @@
 (define_insn "sub<mode>3_const_insn"
   [(set (reg:ALL8 ACC_A)
         (minus:ALL8 (reg:ALL8 ACC_A)
-                    (match_operand:ALL8 0 "const_operand" "n Ynn")))]
+                    (match_operand:ALL8 0 "const_operand" "n Ynn")))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   {
     return avr_out_plus (insn, operands);
@@ -193,7 +198,8 @@
 (define_expand "<code_stdname><mode>3"
   [(set (match_operand:ALL8S 0 "general_operand" "")
         (ss_addsub:ALL8S (match_operand:ALL8S 1 "general_operand" "")
-                         (match_operand:ALL8S 2 "general_operand" "")))]
+                         (match_operand:ALL8S 2 "general_operand" "")))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
@@ -218,7 +224,8 @@
 (define_insn "<code_stdname><mode>3_insn"
   [(set (reg:ALL8S ACC_A)
         (ss_addsub:ALL8S (reg:ALL8S ACC_A)
-                         (reg:ALL8S ACC_B)))]
+                         (reg:ALL8S ACC_B)))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   "%~call __<code_stdname><mode>3"
   [(set_attr "adjust_len" "call")])
@@ -226,7 +233,8 @@
 (define_insn "<code_stdname><mode>3_const_insn"
   [(set (reg:ALL8S ACC_A)
         (ss_addsub:ALL8S (reg:ALL8S ACC_A)
-                         (match_operand:ALL8S 0 "const_operand" "n Ynn")))]
+                         (match_operand:ALL8S 0 "const_operand" "n Ynn")))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   {
     return avr_out_plus (insn, operands);
@@ -240,7 +248,8 @@
 (define_expand "<code_stdname><mode>3"
   [(set (match_operand:ALL8U 0 "general_operand" "")
         (us_addsub:ALL8U (match_operand:ALL8U 1 "general_operand" "")
-                         (match_operand:ALL8U 2 "general_operand" "")))]
+                         (match_operand:ALL8U 2 "general_operand" "")))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
@@ -265,7 +274,8 @@
 (define_insn "<code_stdname><mode>3_insn"
   [(set (reg:ALL8U ACC_A)
         (us_addsub:ALL8U (reg:ALL8U ACC_A)
-                         (reg:ALL8U ACC_B)))]
+                         (reg:ALL8U ACC_B)))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   "%~call __<code_stdname><mode>3"
   [(set_attr "adjust_len" "call")])
@@ -273,7 +283,8 @@
 (define_insn "<code_stdname><mode>3_const_insn"
   [(set (reg:ALL8U ACC_A)
         (us_addsub:ALL8U (reg:ALL8U ACC_A)
-                         (match_operand:ALL8U 0 "const_operand" "n Ynn")))]
+                         (match_operand:ALL8U 0 "const_operand" "n Ynn")))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   {
     return avr_out_plus (insn, operands);
@@ -299,7 +310,8 @@
 
 (define_insn "negdi2_insn"
   [(set (reg:DI ACC_A)
-        (neg:DI (reg:DI ACC_A)))]
+        (neg:DI (reg:DI ACC_A)))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   "%~call __negdi2"
   [(set_attr "adjust_len" "call")])
@@ -411,7 +423,8 @@
 (define_expand "<code_stdname><mode>3"
   [(parallel [(match_operand:ALL8 0 "general_operand" "")
               (di_shifts:ALL8 (match_operand:ALL8 1 "general_operand" "")
-                              (match_operand:QI 2 "general_operand" ""))])]
+                              (match_operand:QI 2 "general_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
   "avr_have_dimode"
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
@@ -434,7 +447,8 @@
 (define_insn "<code_stdname><mode>3_insn"
   [(set (reg:ALL8 ACC_A)
         (di_shifts:ALL8 (reg:ALL8 ACC_A)
-                        (reg:QI 16)))]
+                        (reg:QI 16)))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode"
   "%~call __<code_stdname>di3"
   [(set_attr "adjust_len" "call")])
@@ -446,7 +460,8 @@
               (match_operand:SI 1 "general_operand" "")
               (match_operand:SI 2 "general_operand" "")
               ;; Just to mention the iterator 
-              (clobber (any_extend:SI (match_dup 1)))])]
+              (clobber (any_extend:SI (match_dup 1)))
+	      (clobber (reg:CC REG_CC))])]
   "avr_have_dimode
    && AVR_HAVE_MUL"
   {
@@ -466,7 +481,8 @@
         (mult:DI (any_extend:DI (reg:SI 18))
                  (any_extend:DI (reg:SI 22))))
    (clobber (reg:HI REG_X))
-   (clobber (reg:HI REG_Z))]
+   (clobber (reg:HI REG_Z))
+   (clobber (reg:CC REG_CC))]
   "avr_have_dimode
    && AVR_HAVE_MUL"
   "%~call __<extend_u>mulsidi3"
