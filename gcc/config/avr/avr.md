@@ -1572,7 +1572,7 @@
   [(set_attr "length" "4")
    (set_attr "adjust_len" "plus")])
 
-(define_insn "add<mode>3_clobber_flags"
+(define_insn "add<mode>3_clobber_cc"
   [(set (reg:CCNZ REG_CC)
 	(compare:CCNZ
          (plus:ALL2 (match_operand:ALL2 1 "register_operand"  "%0    ,0    ,0")
@@ -1708,6 +1708,25 @@
   [(set (match_operand:ALL1 0 "register_operand"                    "=??r,d    ,r  ,r  ,r  ,r")
         (minus:ALL1 (match_operand:ALL1 1 "register_operand"           "0,0    ,0  ,0  ,0  ,0")
                     (match_operand:ALL1 2 "nonmemory_or_const_operand" "r,n Ynn,Y01,Ym1,Y02,Ym2")))
+   (clobber (reg:CC REG_CC))]
+  ""
+  "@
+	sub %0,%2
+	subi %0,lo8(%2)
+	dec %0
+	inc %0
+	dec %0\;dec %0
+	inc %0\;inc %0"
+  [(set_attr "length" "1,1,1,1,2,2")])
+
+(define_insn "*sub<mode>3_cc"
+  [(set (reg:CCNZ REG_CC)
+	(compare:CCNZ (minus:ALL1 (match_operand:ALL1 1 "register_operand"           "0,0    ,0  ,0  ,0  ,0")
+				  (match_operand:ALL1 2 "nonmemory_or_const_operand" "r,n Ynn,Y01,Ym1,Y02,Ym2"))
+		      (const_int 0)))
+   (set (match_operand:ALL1 0 "register_operand"                    "=??r,d    ,r  ,r  ,r  ,r")
+        (minus:ALL1 (match_dup 1)
+                    (match_dup 2)))
    (clobber (reg:CC REG_CC))]
   ""
   "@
@@ -5315,8 +5334,7 @@
 				    [(match_operand:ALL1 1 "register_operand" "r,r,d")
 				     (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i")])
 		    (label_ref (match_operand 3 "" ""))
-		    (pc)))
-	      (clobber (reg:CC REG_CC))])])
+		    (pc)))])])
 
 (define_insn_and_split "*cbranch<mode>4_insn"
   [(set (pc)
@@ -5324,19 +5342,17 @@
          (match_operator 0 "ordered_comparison_operator" [(match_operand:ALL1 1 "register_operand" "r,r,d")
                                                           (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i")])
          (label_ref (match_operand 3 "" ""))
-         (pc)))
-   (clobber (reg:CC REG_CC))]
+         (pc)))]
   ""
   "#"
   "reload_completed"
   [(set (reg:CC REG_CC)
         (compare:CC (match_dup 1) (match_dup 2)))
-   (parallel [(set (pc)
-		   (if_then_else
-		    (match_op_dup 0 [(reg:CC REG_CC) (const_int 0)])
-		    (label_ref (match_dup 3))
-		    (pc)))
-	      (clobber (reg:CC REG_CC))])])
+   (set (pc)
+	(if_then_else
+	 (match_op_dup 0 [(reg:CC REG_CC) (const_int 0)])
+	 (label_ref (match_dup 3))
+	 (pc)))])
 
 ;; "cbranchhi4"  "cbranchhq4"  "cbranchuhq4"  "cbranchha4"  "cbranchuha4"
 ;; "cbranchsi4"  "cbranchsq4"  "cbranchusq4"  "cbranchsa4"  "cbranchusa4"
