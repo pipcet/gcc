@@ -11869,6 +11869,28 @@ avr_reorg_remove_redundant_compare (rtx_insn *insn1)
   return true;
 }
 
+void
+avr_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
+			     bool op0_preserve)
+{
+  return;
+  if (*code == GTU)
+    {
+      if (CONST_INT_P (*op1))
+	{
+	  *op1 = plus_constant (GET_MODE (*op0), *op1, 1);
+	  *code = GEU;
+	}
+    }
+  else if (*code == GT)
+    {
+      if (CONST_INT_P (*op1))
+	{
+	  *op1 = plus_constant (GET_MODE (*op0), *op1, 1);
+	  *code = GE;
+	}
+    }
+}
 
 /* Implement `TARGET_MACHINE_DEPENDENT_REORG'.  */
 /* Optimize conditional jumps.  */
