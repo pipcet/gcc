@@ -12013,15 +12013,14 @@ avr_2word_insn_p (rtx_insn *insn)
   switch (INSN_CODE (insn))
     {
     default:
-      return false;
-
-    case CODE_FOR_movqi_insn:
-    case CODE_FOR_movuqq_insn:
-    case CODE_FOR_movqq_insn:
       {
         rtx set  = single_set (insn);
+	if (!set)
+	  return false;
         rtx src  = SET_SRC (set);
         rtx dest = SET_DEST (set);
+	if (GET_MODE_SIZE (GET_MODE (dest)) != 1)
+	  return false;
 
         /* Factor out LDS and STS from movqi_insn.  */
 
