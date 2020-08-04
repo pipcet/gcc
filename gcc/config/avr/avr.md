@@ -3465,6 +3465,27 @@
     operands[5] = simplify_gen_subreg (QImode, operands[1], HImode, 0);
   })
 
+(define_split
+  [(parallel [(set (match_operand:HI 0 "register_operand")
+		   (match_operand:HI 1 "reg_or_0_operand"))
+	      (clobber (reg:CC REG_CC))])]
+  "optimize
+   && reload_completed
+   && GENERAL_REG_P (operands[0])
+   && (operands[1] == const0_rtx || GENERAL_REG_P (operands[1]))
+   && (!AVR_HAVE_MOVW
+       || const0_rtx == operands[1])"
+  [(parallel [(set (match_dup 2) (match_dup 3))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (match_dup 4) (match_dup 5))
+	      (clobber (reg:CC REG_CC))])]
+  {
+    operands[2] = simplify_gen_subreg (QImode, operands[0], HImode, 1);
+    operands[3] = simplify_gen_subreg (QImode, operands[1], HImode, 1);
+    operands[4] = simplify_gen_subreg (QImode, operands[0], HImode, 0);
+    operands[5] = simplify_gen_subreg (QImode, operands[1], HImode, 0);
+  })
+
 ;; Split andhi3, andpsi3, andsi3.
 ;; Split iorhi3, iorpsi3, iorsi3.
 ;; Split xorhi3, xorpsi3, xorsi3.
