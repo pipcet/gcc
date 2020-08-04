@@ -797,6 +797,17 @@
                    (match_dup 1))
               (clobber (match_dup 2))])])
 
+(define_peephole2
+  [(match_scratch:QI 2 "d")
+   (parallel [(set (match_operand:ALL2 0 "l_register_operand" "")
+		   (match_operand:ALL2 1 "const_or_immediate_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
+  "operands[1] != CONST0_RTX (<MODE>mode)"
+  [(parallel [(set (match_dup 0)
+                   (match_dup 1))
+              (clobber (match_dup 2))
+	      (clobber (reg:CC REG_CC))])])
+
 ;; '*' because it is not used in rtl generation, only in above peephole
 ;; "*reload_inhi"
 ;; "*reload_inhq" "*reload_inuhq"
