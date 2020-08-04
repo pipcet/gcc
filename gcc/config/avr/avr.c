@@ -376,10 +376,10 @@ make_avr_pass_casesi (gcc::context *ctxt)
 /* Make one parallel insn with all the patterns from insns i[0]..i[5].  */
 
 static rtx_insn*
-avr_parallel_insn_from_insns (rtx_insn *i[6])
+avr_parallel_insn_from_insns (rtx_insn *i[5])
 {
-  rtvec vec = gen_rtvec (6, PATTERN (i[0]), PATTERN (i[1]), PATTERN (i[2]),
-                         PATTERN (i[3]), PATTERN (i[4]), PATTERN (i[5]));
+  rtvec vec = gen_rtvec (5, PATTERN (i[0]), PATTERN (i[1]), PATTERN (i[2]),
+                         PATTERN (i[3]), PATTERN (i[4]));
   start_sequence();
   emit (gen_rtx_PARALLEL (VOIDmode, vec));
   rtx_insn *insn = get_insns();
@@ -397,22 +397,21 @@ avr_parallel_insn_from_insns (rtx_insn *i[6])
    pattern casesi_<mode>_sequence forged from the sequence to recog_data.  */
 
 static bool
-avr_is_casesi_sequence (basic_block bb, rtx_insn *insn, rtx_insn *insns[6])
+avr_is_casesi_sequence (basic_block bb, rtx_insn *insn, rtx_insn *insns[5])
 {
-  rtx set_5, set_0;
+  rtx set_4, set_0;
 
   /* A first and quick test for a casesi sequences.  As a side effect of
      the test, harvest respective insns to INSNS[0..5].  */
 
-  if (!(JUMP_P (insns[5] = insn)
+  if (!(JUMP_P (insns[4] = insn)
         // casesi is the only insn that comes up with UNSPEC_INDEX_JMP,
         // hence the following test ensures that we are actually dealing
         // with code from casesi.
-        && (set_5 = single_set (insns[5]))
-        && UNSPEC == GET_CODE (SET_SRC (set_5))
-        && UNSPEC_INDEX_JMP == XINT (SET_SRC (set_5), 1)
+        && (set_4 = single_set (insns[4]))
+        && UNSPEC == GET_CODE (SET_SRC (set_4))
+        && UNSPEC_INDEX_JMP == XINT (SET_SRC (set_4), 1)
 
-        && (insns[4] = prev_real_insn (insns[5]))
         && (insns[3] = prev_real_insn (insns[4]))
         && (insns[2] = prev_real_insn (insns[3]))
         && (insns[1] = prev_real_insn (insns[2]))
@@ -429,7 +428,7 @@ avr_is_casesi_sequence (basic_block bb, rtx_insn *insn, rtx_insn *insns[6])
     {
       fprintf (dump_file, ";; Sequence from casesi in "
                "[bb %d]:\n\n", bb->index);
-      for (int i = 0; i < 6; i++)
+      for (int i = 0; i < 5; i++)
         print_rtl_single (dump_file, insns[i]);
     }
 
@@ -460,7 +459,7 @@ avr_is_casesi_sequence (basic_block bb, rtx_insn *insn, rtx_insn *insns[6])
 
   // Assert on the anatomy of xinsn's operands we are going to work with.
 
-  gcc_assert (recog_data.n_operands == 11);
+  gcc_assert (recog_data.n_operands == 12);
   gcc_assert (recog_data.n_dups == 4);
 
   if (dump_file)
@@ -541,7 +540,7 @@ avr_casei_sequence_check_operands (rtx *xop)
    switch value instead of SImode.  */
 
 static void
-avr_optimize_casesi (rtx_insn *insns[6], rtx *xop)
+avr_optimize_casesi (rtx_insn *insns[5], rtx *xop)
 {
   // Original mode of the switch value; this is QImode or HImode.
   machine_mode mode = GET_MODE (xop[10]);
@@ -597,20 +596,38 @@ avr_optimize_casesi (rtx_insn *insns[6], rtx *xop)
   rtx reg = copy_to_mode_reg (mode, xop[10]);
 
   rtx (*gen_add)(rtx,rtx,rtx) = QImode == mode ? gen_addqi3 : gen_addhi3;
-  rtx (*gen_cmp)(rtx,rtx) = QImode == mode ? gen_cmpqi3 : gen_cmphi3;
 
+  rtx jump = gen_rtx_SET (pc_rtx, gen_rtx_IF_THEN_ELSE (VOIDmode,
+							gen_rtx_GTU (VOIDmode,
+								     xop[10],
+								     xop[2]),
+							gen_rtx_LABEL_REF (VOIDmode, xop[4]),
+							pc_rtx));
+  rtx clobber_scratch = gen_rtx_CLOBBER (VOIDmode, xop[11]);
+  rtx clobber_cc = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, REG_CC));
   emit_insn (gen_add (reg, reg, gen_int_mode (-low_idx, mode)));
-  emit_insn (gen_cmp (reg, gen_int_mode (num_idx, mode)));
+  if (QImode == mode)
+    {
+      rtvec vec = gen_rtvec (2, jump, clobber_cc);
+      emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
+    }
+  else if (HImode == mode)
+    {
+      rtvec vec = gen_rtvec (3, jump, clobber_scratch, clobber_cc);
+      emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
+    }
+  else
+    gcc_unreachable ();
 
   seq1 = get_insns();
   last1 = get_last_insn();
   end_sequence();
 
-  emit_insn_before (seq1, insns[1]);
+  emit_insn_after (seq1, insns[2]);
 
   // After the out-of-bounds test and corresponding branch, use a
   // 16-bit index.  If QImode is used, extend it to HImode first.
-  // This will replace insns[4].
+  // This will replace insns[3].
 
   start_sequence();
 
@@ -627,7 +644,7 @@ avr_optimize_casesi (rtx_insn *insns[6], rtx *xop)
   last2 = get_last_insn();
   end_sequence();
 
-  emit_insn_after (seq2, insns[4]);
+  emit_insn_after (seq2, insns[3]);
 
   if (dump_file)
     {
@@ -655,9 +672,7 @@ avr_optimize_casesi (rtx_insn *insns[6], rtx *xop)
   // about the extension insns[0]: Its result is now unused and other
   // passes will clean it up.
 
-  SET_INSN_DELETED (insns[1]);
   SET_INSN_DELETED (insns[2]);
-  SET_INSN_DELETED (insns[4]);
 }
 
 
@@ -668,7 +683,7 @@ avr_pass_casesi::avr_rest_of_handle_casesi (function *func)
 
   FOR_EACH_BB_FN (bb, func)
     {
-      rtx_insn *insn, *insns[6];
+      rtx_insn *insn, *insns[5];
 
       FOR_BB_INSNS (bb, insn)
         {
@@ -1778,8 +1793,14 @@ avr_prologue_setup_frame (HOST_WIDE_INT size, HARD_REG_SET set)
                             gen_rtx_SET (fp, stack_pointer_rtx));
             }
 
-          insn = emit_move_insn (my_fp, plus_constant (GET_MODE (my_fp),
-                                                       my_fp, neg_size));
+	  rtx adjust_fp = gen_rtx_SET
+	    (my_fp,  plus_constant (GET_MODE (my_fp), my_fp, neg_size));
+	  rtx clobber_cc = gen_rtx_CLOBBER (VOIDmode,
+					    gen_rtx_REG (CCmode,
+							 REG_CC));
+	  insn = emit_insn
+	    (gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, adjust_fp,
+						    clobber_cc)));
 
           if (frame_pointer_needed)
             {
@@ -1836,9 +1857,15 @@ avr_prologue_setup_frame (HOST_WIDE_INT size, HARD_REG_SET set)
 
               start_sequence ();
 
-              insn = emit_move_insn (stack_pointer_rtx,
-                                     plus_constant (Pmode, stack_pointer_rtx,
-                                                    -size));
+	      rtx adjust_sp = gen_rtx_SET
+		(stack_pointer_rtx,
+		 plus_constant (Pmode, stack_pointer_rtx, -size));
+	      rtx clobber_cc = gen_rtx_CLOBBER (VOIDmode,
+						gen_rtx_REG (CCmode,
+							     REG_CC));
+	      insn = emit_insn
+		(gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, adjust_sp,
+							clobber_cc)));
               RTX_FRAME_RELATED_P (insn) = 1;
               add_reg_note (insn, REG_CFA_ADJUST_CFA,
                             gen_rtx_SET (stack_pointer_rtx,
@@ -2102,8 +2129,14 @@ avr_expand_epilogue (bool sibcall_p)
 
       if (size)
         {
-          emit_move_insn (frame_pointer_rtx,
-                          plus_constant (Pmode, frame_pointer_rtx, size));
+	  rtx adjust_fp = gen_rtx_SET
+	    (frame_pointer_rtx,
+	     plus_constant (Pmode, frame_pointer_rtx, size));
+	  rtx clobber_cc = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode,
+								   REG_CC));
+	  emit_insn
+	    (gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, adjust_fp,
+						    clobber_cc)));
         }
 
       emit_insn (gen_epilogue_restores (gen_int_mode (live_seq, HImode)));
@@ -2149,7 +2182,13 @@ avr_expand_epilogue (bool sibcall_p)
       if (!frame_pointer_needed)
         emit_move_insn (fp, stack_pointer_rtx);
 
-      emit_move_insn (my_fp, plus_constant (GET_MODE (my_fp), my_fp, size));
+      rtx adjust_fp = gen_rtx_SET
+	(my_fp,  plus_constant (GET_MODE (my_fp), my_fp, size));
+      rtx clobber_cc = gen_rtx_CLOBBER (VOIDmode,
+					gen_rtx_REG (CCmode,
+						     REG_CC));
+      emit_insn
+	(gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, adjust_fp, clobber_cc)));
 
       /* Copy to stack pointer.  */
 
@@ -2173,8 +2212,15 @@ avr_expand_epilogue (bool sibcall_p)
 
           start_sequence ();
 
-          emit_move_insn (stack_pointer_rtx,
-                          plus_constant (Pmode, stack_pointer_rtx, size));
+	  rtx adjust_sp = gen_rtx_SET
+	    (stack_pointer_rtx,
+	     plus_constant (Pmode, stack_pointer_rtx, size));
+	  rtx clobber_cc = gen_rtx_CLOBBER (VOIDmode,
+					    gen_rtx_REG (CCmode,
+							 REG_CC));
+	  emit_insn
+	    (gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, adjust_sp,
+						    clobber_cc)));
 
           sp_plus_insns = get_insns ();
           end_sequence ();
