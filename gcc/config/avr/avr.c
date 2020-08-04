@@ -7533,7 +7533,6 @@ lshrsi3_out (rtx_insn *insn, rtx operands[], int *len)
    If PLEN == NULL, print assembler instructions to perform the operation;
    otherwise, set *PLEN to the length of the instruction sequence (in words)
    printed with PLEN == NULL.  XOP[3] is an 8-bit scratch register or NULL_RTX.
-   Set *PCC to effect on cc0 according to respective CC_* insn attribute.
 
    CODE_SAT == UNKNOWN: Perform ordinary, non-saturating operation.
    CODE_SAT != UNKNOWN: Perform operation and saturate according to CODE_SAT.
@@ -7547,7 +7546,7 @@ lshrsi3_out (rtx_insn *insn, rtx operands[], int *len)
    fixed-point rounding, cf. `avr_out_round'.  */
 
 static void
-avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
+avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code,
                 enum rtx_code code_sat, int sign, bool out_label)
 {
   /* MODE of the operation.  */
@@ -7583,8 +7582,6 @@ avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
 
   if (REG_P (xop[2]))
     {
-      *pcc = MINUS == code ? (int) CC_SET_CZN : (int) CC_CLOBBER;
-
       for (int i = 0; i < n_bytes; i++)
         {
           /* We operate byte-wise on the destination.  */
@@ -7611,9 +7608,7 @@ avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
     }
 
   /* Except in the case of ADIW with 16-bit register (see below)
-     addition does not set cc0 in a usable way.  */
-
-  *pcc = (MINUS == code) ? CC_SET_CZN : CC_CLOBBER;
+     addition does not set CC in a usable way.  */
 
   if (CONST_FIXED_P (xval))
     xval = avr_to_int_mode (xval);
@@ -7622,7 +7617,6 @@ avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
 
   if (xval == const0_rtx)
     {
-      *pcc = CC_NONE;
       return;
     }
 
@@ -7667,10 +7661,7 @@ avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
       op[0] = reg8;
       op[1] = gen_int_mode (val8, QImode);
 
-      /* To get usable cc0 no low-bytes must have been skipped.  */
-
-      if (i && !started)
-        *pcc = CC_CLOBBER;
+      /* To get usable CC no low-bytes must have been skipped.  */
 
       if (!started
           && i % 2 == 0
@@ -7690,9 +7681,6 @@ avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
                   started = true;
                   avr_asm_len (code == PLUS ? "adiw %0,%1" : "sbiw %0,%1",
                                op, plen, 1);
-
-                  if (n_bytes == 2 && PLUS == code)
-                    *pcc = CC_SET_CZN;
                 }
 
               i++;
@@ -7715,7 +7703,6 @@ avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
         {
           avr_asm_len ((code == PLUS) ^ (val8 == 1) ? "dec %0" : "inc %0",
                        op, plen, 1);
-          *pcc = CC_CLOBBER;
           break;
         }
 
@@ -7773,8 +7760,6 @@ avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
 
   if (UNKNOWN == code_sat)
     return;
-
-  *pcc = (int) CC_CLOBBER;
 
   /* Vanilla addition/subtraction is done.  We are left with saturation.
 
@@ -8003,15 +7988,13 @@ avr_out_plus_1 (rtx *xop, int *plen, enum rtx_code code, int *pcc,
    are additions/subtraction for pointer modes, i.e. HImode and PSImode.  */
 
 static const char*
-avr_out_plus_symbol (rtx *xop, enum rtx_code code, int *plen, int *pcc)
+avr_out_plus_symbol (rtx *xop, enum rtx_code code, int *plen)
 {
   machine_mode mode = GET_MODE (xop[0]);
 
   /* Only pointer modes want to add symbols.  */
 
   gcc_assert (mode == HImode || mode == PSImode);
-
-  *pcc = MINUS == code ? (int) CC_SET_CZN : (int) CC_SET_N;
 
   avr_asm_len (PLUS == code
                ? "subi %A0,lo8(-(%2))" CR_TAB "sbci %B0,hi8(-(%2))"
@@ -8039,19 +8022,15 @@ avr_out_plus_symbol (rtx *xop, enum rtx_code code, int *plen, int *pcc)
    If PLEN == NULL output the instructions.
    If PLEN != NULL set *PLEN to the length of the sequence in words.
 
-   PCC is a pointer to store the instructions' effect on cc0.
-   PCC may be NULL.
-
-   PLEN and PCC default to NULL.
+   PLEN defaults to NULL.
 
    OUT_LABEL defaults to TRUE.  For a description, see AVR_OUT_PLUS_1.
 
    Return ""  */
 
 const char*
-avr_out_plus (rtx insn, rtx *xop, int *plen, int *pcc, bool out_label)
+avr_out_plus (rtx insn, rtx *xop, int *plen, bool out_label)
 {
-  int cc_plus, cc_minus, cc_dummy;
   int len_plus, len_minus;
   rtx op[4];
   rtx xpattern = INSN_P (insn) ? single_set (as_a <rtx_insn *> (insn)) : insn;
@@ -8064,9 +8043,6 @@ avr_out_plus (rtx insn, rtx *xop, int *plen, int *pcc, bool out_label)
     = (PLUS == code_sat || SS_PLUS == code_sat || US_PLUS == code_sat
        ? PLUS : MINUS);
 
-  if (!pcc)
-    pcc = &cc_dummy;
-
   /* PLUS and MINUS don't saturate:  Use modular wrap-around.  */
 
   if (PLUS == code_sat || MINUS == code_sat)
@@ -8074,7 +8050,7 @@ avr_out_plus (rtx insn, rtx *xop, int *plen, int *pcc, bool out_label)
 
   if (n_bytes <= 4 && REG_P (xop[2]))
     {
-      avr_out_plus_1 (xop, plen, code, pcc, code_sat, 0, out_label);
+      avr_out_plus_1 (xop, plen, code, code_sat, 0, out_label);
       return "";
     }
 
@@ -8090,7 +8066,7 @@ avr_out_plus (rtx insn, rtx *xop, int *plen, int *pcc, bool out_label)
           && !CONST_INT_P (xop[2])
           && !CONST_FIXED_P (xop[2]))
         {
-          return avr_out_plus_symbol (xop, code, plen, pcc);
+          return avr_out_plus_symbol (xop, code, plen);
         }
 
       op[0] = avr_to_int_mode (xop[0]);
@@ -8117,18 +8093,17 @@ avr_out_plus (rtx insn, rtx *xop, int *plen, int *pcc, bool out_label)
 
   /* Work out the shortest sequence.  */
 
-  avr_out_plus_1 (op, &len_minus, MINUS, &cc_minus, code_sat, sign, out_label);
-  avr_out_plus_1 (op, &len_plus, PLUS, &cc_plus, code_sat, sign, out_label);
+  avr_out_plus_1 (op, &len_minus, MINUS, code_sat, sign, out_label);
+  avr_out_plus_1 (op, &len_plus, PLUS, code_sat, sign, out_label);
 
   if (plen)
     {
       *plen = (len_minus <= len_plus) ? len_minus : len_plus;
-      *pcc  = (len_minus <= len_plus) ? cc_minus : cc_plus;
     }
   else if (len_minus <= len_plus)
-    avr_out_plus_1 (op, NULL, MINUS, pcc, code_sat, sign, out_label);
+    avr_out_plus_1 (op, NULL, MINUS, code_sat, sign, out_label);
   else
-    avr_out_plus_1 (op, NULL, PLUS, pcc, code_sat, sign, out_label);
+    avr_out_plus_1 (op, NULL, PLUS, code_sat, sign, out_label);
 
   return "";
 }
@@ -9017,7 +8992,7 @@ avr_out_round (rtx_insn *insn ATTRIBUTE_UNUSED, rtx *xop, int *plen)
   op[0] = xop[0];
   op[1] = xop[1];
   op[2] = xadd;
-  avr_out_plus (xpattern, op, plen_add, NULL, false /* Don't print "0:" */);
+  avr_out_plus (xpattern, op, plen_add, false /* Don't print "0:" */);
 
   avr_asm_len ("rjmp 1f" CR_TAB
                "0:", NULL, plen_add, 1);
