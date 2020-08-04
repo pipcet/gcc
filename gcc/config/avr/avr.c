@@ -13367,8 +13367,22 @@ avr_emit_cpymemhi (rtx *xop)
         Z = source address
         X = destination address  */
 
-  emit_move_insn (lpm_addr_reg_rtx, addr1);
-  emit_move_insn (gen_rtx_REG (HImode, REG_X), a_dest);
+  if (GET_CODE (a_src) == PLUS)
+    {
+      emit_insn (gen_addhi3 (lpm_addr_reg_rtx,
+			     XEXP (a_src, 0),
+			     XEXP (a_src, 1)));
+    }
+  else
+    emit_move_insn (lpm_addr_reg_rtx, addr1);
+  if (GET_CODE (a_dest) == PLUS)
+    {
+      emit_insn (gen_addhi3 (gen_rtx_REG (HImode, REG_X),
+			     XEXP (a_dest, 0),
+			     XEXP (a_dest, 1)));
+    }
+  else
+    emit_move_insn (gen_rtx_REG (HImode, REG_X), a_dest);
 
   /* FIXME: Register allocator does a bad job and might spill address
         register(s) inside the loop leading to additional move instruction
