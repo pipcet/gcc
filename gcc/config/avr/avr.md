@@ -3434,6 +3434,21 @@
 	* return avr_out_bitop (insn, operands, NULL);"
   [(set_attr "length" "1,1,2")])
 
+(define_insn "*andqi3_cc"
+  [(set (reg:CCNZ REG_CC)
+	(compare:CCNZ
+	 (and:QI (match_operand:QI 1 "register_operand" "%0,0,0")
+                 (match_operand:QI 2 "nonmemory_operand" "r,i,Ca1"))
+	 (const_int 0)))
+   (set (match_operand:QI 0 "register_operand"       "=??r,d,*l")
+	(and:QI (match_dup 1) (match_dup 2)))]
+  ""
+  "@
+	and %0,%2
+	andi %0,lo8(%2)
+	* return avr_out_bitop (insn, operands, NULL);"
+  [(set_attr "length" "1,1,2")])
+
 (define_insn "andhi3"
   [(set (match_operand:HI 0 "register_operand"       "=??r,d,d,r  ,r")
         (and:HI (match_operand:HI 1 "register_operand" "%0,0,0,0  ,0")
