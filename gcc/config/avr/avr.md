@@ -5346,6 +5346,47 @@
   }
   [(set_attr "type" "branch")])
 
+(define_insn "*branch_nocc"
+  [(set (pc)
+	(if_then_else (match_operator 1 "simple_comparison_operator"
+				      [(reg:CC REG_CC)
+				       (const_int 0)])
+		      (label_ref (match_operand 0 "" ""))
+				 (pc)))
+   (clobber (reg:CC REG_CC))]
+""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch")])
+
+(define_insn "*branch_eqne"
+  [(set (pc)
+        (if_then_else (match_operator 1 "eqne_operator"
+                                      [(reg:CCNZ REG_CC)
+                                       (const_int 0)])
+                      (label_ref (match_operand 0 "" ""))
+                      (pc)))
+   (clobber (reg:CC REG_CC))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch")])
+
+(define_insn "*branch_eqne_nocc"
+  [(set (pc)
+	(if_then_else (match_operator 1 "eqne_operator"
+				      [(reg:CCNZ REG_CC)
+				       (const_int 0)])
+		      (label_ref (match_operand 0 "" ""))
+		      (pc)))
+   (clobber (reg:CC REG_CC))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch")])
 
 ;; Same as above but wrap SET_SRC so that this branch won't be transformed
 ;; or optimized in the remainder.
