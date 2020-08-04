@@ -5839,10 +5839,10 @@ compare_sign_p (rtx_insn *insn)
    that needs to be swapped (GT, GTU, LE, LEU).  */
 
 static bool
-compare_diff_p (rtx_insn *insn)
+compare_difficult_p (rtx_insn *insn)
 {
   RTX_CODE cond = compare_condition (insn);
-  return (cond == GT || cond == GTU || cond == LE || cond == LEU) ? cond : 0;
+  return (cond == GT || cond == GTU || cond == LE || cond == LEU);
 }
 
 /* Returns true iff INSN is a compare insn with the EQ or NE condition.  */
@@ -11959,7 +11959,7 @@ avr_reorg (void)
           continue;
         }
 
-      if (compare_diff_p (insn))
+      if (compare_difficult_p (insn))
 	{
           /* Now we work under compare insn with difficult branch.  */
 
