@@ -202,7 +202,7 @@ arithmetic_flags_clobber_p (rtx_insn *insn)
   if (asm_noperands (pat) >= 0)
     return false;
 
-  if (GET_CODE (pat) == PARALLEL && XVECLEN (pat, 0) == 2)
+  if (GET_CODE (pat) == PARALLEL && XVECLEN (pat, 0) >= 2)
     {
       x = XVECEXP (pat, 0, 0);
       if (GET_CODE (x) != SET)
@@ -211,7 +211,7 @@ arithmetic_flags_clobber_p (rtx_insn *insn)
       if (!REG_P (x))
 	return false;
 
-      x = XVECEXP (pat, 0, 1);
+      x = XVECEXP (pat, 0, XVECLEN (pat, 0) - 1);
       if (GET_CODE (x) == CLOBBER)
 	{
 	  x = XEXP (x, 0);
@@ -663,6 +663,16 @@ static rtx
 try_validate_parallel (rtx set_a, rtx set_b)
 {
   rtx par = gen_rtx_PARALLEL (VOIDmode, gen_rtvec (2, set_a, set_b));
+  if (GET_CODE (set_b) == PARALLEL)
+    {
+      int len = XVECLEN (set_b, 0);
+      rtvec v = rtvec_alloc (len);
+      RTVEC_ELT (v, 0) = set_a;
+      for (int i = 0; i < len - 1; i++)
+	RTVEC_ELT (v, i + 1) = XVECEXP (set_b, 0, i);
+
+      par = gen_rtx_PARALLEL (VOIDmode, v);
+    }
   rtx_insn *insn = make_insn_raw (par);
 
   if (insn_invalid_p (insn, false))
@@ -873,10 +883,25 @@ try_eliminate_compare (struct comparison *cmp)
      [(set (reg:CCM) (compare:CCM (operation) (immediate)))
       (set (reg) (operation)]  */
 
-  rtvec v = rtvec_alloc (2);
+  /* Rotate
+     [(set A B)
+      (clobber (scratch))
+      ...
+      (clobber (reg:CCM))]]
+
+     to
+
+     [(set (reg:CCM) (compare:CCM (operation) (immediate)))
+      (set A B)
+      (clobber (scratch))
+      ...]  */
+
+  int len = XVECLEN (PATTERN (insn), 0);
+  rtvec v = rtvec_alloc (len);
   RTVEC_ELT (v, 0) = y;
-  RTVEC_ELT (v, 1) = x;
-  
+  for (int i = 0; i < len - 1; i++)
+    RTVEC_ELT (v, i + 1) = XVECEXP (PATTERN (insn), 0, i);
+
   rtx pat = gen_rtx_PARALLEL (VOIDmode, v);
   
   /* Succeed if the new instruction is valid.  Note that we may have started
