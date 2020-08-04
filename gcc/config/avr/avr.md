@@ -516,7 +516,7 @@
   [(clobber (const_int 0))]
   {
     /* ; Split away the high part of the address.  GCC's register allocator
-       ; in not able to allocate segment registers and reload the resulting
+       ; is not able to allocate segment registers and reload the resulting
        ; expressions.  Notice that no address register can hold a PSImode.  */
 
     rtx_insn *insn;
@@ -1553,7 +1553,6 @@
   [(parallel [(set (match_dup 3)
                    (plus:ALL2 (match_dup 3)
                               (match_dup 1)))
-              (clobber (match_dup 2))])])
               (clobber (match_dup 2))
 	      (clobber (reg:CC REG_CC))])])
 
@@ -2066,7 +2065,7 @@
 ;;       return aInt[3*z+2];
 ;;     }
 ;;
-;; because the constant +4 then is added explicitely instead of consuming it
+;; because the constant +4 then is added explicitly instead of consuming it
 ;; with the aInt symbol.  Therefore, we rely on insn combine which takes costs
 ;; into account more accurately and doesn't do burte-force multiply-add/sub.
 ;; The implementational effort is the same so we are fine with that approach.
@@ -2612,7 +2611,7 @@
 ;; expanding to the implicit library call until post combine and
 ;; prior to register allocation.  Clobber all hard registers that
 ;; might be used by the (widening) multiply until it is split and
-;; it's final register footprint is worked out.
+;; its final register footprint is worked out.
 
 (define_expand "mulsi3"
   [(parallel [(set (match_operand:SI 0 "register_operand" "")
@@ -2719,8 +2718,8 @@
    (set (match_dup 0)
         (reg:SI 22))]
   {
-    /* Do the QI -> HI extension explicitely before the multiplication.  */
-    /* Do the HI -> SI extension implicitely and after the multiplication.  */
+    /* Do the QI -> HI extension explicitly before the multiplication.  */
+    /* Do the HI -> SI extension implicitly and after the multiplication.  */
 
     if (QImode == <MODE>mode)
       operands[1] = gen_rtx_ZERO_EXTEND (HImode, operands[1]);
@@ -2774,8 +2773,8 @@
    (set (match_dup 0)
         (reg:SI 22))]
   {
-    /* Do the QI -> HI extension explicitely before the multiplication.  */
-    /* Do the HI -> SI extension implicitely and after the multiplication.  */
+    /* Do the QI -> HI extension explicitly before the multiplication.  */
+    /* Do the HI -> SI extension implicitly and after the multiplication.  */
 
     if (QImode == <MODE>mode)
       operands[1] = gen_rtx_SIGN_EXTEND (HImode, operands[1]);
@@ -2885,9 +2884,6 @@
         (match_dup 1))
    (set (reg:HI 26)
         (match_dup 2))
-   (set (reg:SI 22)
-        (mult:SI (match_dup 3)
-                 (match_dup 4)))
    (parallel [(set (reg:SI 22)
 		   (mult:SI (match_dup 3)
 			    (match_dup 4)))
@@ -2898,8 +2894,8 @@
     rtx xop1 = operands[1];
     rtx xop2 = operands[2];
 
-    /* Do the QI -> HI extension explicitely before the multiplication.  */
-    /* Do the HI -> SI extension implicitely and after the multiplication.  */
+    /* Do the QI -> HI extension explicitly before the multiplication.  */
+    /* Do the HI -> SI extension implicitly and after the multiplication.  */
 
     if (QImode == <QIHI:MODE>mode)
       xop1 = gen_rtx_fmt_e (<any_extend:CODE>, HImode, xop1);
@@ -3031,7 +3027,7 @@
               (clobber (reg:QI 25))
 	      (clobber (reg:CC REG_CC))])]
   ""
-  "this divmodqi4 pattern should have been splitted;"
+  "this divmodqi4 pattern should have been split;"
   ""
   [(set (reg:QI 24) (match_dup 1))
    (set (reg:QI 22) (match_dup 2))
@@ -3097,7 +3093,7 @@
    (clobber (reg:HI 26))
    (clobber (reg:CC REG_CC))]
   ""
-  "this should have been splitted;"
+  "this should have been split;"
   ""
   [(set (reg:HI 24) (match_dup 1))
    (set (reg:HI 22) (match_dup 2))
@@ -3131,7 +3127,7 @@
    (clobber (reg:HI 26))
    (clobber (reg:CC REG_CC))]
   ""
-  "this udivmodhi4 pattern should have been splitted.;"
+  "this udivmodhi4 pattern should have been split.;"
   ""
   [(set (reg:HI 24) (match_dup 1))
    (set (reg:HI 22) (match_dup 2))
@@ -3393,7 +3389,7 @@
    (clobber (reg:HI 30))
    (clobber (reg:CC REG_CC))]
   ""
-  "this divmodsi4 pattern should have been splitted;"
+  "this divmodsi4 pattern should have been split;"
   ""
   [(set (reg:SI 22) (match_dup 1))
    (set (reg:SI 18) (match_dup 2))
@@ -3427,7 +3423,7 @@
    (clobber (reg:HI 30))
    (clobber (reg:CC REG_CC))]
   ""
-  "this udivmodsi4 pattern should have been splitted;"
+  "this udivmodsi4 pattern should have been split;"
   ""
   [(set (reg:SI 22) (match_dup 1))
    (set (reg:SI 18) (match_dup 2))
@@ -5673,7 +5669,6 @@
   }
   [(set_attr "type" "branch1")])
 
-;; revers branch
 (define_insn "difficult_branch_nocc"
   [(set (pc)
         (if_then_else (match_operator 1 "difficult_comparison_operator"
@@ -5688,6 +5683,7 @@
   }
   [(set_attr "type" "branch1")])
 
+;; reverse branch
 
 (define_insn "rvbranch"
   [(set (pc)
@@ -5993,8 +5989,8 @@
 ;; This instruction sets Z flag
 
 (define_insn "sez"
-  ""
   [(set (reg:CC REG_CC) (const_int 0))]
+  "reload_completed"
   "sez"
   [(set_attr "length" "1")])
 

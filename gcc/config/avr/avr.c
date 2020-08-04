@@ -9217,10 +9217,10 @@ avr_rotate_bytes (rtx operands[])
 
   move_size = GET_MODE_SIZE (move_mode);
   /* Number of bytes/words to rotate.  */
-  offset = (num  >> 3) / move_size;
+  offset = (num >> 3) / move_size;
   /* Number of moves needed.  */
   size = GET_MODE_SIZE (mode) / move_size;
-  /* Himode byte swap is special case to avoid a scratch register.  */
+  /* HImode byte swap is special case to avoid a scratch register.  */
   if (mode == HImode && same_reg)
     {
       /* HImode byte swap, using xor.  This is as quick as using scratch.  */
@@ -11769,7 +11769,7 @@ avr_compare_pattern (rtx_insn *insn)
 
    We don't want to do this in text peephole because it is
    tedious to work out jump offsets there and the second comparison
-   might have been transormed by `avr_reorg'.
+   might have been transformed by `avr_reorg'.
 
    RTL peephole won't do because peephole2 does not scan across
    basic blocks.  */
@@ -12161,7 +12161,7 @@ avr_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
         Disallowing QI et al. in these regs might lead to code like
             (set (subreg:QI (reg:HI 28) n) ...)
         which will result in wrong code because reload does not
-        handle SUBREGs of hard regsisters like this.
+        handle SUBREGs of hard registers like this.
         This could be fixed in reload.  However, it appears
         that fixing reload is not wanted by reload people.  */
 
@@ -13322,7 +13322,7 @@ avr_emit3_fix_outputs (rtx (*gen)(rtx,rtx,rtx), rtx *op,
   const int n = 3;
   rtx hreg[n];
 
-  /* It is letigimate for GEN to call this function, and in order not to
+  /* It is legitimate for GEN to call this function, and in order not to
      get self-recursive we use the following static kludge.  This is the
      only way not to duplicate all expanders and to avoid ugly and
      hard-to-maintain C-code instead of the much more appreciated RTL
