@@ -5476,7 +5476,7 @@
 				      (label_ref (match_operand 1 "" ""))
 				      (pc)))
 	      (clobber (reg:CC REG_CC))])]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  ""
   [(set (pc) (if_then_else (eq (zero_extract:HI (match_dup 0)
                                                 (const_int 1)
                                                 (const_int 7))
@@ -5490,7 +5490,7 @@
    (set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
                            (pc)))]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  ""
   [(set (pc) (if_then_else (ne (zero_extract:HI (match_dup 0)
 						(const_int 1)
                                                 (const_int 7))
@@ -5506,7 +5506,7 @@
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
                            (pc)))])]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  ""
   [(set (pc) (if_then_else (eq (and:HI (match_dup 0) (const_int -32768))
                                (const_int 0))
                            (label_ref (match_dup 1))
@@ -5520,7 +5520,7 @@
    (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
                            (pc)))])]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  ""
   [(set (pc) (if_then_else (ne (and:HI (match_dup 0) (const_int -32768))
                                (const_int 0))
                            (label_ref (match_dup 1))
@@ -5534,7 +5534,7 @@
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
                            (pc)))])]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  ""
   [(set (pc) (if_then_else (eq (and:SI (match_dup 0) (match_dup 2))
                                (const_int 0))
                            (label_ref (match_dup 1))
@@ -5550,7 +5550,7 @@
                            (label_ref (match_operand 1 "" ""))
                            (pc)))
 	      (clobber (reg:CC REG_CC))])]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  ""
   [(set (pc) (if_then_else (ne (and:SI (match_dup 0) (match_dup 2))
                                (const_int 0))
                            (label_ref (match_dup 1))
