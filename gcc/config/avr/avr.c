@@ -5744,16 +5744,31 @@ avr_frame_pointer_required_p (void)
           || get_frame_size () > 0);
 }
 
+rtx_insn *next_real_nonmov_insn (rtx_insn *insn)
+{
+  do
+    insn = next_real_insn (insn);
+  while (insn && INSN_P (insn)
+	 && GET_CODE (PATTERN (insn)) == SET
+	 && SET_DEST (PATTERN (insn)) != pc_rtx);
+
+  return insn;
+}
+
 /* Returns the condition of compare insn INSN, or UNKNOWN.  */
 
 static RTX_CODE
 compare_condition (rtx_insn *insn)
 {
-  rtx_insn *next = next_real_insn (insn);
+  rtx_insn *next = next_real_nonmov_insn (insn);
 
   if (next && JUMP_P (next))
     {
       rtx pat = PATTERN (next);
+      if (GET_CODE (pat) == PARALLEL)
+	pat = XVECEXP (pat, 0, 0);
+      if (GET_CODE (pat) != SET)
+	return UNKNOWN;
       rtx src = SET_SRC (pat);
 
       if (IF_THEN_ELSE == GET_CODE (src))
@@ -11876,8 +11891,10 @@ avr_reorg (void)
 	{
           /* Now we work under compare insn with difficult branch.  */
 
-	  rtx_insn *next = next_real_insn (insn);
+	  rtx_insn *next = next_real_nonmov_insn (insn);
           rtx pat = PATTERN (next);
+	  if (GET_CODE (pat) == PARALLEL)
+	    pat = XVECEXP (pat, 0, 0);
 
           pattern = SET_SRC (pattern);
 
