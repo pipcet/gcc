@@ -503,6 +503,7 @@ typedef struct avr_args
    understandable.  */
 #define CC_NO_CARRY CC_NO_OVERFLOW
 
+#define SELECT_CC_MODE(OP, X, Y) select_cc_mode ((OP), (X), (Y))
 #define TARGET_CANONICALIZE_COMPARISON avr_canonicalize_comparison
 
 /* Output assembler code to FILE to increment profiler label # LABELNO
