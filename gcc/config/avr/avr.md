@@ -5558,6 +5558,21 @@
   }
   [(set_attr "type" "branch")])
 
+(define_insn "branch_unspec_nocc"
+  [(set (pc)
+        (unspec [(if_then_else (match_operator 1 "simple_comparison_operator"
+                                               [(reg:CC REG_CC)
+                                                (const_int 0)])
+                               (label_ref (match_operand 0 "" ""))
+                               (pc))
+                 ] UNSPEC_IDENTITY))
+   (clobber (reg:CC REG_CC))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch")])
+
 ;; ****************************************************************
 ;; AVR does not have following conditional jumps: LE,LEU,GT,GTU.
 ;; Convert them all to proper jumps.
@@ -5578,6 +5593,20 @@
   [(set_attr "type" "branch1")])
 
 ;; revers branch
+(define_insn "difficult_branch_nocc"
+  [(set (pc)
+        (if_then_else (match_operator 1 "difficult_comparison_operator"
+                        [(reg:CC REG_CC)
+                         (const_int 0)])
+                      (label_ref (match_operand 0 "" ""))
+                      (pc)))
+   (clobber (reg:CC REG_CC))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch1")])
+
 
 (define_insn "rvbranch"
   [(set (pc)
