@@ -11734,7 +11734,7 @@ avr_compare_pattern (rtx_insn *insn)
 
   if (pattern
       && NONJUMP_INSN_P (insn)
-      && SET_DEST (pattern) == cc0_rtx
+      && GET_MODE (SET_DEST (pattern)) == CCmode
       && GET_CODE (SET_SRC (pattern)) == COMPARE)
     {
       machine_mode mode0 = GET_MODE (XEXP (SET_SRC (pattern), 0));
@@ -11755,18 +11755,18 @@ avr_compare_pattern (rtx_insn *insn)
 
 /* Expansion of switch/case decision trees leads to code like
 
-       cc0 = compare (Reg, Num)
-       if (cc0 == 0)
+       CC = compare (Reg, Num)
+       if (CC == 0)
          goto L1
 
-       cc0 = compare (Reg, Num)
-       if (cc0 > 0)
+       CC = compare (Reg, Num)
+       if (CC > 0)
          goto L2
 
    The second comparison is superfluous and can be deleted.
    The second jump condition can be transformed from a
-   "difficult" one to a "simple" one because "cc0 > 0" and
-   "cc0 >= 0" will have the same effect here.
+   "difficult" one to a "simple" one because "CC > 0" and
+   "CC >= 0" will have the same effect here.
 
    This function relies on the way switch/case is being expaned
    as binary decision tree.  For example code see PR 49903.
@@ -11837,8 +11837,8 @@ avr_reorg_remove_redundant_compare (rtx_insn *insn1)
       || LABEL_REF != GET_CODE (XEXP (ifelse1, 1))
       || LABEL_REF != GET_CODE (XEXP (ifelse2, 1))
       || !COMPARISON_P (XEXP (ifelse2, 0))
-      || cc0_rtx != XEXP (XEXP (ifelse1, 0), 0)
-      || cc0_rtx != XEXP (XEXP (ifelse2, 0), 0)
+      || GET_MODE (XEXP (XEXP (ifelse1, 0), 0)) != CCmode
+      || GET_MODE (XEXP (XEXP (ifelse2, 0), 0)) != CCmode
       || const0_rtx != XEXP (XEXP (ifelse1, 0), 1)
       || const0_rtx != XEXP (XEXP (ifelse2, 0), 1))
     {
@@ -11847,20 +11847,20 @@ avr_reorg_remove_redundant_compare (rtx_insn *insn1)
 
   /* We filtered the insn sequence to look like
 
-        (set (cc0)
+        (set (reg:CC REG_CC)
              (compare (reg:M N)
                       (const_int VAL)))
         (set (pc)
-             (if_then_else (eq (cc0)
+             (if_then_else (eq (reg:CC REG_CC)
                                (const_int 0))
                            (label_ref L1)
                            (pc)))
 
-        (set (cc0)
+        (set (reg:CC REG_CC)
              (compare (reg:M N)
                       (const_int VAL)))
         (set (pc)
-             (if_then_else (CODE (cc0)
+             (if_then_else (CODE (reg:CC REG_CC)
                                  (const_int 0))
                            (label_ref L2)
                            (pc)))
@@ -11908,7 +11908,8 @@ avr_reorg_remove_redundant_compare (rtx_insn *insn1)
   JUMP_LABEL (jump) = JUMP_LABEL (branch1);
 
   target = XEXP (XEXP (ifelse2, 1), 0);
-  cond = gen_rtx_fmt_ee (code, VOIDmode, cc0_rtx, const0_rtx);
+  cond = gen_rtx_fmt_ee (code, VOIDmode, gen_rtx_REG (CCmode, REG_CC),
+			 const0_rtx);
   jump = emit_jump_insn_after (gen_branch_unspec (target, cond), insn2);
 
   JUMP_LABEL (jump) = JUMP_LABEL (branch2);
@@ -12286,7 +12287,7 @@ avr_regno_mode_code_ok_for_base_p (int regno,
    If CLEAR_P is true, OP[0] had been cleard to Zero already.
    If CLEAR_P is false, nothing is known about OP[0].
 
-   The effect on cc0 is as follows:
+   The effect on CC is as follows:
 
    Load 0 to any register except ZERO_REG : NONE
    Load ld register with any value        : NONE
@@ -12395,7 +12396,7 @@ output_reload_in_const (rtx *op, rtx clobber_reg, int *len, bool clear_p)
             }
         }
 
-      /* Don't use CLR so that cc0 is set as expected.  */
+      /* Don't use CLR so that CC is set as expected.  */
 
       if (ival[n] == 0)
         {
