@@ -808,6 +808,18 @@
   [(set_attr "length" "2,2,6,7,2,6,5,2")
    (set_attr "adjust_len" "mov16")])
 
+(define_insn "*mov<mode>_clobber"
+  [(set (match_operand:ALL2 0 "nonimmediate_operand" "=r,r  ,r,m    ,d,*r,q,r")
+        (match_operand:ALL2 1 "nox_general_operand"   "r,Y00,m,r Y00,i,i ,r,q"))
+   (clobber (reg:CC REG_CC))]
+  "register_operand (operands[0], <MODE>mode)
+   || reg_or_0_operand (operands[1], <MODE>mode)"
+  {
+    return output_movhi (insn, operands, NULL);
+  }
+  [(set_attr "length" "2,2,6,7,2,6,5,2")
+   (set_attr "adjust_len" "mov16")])
+
 (define_peephole2 ; movw
   [(set (match_operand:ALL1 0 "even_register_operand" "")
         (match_operand:ALL1 1 "even_register_operand" ""))
@@ -959,6 +971,19 @@
   [(set_attr "length" "3,3,8,9,4,10")
    (set_attr "adjust_len" "mov24")])
 
+(define_insn "*movpsi_clobber"
+  [(set (match_operand:PSI 0 "nonimmediate_operand" "=r,r,r ,Qm,!d,r")
+        (match_operand:PSI 1 "nox_general_operand"   "r,L,Qm,rL,i ,i"))
+   (clobber (reg:CC REG_CC))]
+  "register_operand (operands[0], PSImode)
+   || register_operand (operands[1], PSImode)
+   || const0_rtx == operands[1]"
+  {
+    return avr_out_movpsi (insn, operands, NULL);
+  }
+  [(set_attr "length" "3,3,8,9,4,10")
+   (set_attr "adjust_len" "mov24")])
+
 ;;==========================================================================
 ;; move double word (32 bit)
 
@@ -1015,12 +1040,36 @@
   [(set_attr "length" "4,4,8,9,4,10")
    (set_attr "adjust_len" "mov32")])
 
+(define_insn "*mov<mode>_clobber"
+  [(set (match_operand:ALL4 0 "nonimmediate_operand" "=r,r  ,r ,Qm   ,!d,r")
+        (match_operand:ALL4 1 "nox_general_operand"   "r,Y00,Qm,r Y00,i ,i"))
+   (clobber (reg:CC REG_CC))]
+  "register_operand (operands[0], <MODE>mode)
+   || reg_or_0_operand (operands[1], <MODE>mode)"
+  {
+    return output_movsisf (insn, operands, NULL);
+  }
+  [(set_attr "length" "4,4,8,9,4,10")
+   (set_attr "adjust_len" "mov32")])
+
 ;; fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 ;; move floating point numbers (32 bit)
 
 (define_insn "*movsf"
   [(set (match_operand:SF 0 "nonimmediate_operand" "=r,r,r ,Qm,!d,r")
         (match_operand:SF 1 "nox_general_operand"   "r,G,Qm,rG,F ,F"))]
+  "register_operand (operands[0], SFmode)
+   || reg_or_0_operand (operands[1], SFmode)"
+  {
+    return output_movsisf (insn, operands, NULL);
+  }
+  [(set_attr "length" "4,4,8,9,4,10")
+   (set_attr "adjust_len" "mov32")])
+
+(define_insn "*movsf_clobber"
+  [(set (match_operand:SF 0 "nonimmediate_operand" "=r,r,r ,Qm,!d,r")
+        (match_operand:SF 1 "nox_general_operand"   "r,G,Qm,rG,F ,F"))
+   (clobber (reg:CC REG_CC))]
   "register_operand (operands[0], SFmode)
    || reg_or_0_operand (operands[1], SFmode)"
   {
