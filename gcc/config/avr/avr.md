@@ -4524,6 +4524,17 @@
     operands[1] = avr_to_int_mode (operands[0]);
   })
 
+(define_split
+  [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
+					   [(reg:CC REG_CC) (const_int 0)])
+			   (match_operand 1)
+			   (match_operand 2)))]
+  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  [(parallel [(set (pc) (if_then_else (match_dup 0)
+				      (match_dup 1)
+				      (match_dup 2)))
+	      (clobber (reg:CC REG_CC))])])
+
 (define_split	; lshrqi3_const6
   [(parallel [(set (match_operand:QI 0 "d_register_operand" "")
 		   (lshiftrt:QI (match_dup 0)
@@ -5474,17 +5485,6 @@
 	      (clobber (reg:CC REG_CC))])])
 
 (define_peephole2
-  [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
-					   [(reg:CC REG_CC) (const_int 0)])
-			   (match_operand 1)
-			   (match_operand 2)))]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
-  [(parallel [(set (pc) (if_then_else (match_dup 0)
-				      (match_dup 1)
-				      (match_dup 2)))
-	      (clobber (reg:CC REG_CC))])])
-
-(define_peephole2
   [(parallel [(set (reg:CCNZ REG_CC)
 		   (compare:CCNZ (and:QI (match_operand:QI 0 "register_operand")
 					 (match_operand:QI 1 "single_one_operand"))
@@ -5548,7 +5548,7 @@
 				      (pc)))
 	      (clobber (reg:CC REG_CC))])]
   ""
-  [(set (pc) (if_then_else (eq (zero_extract:HI (match_dup 0)
+  [(set (pc) (if_then_else (eq (zero_extract:QI (match_dup 0)
                                                 (const_int 1)
                                                 (const_int 7))
                                (const_int 0))
@@ -5560,13 +5560,13 @@
   [(parallel [(set (reg:CC REG_CC)
 		   (compare:CC (match_operand:QI 0 "register_operand" "")
                       	       (const_int 0)))
-	      (clobber (match_operand:QI 2))])
+	      (clobber (match_scratch:QI 2))])
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
 				      (label_ref (match_operand 1 "" ""))
 				      (pc)))
 	      (clobber (reg:CC REG_CC))])]
   ""
-  [(set (pc) (if_then_else (eq (zero_extract:HI (match_dup 0)
+  [(set (pc) (if_then_else (eq (zero_extract:QI (match_dup 0)
                                                 (const_int 1)
                                                 (const_int 7))
                                (const_int 0))
@@ -5581,7 +5581,7 @@
 				      (pc)))
 	      (clobber (reg:CC REG_CC))])]
   ""
-  [(set (pc) (if_then_else (ne (zero_extract:HI (match_dup 0)
+  [(set (pc) (if_then_else (ne (zero_extract:QI (match_dup 0)
 						(const_int 1)
                                                 (const_int 7))
 			       (const_int 0))
@@ -5598,7 +5598,7 @@
 				      (pc)))
 	      (clobber (reg:CC REG_CC))])]
   ""
-  [(set (pc) (if_then_else (ne (zero_extract:HI (match_dup 0)
+  [(set (pc) (if_then_else (ne (zero_extract:QI (match_dup 0)
 						(const_int 1)
                                                 (const_int 7))
 			       (const_int 0))
@@ -5609,7 +5609,7 @@
   [(parallel [(set (reg:CC REG_CC)
                    (compare:CC (match_operand:HI 0 "register_operand" "")
                                (const_int 0)))
-              (clobber (match_operand:HI 2 ""))])
+              (clobber (match_operand:QI 2 ""))])
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
                            (pc)))
@@ -5637,10 +5637,11 @@
   [(parallel [(set (reg:CC REG_CC)
                    (compare:CC (match_operand:HI 0 "register_operand" "")
                                (const_int 0)))
-              (clobber (match_operand:HI 2 ""))])
-   (set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
-                           (label_ref (match_operand 1 "" ""))
-                           (pc)))]
+              (clobber (match_operand:QI 2 ""))])
+   (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
+				      (label_ref (match_operand 1 "" ""))
+				      (pc)))
+	      (clobber (reg:CC REG_CC))])]
   ""
   [(set (pc) (if_then_else (ne (and:HI (match_dup 0) (const_int -32768))
                                (const_int 0))
@@ -5666,10 +5667,11 @@
   [(parallel [(set (reg:CC REG_CC)
                    (compare:CC (match_operand:SI 0 "register_operand" "")
                                (const_int 0)))
-              (clobber (match_operand:SI 2 ""))])
-   (set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
-                           (label_ref (match_operand 1 "" ""))
-                           (pc)))]
+              (clobber (match_operand:QI 2 ""))])
+   (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
+				      (label_ref (match_operand 1 "" ""))
+				      (pc)))
+	      (clobber (reg:CC REG_CC))])]
   ""
   [(set (pc) (if_then_else (eq (and:SI (match_dup 0) (match_dup 2))
                                (const_int 0))
@@ -5681,7 +5683,23 @@
   [(parallel [(set (reg:CC REG_CC)
                    (compare:CC (match_operand:SI 0 "register_operand" "")
                                (const_int 0)))
-              (clobber (match_operand:SI 2 ""))])
+              (clobber (match_operand:QI 2 ""))])
+   (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
+				      (label_ref (match_operand 1 "" ""))
+				      (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  [(set (pc) (if_then_else (eq (and:SI (match_dup 0) (match_dup 2))
+                               (const_int 0))
+                           (label_ref (match_dup 1))
+                           (pc)))]
+  "operands[2] = gen_int_mode (-2147483647 - 1, SImode);")
+
+(define_peephole2
+  [(parallel [(set (reg:CC REG_CC)
+                   (compare:CC (match_operand:SI 0 "register_operand" "")
+                               (const_int 0)))
+              (clobber (match_operand:QI 2 ""))])
    (parallel [(set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
                            (label_ref (match_operand 1 "" ""))
                            (pc)))
