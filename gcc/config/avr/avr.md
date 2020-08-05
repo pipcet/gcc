@@ -1472,7 +1472,7 @@
 ;; work out why this is needed?
 ;; X = C + Y  ==>  X = Y; X = X + C
 (define_peephole2
-  [(parallel [(set (match_operand:ALL2 0 "d_register_operand" "")
+  [(parallel [(set (match_operand:ALL2 0 "register_operand" "")
 		   (match_operand:ALL2 1 "const_operand" ""))
 	      (clobber (reg:CC REG_CC))])
    (parallel [(set (match_dup 0)
@@ -1487,11 +1487,11 @@
 	      (clobber (reg:CC REG_CC))])])
 
 (define_peephole2
-  [(set (match_operand:ALL2 0 "d_register_operand" "")
+  [(set (match_operand:ALL2 0 "register_operand" "")
   	(match_operand:ALL2 1 "const_operand" ""))
    (parallel [(set (match_dup 0)
 		   (plus:ALL2 (match_dup 0)
-			      (match_operand:ALL2 2 "l_register_operand" "")))
+			      (match_operand:ALL2 2 "register_operand" "")))
 	      (clobber (reg:CC REG_CC))])]
   ""
   [(parallel [(set (match_dup 0) (match_dup 2))
