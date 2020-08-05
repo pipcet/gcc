@@ -4535,6 +4535,17 @@
 				      (match_dup 2)))
 	      (clobber (reg:CC REG_CC))])])
 
+(define_peephole2
+  [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
+					   [(reg:CC REG_CC) (const_int 0)])
+			   (match_operand 1)
+			   (match_operand 2)))]
+  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  [(parallel [(set (pc) (if_then_else (match_dup 0)
+				      (match_dup 1)
+				      (match_dup 2)))
+	      (clobber (reg:CC REG_CC))])])
+
 (define_split	; lshrqi3_const6
   [(parallel [(set (match_operand:QI 0 "d_register_operand" "")
 		   (lshiftrt:QI (match_dup 0)
@@ -5420,6 +5431,17 @@
 				 (pc)))
 	      (clobber (reg:CC REG_CC))])])
 
+;; (define_peephole2
+;;   [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
+;; 					   [(reg:CC REG_CC) (const_int 0)])
+;; 			   (match_operand 1)
+;; 			   (match_operand 2)))]
+;;   "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+;;   [(parallel [(set (pc) (if_then_else (match_dup 0)
+;; 				      (match_dup 1)
+;; 				      (match_dup 2)))
+;; 	      (clobber (reg:CC REG_CC))])])
+
 ;; Test a single bit in a QI/HI/SImode register.
 ;; Combine will create zero extract patterns for single bit tests.
 ;; permit any mode in source pattern by using VOIDmode.
@@ -5540,7 +5562,7 @@
                                     (const_int 4))))])
 
 ;; Convert sign tests to bit 7/15/31 tests that match the above insns.
-(define_peephole2
+(define_peephole2 ; cmpqi3 ge nocc
   [(set (reg:CC REG_CC) (compare:CC (match_operand:QI 0 "register_operand" "")
                       		    (const_int 0)))
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
@@ -5556,11 +5578,28 @@
                            (pc)))])
 
 ;; Convert sign tests to bit 7/15/31 tests that match the above insns.
+;; This peephole should be unnecessary, it merely combines two other
+;; peepholes.
+(define_peephole2 ; cmpqi3 ge cc
+  [(set (reg:CC REG_CC) (compare:CC (match_operand:QI 0 "register_operand" "")
+                      		    (const_int 0)))
+   (set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
+			   (label_ref (match_operand 1 "" ""))
+			   (pc)))]
+  "reg_unused_after (next_real_insn (insn), gen_rtx_REG (CCmode, REG_CC))"
+  [(set (pc) (if_then_else (eq (zero_extract:QI (match_dup 0)
+                                                (const_int 1)
+                                                (const_int 7))
+                               (const_int 0))
+                           (label_ref (match_dup 1))
+                           (pc)))])
+
+;; Convert sign tests to bit 7/15/31 tests that match the above insns.
 (define_peephole2
   [(parallel [(set (reg:CC REG_CC)
 		   (compare:CC (match_operand:QI 0 "register_operand" "")
                       	       (const_int 0)))
-	      (clobber (match_scratch:QI 2))])
+	      (clobber (match_operand:QI 2))])
    (parallel [(set (pc) (if_then_else (ge (reg:CC REG_CC) (const_int 0))
 				      (label_ref (match_operand 1 "" ""))
 				      (pc)))
@@ -5619,17 +5658,6 @@
                                (const_int 0))
                            (label_ref (match_dup 1))
                            (pc)))])
-
-(define_peephole2
-  [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
-					   [(reg:CC REG_CC) (const_int 0)])
-			   (match_operand 1)
-			   (match_operand 2)))]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
-  [(parallel [(set (pc) (if_then_else (match_dup 0)
-				      (match_dup 1)
-				      (match_dup 2)))
-	      (clobber (reg:CC REG_CC))])])
 
 ;; does this happen?  (match_scratch:HI) isn't allocated in very many
 ;; places...
