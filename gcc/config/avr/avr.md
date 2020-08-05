@@ -1771,6 +1771,21 @@
   }
   [(set_attr "adjust_len" "plus")])
 
+(define_insn "*sub<mode>3_cc"
+  [(set (reg:CCNZ REG_CC)
+	(compare:CCNZ (minus:ALL2 (match_operand:ALL2 1 "register_operand"           "0,0    ,0")
+				  (match_operand:ALL2 2 "nonmemory_or_const_operand" "r,i Ynn,Ynn"))
+		      (const_int 0)))
+   (set (match_operand:ALL2 0 "register_operand"                    "=??r,d    ,*r")
+        (minus:ALL2 (match_dup 1)
+                    (match_dup 2)))
+   (clobber (match_scratch:QI 3                                       "=X,X    ,&d"))]
+  ""
+  {
+    return avr_out_plus (insn, operands);
+  }
+  [(set_attr "adjust_len" "plus")])
+
 (define_insn "*subhi3_zero_extend1"
   [(set (match_operand:HI 0 "register_operand"                          "=r")
         (minus:HI (match_operand:HI 1 "register_operand"                 "0")
@@ -1802,6 +1817,21 @@
                     (match_operand:ALL4 2 "nonmemory_or_const_operand" "r,n Ynn,Ynn")))
    (clobber (match_scratch:QI 3                                       "=X,X    ,&d"))
    (clobber (reg:CC REG_CC))]
+  ""
+  {
+    return avr_out_plus (insn, operands);
+  }
+  [(set_attr "adjust_len" "plus")])
+
+(define_insn "*sub<mode>3_cc"
+  [(set (reg:CCNZ REG_CC)
+	(compare:CCNZ (minus:ALL4 (match_operand:ALL4 1 "register_operand"           "0,0    ,0")
+				  (match_operand:ALL4 2 "nonmemory_or_const_operand" "r,n Ynn,Ynn"))
+		      (const_int 0)))
+   (set (match_operand:ALL4 0 "register_operand"                    "=??r,d    ,r")
+        (minus:ALL4 (match_dup 1)
+                    (match_dup 2)))
+   (clobber (match_scratch:QI 3                                       "=X,X    ,&d"))]
   ""
   {
     return avr_out_plus (insn, operands);
