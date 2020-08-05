@@ -5474,6 +5474,17 @@
 	      (clobber (reg:CC REG_CC))])])
 
 (define_peephole2
+  [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
+					   [(reg:CC REG_CC) (const_int 0)])
+			   (match_operand 1)
+			   (match_operand 2)))]
+  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  [(parallel [(set (pc) (if_then_else (match_dup 0)
+				      (match_dup 1)
+				      (match_dup 2)))
+	      (clobber (reg:CC REG_CC))])])
+
+(define_peephole2
   [(parallel [(set (reg:CCNZ REG_CC)
 		   (compare:CCNZ (and:QI (match_operand:QI 0 "register_operand")
 					 (match_operand:QI 1 "single_one_operand"))
@@ -5527,17 +5538,6 @@
                       (if_then_else (match_test "!AVR_HAVE_JMP_CALL")
                                     (const_int 2)
                                     (const_int 4))))])
-
-(define_peephole2
-  [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
-					   [(reg:CC REG_CC) (const_int 0)])
-			   (match_operand 1)
-			   (match_operand 2)))]
-  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
-  [(parallel [(set (pc) (if_then_else (match_dup 0)
-				      (match_dup 1)
-				      (match_dup 2)))
-	      (clobber (reg:CC REG_CC))])])
 
 ;; Convert sign tests to bit 7/15/31 tests that match the above insns.
 (define_peephole2
@@ -5619,6 +5619,17 @@
                                (const_int 0))
                            (label_ref (match_dup 1))
                            (pc)))])
+
+(define_peephole2
+  [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
+					   [(reg:CC REG_CC) (const_int 0)])
+			   (match_operand 1)
+			   (match_operand 2)))]
+  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  [(parallel [(set (pc) (if_then_else (match_dup 0)
+				      (match_dup 1)
+				      (match_dup 2)))
+	      (clobber (reg:CC REG_CC))])])
 
 ;; does this happen?  (match_scratch:HI) isn't allocated in very many
 ;; places...
