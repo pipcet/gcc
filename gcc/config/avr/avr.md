@@ -5444,6 +5444,43 @@
 	      (set (match_dup 0)
 		   (and:QI (match_dup 0)
 			   (match_dup 1)))])
+   (set (pc)
+	(if_then_else (match_operator 4 "eqne_operator"
+				      [(reg:CCNZ REG_CC)
+				       (const_int 0)])
+		      (match_operand 2 "" "")
+		      (pc)))]
+  "reg_unused_after (insn, operands[0])
+   && reg_unused_after (next_real_insn (insn), gen_rtx_REG (CCmode, REG_CC))"
+  [(set (pc)
+	(if_then_else
+	 (match_op_dup 4 [(zero_extract:QI (match_dup 0)
+					   (const_int 1)
+					   (match_dup 3))
+			  (const_int 0)])
+	 (match_dup 2)
+	 (pc)))]
+  "operands[3] = GEN_INT (exact_log2 (0xff & INTVAL (operands[1])));")
+
+(define_peephole2
+  [(set (pc) (if_then_else (match_operator 0 "ordered_comparison_operator"
+					   [(reg:CCNZ REG_CC) (const_int 0)])
+			   (match_operand 1)
+			   (match_operand 2)))]
+  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
+  [(parallel [(set (pc) (if_then_else (match_dup 0)
+				      (match_dup 1)
+				      (match_dup 2)))
+	      (clobber (reg:CC REG_CC))])])
+
+(define_peephole2
+  [(parallel [(set (reg:CCNZ REG_CC)
+		   (compare:CCNZ (and:QI (match_operand:QI 0 "register_operand")
+					 (match_operand:QI 1 "single_one_operand"))
+				 (const_int 0)))
+	      (set (match_dup 0)
+		   (and:QI (match_dup 0)
+			   (match_dup 1)))])
    (parallel [(set (pc)
 		   (if_then_else (match_operator 4 "eqne_operator"
 						 [(reg:CCNZ REG_CC)
@@ -5451,7 +5488,7 @@
 				 (match_operand 2 "" "")
 				 (pc)))
 	      (clobber (reg:CC REG_CC))])]
-  "peep2_reg_dead_p (2, operands[0])"
+  "reg_unused_after (next_real_insn (insn), operands[0])"
   [(set (pc)
 	(if_then_else
 	 (match_op_dup 4 [(zero_extract:QI (match_dup 0)
@@ -5496,7 +5533,7 @@
 					   [(reg:CC REG_CC) (const_int 0)])
 			   (match_operand 1)
 			   (match_operand 2)))]
-  "peep2_reg_dead_p (1, gen_rtx_REG (CCmode, REG_CC))"
+  "reg_unused_after (insn, gen_rtx_REG (CCmode, REG_CC))"
   [(parallel [(set (pc) (if_then_else (match_dup 0)
 				      (match_dup 1)
 				      (match_dup 2)))

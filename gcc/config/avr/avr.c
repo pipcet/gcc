@@ -3792,8 +3792,15 @@ select_cc_mode (enum rtx_code op, rtx x, rtx y)
   return CCmode;
 }
 
-bool movqi_r_mr_clobbers_cc (rtx_insn *, rtx [])
+bool movqi_r_mr_clobbers_cc (rtx_insn *, rtx op[])
 {
+  rtx dest = op[0];
+  rtx src = op[1];
+  rtx x = XEXP (src, 0);
+
+  if (CONSTANT_ADDRESS_P (x))
+    return false;
+
   return true;
 }
 
@@ -3853,7 +3860,7 @@ mov_clobbers_cc (rtx_insn *insn, rtx operands[])
       {
       }
     }
-  return true; // XXX
+  return true;
 }
 
 const char*
@@ -12103,7 +12110,7 @@ avr_2word_insn_p (rtx_insn *insn)
     {
     default:
       {
-        rtx set  = single_set (insn);
+        rtx set = single_set (insn);
 	if (!set)
 	  return false;
         rtx src  = SET_SRC (set);
