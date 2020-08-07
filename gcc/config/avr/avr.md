@@ -5447,8 +5447,7 @@
 				     (match_operand:ORDERED234 2 "nonmemory_operand" "Y00,Y00,r,s,s,M,n Ynn")])
 		    (label_ref (match_operand 3 "" ""))
 		    (pc)))
-	      (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d"))
-	      (clobber (reg:CC REG_CC))])])
+	      (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d"))])])
 
 (define_insn_and_split "*cbranch<mode>4_insn"
   [(set (pc)
@@ -5458,8 +5457,7 @@
 			   (match_operand:ORDERED234 2 "nonmemory_operand" "Y00,Y00,r,s,s,M,n Ynn")])
 	  (label_ref (match_operand 3 "" ""))
 	  (pc)))
-   (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d"))
-   (clobber (reg:CC REG_CC))]
+   (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d"))]
   ""
   "#"
   "reload_completed"
@@ -6167,8 +6165,7 @@
 				      (match_operand:SI 2 "const_int_operand"))
 				 (label_ref (match_operand 4))
 				 (pc)))
-	      (clobber (scratch:QI))
-	      (clobber (reg:CC REG_CC))])
+	      (clobber (scratch:QI))])
 
    (parallel [(set (match_dup 7)
 		   (match_dup 6))
