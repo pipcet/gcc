@@ -2829,8 +2829,9 @@
   "AVR_HAVE_MUL && !reload_completed"
   { gcc_unreachable(); }
   "&& 1"
-  [(set (reg:HI 26)
-        (match_dup 1))
+  [(parallel [(set (reg:HI 26)
+		   (match_dup 1))
+	      (clobber (reg:CC REG_CC))])
    (set (reg:SI 18)
         (match_dup 2))
    (parallel [(set (reg:SI 22)
@@ -5246,6 +5247,17 @@
   "cpi %0,lo8(%1)"
   [(set_attr "length" "1")])
 
+;; (define_peephole2
+;;   [(parallel [(set (match_operand:HI 0 "register_operand")
+;; 		   (zero_extend:HI (match_operand:QI 1 "register_operand")))
+;; 	      (clobber (reg:CC REG_CC))])
+;;    (set (reg:CC REG_CC)
+;;         (compare:CC (zero_extend:HI (match_dup 0))
+;; 		    (match_operand:HI 2 "register_operand")))]
+;;   "peep2_reg_dead_p (2, operands[0])"
+;;   [(set (reg:CC REG_CC)
+;; 	(compare:CC (zero_extend:HI (match_dup 1))
+;; 		    (match_dup 2)))])
 
 (define_insn "*cmphi.zero-extend.0"
   [(set (reg:CC REG_CC)
@@ -5618,6 +5630,19 @@
 			   (pc)))]
   "reg_unused_after (next_real_insn (insn), gen_rtx_REG (CCmode, REG_CC))"
   [(set (pc) (if_then_else (eq (zero_extract:QI (match_dup 0)
+                                                (const_int 1)
+                                                (const_int 7))
+                               (const_int 0))
+                           (label_ref (match_dup 1))
+                           (pc)))])
+(define_peephole2 ; cmpqi3 lt cc
+  [(set (reg:CC REG_CC) (compare:CC (match_operand:QI 0 "register_operand" "")
+                      		    (const_int 0)))
+   (set (pc) (if_then_else (lt (reg:CC REG_CC) (const_int 0))
+			   (label_ref (match_operand 1 "" ""))
+			   (pc)))]
+  "reg_unused_after (next_real_insn (insn), gen_rtx_REG (CCmode, REG_CC))"
+  [(set (pc) (if_then_else (ne (zero_extract:QI (match_dup 0)
                                                 (const_int 1)
                                                 (const_int 7))
                                (const_int 0))

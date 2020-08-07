@@ -599,7 +599,7 @@ avr_optimize_casesi (rtx_insn *insns[5], rtx *xop)
 
   rtx jump = gen_rtx_SET (pc_rtx, gen_rtx_IF_THEN_ELSE (VOIDmode,
 							gen_rtx_GTU (VOIDmode,
-								     xop[10],
+								     reg,
 								     xop[2]),
 							gen_rtx_LABEL_REF (VOIDmode, xop[4]),
 							pc_rtx));
@@ -608,12 +608,13 @@ avr_optimize_casesi (rtx_insn *insns[5], rtx *xop)
   emit_insn (gen_add (reg, reg, gen_int_mode (-low_idx, mode)));
   if (QImode == mode)
     {
-      rtvec vec = gen_rtvec (2, jump, clobber_cc);
-      emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
+      //rtvec vec = gen_rtvec (2, jump, clobber_cc);
+      emit_jump_insn (jump);
     }
   else if (HImode == mode)
     {
-      rtvec vec = gen_rtvec (3, jump, clobber_scratch, clobber_cc);
+      //rtvec vec = gen_rtvec (3, jump, clobber_scratch, clobber_cc);
+      rtvec vec = gen_rtvec (2, jump, clobber_scratch);
       emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
     }
   else
