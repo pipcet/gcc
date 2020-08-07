@@ -599,7 +599,7 @@ avr_optimize_casesi (rtx_insn *insns[5], rtx *xop)
 
   rtx jump = gen_rtx_SET (pc_rtx, gen_rtx_IF_THEN_ELSE (VOIDmode,
 							gen_rtx_GTU (VOIDmode,
-								     xop[10],
+								     reg,
 								     xop[2]),
 							gen_rtx_LABEL_REF (VOIDmode, xop[4]),
 							pc_rtx));
@@ -608,12 +608,13 @@ avr_optimize_casesi (rtx_insn *insns[5], rtx *xop)
   emit_insn (gen_add (reg, reg, gen_int_mode (-low_idx, mode)));
   if (QImode == mode)
     {
-      rtvec vec = gen_rtvec (2, jump, clobber_cc);
-      emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
+      //rtvec vec = gen_rtvec (2, jump, clobber_cc);
+      emit_jump_insn (jump);
     }
   else if (HImode == mode)
     {
-      rtvec vec = gen_rtvec (3, jump, clobber_scratch, clobber_cc);
+      //rtvec vec = gen_rtvec (3, jump, clobber_scratch, clobber_cc);
+      rtvec vec = gen_rtvec (2, jump, clobber_scratch);
       emit_jump_insn (gen_rtx_PARALLEL (VOIDmode, vec));
     }
   else
@@ -3792,8 +3793,15 @@ select_cc_mode (enum rtx_code op, rtx x, rtx y)
   return CCmode;
 }
 
-bool movqi_r_mr_clobbers_cc (rtx_insn *, rtx [])
+bool movqi_r_mr_clobbers_cc (rtx_insn *, rtx op[])
 {
+  rtx dest = op[0];
+  rtx src = op[1];
+  rtx x = XEXP (src, 0);
+
+  if (CONSTANT_ADDRESS_P (x))
+    return false;
+
   return true;
 }
 
@@ -3853,7 +3861,7 @@ mov_clobbers_cc (rtx_insn *insn, rtx operands[])
       {
       }
     }
-  return true; // XXX
+  return true;
 }
 
 const char*
@@ -5793,9 +5801,7 @@ avr_frame_pointer_required_p (void)
 rtx_insn *next_real_nonmov_insn (rtx_insn *insn)
 {
   do
-    {
-      insn = next_real_insn (insn);
-    }
+    insn = next_real_insn (insn);
   while (insn && INSN_P (insn)
 	 && GET_CODE (PATTERN (insn)) == SET
 	 && SET_DEST (PATTERN (insn)) != pc_rtx);
@@ -12105,26 +12111,28 @@ avr_2word_insn_p (rtx_insn *insn)
     {
     default:
       {
-        rtx set  = single_set (insn);
+        rtx set = single_set (insn);
 	if (!set)
 	  return false;
         rtx src  = SET_SRC (set);
         rtx dest = SET_DEST (set);
-	if (GET_MODE_SIZE (GET_MODE (dest)) != 1)
-	  return false;
+	if (GET_MODE_SIZE (GET_MODE (dest)) == 1)
+	  {
+	    /* Factor out LDS and STS from movqi_insn.  */
 
-        /* Factor out LDS and STS from movqi_insn.  */
-
-        if (MEM_P (dest)
-            && (REG_P (src) || src == CONST0_RTX (GET_MODE (dest))))
-          {
-            return CONSTANT_ADDRESS_P (XEXP (dest, 0));
-          }
-        else if (REG_P (dest)
-                 && MEM_P (src))
-          {
-            return CONSTANT_ADDRESS_P (XEXP (src, 0));
-          }
+	    if (MEM_P (dest)
+		&& (REG_P (src) || src == CONST0_RTX (GET_MODE (dest))))
+	      {
+		return CONSTANT_ADDRESS_P (XEXP (dest, 0));
+	      }
+	    else if (REG_P (dest)
+		     && MEM_P (src))
+	      {
+		return CONSTANT_ADDRESS_P (XEXP (src, 0));
+	      }
+	  }
+	else if (src == pc_rtx)
+	  return true;
 
         return false;
       }
