@@ -5895,8 +5895,7 @@
                         [(reg:CC REG_CC)
                          (const_int 0)])
                       (label_ref (match_operand 0 "" ""))
-                      (pc)))
-   (clobber (reg:CC REG_CC))]
+                      (pc)))]
   ""
   {
     return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
