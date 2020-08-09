@@ -6226,8 +6226,7 @@
 				      (match_operand:SI 2 "const_int_operand"))
 				 (label_ref (match_operand 4))
 				 (pc)))
-	      (clobber (scratch:QI))
-	      (clobber (reg:CC REG_CC))])
+	      (clobber (scratch:QI))])
 
    (parallel [(set (match_operand:HI 7 "register_operand")
 		   (match_operand:HI 6))
