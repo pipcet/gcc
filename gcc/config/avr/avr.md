@@ -1473,7 +1473,7 @@
 ;; X = C + Y  ==>  X = Y; X = X + C
 (define_peephole2
   [(parallel [(set (match_operand:ALL2 0 "register_operand" "")
-		   (match_operand:ALL2 1 "const_operand" ""))
+		   (match_operand:ALL2 1 "s9_operand" ""))
 	      (clobber (reg:CC REG_CC))])
    (parallel [(set (match_dup 0)
 		   (plus:ALL2 (match_dup 0)
@@ -1488,7 +1488,7 @@
 
 (define_peephole2
   [(set (match_operand:ALL2 0 "register_operand" "")
-  	(match_operand:ALL2 1 "const_operand" ""))
+  	(match_operand:ALL2 1 "s9_operand" ""))
    (parallel [(set (match_dup 0)
 		   (plus:ALL2 (match_dup 0)
 			      (match_operand:ALL2 2 "register_operand" "")))
@@ -6909,11 +6909,8 @@
   [(set (match_operand:QI 0 "register_operand" "")
         (subreg:QI (match_operand:PSI 1 "register_operand" "")
                    2))
-   (set (reg:CC REG_CC)
-        (compare:CC (match_dup 0)
-                 (const_int 0)))
    (set (pc)
-        (if_then_else (ge (reg:CC REG_CC)
+        (if_then_else (ge (match_dup 0)
                           (const_int 0))
                       (label_ref (match_operand 2 "" ""))
                       (pc)))
@@ -6923,7 +6920,7 @@
 (define_expand "flash_segment"
   [(parallel [(match_operand:QI 0 "register_operand" "")
               (match_operand:PSI 1 "register_operand" "")])]
-  ""
+  "reload_completed"
   {
     rtx label = gen_label_rtx ();
     emit (gen_flash_segment1 (operands[0], operands[1], label));
