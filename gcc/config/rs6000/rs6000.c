@@ -5181,6 +5181,34 @@ rs6000_add_stmt_cost (class vec_info *vinfo, void *data, int count,
   return retval;
 }
 
+/* For some target specific vectorization cost which can't be handled per stmt,
+   we check the requisite conditions and adjust the vectorization cost
+   accordingly if satisfied.  One typical example is to model shift cost for
+   vector with length by counting number of required lengths under condition
+   LOOP_VINFO_FULLY_WITH_LENGTH_P.  */
+
+static void
+rs6000_adjust_vect_cost_per_loop (rs6000_cost_data *data)
+{
+  struct loop *loop = data->loop_info;
+  gcc_assert (loop);
+  loop_vec_info loop_vinfo = loop_vec_info_for_loop (loop);
+
+  if (LOOP_VINFO_FULLY_WITH_LENGTH_P (loop_vinfo))
+    {
+      rgroup_controls *rgc;
+      unsigned int num_vectors_m1;
+      unsigned int shift_cnt = 0;
+      FOR_EACH_VEC_ELT (LOOP_VINFO_LENS (loop_vinfo), num_vectors_m1, rgc)
+	if (rgc->type)
+	  /* Each length needs one shift to fill into bits 0-7.  */
+	  shift_cnt += num_vectors_m1 + 1;
+
+      rs6000_add_stmt_cost (loop_vinfo, (void *) data, shift_cnt, scalar_stmt,
+			    NULL, NULL_TREE, 0, vect_body);
+    }
+}
+
 /* Implement targetm.vectorize.finish_cost.  */
 
 static void
@@ -5190,7 +5218,10 @@ rs6000_finish_cost (void *data, unsigned *prologue_cost,
   rs6000_cost_data *cost_data = (rs6000_cost_data*) data;
 
   if (cost_data->loop_info)
-    rs6000_density_test (cost_data);
+    {
+      rs6000_adjust_vect_cost_per_loop (cost_data);
+      rs6000_density_test (cost_data);
+    }
 
   /* Don't vectorize minimum-vectorization-factor, simple copy loops
      that require versioning for any reason.  The vectorization is at
@@ -26772,38 +26803,74 @@ rs6000_cannot_substitute_mem_equiv_p (rtx mem)
 static const char *
 rs6000_invalid_conversion (const_tree fromtype, const_tree totype)
 {
-  if (element_mode (fromtype) != element_mode (totype))
+  /* Make sure we're working with the canonical types.  */
+  if (TYPE_CANONICAL (fromtype) != NULL_TREE)
+    fromtype = TYPE_CANONICAL (fromtype);
+  if (TYPE_CANONICAL (totype) != NULL_TREE)
+    totype = TYPE_CANONICAL (totype);
+
+  machine_mode frommode = TYPE_MODE (fromtype);
+  machine_mode tomode = TYPE_MODE (totype);
+
+  if (frommode != tomode)
     {
       /* Do not allow conversions to/from PXImode and POImode types.  */
-      if (TYPE_MODE (fromtype) == PXImode)
+      if (frommode == PXImode)
 	return N_("invalid conversion from type %<__vector_quad%>");
-      if (TYPE_MODE (totype) == PXImode)
+      if (tomode == PXImode)
 	return N_("invalid conversion to type %<__vector_quad%>");
-      if (TYPE_MODE (fromtype) == POImode)
+      if (frommode == POImode)
 	return N_("invalid conversion from type %<__vector_pair%>");
-      if (TYPE_MODE (totype) == POImode)
+      if (tomode == POImode)
 	return N_("invalid conversion to type %<__vector_pair%>");
     }
   else if (POINTER_TYPE_P (fromtype) && POINTER_TYPE_P (totype))
     {
+      /* We really care about the modes of the base types.  */
+      frommode = TYPE_MODE (TREE_TYPE (fromtype));
+      tomode = TYPE_MODE (TREE_TYPE (totype));
+
       /* Do not allow conversions to/from PXImode and POImode pointer
 	 types, except to/from void pointers.  */
-      if (TYPE_MODE (TREE_TYPE (fromtype)) == PXImode
-	  && TYPE_MODE (TREE_TYPE (totype)) != VOIDmode)
-	return N_("invalid conversion from type %<* __vector_quad%>");
-      if (TYPE_MODE (TREE_TYPE (totype)) == PXImode
-	  && TYPE_MODE (TREE_TYPE (fromtype)) != VOIDmode)
-	return N_("invalid conversion to type %<* __vector_quad%>");
-      if (TYPE_MODE (TREE_TYPE (fromtype)) == POImode
-	  && TYPE_MODE (TREE_TYPE (totype)) != VOIDmode)
-	return N_("invalid conversion from type %<* __vector_pair%>");
-      if (TYPE_MODE (TREE_TYPE (totype)) == POImode
-	  && TYPE_MODE (TREE_TYPE (fromtype)) != VOIDmode)
-	return N_("invalid conversion to type %<* __vector_pair%>");
+      if (frommode != tomode
+	  && frommode != VOIDmode
+	  && tomode != VOIDmode)
+	{
+	  if (frommode == PXImode)
+	    return N_("invalid conversion from type %<* __vector_quad%>");
+	  if (tomode == PXImode)
+	    return N_("invalid conversion to type %<* __vector_quad%>");
+	  if (frommode == POImode)
+	    return N_("invalid conversion from type %<* __vector_pair%>");
+	  if (tomode == POImode)
+	    return N_("invalid conversion to type %<* __vector_pair%>");
+	}
     }
 
   /* Conversion allowed.  */
   return NULL;
+}
+
+long long
+rs6000_const_f32_to_i32 (rtx operand)
+{
+  long long value;
+  const struct real_value *rv = CONST_DOUBLE_REAL_VALUE (operand);
+
+  gcc_assert (GET_MODE (operand) == SFmode);
+  REAL_VALUE_TO_TARGET_SINGLE (*rv, value);
+  return value;
+}
+
+void
+rs6000_emit_xxspltidp_v2df (rtx dst, long value)
+{
+  printf("rs6000_emit_xxspltidp_v2df called %ld\n", value);
+  printf("rs6000_emit_xxspltidp_v2df called 0x%lx\n", value);
+  if (((value & 0x7F800000) == 0) && ((value & 0x7FFFFF) != 0))
+    inform (input_location,
+	    "the result for the xxspltidp instruction is undefined for subnormal input values.\n");
+  emit_insn( gen_xxspltidp_v2df_inst (dst, GEN_INT (value)));
 }
 
 struct gcc_target targetm = TARGET_INITIALIZER;

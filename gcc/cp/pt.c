@@ -22122,6 +22122,8 @@ resolve_overloaded_unification (tree tparms,
 	      && !any_dependent_template_arguments_p (subargs))
 	    {
 	      fn = instantiate_template (fn, subargs, tf_none);
+	      if (!constraints_satisfied_p (fn))
+		continue;
 	      if (undeduced_auto_decl (fn))
 		{
 		  /* Instantiate the function to deduce its return type.  */
@@ -22268,7 +22270,8 @@ resolve_nondeduced_context (tree orig_expr, tsubst_flags_t complain)
 		  badfn = fn;
 		  badargs = subargs;
 		}
-	      else if (elem && (!goodfn || !decls_match (goodfn, elem)))
+	      else if (elem && (!goodfn || !decls_match (goodfn, elem))
+		       && constraints_satisfied_p (elem))
 		{
 		  goodfn = elem;
 		  ++good;
@@ -26018,6 +26021,9 @@ tsubst_initializer_list (tree t, tree argvec)
           if (decl)
             {
               init = build_tree_list (decl, init);
+	      /* Carry over the dummy TREE_TYPE node containing the source
+		 location.  */
+	      TREE_TYPE (init) = TREE_TYPE (t);
               TREE_CHAIN (init) = inits;
               inits = init;
             }

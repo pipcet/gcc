@@ -1,3 +1,41 @@
+2020-08-10  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/96556
+	* frontend-passes.c (doloop_contained_function_call):
+	Do not dereference a NULL pointer for value.function.esym.
+
+2020-08-10  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/96312
+	* trans-expr.c (fcncall_realloc_result): Only compare shapes if
+	lhs was allocated..
+
+2020-08-10  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/96102
+	* resolve.c (check_host_association): Replace the gcc_assert
+	with an error for internal procedures.
+
+2020-08-05  Thomas Koenig  <tkoenig@gcc.gnu.org>
+
+	PR fortran/96469
+	* frontend-passes.c (doloop_contained_function_call): New
+	function.
+	(doloop_contained_procedure_code): New function.
+	(CHECK_INQ): Macro for inquire checks.
+	(doloop_code): Invoke doloop_contained_procedure_code and
+	doloop_contained_function_call if appropriate.
+	(do_intent): Likewise.
+
+2020-08-04  Tobias Burnus  <tobias@codesourcery.com>
+
+	* openmp.c (resolve_omp_do): Detect not perfectly
+	nested loop with innermost collapse.
+
+2020-08-04  Tobias Burnus  <tobias@codesourcery.com>
+
+	* trans-openmp.c (gfc_trans_omp_do): Fix 'lastprivate(conditional:'.
+
 2020-08-03  Julian Brown  <julian@codesourcery.com>
 	    Thomas Schwinge  <thomas@codesourcery.com>
 
@@ -19,21 +57,6 @@
 2020-08-02  Paul Thomas  <pault@gcc.gnu.org>
 
 	PR target/96320
-	* interface.c (gfc_check_dummy_characteristics): If a module
-	procedure arrives with assumed shape in the interface and
-	deferred shape in the procedure itself, update the latter and
-	copy the lower bounds.
-
-2020-08-02  Paul Thomas  <pault@gcc.gnu.org>
-
-	PR fortran/96325
-	* primary.c (gfc_match_varspec): In the case that a component
-	reference is added to an intrinsic type component, emit the
-	error message in this function.
-
-2020-08-01  Paul Thomas  <pault@gcc.gnu.org>
-
-	PR fortran/96320
 	* interface.c (gfc_check_dummy_characteristics): If a module
 	procedure arrives with assumed shape in the interface and
 	deferred shape in the procedure itself, update the latter and
