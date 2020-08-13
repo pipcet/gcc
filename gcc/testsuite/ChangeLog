@@ -1,3 +1,139 @@
+2020-08-12  Roger Sayle  <roger@nextmovesoftware.com>
+	    Uroš Bizjak  <ubizjak@gmail.com>
+
+	PR target/96558
+	* gcc.dg/pr96558.c: New test.
+
+2020-08-12  Martin Liska  <mliska@suse.cz>
+
+	PR ipa/96482
+	* gcc.dg/ipa/pr96482.c: New test.
+
+2020-08-12  Peixin Qiao  <qiaopeixin@huawei.com>
+
+	* gcc.target/aarch64/mgeneral-regs_1.c: Add the comment that
+	-mgeneral-regs-only is compatible with the use of vector type
+	used in the test case.
+
+2020-08-12  Tobias Burnus  <tobias@codesourcery.com>
+
+	* gfortran.dg/gomp/nontemporal-1.f90: New test.
+	* gfortran.dg/gomp/nontemporal-2.f90: New test.
+
+2020-08-12  Tom de Vries  <tdevries@suse.de>
+
+	* gcc.target/nvptx/ia64-sync-1.c: New test.
+	* gcc.target/nvptx/ia64-sync-2.c: New test.
+	* gcc.target/nvptx/ia64-sync-3.c: New test.
+	* gcc.target/nvptx/ia64-sync-4.c: New test.
+
+2020-08-12  Kwok Cheung Yeung  <kcy@codesourcery.com>
+
+	PR testsuite/96519
+	* gcc.dg/ia64-sync-5.c (AC, init_qi, test_qi): Change element type to
+	signed char.
+
+2020-08-12  Tom de Vries  <tdevries@suse.de>
+
+	PR testsuite/96566
+	* lib/target-supports.exp (check_effective_target_large_initializer):
+	New proc.
+	* gcc.dg/builtin-object-size-21.c: Require large_initializer.
+	* gcc.dg/strlenopt-55.c: Same.
+
+2020-08-12  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* gcc.target/arm/stack-protector-1.c: Adapt code to Cortex-M
+	restrictions.
+
+2020-08-12  Christophe Lyon  <christophe.lyon@linaro.org>
+
+	* gcc.target/arm/multilib.exp: Fix parameter passing for gcc_opts.
+
+2020-08-12  Andreas Krebbel  <krebbel@linux.ibm.com>
+
+	PR target/96308
+	* g++.dg/pr96308.C: New test.
+
+2020-08-12  Andreas Krebbel  <krebbel@linux.ibm.com>
+
+	PR target/96456
+	* gcc.target/s390/pr96456.c: New test.
+
+2020-08-12  Alan Modra  <amodra@gmail.com>
+
+	PR target/96525
+	* gcc.target/powerpc/pr96493.c: Make it a link test when no
+	power10_hw.  Require power10_ok.
+
+2020-08-11  David Edelsohn  <dje.gcc@gmail.com>
+
+	* g++.dg/opt/flifetime-dse2.C: Remove AIX xfail.
+	* g++.dg/opt/flifetime-dse4.C: Remove AIX xfail.
+
+2020-08-11  Tom de Vries  <tdevries@suse.de>
+
+	* gcc.dg/Warray-bounds-46.c: Add missing require-effective-target
+	directive.
+	* gcc.dg/Warray-bounds-48.c: Same.
+	* gcc.dg/Warray-bounds-50.c: Same.
+	* gcc.dg/Wreturn-local-addr-2.c: Same.
+	* gcc.dg/Wreturn-local-addr-3.c: Same.
+	* gcc.dg/Wreturn-local-addr-4.c: Same.
+	* gcc.dg/Wreturn-local-addr-6.c: Same.
+	* gcc.dg/Wstack-usage.c: Same.
+	* gcc.dg/Wstringop-overflow-15.c: Same.
+	* gcc.dg/Wstringop-overflow-23.c: Same.
+	* gcc.dg/Wstringop-overflow-25.c: Same.
+	* gcc.dg/Wstringop-overflow-27.c: Same.
+	* gcc.dg/Wstringop-overflow-39.c: Same.
+	* gcc.dg/analyzer/alloca-leak.c: Same.
+	* gcc.dg/analyzer/data-model-1.c: Same.
+	* gcc.dg/analyzer/data-model-16.c: Same.
+	* gcc.dg/analyzer/malloc-1.c: Same.
+	* gcc.dg/analyzer/malloc-paths-8.c: Same.
+	* gcc.dg/analyzer/pr93546.c: Same.
+	* gcc.dg/analyzer/setjmp-1.c: Same.
+	* gcc.dg/analyzer/setjmp-2.c: Same.
+	* gcc.dg/analyzer/setjmp-3.c: Same.
+	* gcc.dg/analyzer/setjmp-4.c: Same.
+	* gcc.dg/analyzer/setjmp-5.c: Same.
+	* gcc.dg/analyzer/setjmp-6.c: Same.
+	* gcc.dg/analyzer/setjmp-7.c: Same.
+	* gcc.dg/analyzer/setjmp-7a.c: Same.
+	* gcc.dg/analyzer/setjmp-8.c: Same.
+	* gcc.dg/analyzer/setjmp-9.c: Same.
+	* gcc.dg/analyzer/setjmp-pr93378.c: Same.
+	* gcc.dg/gimplefe-44.c: Same.
+	* gcc.dg/pr84131.c: Same.
+	* gcc.dg/pr93986.c: Same.
+	* gcc.dg/pr95133.c: Same.
+	* gcc.dg/pr95857.c: Same.
+	* gcc.dg/strlenopt-83.c: Same.
+	* gcc.dg/strlenopt-84.c: Same.
+	* gcc.dg/strlenopt-91.c: Same.
+	* gcc.dg/uninit-32.c: Same.
+	* gcc.dg/uninit-36.c: Same.
+
+2020-08-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/96545
+	* c-c++-common/pr96545.c: New test.
+
+2020-08-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR rtl-optimization/96539
+	* gcc.target/i386/pr96539.c: New test.
+
+2020-08-11  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/96549
+	* gcc.c-torture/execute/pr96549.c: New test.
+
+2020-08-11  Jan Hubicka  <hubicka@ucw.cz>
+
+	* gcc.dg/ipa/ipa-clone-2.c: Lower threshold from 500 to 400.
+
 2020-08-10  Marek Polacek  <polacek@redhat.com>
 
 	PR c++/88003
