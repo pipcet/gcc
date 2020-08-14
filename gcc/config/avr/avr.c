@@ -11093,7 +11093,7 @@ avr_rtx_costs_1 (rtx x, machine_mode mode, int outer_code,
          loading the divisor. */
       if (CONST_INT_P (XEXP (x, 1)))
         *total += COSTS_N_INSNS (GET_MODE_SIZE (mode));
-      /* Add some overall penaly for clobbering and moving around registers */
+      /* Add some overall penalty for clobbering and moving around registers */
       *total += COSTS_N_INSNS (2);
       return true;
 
