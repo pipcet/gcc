@@ -458,6 +458,17 @@
   [(set (reg:HI REG_SP)
         (reg:HI REG_Y))])
 
+(define_split
+  [(parallel [(set (reg:HI REG_SP)
+		   (match_operand:HI 0 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
+  "reload_completed
+   && frame_pointer_needed
+   && !cfun->calls_alloca
+   && find_reg_note (insn, REG_ARGS_SIZE, const0_rtx)"
+  [(set (reg:HI REG_SP)
+        (reg:HI REG_Y))])
+
 ;;========================================================================
 ;; Move stuff around
 
