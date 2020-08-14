@@ -1363,12 +1363,17 @@
 ;; "addhi3"
 ;; "addhq3" "adduhq3"
 ;; "addha3" "adduha3"
-(define_expand "add<mode>3"
+(define_insn_and_split "add<mode>3"
+  [(set (match_operand:ALL2 0 "register_operand"                   "=??r,d,!w    ,d")
+		   (plus:ALL2 (match_operand:ALL2 1 "register_operand" "%0,0,0     ,0")
+			      (match_operand:ALL2 2 "nonmemory_or_const_operand" "r,s,IJ YIJ,n Ynn")))]
+  ""
+  "#"
+  "reload_completed"
   [(parallel [(set (match_operand:ALL2 0 "register_operand" "")
 		   (plus:ALL2 (match_operand:ALL2 1 "register_operand" "")
 			      (match_operand:ALL2 2 "nonmemory_or_const_operand" "")))
 	      (clobber (reg:CC REG_CC))])]
-  ""
   {
     if (CONST_INT_P (operands[2]))
       {
