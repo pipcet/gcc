@@ -446,7 +446,7 @@
     DONE;
   })
 
-;; Notice a special-case when adding N to SP where N results in a
+;; Notice a special case when adding N to SP where N results in a
 ;; zero REG_ARGS_SIZE.  This is equivalent to a move from FP.
 (define_split
   [(set (reg:HI REG_SP)
