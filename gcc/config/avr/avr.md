@@ -1566,6 +1566,7 @@
   [(parallel [(set (match_dup 2)
                    (plus:ALL2 (match_dup 2)
                               (match_dup 1)))
+              (clobber (match_dup 3))
 	      (clobber (reg:CC REG_CC))])]
   {
     operands[3] = simplify_gen_subreg (QImode, operands[0], <MODE>mode, 0);
@@ -1583,6 +1584,7 @@
   [(parallel [(set (match_dup 2)
                    (plus:ALL2 (match_dup 2)
                               (match_dup 1)))
+              (clobber (match_dup 3))
 	      (clobber (reg:CC REG_CC))])]
   {
     operands[3] = simplify_gen_subreg (QImode, operands[0], <MODE>mode, 0);
@@ -5837,7 +5839,7 @@
                                        (const_int 0)])
                       (label_ref (match_operand 0 "" ""))
                       (pc)))]
-  ""
+  "reload_completed"
   {
     return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
   }
@@ -5865,7 +5867,7 @@
                       (label_ref (match_operand 0 "" ""))
                       (pc)))
    (clobber (reg:CC REG_CC))]
-  ""
+  "reload_completed"
   {
     return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
   }
