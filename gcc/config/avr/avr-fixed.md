@@ -153,13 +153,15 @@
 ;; "ssneghq2"  "ssnegha2"  "ssnegsq2"  "ssnegsa2"
 ;; "ssabshq2"  "ssabsha2"  "ssabssq2"  "ssabssa2"
 (define_expand "<code_stdname><mode>2"
-  [(set (match_dup 2)
-        (match_operand:ALL24S 1 "register_operand" ""))
+  [(parallel [(set (match_dup 2)
+		   (match_operand:ALL24S 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    (parallel [(set (match_dup 2)
 		   (ss_abs_neg:ALL24S (match_dup 2)))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:ALL24S 0 "register_operand" "")
-        (match_dup 2))]
+   (parallel [(set (match_operand:ALL24S 0 "register_operand" "")
+		   (match_dup 2))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     operands[2] = gen_rtx_REG (<MODE>mode, 26 - GET_MODE_SIZE (<MODE>mode));
@@ -220,10 +222,12 @@
   [(set_attr "length" "3")])
 
 (define_expand "mulqq3_nomul"
-  [(set (reg:QQ 24)
-        (match_operand:QQ 1 "register_operand" ""))
-   (set (reg:QQ 25)
-        (match_operand:QQ 2 "register_operand" ""))
+  [(parallel [(set (reg:QQ 24)
+		   (match_operand:QQ 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:QQ 25)
+		   (match_operand:QQ 2 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    ;; "*mulqq3.call"
    (parallel [(set (reg:QQ 23)
                    (mult:QQ (reg:QQ 24)
@@ -231,8 +235,9 @@
               (clobber (reg:QI 22))
               (clobber (reg:HI 24))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:QQ 0 "register_operand" "")
-        (reg:QQ 23))]
+   (parallel [(set (match_operand:QQ 0 "register_operand" "")
+		   (reg:QQ 23))
+	      (clobber (reg:CC REG_CC))])]
   "!AVR_HAVE_MUL"
   {
     avr_fix_inputs (operands, 1 << 2, regmask (QQmode, 24));
@@ -240,10 +245,12 @@
 
 
 (define_expand "muluqq3_nomul"
-  [(set (reg:UQQ 22)
-        (match_operand:UQQ 1 "register_operand" ""))
-   (set (reg:UQQ 24)
-        (match_operand:UQQ 2 "register_operand" ""))
+  [(parallel [(set (reg:UQQ 22)
+		   (match_operand:UQQ 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:UQQ 24)
+		   (match_operand:UQQ 2 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    ;; "*umulqihi3.call"
    (parallel [(set (reg:HI 24)
                    (mult:HI (zero_extend:HI (reg:QI 22))
@@ -251,8 +258,9 @@
               (clobber (reg:QI 21))
               (clobber (reg:HI 22))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:UQQ 0 "register_operand" "")
-        (reg:UQQ 25))]
+   (parallel [(set (match_operand:UQQ 0 "register_operand" "")
+		   (reg:UQQ 25))
+	      (clobber (reg:CC REG_CC))])]
   "!AVR_HAVE_MUL"
   {
     avr_fix_inputs (operands, 1 << 2, regmask (UQQmode, 22));
@@ -273,18 +281,21 @@
 ;; "mulhq3" "muluhq3"
 ;; "mulha3" "muluha3"
 (define_expand "mul<mode>3"
-  [(set (reg:ALL2QA 18)
-        (match_operand:ALL2QA 1 "register_operand" ""))
-   (set (reg:ALL2QA 26)
-        (match_operand:ALL2QA 2 "register_operand" ""))
+  [(parallel [(set (reg:ALL2QA 18)
+		   (match_operand:ALL2QA 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:ALL2QA 26)
+		   (match_operand:ALL2QA 2 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    ;; "*mulhq3.call.enh"
    (parallel [(set (reg:ALL2QA 24)
                    (mult:ALL2QA (reg:ALL2QA 18)
                                 (reg:ALL2QA 26)))
               (clobber (reg:HI 22))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:ALL2QA 0 "register_operand" "")
-        (reg:ALL2QA 24))]
+   (parallel [(set (match_operand:ALL2QA 0 "register_operand" "")
+		   (reg:ALL2QA 24))
+	      (clobber (reg:CC REG_CC))])]
   "AVR_HAVE_MUL"
   {
     avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, 18));
@@ -307,16 +318,19 @@
 
 ;; "mulsa3" "mulusa3"
 (define_expand "mul<mode>3"
-  [(set (reg:ALL4A 16)
-        (match_operand:ALL4A 1 "register_operand" ""))
-   (set (reg:ALL4A 20)
-        (match_operand:ALL4A 2 "register_operand" ""))
+  [(parallel [(set (reg:ALL4A 16)
+		   (match_operand:ALL4A 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:ALL4A 20)
+		   (match_operand:ALL4A 2 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    (parallel [(set (reg:ALL4A 24)
 		   (mult:ALL4A (reg:ALL4A 16)
 			       (reg:ALL4A 20)))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:ALL4A 0 "register_operand" "")
-        (reg:ALL4A 24))]
+   (parallel [(set (match_operand:ALL4A 0 "register_operand" "")
+		   (reg:ALL4A 24))
+	      (clobber (reg:CC REG_CC))])]
   "AVR_HAVE_MUL"
   {
     avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, 16));
@@ -339,17 +353,20 @@
 
 ;; "divqq3" "udivuqq3"
 (define_expand "<code><mode>3"
-  [(set (reg:ALL1Q 25)
-        (match_operand:ALL1Q 1 "register_operand" ""))
-   (set (reg:ALL1Q 22)
-        (match_operand:ALL1Q 2 "register_operand" ""))
+  [(parallel [(set (reg:ALL1Q 25)
+		   (match_operand:ALL1Q 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:ALL1Q 22)
+		   (match_operand:ALL1Q 2 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    (parallel [(set (reg:ALL1Q 24)
                    (usdiv:ALL1Q (reg:ALL1Q 25)
                                 (reg:ALL1Q 22)))
               (clobber (reg:QI 25))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:ALL1Q 0 "register_operand" "")
-        (reg:ALL1Q 24))]
+   (parallel [(set (match_operand:ALL1Q 0 "register_operand" "")
+		   (reg:ALL1Q 24))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, 25));
@@ -370,18 +387,21 @@
 ;; "divhq3" "udivuhq3"
 ;; "divha3" "udivuha3"
 (define_expand "<code><mode>3"
-  [(set (reg:ALL2QA 26)
-        (match_operand:ALL2QA 1 "register_operand" ""))
-   (set (reg:ALL2QA 22)
-        (match_operand:ALL2QA 2 "register_operand" ""))
+  [(parallel [(set (reg:ALL2QA 26)
+		   (match_operand:ALL2QA 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:ALL2QA 22)
+		   (match_operand:ALL2QA 2 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    (parallel [(set (reg:ALL2QA 24)
                    (usdiv:ALL2QA (reg:ALL2QA 26)
                                  (reg:ALL2QA 22)))
               (clobber (reg:HI 26))
               (clobber (reg:QI 21))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:ALL2QA 0 "register_operand" "")
-        (reg:ALL2QA 24))]
+   (parallel [(set (match_operand:ALL2QA 0 "register_operand" "")
+		   (reg:ALL2QA 24))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, 26));
@@ -404,18 +424,21 @@
 
 ;; "divsa3" "udivusa3"
 (define_expand "<code><mode>3"
-  [(set (reg:ALL4A 24)
-        (match_operand:ALL4A 1 "register_operand" ""))
-   (set (reg:ALL4A 18)
-        (match_operand:ALL4A 2 "register_operand" ""))
+  [(parallel [(set (reg:ALL4A 24)
+		   (match_operand:ALL4A 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:ALL4A 18)
+		   (match_operand:ALL4A 2 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    (parallel [(set (reg:ALL4A 22)
                    (usdiv:ALL4A (reg:ALL4A 24)
                                 (reg:ALL4A 18)))
               (clobber (reg:HI 26))
               (clobber (reg:HI 30))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:ALL4A 0 "register_operand" "")
-        (reg:ALL4A 22))]
+   (parallel [(set (match_operand:ALL4A 0 "register_operand" "")
+		   (reg:ALL4A 22))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, 24));
@@ -442,17 +465,20 @@
 ;; "roundhq3"  "rounduhq3"  "roundha3"  "rounduha3"
 ;; "roundsq3"  "roundusq3"  "roundsa3"  "roundusa3"
 (define_expand "round<mode>3"
-  [(set (match_dup 4)
-        (match_operand:ALL124QA 1 "register_operand" ""))
-   (set (reg:QI 24)
-        (match_dup 5))
+  [(parallel [(set (match_dup 4)
+		   (match_operand:ALL124QA 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:QI 24)
+		   (match_dup 5))
+	      (clobber (reg:CC REG_CC))])
    (parallel [(set (match_dup 3)
                    (unspec:ALL124QA [(match_dup 4)
                                      (reg:QI 24)] UNSPEC_ROUND))
               (clobber (match_dup 4))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:ALL124QA 0 "register_operand" "")
-        (match_dup 3))
+   (parallel [(set (match_operand:ALL124QA 0 "register_operand" "")
+		   (match_dup 3))
+	      (clobber (reg:CC REG_CC))])
    (use (match_operand:HI 2 "nonmemory_operand" ""))]
   ""
   {
