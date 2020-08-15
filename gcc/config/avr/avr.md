@@ -708,15 +708,15 @@
 ;; "movqi_insn"
 ;; "movqq_insn" "movuqq_insn"
 (define_insn "mov<mode>_insn"
-  [(set (match_operand:ALL1 0 "nonimmediate_operand" "=r    ,d    ,Qm   ,r ,q,r,*r")
-        (match_operand:ALL1 1 "nox_general_operand"   "r Y00,n Ynn,r Y00,Qm,r,q,i"))
-   (clobber (match_operand:CC 2 "scratch_operand" "=c,X,c,c,X,X,c"))]
+  [(set (match_operand:ALL1 0 "nonimmediate_operand" "=r,r  ,d    ,Qm   ,r ,q,r,*r")
+        (match_operand:ALL1 1 "nox_general_operand"   "r,Y00,n Ynn,r Y00,Qm,r,q,i"))
+   (clobber (match_operand:CC 2 "scratch_operand" "=X,c,X,c,c,X,X,c"))]
   "register_operand (operands[0], <MODE>mode)
     || reg_or_0_operand (operands[1], <MODE>mode)"
   {
     return output_movqi (insn, operands, NULL);
   }
-  [(set_attr "length" "1,1,5,5,1,1,4")
+  [(set_attr "length" "1,1,1,5,5,1,1,4")
    (set_attr "adjust_len" "mov8")])
 
 ;; This is used in peephole2 to optimize loading immediate constants
@@ -1828,12 +1828,15 @@
   [(set_attr "length" "3")])
 
 (define_expand "mulqi3_call"
-  [(set (reg:QI 24) (match_operand:QI 1 "register_operand" ""))
-   (set (reg:QI 22) (match_operand:QI 2 "register_operand" ""))
+  [(parallel [(set (reg:QI 24) (match_operand:QI 1 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:QI 22) (match_operand:QI 2 "register_operand" ""))
+	      (clobber (reg:CC REG_CC))])
    (parallel [(set (reg:QI 24) (mult:QI (reg:QI 24) (reg:QI 22)))
               (clobber (reg:QI 22))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_operand:QI 0 "register_operand" "") (reg:QI 24))]
+   (parallel [(set (match_operand:QI 0 "register_operand" "") (reg:QI 24))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     avr_fix_inputs (operands, 1 << 2, regmask (QImode, 24));
@@ -6982,7 +6985,8 @@
   [(set (match_operand:QI 0 "register_operand"                        "=d")
         (subreg:QI (lo_sum:PSI (match_operand:QI 1 "nonmemory_operand" "ri")
                                (match_operand:HI 2 "register_operand"  "r"))
-                   2))]
+                   2))
+   (clobber (reg:CC REG_CC))]
   ""
   { gcc_unreachable(); }
   ""
