@@ -642,8 +642,9 @@
 ;; "movsf"
 ;; "movpsi"
 (define_expand "mov<mode>"
-  [(set (match_operand:MOVMODE 0 "nonimmediate_operand" "")
-        (match_operand:MOVMODE 1 "general_operand" ""))]
+  [(parallel [(set (match_operand:MOVMODE 0 "nonimmediate_operand" "")
+		   (match_operand:MOVMODE 1 "general_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     rtx dest = operands[0];
@@ -746,20 +747,30 @@
   [(set_attr "length" "1,1,5,5,1,1,4")
    (set_attr "adjust_len" "mov8")])
 
-(define_split
-  [(parallel [(set (match_operand 0 "" "")
-		  (match_operand 1 "" ""))
-	      (clobber (scratch:CC))])]
-  ""
-  [(set (match_dup 0)
-	(match_dup 1))])
+;; (define_split
+;;   [(parallel [(set (match_operand 0 "" "")
+;; 		  (match_operand 1 "" ""))
+;; 	      (clobber (scratch:CC))])]
+;;   ""
+;;   [(set (match_dup 0)
+;; 	(match_dup 1))])
 
-(define_split
-  [(set (match_operand 0 "nonimmediate_operand")
-	(match_operand 1 "nox_general_operand"))]
-  "reload_completed && mov_clobbers_cc (insn, operands)"
-  [(parallel [(set (match_dup 0) (match_dup 1))
-	      (clobber (reg:CC REG_CC))])])
+;; (define_split
+;;   [(parallel [(set (match_operand 0 "" "")
+;; 		   (match_operand 1 "" ""))
+;; 	      (clobber (match_operand 2 "" ""))
+;; 	      (clobber (scratch:CC))])]
+;;   ""
+;;   [(set (match_dup 0)
+;; 	(match_dup 1))
+;;    (clobber (match_dup 2))])
+
+;; (define_split
+;;   [(set (match_operand 0 "nonimmediate_operand")
+;; 	(match_operand 1 "nox_general_operand"))]
+;;   "reload_completed && mov_clobbers_cc (insn, operands)"
+;;   [(parallel [(set (match_dup 0) (match_dup 1))
+;; 	      (clobber (reg:CC REG_CC))])])
 
 ;; This is used in peephole2 to optimize loading immediate constants
 ;; if a scratch register from LD_REGS happens to be available.
@@ -786,14 +797,13 @@
    && !satisfies_constraint_Ym1 (operands[1])"
   [(parallel [(set (match_dup 0)
                    (match_dup 1))
-              (clobber (match_dup 2))
-	      (clobber (reg:CC REG_CC))])])
+              (clobber (match_dup 2))])])
 
 ;;============================================================================
 ;; move word (16 bit)
 
 ;; Move register $1 to the Stack Pointer register SP.
-;; This insn is emit during function prologue/epilogue generation.
+;; This insn is emitted during function prologue/epilogue generation.
 ;;    $2 =  0: We know that IRQs are off
 ;;    $2 =  1: We know that IRQs are on
 ;;    $2 =  2: SP has 8 bits only, IRQ state does not matter
@@ -858,6 +868,17 @@
   [(set (match_operand:ALL2 0 "nonimmediate_operand" "=r,r  ,r,m    ,d,*r,q,r")
         (match_operand:ALL2 1 "nox_general_operand"   "r,Y00,m,r Y00,i,i ,r,q"))
    (clobber (match_scratch:CC 2 "=X,X,c,c,X,c,X,X"))]
+  "register_operand (operands[0], <MODE>mode)
+   || reg_or_0_operand (operands[1], <MODE>mode)"
+  {
+    return output_movhi (insn, operands, NULL);
+  }
+  [(set_attr "length" "2,2,6,7,2,6,5,2")
+   (set_attr "adjust_len" "mov16")])
+
+(define_insn "*mov<mode>"
+  [(set (match_operand:ALL2 0 "nonimmediate_operand" "=r,r  ,r,m    ,d,*r,q,r")
+        (match_operand:ALL2 1 "nox_general_operand"   "r,Y00,m,r Y00,i,i ,r,q"))]
   "register_operand (operands[0], <MODE>mode)
    || reg_or_0_operand (operands[1], <MODE>mode)"
   {
@@ -1091,6 +1112,17 @@
   [(set (match_operand:ALL4 0 "nonimmediate_operand" "=r,r  ,r ,Qm   ,!d,r")
         (match_operand:ALL4 1 "nox_general_operand"   "r,Y00,Qm,r Y00,i ,i"))
    (clobber (match_scratch:CC 2 "=X,X,c,c,X,c"))]
+  "register_operand (operands[0], <MODE>mode)
+   || reg_or_0_operand (operands[1], <MODE>mode)"
+  {
+    return output_movsisf (insn, operands, NULL);
+  }
+  [(set_attr "length" "4,4,8,9,4,10")
+   (set_attr "adjust_len" "mov32")])
+
+(define_insn "*mov<mode>_clobber"
+  [(set (match_operand:ALL4 0 "nonimmediate_operand" "=r,r  ,r ,Qm   ,!d,r")
+        (match_operand:ALL4 1 "nox_general_operand"   "r,Y00,Qm,r Y00,i ,i"))]
   "register_operand (operands[0], <MODE>mode)
    || reg_or_0_operand (operands[1], <MODE>mode)"
   {
