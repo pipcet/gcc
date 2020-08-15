@@ -103,6 +103,16 @@
    (GASISR_Done     0)
    ])
 
+(define_subst "clobber_subst"
+  [(set (match_operand:VOID 0 "" "")
+	(match_operand:VOID 1 "" ""))]
+  "reload_completed"
+  [(set (match_dup 0)
+	(match_dup 1))
+   (clobber (reg:CC REG_CC))])
+
+(define_subst_attr "clobber" "clobber_subst" "" "_nocc")
+
 (include "predicates.md")
 (include "constraints.md")
 
@@ -703,7 +713,8 @@
 ;; "movqq_insn" "movuqq_insn"
 (define_insn "mov<mode>_insn"
   [(set (match_operand:ALL1 0 "nonimmediate_operand" "=r    ,d    ,Qm   ,r ,q,r,*r")
-        (match_operand:ALL1 1 "nox_general_operand"   "r Y00,n Ynn,r Y00,Qm,r,q,i"))]
+        (match_operand:ALL1 1 "nox_general_operand"   "r Y00,n Ynn,r Y00,Qm,r,q,i"))
+   (clobber (match_operand:CC 2 "scratch_operand" "=c,X,c,c,X,X,c"))]
   "register_operand (operands[0], <MODE>mode)
     || reg_or_0_operand (operands[1], <MODE>mode)"
   {
@@ -715,7 +726,7 @@
 (define_insn "*mov<mode>_insn_clobber"
   [(set (match_operand:ALL1 0 "nonimmediate_operand" "=r    ,d    ,Qm   ,r ,q,r,*r")
         (match_operand:ALL1 1 "nox_general_operand"   "r Y00,n Ynn,r Y00,Qm,r,q,i"))
-   (clobber (reg:CC REG_CC))]
+   (clobber (match_scratch:CC 2 "=c,X,c,c,X,X,c"))]
   "register_operand (operands[0], <MODE>mode)
     || reg_or_0_operand (operands[1], <MODE>mode)"
   {
@@ -723,6 +734,25 @@
   }
   [(set_attr "length" "1,1,5,5,1,1,4")
    (set_attr "adjust_len" "mov8")])
+
+(define_insn "*mov<mode>_insn"
+  [(set (match_operand:ALL1 0 "nonimmediate_operand" "=r    ,d    ,Qm   ,r ,q,r,*r")
+        (match_operand:ALL1 1 "nox_general_operand"   "r Y00,n Ynn,r Y00,Qm,r,q,i"))]
+  "register_operand (operands[0], <MODE>mode)
+    || reg_or_0_operand (operands[1], <MODE>mode)"
+  {
+    return output_movqi (insn, operands, NULL);
+  }
+  [(set_attr "length" "1,1,5,5,1,1,4")
+   (set_attr "adjust_len" "mov8")])
+
+(define_split
+  [(parallel [(set (match_operand 0 "" "")
+		  (match_operand 1 "" ""))
+	      (clobber (scratch:CC))])]
+  ""
+  [(set (match_dup 0)
+	(match_dup 1))])
 
 (define_split
   [(set (match_operand 0 "nonimmediate_operand")
@@ -1351,9 +1381,9 @@
 ;; "addhq3" "adduhq3"
 ;; "addha3" "adduha3"
 (define_insn_and_split "add<mode>3"
-  [(set (match_operand:ALL2 0 "register_operand"                   "=??r,d,!w    ,d")
-		   (plus:ALL2 (match_operand:ALL2 1 "register_operand" "%0,0,0     ,0")
-			      (match_operand:ALL2 2 "nonmemory_or_const_operand" "r,s,IJ YIJ,n Ynn")))]
+  [(set (match_operand:ALL2 0 "register_operand"                   "=??r,d,!w    ,d,q")
+		   (plus:ALL2 (match_operand:ALL2 1 "register_operand" "%0,0,0     ,0,0")
+			      (match_operand:ALL2 2 "nonmemory_or_const_operand" "r,s,IJ YIJ,n Ynn,Csp")))]
   ""
   "#"
   "reload_completed"

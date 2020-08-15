@@ -180,7 +180,7 @@ FIXME: DRIVER_SELF_SPECS has changed.
   0,0,/* r30 r31 */\
   1,1,/*  STACK */\
   1,1,/* arg pointer */\
-  1,  /* CC */}
+  0,  /* CC */}
 
 #define CALL_USED_REGISTERS {			\
   1,1,/* r0 r1 */				\
@@ -201,7 +201,7 @@ FIXME: DRIVER_SELF_SPECS has changed.
     1,1,/* r30 r31 */				\
     1,1,/*  STACK */				\
     1,1,/* arg pointer */			\
-    0,  /* CC */}
+    1,  /* CC */}
 
 #define REG_ALLOC_ORDER {			\
     24,25,					\
@@ -233,6 +233,7 @@ enum reg_class {
   LD_REGS,			/* r16 - r31 */
   NO_LD_REGS,			/* r0 - r15 */
   GENERAL_REGS,			/* r0 - r31 */
+  CC_REGS,                      /* cc */
   ALL_REGS, LIM_REG_CLASSES
 };
 
@@ -253,6 +254,7 @@ enum reg_class {
 		   "LD_REGS",	/* r16 - r31 */			\
                    "NO_LD_REGS", /* r0 - r15 */                 \
 		   "GENERAL_REGS", /* r0 - r31 */		\
+                   "CC_REGS" /* cc */				\
 		   "ALL_REGS" }
 
 #define REG_CLASS_CONTENTS {						\
@@ -273,7 +275,8 @@ enum reg_class {
      0x00000000},	/* LD_REGS, r16 - r31 */			\
   {0x0000ffff,0x00000000},	/* NO_LD_REGS  r0 - r15 */              \
   {0xffffffff,0x00000000},	/* GENERAL_REGS, r0 - r31 */		\
-  {0xffffffff,0x00000007}	/* ALL_REGS */				\
+  {0x00000000,0x00000010},      /* CC_REGS */				\
+  {0xffffffff,0x00000013}	/* ALL_REGS */				\
 }
 
 #define REGNO_REG_CLASS(R) avr_regno_reg_class(R)
