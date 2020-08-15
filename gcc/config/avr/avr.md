@@ -769,8 +769,7 @@
 (define_insn "*reload_in<mode>"
   [(set (match_operand:ALL1 0 "register_operand"    "=l")
         (match_operand:ALL1 1 "const_operand"        "i"))
-   (clobber (match_operand:QI 2 "register_operand" "=&d"))
-   (clobber (reg:CC REG_CC))]
+   (clobber (match_operand:QI 2 "register_operand" "=&d"))]
   "reload_completed"
   "ldi %2,lo8(%1)
 	mov %0,%2"
@@ -857,7 +856,8 @@
 ;; "*movha" "*movuha"
 (define_insn "*mov<mode>"
   [(set (match_operand:ALL2 0 "nonimmediate_operand" "=r,r  ,r,m    ,d,*r,q,r")
-        (match_operand:ALL2 1 "nox_general_operand"   "r,Y00,m,r Y00,i,i ,r,q"))]
+        (match_operand:ALL2 1 "nox_general_operand"   "r,Y00,m,r Y00,i,i ,r,q"))
+   (clobber (match_scratch:CC 2 "=X,X,c,c,X,c,X,X"))]
   "register_operand (operands[0], <MODE>mode)
    || reg_or_0_operand (operands[1], <MODE>mode)"
   {
@@ -1018,7 +1018,8 @@
 
 (define_insn "*movpsi"
   [(set (match_operand:PSI 0 "nonimmediate_operand" "=r,r,r ,Qm,!d,r")
-        (match_operand:PSI 1 "nox_general_operand"   "r,L,Qm,rL,i ,i"))]
+        (match_operand:PSI 1 "nox_general_operand"   "r,L,Qm,rL,i ,i"))
+   (clobber (match_scratch:CC 2 "=X,X,c,c,X,c"))]
   "register_operand (operands[0], PSImode)
    || register_operand (operands[1], PSImode)
    || const0_rtx == operands[1]"
@@ -1088,7 +1089,8 @@
 ;; "*movsa" "*movusa"
 (define_insn "*mov<mode>"
   [(set (match_operand:ALL4 0 "nonimmediate_operand" "=r,r  ,r ,Qm   ,!d,r")
-        (match_operand:ALL4 1 "nox_general_operand"   "r,Y00,Qm,r Y00,i ,i"))]
+        (match_operand:ALL4 1 "nox_general_operand"   "r,Y00,Qm,r Y00,i ,i"))
+   (clobber (match_scratch:CC 2 "=X,X,c,c,X,c"))]
   "register_operand (operands[0], <MODE>mode)
    || reg_or_0_operand (operands[1], <MODE>mode)"
   {
@@ -1114,7 +1116,8 @@
 
 (define_insn "*movsf"
   [(set (match_operand:SF 0 "nonimmediate_operand" "=r,r,r ,Qm,!d,r")
-        (match_operand:SF 1 "nox_general_operand"   "r,G,Qm,rG,F ,F"))]
+        (match_operand:SF 1 "nox_general_operand"   "r,G,Qm,rG,F ,F"))
+   (clobber (match_scratch:CC 2 "=X,X,c,c,X,c"))]
   "register_operand (operands[0], SFmode)
    || reg_or_0_operand (operands[1], SFmode)"
   {
@@ -3923,6 +3926,8 @@
 			      (const_int 4)))
 	      (clobber (reg:CC REG_CC))])])
 
+;; XXX alternative 3 "swap %0" does not clobber flags. Similar for
+;; other shifts.
 (define_insn "*rotlqi3"
   [(set (match_operand:QI 0 "register_operand"               "=r,r,r  ,r  ,r  ,r  ,r  ,r")
         (rotate:QI (match_operand:QI 1 "register_operand"     "0,0,0  ,0  ,0  ,0  ,0  ,0")
