@@ -748,19 +748,6 @@
 
 (define_peephole2
   [(match_scratch:QI 2 "d")
-   (set (match_operand:ALL1 0 "l_register_operand" "")
-        (match_operand:ALL1 1 "const_operand" ""))]
-  ; No need for a clobber reg for 0x0, 0x01 or 0xff
-  "!satisfies_constraint_Y00 (operands[1])
-   && !satisfies_constraint_Y01 (operands[1])
-   && !satisfies_constraint_Ym1 (operands[1])"
-  [(parallel [(set (match_dup 0)
-                   (match_dup 1))
-              (clobber (match_dup 2))
-	      (clobber (reg:CC REG_CC))])])
-
-(define_peephole2
-  [(match_scratch:QI 2 "d")
    (parallel [(set (match_operand:ALL1 0 "l_register_operand" "")
 		   (match_operand:ALL1 1 "const_operand" ""))
 	      (clobber (reg:CC REG_CC))])]
