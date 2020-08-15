@@ -1533,7 +1533,7 @@
 		   (plus:ALL2 (match_dup 0) (match_dup 1)))
 	      (clobber (reg:CC REG_CC))])])
 
-;; Adding a constant to NO_LD_REGS might have lead to a reload of
+;; Adding a constant to NO_LD_REGS might have led to a reload of
 ;; that constant to LD_REGS.  We don't add a scratch to *addhi3
 ;; itself because that insn is special to reload.
 
