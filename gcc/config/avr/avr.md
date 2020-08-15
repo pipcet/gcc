@@ -3117,14 +3117,18 @@
   ""
   "this udivmodqi4 pattern should have been splitted;"
   ""
-  [(set (reg:QI 24) (match_dup 1))
-   (set (reg:QI 22) (match_dup 2))
+  [(parallel [(set (reg:QI 24) (match_dup 1))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (reg:QI 22) (match_dup 2))
+	      (clobber (reg:CC REG_CC))])
    (parallel [(set (reg:QI 24) (udiv:QI (reg:QI 24) (reg:QI 22)))
               (set (reg:QI 25) (umod:QI (reg:QI 24) (reg:QI 22)))
               (clobber (reg:QI 23))
 	      (clobber (reg:CC REG_CC))])
-   (set (match_dup 0) (reg:QI 24))
-   (set (match_dup 3) (reg:QI 25))])
+   (parallel [(set (match_dup 0) (reg:QI 24))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (match_dup 3) (reg:QI 25))
+	      (clobber (reg:CC REG_CC))])])
 
 (define_insn "*udivmodqi4_call"
   [(set (reg:QI 24) (udiv:QI (reg:QI 24) (reg:QI 22)))
