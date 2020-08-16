@@ -3864,6 +3864,23 @@ mov_clobbers_cc (rtx_insn *insn, rtx operands[])
   return true;
 }
 
+bool
+avr_insn_clobbers_cc (rtx_insn *insn, rtx operands[])
+{
+  switch (get_attr_cc (insn))
+    {
+    case CC_NONE:
+      return false;
+    case CC_CLOBBER:
+      return true;
+    case CC_CLOBBER_IF_CLEARING_R0:
+      return REG_P (operands[0]) && REGNO (operands[0]) == 0 &&
+	operands[1] == const0_rtx;
+    case CC_UNKNOWN:
+      return true; /* should be gcc_unreachable () */
+    }
+}
+
 const char*
 output_movqi (rtx_insn *insn, rtx operands[], int *plen)
 {
