@@ -805,7 +805,7 @@
 (define_insn "*mov<mode>"
   [(set (match_operand:ALL2 0 "nonimmediate_operand" "=r,r  ,r,m    ,d,*r,q,r")
         (match_operand:ALL2 1 "nox_general_operand"   "r,Y00,m,r Y00,i,i ,r,q"))
-   (clobber (match_scratch:CC 2 "=X,X,c,c,X,c,X,X"))]
+   (clobber (match_scratch:CC 2 "=X,c,c,c,X,c,X,X"))]
   "register_operand (operands[0], <MODE>mode)
    || reg_or_0_operand (operands[1], <MODE>mode)"
   {
