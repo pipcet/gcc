@@ -3222,7 +3222,7 @@
 ;; expanding to the implicit library call until post combine and
 ;; prior to register allocation.  Clobber all hard registers that
 ;; might be used by the (widening) multiply until it is split and
-;; it's final register footprint is worked out.
+;; its final register footprint is worked out.
 
 (define_expand "mulpsi3"
   [(parallel [(set (match_operand:PSI 0 "register_operand" "")
