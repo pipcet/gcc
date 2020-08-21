@@ -2718,7 +2718,7 @@
 ;;    CSE has problems to operate on hard regs.
 ;;
 (define_insn_and_split "divmodqi4"
-  [(parallel [(set (match_operand:QI 0 "pseudo_register_operand" "")
+  [(set (match_operand:QI 0 "pseudo_register_operand" "")
                    (div:QI (match_operand:QI 1 "pseudo_register_operand" "")
                            (match_operand:QI 2 "pseudo_register_operand" "")))
               (set (match_operand:QI 3 "pseudo_register_operand" "")
@@ -2726,7 +2726,7 @@
               (clobber (reg:QI 22))
               (clobber (reg:QI 23))
               (clobber (reg:QI 24))
-              (clobber (reg:QI 25))])]
+              (clobber (reg:QI 25))]
   ""
   "this divmodqi4 pattern should have been splitted;"
   ""
@@ -2750,7 +2750,7 @@
    (set_attr "cc" "clobber")])
 
 (define_insn_and_split "udivmodqi4"
- [(parallel [(set (match_operand:QI 0 "pseudo_register_operand" "")
+ [(set (match_operand:QI 0 "pseudo_register_operand" "")
                   (udiv:QI (match_operand:QI 1 "pseudo_register_operand" "")
                            (match_operand:QI 2 "pseudo_register_operand" "")))
              (set (match_operand:QI 3 "pseudo_register_operand" "")
@@ -2758,7 +2758,7 @@
              (clobber (reg:QI 22))
              (clobber (reg:QI 23))
              (clobber (reg:QI 24))
-             (clobber (reg:QI 25))])]
+             (clobber (reg:QI 25))]
   ""
   "this udivmodqi4 pattern should have been splitted;"
   ""
@@ -2780,7 +2780,7 @@
    (set_attr "cc" "clobber")])
 
 (define_insn_and_split "divmodhi4"
-  [(parallel [(set (match_operand:HI 0 "pseudo_register_operand" "")
+  [(set (match_operand:HI 0 "pseudo_register_operand" "")
                    (div:HI (match_operand:HI 1 "pseudo_register_operand" "")
                            (match_operand:HI 2 "pseudo_register_operand" "")))
               (set (match_operand:HI 3 "pseudo_register_operand" "")
@@ -2788,7 +2788,7 @@
               (clobber (reg:QI 21))
               (clobber (reg:HI 22))
               (clobber (reg:HI 24))
-              (clobber (reg:HI 26))])]
+              (clobber (reg:HI 26))]
   ""
   "this should have been splitted;"
   ""
@@ -2812,7 +2812,7 @@
    (set_attr "cc" "clobber")])
 
 (define_insn_and_split "udivmodhi4"
-  [(parallel [(set (match_operand:HI 0 "pseudo_register_operand" "")
+  [(set (match_operand:HI 0 "pseudo_register_operand" "")
                    (udiv:HI (match_operand:HI 1 "pseudo_register_operand" "")
                             (match_operand:HI 2 "pseudo_register_operand" "")))
               (set (match_operand:HI 3 "pseudo_register_operand" "")
@@ -2820,7 +2820,7 @@
               (clobber (reg:QI 21))
               (clobber (reg:HI 22))
               (clobber (reg:HI 24))
-              (clobber (reg:HI 26))])]
+              (clobber (reg:HI 26))]
   ""
   "this udivmodhi4 pattern should have been splitted.;"
   ""
@@ -2994,14 +2994,14 @@
 ;; implementation works the other way round.
 
 (define_insn_and_split "divmodpsi4"
-  [(parallel [(set (match_operand:PSI 0 "pseudo_register_operand" "")
+  [(set (match_operand:PSI 0 "pseudo_register_operand" "")
                    (div:PSI (match_operand:PSI 1 "pseudo_register_operand" "")
                             (match_operand:PSI 2 "pseudo_register_operand" "")))
               (set (match_operand:PSI 3 "pseudo_register_operand" "")
                    (mod:PSI (match_dup 1)
                             (match_dup 2)))
               (clobber (reg:DI 18))
-              (clobber (reg:QI 26))])]
+              (clobber (reg:QI 26))]
   ""
   { gcc_unreachable(); }
   ""
@@ -3027,14 +3027,14 @@
    (set_attr "cc" "clobber")])
 
 (define_insn_and_split "udivmodpsi4"
-  [(parallel [(set (match_operand:PSI 0 "pseudo_register_operand" "")
+  [(set (match_operand:PSI 0 "pseudo_register_operand" "")
                    (udiv:PSI (match_operand:PSI 1 "pseudo_register_operand" "")
                              (match_operand:PSI 2 "pseudo_register_operand" "")))
               (set (match_operand:PSI 3 "pseudo_register_operand" "")
                    (umod:PSI (match_dup 1)
                              (match_dup 2)))
               (clobber (reg:DI 18))
-              (clobber (reg:QI 26))])]
+              (clobber (reg:QI 26))]
   ""
   { gcc_unreachable(); }
   ""
@@ -3062,7 +3062,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define_insn_and_split "divmodsi4"
-  [(parallel [(set (match_operand:SI 0 "pseudo_register_operand" "")
+  [(set (match_operand:SI 0 "pseudo_register_operand" "")
                    (div:SI (match_operand:SI 1 "pseudo_register_operand" "")
                            (match_operand:SI 2 "pseudo_register_operand" "")))
               (set (match_operand:SI 3 "pseudo_register_operand" "")
@@ -3070,7 +3070,7 @@
               (clobber (reg:SI 18))
               (clobber (reg:SI 22))
               (clobber (reg:HI 26))
-              (clobber (reg:HI 30))])]
+              (clobber (reg:HI 30))]
   ""
   "this divmodsi4 pattern should have been splitted;"
   ""
@@ -3094,7 +3094,7 @@
    (set_attr "cc" "clobber")])
 
 (define_insn_and_split "udivmodsi4"
-  [(parallel [(set (match_operand:SI 0 "pseudo_register_operand" "")
+  [(set (match_operand:SI 0 "pseudo_register_operand" "")
                    (udiv:SI (match_operand:SI 1 "pseudo_register_operand" "")
                            (match_operand:SI 2 "pseudo_register_operand" "")))
               (set (match_operand:SI 3 "pseudo_register_operand" "")
@@ -3102,7 +3102,7 @@
               (clobber (reg:SI 18))
               (clobber (reg:SI 22))
               (clobber (reg:HI 26))
-              (clobber (reg:HI 30))])]
+              (clobber (reg:HI 30))]
   ""
   "this udivmodsi4 pattern should have been splitted;"
   ""
@@ -5127,9 +5127,9 @@
              (use (const_int 1))])])
 
 (define_insn "call_insn"
-  [(parallel[(call (mem:HI (match_operand:HI 0 "nonmemory_operand" "z,s,z,s"))
+  [(call (mem:HI (match_operand:HI 0 "nonmemory_operand" "z,s,z,s"))
                    (match_operand:HI 1 "general_operand"           "X,X,X,X"))
-             (use (match_operand:HI 2 "const_int_operand"          "L,L,P,P"))])]
+             (use (match_operand:HI 2 "const_int_operand"          "L,L,P,P"))]
   ;; Operand 1 not used on the AVR.
   ;; Operand 2 is 1 for tail-call, 0 otherwise.
   ""
@@ -5143,10 +5143,10 @@
    (set_attr "adjust_len" "*,call,*,call")])
 
 (define_insn "call_value_insn"
-  [(parallel[(set (match_operand 0 "register_operand"                   "=r,r,r,r")
+  [(set (match_operand 0 "register_operand"                   "=r,r,r,r")
                   (call (mem:HI (match_operand:HI 1 "nonmemory_operand"  "z,s,z,s"))
                         (match_operand:HI 2 "general_operand"            "X,X,X,X")))
-             (use (match_operand:HI 3 "const_int_operand"                "L,L,P,P"))])]
+             (use (match_operand:HI 3 "const_int_operand"                "L,L,P,P"))]
   ;; Operand 2 not used on the AVR.
   ;; Operand 3 is 1 for tail-call, 0 otherwise.
   ""
