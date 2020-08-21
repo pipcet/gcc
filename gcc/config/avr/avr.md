@@ -58,6 +58,7 @@
    (REG_Z       30)
    (REG_W       24)
    (REG_SP      32)
+   (REG_CC      36)
    (LPM_REGNO   0)      ; implicit target register of LPM
    (TMP_REGNO   0)      ; temporary register r0
    (ZERO_REGNO  1)      ; zero register r1
