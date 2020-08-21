@@ -382,14 +382,16 @@
   "@
 	push %0
 	push __zero_reg__"
-  [(set_attr "length" "1,1")])
+  [(set_attr "length" "1,1")
+   (set_attr "cc" "none")])
 
 (define_insn "pushhi1_insn"
   [(set (mem:HI (post_dec:HI (reg:HI REG_SP)))
         (match_operand:HI 0 "register_operand" "r"))]
   ""
   "push %B0\;push %A0"
-  [(set_attr "length" "2")])
+  [(set_attr "length" "2")
+   (set_attr "cc" "none")])
 
 ;; All modes for a multi-byte push.  We must include complex modes here too,
 ;; lest emit_single_push_insn "helpfully" create the auto-inc itself.
