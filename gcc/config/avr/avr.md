@@ -1276,7 +1276,8 @@
     return avr_out_addto_sp (operands, NULL);
   }
   [(set_attr "length" "6")
-   (set_attr "adjust_len" "addto_sp")])
+   (set_attr "adjust_len" "addto_sp")
+   (set_attr "cc" "none")])
 
 ;; "*addhi3"
 ;; "*addhq3" "*adduhq3"
