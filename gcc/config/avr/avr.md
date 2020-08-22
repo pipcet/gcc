@@ -463,8 +463,9 @@
    && frame_pointer_needed
    && !cfun->calls_alloca
    && find_reg_note (insn, REG_ARGS_SIZE, const0_rtx)"
-  [(set (reg:HI REG_SP)
-        (reg:HI REG_Y))])
+  [(parallel [(set (reg:HI REG_SP)
+		   (reg:HI REG_Y))
+	      (clobber (scratch:CC))])])
 
 ;;========================================================================
 ;; Move stuff around
