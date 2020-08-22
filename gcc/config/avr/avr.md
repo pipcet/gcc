@@ -5085,6 +5085,22 @@
    (set_attr "cc" "clobber")])
 
 
+(define_insn "branch_nocc"
+  [(set (pc)
+        (if_then_else (match_operator 1 "simple_comparison_operator"
+                                      [(reg:CC REG_CC)
+                                       (const_int 0)])
+                      (label_ref (match_operand 0 "" ""))
+                      (pc)))
+   (clobber (reg:CC REG_CC))]
+  "reload_completed"
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch")
+   (set_attr "cc" "clobber")])
+
+
 ;; Same as above but wrap SET_SRC so that this branch won't be transformed
 ;; or optimized in the remainder.
 
@@ -5115,6 +5131,21 @@
                          (const_int 0)])
                       (label_ref (match_operand 0 "" ""))
                       (pc)))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch1")
+   (set_attr "cc" "clobber")])
+
+(define_insn "difficult_branch_nocc"
+  [(set (pc)
+        (if_then_else (match_operator 1 "difficult_comparison_operator"
+                        [(reg:CC REG_CC)
+                         (const_int 0)])
+                      (label_ref (match_operand 0 "" ""))
+                      (pc)))
+   (clobber (reg:CC REG_CC))]
   ""
   {
     return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
