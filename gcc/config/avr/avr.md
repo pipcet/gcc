@@ -700,16 +700,16 @@
 ;; "movqi_insn"
 ;; "movqq_insn" "movuqq_insn"
 (define_insn "mov<mode>_insn"
-  [(set (match_operand:ALL1 0 "nonimmediate_operand" "=r    ,d    ,Qm   ,r ,q,r,*r")
-        (match_operand:ALL1 1 "nox_general_operand"   "r Y00,n Ynn,r Y00,Qm,r,q,i"))]
+  [(set (match_operand:ALL1 0 "nonimmediate_operand" "=r,r  ,d    ,Qm   ,r ,q,r,*r")
+        (match_operand:ALL1 1 "nox_general_operand"   "r,Y00,n Ynn,r Y00,Qm,r,q,i"))]
   "register_operand (operands[0], <MODE>mode)
     || reg_or_0_operand (operands[1], <MODE>mode)"
   {
     return output_movqi (insn, operands, NULL);
   }
-  [(set_attr "length" "1,1,5,5,1,1,4")
+  [(set_attr "length" "1,1,1,5,5,1,1,4")
    (set_attr "adjust_len" "mov8")
-   (set_attr "cc" "ldi,none,clobber,clobber,none,none,clobber")])
+   (set_attr "cc" "none,ldi,none,clobber,clobber,none,none,clobber")])
 
 ;; This is used in peephole2 to optimize loading immediate constants
 ;; if a scratch register from LD_REGS happens to be available.
