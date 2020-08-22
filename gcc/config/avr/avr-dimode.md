@@ -324,34 +324,76 @@
 ;; "cbranchda4" "cbranchuda4"
 ;; "cbranchta4" "cbranchuta4"
 (define_expand "cbranch<mode>4"
-  [(parallel [(match_operand:ALL8 1 "register_operand" "")
-              (match_operand:ALL8 2 "nonmemory_operand" "")
-              (match_operator 0 "ordered_comparison_operator" [(cc0)
-                                                               (const_int 0)])
-              (label_ref (match_operand 3 "" ""))])]
+  [(parallel [(set (pc)
+		   (if_then_else
+		    (match_operator 0 "ordered_comparison_operator"
+				    [(match_operand:ALL8 1 "register_operand" "r")
+				     (match_operand:ALL8 2 "nonmemory_operand" "rin")])
+		    (label_ref (match_operand 3 "" ""))
+		    (pc)))
+	      (clobber (match_scratch:QI 4 "=&d"))])]
   "avr_have_dimode"
+  {
+    //rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
+
+    //avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
+    //emit_move_insn (acc_a, operands[0]);
+  })
+
+(define_insn_and_split "*cbranch<mode>4"
+  [(set (pc)
+	(if_then_else
+	 (match_operator 0 "ordered_comparison_operator"
+			 [(match_operand:ALL8 1 "register_operand" "f")
+			  (match_operand:ALL8 2 "nonmemory_operand" "rin")])
+	 (label_ref (match_operand 3 "" ""))
+	 (pc)))
+   (clobber (match_scratch:QI 4 "=&d"))]
+  "avr_have_dimode"
+  "#"
+  "reload_completed"
+  [(parallel [(set (reg:CC REG_CC)
+		   (compare:CC (match_dup 1) (match_dup 2)))
+	      (clobber (match_dup 4))])
+   (set (pc)
+	(if_then_else
+	 (match_op_dup 0 [(reg:CC REG_CC) (const_int 0)])
+	 (label_ref (match_dup 3))
+	 (pc)))]
+  {
+    //rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
+
+    //avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
+    //emit_move_insn (acc_a, operands[0]);
+  })
+
+(define_split
+  [(parallel [(set (reg:CC REG_CC)
+		   (compare:CC (match_operand:ALL8 0 "register_operand" "")
+			       (match_operand:ALL8 1 "nonmemory_operand" "")))
+	      (clobber (match_scratch:QI 2))])]
+  "avr_have_dimode"
+  [(clobber (reg:CC REG_CC))]
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
 
-    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
-    emit_move_insn (acc_a, operands[1]);
+    //avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
+    emit_move_insn (acc_a, operands[0]);
 
-    if (s8_operand (operands[2], VOIDmode))
+    if (s8_operand (operands[1], VOIDmode))
       {
-        emit_move_insn (gen_rtx_REG (QImode, REG_X), operands[2]);
+        emit_move_insn (gen_rtx_REG (QImode, REG_X), operands[1]);
         emit_insn (gen_compare_const8_di2 ());
       }
-    else if (const_operand (operands[2], GET_MODE (operands[2])))
+    else if (const_operand (operands[1], GET_MODE (operands[1])))
       {
-        emit_insn (gen_compare_const_<mode>2 (operands[2]));
+        emit_insn (gen_compare_const_<mode>2 (operands[1], operands[2]));
       }
     else
       {
-        emit_move_insn (gen_rtx_REG (<MODE>mode, ACC_B), operands[2]);
+        emit_move_insn (gen_rtx_REG (<MODE>mode, ACC_B), operands[1]);
         emit_insn (gen_compare_<mode>2 ());
       }
-
-    emit_jump_insn (gen_conditional_jump (operands[0], operands[3]));
     DONE;
   })
 
@@ -385,7 +427,7 @@
   [(set (reg:CC REG_CC)
         (compare:CC (reg:ALL8 ACC_A)
                     (match_operand:ALL8 0 "const_operand" "n Ynn")))
-   (clobber (match_scratch:QI 1 "=&d"))]
+   (clobber (match_operand:QI 1 "scratch_operand" "=&d"))]
   "avr_have_dimode
    && !s8_operand (operands[0], VOIDmode)"
   {
@@ -415,7 +457,29 @@
 (define_expand "<code_stdname><mode>3"
   [(parallel [(match_operand:ALL8 0 "general_operand" "")
               (di_shifts:ALL8 (match_operand:ALL8 1 "general_operand" "")
-                              (match_operand:QI 2 "general_operand" ""))])]
+                              (match_operand:QI 2 "general_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
+  "avr_have_dimode"
+  {
+    rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
+
+    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
+    emit_move_insn (acc_a, operands[1]);
+    emit_move_insn (gen_rtx_REG (QImode, 16), operands[2]);
+    emit_insn (gen_<code_stdname><mode>3_insn ());
+    emit_move_insn (operands[0], acc_a);
+    DONE;
+  })
+
+(define_expand "<code_stdname><mode>3_cc"
+  [(parallel [(set (reg:CCNZ REG_CC)
+		   (compare:CCNZ
+		    (di_shifts:ALL8 (match_operand:ALL8 1 "general_operand" "")
+				    (match_operand:QI 2 "general_operand" ""))
+		    (const_int 0)))
+	      (set (match_operand:ALL8 0 "general_operand" "")
+		    (di_shifts:ALL8 (match_dup 1)
+				    (match_dup 2)))])]
   "avr_have_dimode"
   {
     rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
