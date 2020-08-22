@@ -155,7 +155,8 @@ FIXME: DRIVER_SELF_SPECS has changed.
 
 #define WCHAR_TYPE_SIZE 16
 
-#define FIRST_PSEUDO_REGISTER 36
+#define TARGET_FLAGS_REGNUM 36
+#define FIRST_PSEUDO_REGISTER 37
 
 #define GENERAL_REGNO_P(N)	IN_RANGE (N, 2, 31)
 #define GENERAL_REG_P(X)	(REG_P (X) && GENERAL_REGNO_P (REGNO (X)))
@@ -178,7 +179,8 @@ FIXME: DRIVER_SELF_SPECS has changed.
   0,0,/* r28 r29 */\
   0,0,/* r30 r31 */\
   1,1,/*  STACK */\
-  1,1 /* arg pointer */  }
+  1,1,/* arg pointer */\
+  0,  /* CC */}
 
 #define CALL_USED_REGISTERS {			\
   1,1,/* r0 r1 */				\
@@ -198,7 +200,8 @@ FIXME: DRIVER_SELF_SPECS has changed.
     0,0,/* r28 r29 */				\
     1,1,/* r30 r31 */				\
     1,1,/*  STACK */				\
-    1,1 /* arg pointer */  }
+    1,1,/* arg pointer */			\
+    1,  /* CC */}
 
 #define REG_ALLOC_ORDER {			\
     24,25,					\
@@ -210,7 +213,7 @@ FIXME: DRIVER_SELF_SPECS has changed.
     28,29,					\
     17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,	\
     0,1,					\
-    32,33,34,35					\
+    32,33,34,35,36				\
     }
 
 #define ADJUST_REG_ALLOC_ORDER avr_adjust_reg_alloc_order()
@@ -226,10 +229,12 @@ enum reg_class {
   BASE_POINTER_REGS,		/* r28 - r31 */
   POINTER_REGS,			/* r26 - r31 */
   ADDW_REGS,			/* r24 - r31 */
+  ACC_A_REG,			/* r18 */
   SIMPLE_LD_REGS,		/* r16 - r23 */
   LD_REGS,			/* r16 - r31 */
   NO_LD_REGS,			/* r0 - r15 */
   GENERAL_REGS,			/* r0 - r31 */
+  CC_REGS,                      /* cc */
   ALL_REGS, LIM_REG_CLASSES
 };
 
@@ -246,10 +251,12 @@ enum reg_class {
 		   "BASE_POINTER_REGS",	/* r28 - r31 */		\
 		   "POINTER_REGS", /* r26 - r31 */		\
 		   "ADDW_REGS",	/* r24 - r31 */			\
+		   "ACC_A_REG",	/* r8 */			\
                    "SIMPLE_LD_REGS", /* r16 - r23 */            \
 		   "LD_REGS",	/* r16 - r31 */			\
                    "NO_LD_REGS", /* r0 - r15 */                 \
 		   "GENERAL_REGS", /* r0 - r31 */		\
+                   "CC_REGS" /* cc */				\
 		   "ALL_REGS" }
 
 #define REG_CLASS_CONTENTS {						\
@@ -265,12 +272,14 @@ enum reg_class {
      0x00000000},		/* POINTER_REGS, r26 - r31 */		\
   {(3u << REG_X) | (3u << REG_Y) | (3u << REG_Z) | (3u << REG_W),	\
      0x00000000},		/* ADDW_REGS, r24 - r31 */		\
+  {(255u << 18), 0x00000000},	/* ACC_A_REG, r18 */			\
   {0x00ff0000,0x00000000},	/* SIMPLE_LD_REGS r16 - r23 */          \
   {(3u << REG_X)|(3u << REG_Y)|(3u << REG_Z)|(3u << REG_W)|(0xffu << 16),\
      0x00000000},	/* LD_REGS, r16 - r31 */			\
   {0x0000ffff,0x00000000},	/* NO_LD_REGS  r0 - r15 */              \
   {0xffffffff,0x00000000},	/* GENERAL_REGS, r0 - r31 */		\
-  {0xffffffff,0x00000003}	/* ALL_REGS */				\
+  {0x00000000,0x00000010},      /* CC_REGS */				\
+  {0xffffffff,0x00000013}	/* ALL_REGS */				\
 }
 
 #define REGNO_REG_CLASS(R) avr_regno_reg_class(R)
@@ -429,7 +438,7 @@ typedef struct avr_args
     "r8","r9","r10","r11","r12","r13","r14","r15",	\
     "r16","r17","r18","r19","r20","r21","r22","r23",	\
     "r24","r25","r26","r27","r28","r29","r30","r31",	\
-    "__SP_L__","__SP_H__","argL","argH"}
+    "__SP_L__","__SP_H__","argL","argH", "cc", }
 
 #define FINAL_PRESCAN_INSN(insn, operand, nop)  \
   avr_final_prescan_insn (insn, operand,nop)
