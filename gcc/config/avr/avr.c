@@ -5810,16 +5810,31 @@ avr_frame_pointer_required_p (void)
           || get_frame_size () > 0);
 }
 
+rtx_insn *next_real_nonmov_insn (rtx_insn *insn)
+{
+  do
+    insn = next_real_insn (insn);
+  while (insn && INSN_P (insn)
+	 && GET_CODE (PATTERN (insn)) == SET
+	 && SET_DEST (PATTERN (insn)) != pc_rtx);
+
+  return insn;
+}
+
 /* Returns the condition of compare insn INSN, or UNKNOWN.  */
 
 static RTX_CODE
 compare_condition (rtx_insn *insn)
 {
-  rtx_insn *next = next_real_insn (insn);
+  rtx_insn *next = next_real_nonmov_insn (insn);
 
   if (next && JUMP_P (next))
     {
       rtx pat = PATTERN (next);
+      if (GET_CODE (pat) == PARALLEL)
+	pat = XVECEXP (pat, 0, 0);
+      if (GET_CODE (pat) != SET)
+	return UNKNOWN;
       rtx src = SET_SRC (pat);
 
       if (IF_THEN_ELSE == GET_CODE (src))
@@ -5847,7 +5862,7 @@ static bool
 compare_diff_p (rtx_insn *insn)
 {
   RTX_CODE cond = compare_condition (insn);
-  return (cond == GT || cond == GTU || cond == LE || cond == LEU) ? cond : 0;
+  return (cond == GT || cond == GTU || cond == LE || cond == LEU);
 }
 
 /* Returns true iff INSN is a compare insn with the EQ or NE condition.  */
@@ -6180,6 +6195,7 @@ out_shift_with_cnt (const char *templ, rtx_insn *insn, rtx operands[],
   if (CONST_INT_P (operands[2]))
     {
       bool scratch = (GET_CODE (PATTERN (insn)) == PARALLEL
+		      && XVECLEN (PATTERN (insn), 0) > 2
                       && REG_P (operands[3]));
       int count = INTVAL (operands[2]);
       int max_len = 10;  /* If larger than this, always use a loop.  */
@@ -6376,7 +6392,8 @@ ashlhi3_out (rtx_insn *insn, rtx operands[], int *len)
 {
   if (CONST_INT_P (operands[2]))
     {
-      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL);
+      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL) &&
+	XVECLEN (PATTERN (insn), 0) > 2;
       int ldi_ok = test_hard_reg_class (LD_REGS, operands[0]);
       int k;
       int *t = len;
@@ -6857,7 +6874,8 @@ ashrhi3_out (rtx_insn *insn, rtx operands[], int *len)
 {
   if (CONST_INT_P (operands[2]))
     {
-      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL);
+      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL) &&
+	XVECLEN (PATTERN (insn), 0) > 2;
       int ldi_ok = test_hard_reg_class (LD_REGS, operands[0]);
       int k;
       int *t = len;
@@ -7271,7 +7289,8 @@ lshrhi3_out (rtx_insn *insn, rtx operands[], int *len)
 {
   if (CONST_INT_P (operands[2]))
     {
-      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL);
+      int scratch = (GET_CODE (PATTERN (insn)) == PARALLEL) &&
+	XVECLEN (PATTERN (insn), 0) > 2;
       int ldi_ok = test_hard_reg_class (LD_REGS, operands[0]);
       int k;
       int *t = len;
