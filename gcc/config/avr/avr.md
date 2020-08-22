@@ -4703,7 +4703,7 @@
   [(set (reg:CC REG_CC)
         (compare:CC (match_operand:ALL1 0 "register_operand"  "r  ,r,d")
                     (match_operand:ALL1 1 "nonmemory_operand" "Y00,r,i")))]
-  "reload_completed"
+  ""
   "@
 	tst %0
 	cp %0,%1
@@ -4715,7 +4715,7 @@
   [(set (reg:CC REG_CC)
         (compare:CC (sign_extend:HI (match_operand:QI 0 "register_operand" "d"))
                     (match_operand:HI 1 "s8_operand"                       "n")))]
-  "reload_completed"
+  ""
   "cpi %0,lo8(%1)"
   [(set_attr "cc" "compare")
    (set_attr "length" "1")])
@@ -4725,7 +4725,7 @@
   [(set (reg:CC REG_CC)
         (compare:CC (zero_extend:HI (match_operand:QI 0 "register_operand" "r"))
                     (match_operand:HI 1 "register_operand" "r")))]
-  "reload_completed"
+  ""
   "cp %0,%A1\;cpc __zero_reg__,%B1"
   [(set_attr "cc" "compare")
    (set_attr "length" "2")])
@@ -4734,7 +4734,7 @@
   [(set (reg:CC REG_CC)
         (compare:CC (match_operand:HI 0 "register_operand" "r")
                     (zero_extend:HI (match_operand:QI 1 "register_operand" "r"))))]
-  "reload_completed"
+  ""
   "cp %A0,%1\;cpc %B0,__zero_reg__"
   [(set_attr "cc" "compare")
    (set_attr "length" "2")])
@@ -4753,7 +4753,7 @@
         (compare:CC (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
                     (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
    (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))]
-  "reload_completed"
+  ""
   {
     switch (which_alternative)
       {
@@ -4787,7 +4787,7 @@
         (compare:CC (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
                     (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
    (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))]
-  "reload_completed"
+  ""
   {
     switch (which_alternative)
       {
@@ -4822,7 +4822,7 @@
         (compare:CC (match_operand:PSI 0 "register_operand"  "r,r,d ,r  ,d,r")
                     (match_operand:PSI 1 "nonmemory_operand" "L,r,s ,s  ,M,n")))
    (clobber (match_scratch:QI 2                          "=X,X,&d,&d ,X,&d"))]
-  "reload_completed"
+  ""
   {
     switch (which_alternative)
       {
