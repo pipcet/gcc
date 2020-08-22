@@ -67,7 +67,7 @@
 (define_constants
   [(TMP_REGNO_TINY  16) ; r16 is temp register for AVR_TINY
    (ZERO_REGNO_TINY 17) ; r17 is zero register for AVR_TINY
-  ])
+   ])
 
 (define_c_enum "unspec"
   [UNSPEC_STRLEN
