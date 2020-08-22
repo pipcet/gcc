@@ -32,6 +32,9 @@
   "Registers from r24 to r31.  These registers
    can be used in @samp{adiw} command.")
 
+(define_register_constraint "c" "CC_REGS"
+  "CC register.")
+
 (define_register_constraint "d" "LD_REGS"
   "Registers from r16 to r31.")
 
@@ -40,6 +43,9 @@
 
 (define_register_constraint "a" "SIMPLE_LD_REGS"
   "Registers from r16 to r23.")
+
+(define_register_constraint "f" "ACC_A_REG"
+  "Register range r18 through r25.")
 
 (define_register_constraint "x" "POINTER_X_REGS"
   "Register pair X (r27:r26).")
