@@ -847,7 +847,10 @@
   [(set (match_operand:HISI 0 "register_operand" "")
         (match_operand:HISI 1 "memory_operand" ""))]
   "reload_completed
-   && AVR_HAVE_LPMX"
+   && AVR_HAVE_LPMX
+   && avr_mem_flash_p (operands[1])
+   && REG_P (XEXP (operands[1], 0))
+   && !reg_overlap_mentioned_p (XEXP (operands[1], 0), operands[0])"
   [(set (match_dup 0)
         (match_dup 2))
    (set (match_dup 3)
