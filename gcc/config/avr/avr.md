@@ -1280,6 +1280,18 @@
    (set_attr "adjust_len" "addto_sp")
    (set_attr "cc" "none")])
 
+(define_insn "*addhi3_sp"
+  [(set (match_operand:HI 1 "stack_register_operand"           "=q")
+        (plus:HI (match_operand:HI 2 "stack_register_operand"   "q")
+                 (match_operand:HI 0 "avr_sp_immediate_operand" "Csp")))]
+  ""
+  {
+    return avr_out_addto_sp (operands, NULL);
+  }
+  [(set_attr "length" "6")
+   (set_attr "adjust_len" "addto_sp")
+   (set_attr "cc" "clobber")])
+
 ;; "*addhi3"
 ;; "*addhq3" "*adduhq3"
 ;; "*addha3" "*adduha3"
