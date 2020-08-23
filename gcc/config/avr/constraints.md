@@ -28,6 +28,9 @@
 (define_register_constraint "e" "POINTER_REGS"
   "Pointer registers (r26--r31)")
 
+(define_register_constraint "v" "R1_R31_REGS"
+  "Not r0 (r1--r31)")
+
 (define_register_constraint "w" "ADDW_REGS"
   "Registers from r24 to r31.  These registers
    can be used in @samp{adiw} command.")
