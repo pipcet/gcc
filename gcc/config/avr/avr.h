@@ -493,12 +493,7 @@ typedef struct avr_args
 
 #define TRAMPOLINE_SIZE 4
 
-/* Store in cc_status the expressions
-   that the condition codes will describe
-   after execution of an instruction whose pattern is EXP.
-   Do not alter them if the instruction would not alter the cc's.  */
-
-#define NOTICE_UPDATE_CC(EXP, INSN) avr_notice_update_cc (EXP, INSN)
+#define NOTICE_UPDATE_CC(EXP, INSN) do { } while (0)
 
 /* The add insns don't set overflow in a usable way.  */
 #define CC_OVERFLOW_UNUSABLE 01000
@@ -509,6 +504,8 @@ typedef struct avr_args
    understandable.  */
 #define CC_NO_CARRY CC_NO_OVERFLOW
 
+#define SELECT_CC_MODE(OP, X, Y) select_cc_mode ((OP), (X), (Y))
+#define TARGET_CANONICALIZE_COMPARISON avr_canonicalize_comparison
 
 /* Output assembler code to FILE to increment profiler label # LABELNO
    for profiling a function entry.  */
