@@ -233,6 +233,7 @@ enum reg_class {
   SIMPLE_LD_REGS,		/* r16 - r23 */
   LD_REGS,			/* r16 - r31 */
   NO_LD_REGS,			/* r0 - r15 */
+  R1_R31_REGS,			/* r1 - r31 */
   GENERAL_REGS,			/* r0 - r31 */
   CC_REGS,                      /* cc */
   ALL_REGS, LIM_REG_CLASSES
@@ -255,6 +256,7 @@ enum reg_class {
                    "SIMPLE_LD_REGS", /* r16 - r23 */            \
 		   "LD_REGS",	/* r16 - r31 */			\
                    "NO_LD_REGS", /* r0 - r15 */                 \
+                   "R1_R31_REGS", /* r1 - r31 */		\
 		   "GENERAL_REGS", /* r0 - r31 */		\
                    "CC_REGS" /* cc */				\
 		   "ALL_REGS" }
@@ -277,6 +279,7 @@ enum reg_class {
   {(3u << REG_X)|(3u << REG_Y)|(3u << REG_Z)|(3u << REG_W)|(0xffu << 16),\
      0x00000000},	/* LD_REGS, r16 - r31 */			\
   {0x0000ffff,0x00000000},	/* NO_LD_REGS  r0 - r15 */              \
+  {0xfffffffe,0x00000000},	/* R1_R31_REGS, r0 - r31 */		\
   {0xffffffff,0x00000000},	/* GENERAL_REGS, r0 - r31 */		\
   {0x00000000,0x00000010},      /* CC_REGS */				\
   {0xffffffff,0x00000013}	/* ALL_REGS */				\
