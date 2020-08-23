@@ -2990,6 +2990,44 @@ avr_use_by_pieces_infrastructure_p (unsigned HOST_WIDE_INT size,
 }
 
 
+rtx
+avr_gen_cc_clobber (rtx_insn *insn)
+{
+  rtx set;
+  enum attr_cc cc = get_attr_cc (insn);
+
+  if (cc == CC_LDI)
+    {
+      rtx *op = recog_data.operand;
+      int len_dummy, icc;
+
+      /* Extract insn's operands.  */
+      extract_constrain_insn_cached (insn);
+
+      cc = (op[1] == CONST0_RTX (GET_MODE (op[0]))
+	    && reg_overlap_mentioned_p (op[0], zero_reg_rtx))
+	/* Loading zero-reg with 0 uses CLR and thus clobbers cc0.  */
+	? CC_CLOBBER
+	/* Any other "r,rL" combination does not alter cc0.  */
+	: CC_NONE;
+    }
+
+  switch (cc)
+    {
+    case CC_NONE:
+      return gen_rtx_SCRATCH (CCmode);
+
+    default:
+    case CC_SET_N:
+    case CC_SET_ZN:
+    case CC_SET_VZN:
+    case CC_SET_CZN:
+    case CC_COMPARE:
+    case CC_CLOBBER:
+      return gen_rtx_REG (CCmode, REG_CC);
+    }
+}
+
 /* Worker function for `NOTICE_UPDATE_CC'.  */
 /* Update the condition code in the INSN.  */
 

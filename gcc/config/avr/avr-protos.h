@@ -46,6 +46,7 @@ extern void avr_init_cumulative_args (CUMULATIVE_ARGS*, tree, rtx, tree);
 #endif /* TREE_CODE */
 
 #ifdef RTX_CODE
+extern rtx avr_gen_cc_clobber (rtx_insn *);
 extern machine_mode select_cc_mode (enum rtx_code, rtx, rtx);
 extern void avr_canonicalize_comparison(int *, rtx *, rtx *, bool);
 extern const char *output_movqi (rtx_insn *insn, rtx operands[], int *l);
