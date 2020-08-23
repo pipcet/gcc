@@ -1238,10 +1238,10 @@
 (define_insn "*cpymem_<mode>"
   [(set (mem:BLK (reg:HI REG_X))
         (mem:BLK (reg:HI REG_Z)))
-   (clobber (reg:CC REG_CC))
    (unspec [(match_operand:QI 0 "const_int_operand" "n")]
            UNSPEC_CPYMEM)
    (use (match_operand:QIHI 1 "register_operand" "<CPYMEM_r_d>"))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:HI REG_X))
    (clobber (reg:HI REG_Z))
    (clobber (reg:QI LPM_REGNO))
@@ -1299,10 +1299,10 @@
   [(set (mem:BLK (reg:HI REG_X))
         (mem:BLK (lo_sum:PSI (reg:QI 23)
                              (reg:HI REG_Z))))
-   (clobber (reg:CC REG_CC))
    (unspec [(match_operand:QI 0 "const_int_operand" "n")]
            UNSPEC_CPYMEM)
    (use (reg:QIHI 24))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:HI REG_X))
    (clobber (reg:HI REG_Z))
    (clobber (reg:QI LPM_REGNO))
@@ -1370,9 +1370,9 @@
 (define_insn "*clrmemqi"
   [(set (mem:BLK (match_operand:HI 0 "register_operand" "e"))
         (const_int 0))
-   (clobber (reg:CC REG_CC))
    (use (match_operand:QI 1 "register_operand" "r"))
    (use (match_operand:QI 2 "const_int_operand" "n"))
+   (clobber (reg:CC REG_CC))
    (clobber (match_scratch:HI 3 "=0"))
    (clobber (match_scratch:QI 4 "=&1"))]
   ""
@@ -1405,9 +1405,9 @@
 (define_insn "*clrmemhi"
   [(set (mem:BLK (match_operand:HI 0 "register_operand" "e,e"))
         (const_int 0))
-   (clobber (match_scratch:CC 5 "=c,c"))
    (use (match_operand:HI 1 "register_operand" "!w,d"))
    (use (match_operand:HI 2 "const_int_operand" "n,n"))
+   (clobber (match_scratch:CC 5 "=c,c"))
    (clobber (match_scratch:HI 3 "=0,0"))
    (clobber (match_scratch:HI 4 "=&1,&1"))]
   ""
@@ -4103,8 +4103,8 @@
 
 (define_insn "*divmodqi4_call"
   [(set (reg:QI 24) (div:QI (reg:QI 24) (reg:QI 22)))
-   (clobber (reg:CC REG_CC))
    (set (reg:QI 25) (mod:QI (reg:QI 24) (reg:QI 22)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:QI 22))
    (clobber (reg:QI 23))]
   ""
@@ -4150,8 +4150,8 @@
 
 (define_insn "*udivmodqi4_call"
   [(set (reg:QI 24) (udiv:QI (reg:QI 24) (reg:QI 22)))
-   (clobber (reg:CC REG_CC))
    (set (reg:QI 25) (umod:QI (reg:QI 24) (reg:QI 22)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:QI 23))]
   ""
   "%~call __udivmodqi4"
@@ -4199,8 +4199,8 @@
 
 (define_insn "*divmodhi4_call"
   [(set (reg:HI 22) (div:HI (reg:HI 24) (reg:HI 22)))
-   (clobber (reg:CC REG_CC))
    (set (reg:HI 24) (mod:HI (reg:HI 24) (reg:HI 22)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:HI 26))
    (clobber (reg:QI 21))]
   ""
@@ -4249,8 +4249,8 @@
 
 (define_insn "*udivmodhi4_call"
   [(set (reg:HI 22) (udiv:HI (reg:HI 24) (reg:HI 22)))
-   (clobber (reg:CC REG_CC))
    (set (reg:HI 24) (umod:HI (reg:HI 24) (reg:HI 22)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:HI 26))
    (clobber (reg:QI 21))]
   ""
@@ -4521,8 +4521,8 @@
 
 (define_insn "*divmodpsi4_call"
   [(set (reg:PSI 22) (div:PSI (reg:PSI 22) (reg:PSI 18)))
-   (clobber (reg:CC REG_CC))
    (set (reg:PSI 18) (mod:PSI (reg:PSI 22) (reg:PSI 18)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:QI 21))
    (clobber (reg:QI 25))
    (clobber (reg:QI 26))]
@@ -4574,8 +4574,8 @@
 
 (define_insn "*udivmodpsi4_call"
   [(set (reg:PSI 22) (udiv:PSI (reg:PSI 22) (reg:PSI 18)))
-   (clobber (reg:CC REG_CC))
    (set (reg:PSI 18) (umod:PSI (reg:PSI 22) (reg:PSI 18)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:QI 21))
    (clobber (reg:QI 25))
    (clobber (reg:QI 26))]
@@ -4627,8 +4627,8 @@
 
 (define_insn "*divmodsi4_call"
   [(set (reg:SI 18) (div:SI (reg:SI 22) (reg:SI 18)))
-   (clobber (reg:CC REG_CC))
    (set (reg:SI 22) (mod:SI (reg:SI 22) (reg:SI 18)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:HI 26))
    (clobber (reg:HI 30))]
   ""
@@ -4677,8 +4677,8 @@
 
 (define_insn "*udivmodsi4_call"
   [(set (reg:SI 18) (udiv:SI (reg:SI 22) (reg:SI 18)))
-   (clobber (reg:CC REG_CC))
    (set (reg:SI 22) (umod:SI (reg:SI 22) (reg:SI 18)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:HI 26))
    (clobber (reg:HI 30))]
   ""
@@ -7982,8 +7982,8 @@
   [(set (pc)
         (unspec:HI [(match_operand:HI 0 "register_operand" "!z,*r,z")]
                    UNSPEC_INDEX_JMP))
-   (clobber (match_scratch:CC 2 "=X,X,c"))
    (use (label_ref (match_operand 1 "" "")))
+   (clobber (match_scratch:CC 2 "=X,X,c"))
    (clobber (match_dup 0))
    (clobber (const_int 0))]
   "!AVR_HAVE_EIJMP_EICALL"
@@ -8021,8 +8021,8 @@
   [(set (pc)
         (unspec:HI [(reg:HI REG_Z)]
                    UNSPEC_INDEX_JMP))
-   (clobber (reg:CC REG_CC))
    (use (label_ref (match_operand 0 "" "")))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:HI REG_Z))
    (clobber (reg:QI 24))]
   "AVR_HAVE_EIJMP_EICALL"
@@ -8737,12 +8737,12 @@
 
 (define_insn "*call_prologue_saves"
   [(unspec_volatile:HI [(const_int 0)] UNSPECV_PROLOGUE_SAVES)
-   (clobber (reg:CC REG_CC))
    (match_operand:HI 0 "immediate_operand" "i,i")
    (set (reg:HI REG_SP)
         (minus:HI (reg:HI REG_SP)
                   (match_operand:HI 1 "immediate_operand" "i,i")))
    (use (reg:HI REG_X))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:HI REG_Z))]
   ""
   "ldi r30,lo8(gs(1f))
@@ -8782,13 +8782,13 @@
 
 (define_insn "*epilogue_restores"
   [(unspec_volatile:QI [(const_int 0)] UNSPECV_EPILOGUE_RESTORES)
-   (clobber (reg:CC REG_CC))
    (set (reg:HI REG_Y)
         (plus:HI (reg:HI REG_Y)
                  (match_operand:HI 0 "immediate_operand" "i,i")))
    (set (reg:HI REG_SP)
         (plus:HI (reg:HI REG_Y)
                  (match_dup 0)))
+   (clobber (reg:CC REG_CC))
    (clobber (reg:QI REG_Z))]
   ""
   "ldi r30, lo8(%0)
@@ -8842,9 +8842,9 @@
   [(unspec_volatile [(match_operand:QI 0 "const_int_operand" "P,K")
                      (match_operand:QI 1 "const_int_operand" "n,n")]
                     UNSPECV_GASISR)
-   (clobber (reg:CC REG_CC))
    (set (reg:HI REG_SP)
         (unspec_volatile:HI [(reg:HI REG_SP)] UNSPECV_GASISR))
+   (clobber (reg:CC REG_CC))
    (set (match_operand:BLK 2)
         (unspec_volatile:BLK [(match_dup 2)] UNSPECV_MEMORY_BARRIER))]
   "avr_gasisr_prologues"
@@ -8942,9 +8942,9 @@
   [(unspec_volatile [(match_operand:QI 0 "const_int_operand" "n")
                      (const_int 1)]
                     UNSPECV_DELAY_CYCLES)
-   (clobber (reg:CC REG_CC))
    (set (match_operand:BLK 1 "" "")
 	(unspec_volatile:BLK [(match_dup 1)] UNSPECV_MEMORY_BARRIER))
+   (clobber (reg:CC REG_CC))
    (clobber (match_scratch:QI 2 "=&d"))]
   ""
   "ldi %2,lo8(%0)
@@ -8979,9 +8979,9 @@
   [(unspec_volatile [(match_operand:HI 0 "const_int_operand" "n,n")
                      (const_int 2)]
                     UNSPECV_DELAY_CYCLES)
-   (clobber (reg:CC REG_CC))
    (set (match_operand:BLK 1 "" "")
 	(unspec_volatile:BLK [(match_dup 1)] UNSPECV_MEMORY_BARRIER))
+   (clobber (reg:CC REG_CC))
    (clobber (match_scratch:HI 2 "=&w,&d"))]
   ""
   "@
@@ -9020,9 +9020,9 @@
   [(unspec_volatile [(match_operand:SI 0 "const_int_operand" "n")
                      (const_int 3)]
                     UNSPECV_DELAY_CYCLES)
-   (clobber (reg:CC REG_CC))
    (set (match_operand:BLK 1 "" "")
 	(unspec_volatile:BLK [(match_dup 1)] UNSPECV_MEMORY_BARRIER))
+   (clobber (reg:CC REG_CC))
    (clobber (match_scratch:QI 2 "=&d"))
    (clobber (match_scratch:QI 3 "=&d"))
    (clobber (match_scratch:QI 4 "=&d"))]
@@ -9068,9 +9068,9 @@
   [(unspec_volatile [(match_operand:SI 0 "const_int_operand" "n")
                      (const_int 4)]
                     UNSPECV_DELAY_CYCLES)
-   (clobber (reg:CC REG_CC))
    (set (match_operand:BLK 1 "" "")
 	(unspec_volatile:BLK [(match_dup 1)] UNSPECV_MEMORY_BARRIER))
+   (clobber (reg:CC REG_CC))
    (clobber (match_scratch:QI 2 "=&d"))
    (clobber (match_scratch:QI 3 "=&d"))
    (clobber (match_scratch:QI 4 "=&d"))
