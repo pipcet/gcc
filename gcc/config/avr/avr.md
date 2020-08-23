@@ -4999,6 +4999,7 @@
 			   (match_operand:ORDERED234 2 "nonmemory_operand" "Y00,Y00,r,s,s,M,n Ynn")])
 	  (label_ref (match_operand 3 "" ""))
 	  (pc)))
+   (clobber (reg:CC REG_CC))
    (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d"))]
   ""
   "#"
