@@ -4970,11 +4970,12 @@
   "reload_completed"
   [(set (reg:CC REG_CC)
         (compare:CC (match_dup 1) (match_dup 2)))
-   (set (pc)
-	(if_then_else
-	 (match_op_dup 0 [(reg:CC REG_CC) (const_int 0)])
-	 (label_ref (match_dup 3))
-	 (pc)))])
+   (parallel [(set (pc)
+		   (if_then_else
+		    (match_op_dup 0 [(reg:CC REG_CC) (const_int 0)])
+		    (label_ref (match_dup 3))
+		    (pc)))
+	      (clobber (reg:CC REG_CC))])])
 
 ;; "cbranchhi4"  "cbranchhq4"  "cbranchuhq4"  "cbranchha4"  "cbranchuha4"
 ;; "cbranchsi4"  "cbranchsq4"  "cbranchusq4"  "cbranchsa4"  "cbranchusa4"
@@ -4987,6 +4988,7 @@
 				     (match_operand:ORDERED234 2 "nonmemory_operand" "Y00,Y00,r,s,s,M,n Ynn")])
 		    (label_ref (match_operand 3 "" ""))
 		    (pc)))
+	      (clobber (reg:CC REG_CC))
 	      (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d"))])])
 
 (define_insn_and_split "*cbranch<mode>4_insn"
@@ -5051,7 +5053,7 @@
                           (const_int 0)])
          (label_ref (match_operand 3 "" ""))
          (pc)))
-   (reg:CC REG_CC)]
+   (clobber (reg:CC REG_CC))]
   ""
   {
     return avr_out_sbxx_branch (insn, operands);
@@ -5322,6 +5324,21 @@
   [(set_attr "type" "branch1")
    (set_attr "cc" "clobber")])
 
+(define_insn "rvbranch_nocc"
+  [(parallel [(set (pc)
+		   (if_then_else (match_operator 1 "simple_comparison_operator"
+						 [(reg:CC REG_CC)
+						  (const_int 0)])
+				 (pc)
+				 (label_ref (match_operand 0 "" ""))))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
+  }
+  [(set_attr "type" "branch1")
+   (set_attr "cc" "clobber")])
+
 (define_insn "difficult_rvbranch"
   [(set (pc)
         (if_then_else (match_operator 1 "difficult_comparison_operator"
@@ -5329,6 +5346,21 @@
                                        (const_int 0)])
                       (pc)
                       (label_ref (match_operand 0 "" ""))))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
+  }
+  [(set_attr "type" "branch")
+   (set_attr "cc" "clobber")])
+
+(define_insn "difficult_rvbranch_nocc"
+  [(parallel [(set (pc)
+		   (if_then_else (match_operator 1 "difficult_comparison_operator"
+						 [(reg:CC REG_CC)
+						  (const_int 0)])
+				 (pc)
+				 (label_ref (match_operand 0 "" ""))))
+	      (clobber (reg:CC REG_CC))])]
   ""
   {
     return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
