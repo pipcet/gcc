@@ -720,6 +720,7 @@
 (define_insn "*reload_in<mode>"
   [(set (match_operand:ALL1 0 "register_operand"    "=l")
         (match_operand:ALL1 1 "const_operand"        "i"))
+   (clobber (match_scratch:CC 3 "=X"))
    (clobber (match_operand:QI 2 "register_operand" "=&d"))]
   "reload_completed"
   "ldi %2,lo8(%1)
