@@ -3875,6 +3875,25 @@ avr_out_xload (rtx_insn *insn ATTRIBUTE_UNUSED, rtx *op, int *plen)
   return "";
 }
 
+machine_mode
+select_cc_mode (enum rtx_code op, rtx x, rtx y)
+{
+  if ((GET_CODE (x) == PLUS || GET_CODE (x) == MINUS
+       || GET_CODE (x) == NEG || GET_CODE (x) == ASHIFT)
+      && y == const0_rtx)
+    return CCNZmode;
+
+  if ((GET_CODE (x) == AND || GET_CODE (x) == IOR
+       || GET_CODE (x) == XOR)
+      && y == const0_rtx)
+    return CCNZmode;
+
+  if ((GET_CODE (x) == ASHIFT || GET_CODE (x) == ASHIFTRT)
+      && y == const0_rtx)
+    return CCNZmode;
+
+  return CCmode;
+}
 
 const char*
 output_movqi (rtx_insn *insn, rtx operands[], int *plen)
@@ -11759,18 +11778,18 @@ avr_compare_pattern (rtx_insn *insn)
 
 /* Expansion of switch/case decision trees leads to code like
 
-       cc0 = compare (Reg, Num)
-       if (cc0 == 0)
+       CC = compare (Reg, Num)
+       if (CC == 0)
          goto L1
 
-       cc0 = compare (Reg, Num)
-       if (cc0 > 0)
+       CC = compare (Reg, Num)
+       if (CC > 0)
          goto L2
 
    The second comparison is superfluous and can be deleted.
    The second jump condition can be transformed from a
-   "difficult" one to a "simple" one because "cc0 > 0" and
-   "cc0 >= 0" will have the same effect here.
+   "difficult" one to a "simple" one because "CC > 0" and
+   "CC >= 0" will have the same effect here.
 
    This function relies on the way switch/case is being expaned
    as binary decision tree.  For example code see PR 49903.
@@ -11927,6 +11946,28 @@ avr_reorg_remove_redundant_compare (rtx_insn *insn1)
   return true;
 }
 
+void
+avr_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
+			     bool op0_preserve)
+{
+  return;
+  if (*code == GTU)
+    {
+      if (CONST_INT_P (*op1))
+	{
+	  *op1 = plus_constant (GET_MODE (*op0), *op1, 1);
+	  *code = GEU;
+	}
+    }
+  else if (*code == GT)
+    {
+      if (CONST_INT_P (*op1))
+	{
+	  *op1 = plus_constant (GET_MODE (*op0), *op1, 1);
+	  *code = GE;
+	}
+    }
+}
 
 /* Implement `TARGET_MACHINE_DEPENDENT_REORG'.  */
 /* Optimize conditional jumps.  */
@@ -12153,6 +12194,9 @@ avr_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
         handle SUBREGs of hard regsisters like this.
         This could be fixed in reload.  However, it appears
         that fixing reload is not wanted by reload people.  */
+
+  if (regno == REG_CC)
+    return mode == CCmode || mode == CCNZmode;
 
   /* Any GENERAL_REGS register can hold 8-bit values.  */
 
@@ -13311,7 +13355,7 @@ avr_emit3_fix_outputs (rtx (*gen)(rtx,rtx,rtx), rtx *op,
   const int n = 3;
   rtx hreg[n];
 
-  /* It is letigimate for GEN to call this function, and in order not to
+  /* It is legitimate for GEN to call this function, and in order not to
      get self-recursive we use the following static kludge.  This is the
      only way not to duplicate all expanders and to avoid ugly and
      hard-to-maintain C-code instead of the much more appreciated RTL
