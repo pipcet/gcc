@@ -457,8 +457,9 @@
 ;; Notice a special-case when adding N to SP where N results in a
 ;; zero REG_ARGS_SIZE.  This is equivalent to a move from FP.
 (define_split
-  [(set (reg:HI REG_SP)
-        (match_operand:HI 0 "register_operand" ""))]
+  [(parallel [(set (reg:HI REG_SP)
+		   (match_operand:HI 0 "register_operand" ""))
+	      (clobber (match_operand:CC 1 "" ""))])]
   "reload_completed
    && frame_pointer_needed
    && !cfun->calls_alloca
@@ -860,18 +861,21 @@
 ;; so that the second instruction can be optimized out.
 
 (define_split ; "split-lpmx"
-  [(set (match_operand:HISI 0 "register_operand" "")
-        (match_operand:HISI 1 "memory_operand" ""))]
+  [(parallel [(set (match_operand:HISI 0 "register_operand" "")
+		   (match_operand:HISI 1 "memory_operand" ""))
+	      (clobber (reg:CC REG_CC))])]
   "reload_completed
    && AVR_HAVE_LPMX
    && avr_mem_flash_p (operands[1])
    && REG_P (XEXP (operands[1], 0))
    && !reg_overlap_mentioned_p (XEXP (operands[1], 0), operands[0])"
-  [(set (match_dup 0)
-        (match_dup 2))
-   (set (match_dup 3)
-        (plus:HI (match_dup 3)
-                 (match_dup 4)))]
+  [(parallel [(set (match_dup 0)
+		   (match_dup 2))
+	      (clobber (reg:CC REG_CC))])
+   (parallel [(set (match_dup 3)
+		   (plus:HI (match_dup 3)
+			    (match_dup 4)))
+	      (clobber (reg:CC REG_CC))])]
   {
      rtx addr = XEXP (operands[1], 0);
 
@@ -3393,12 +3397,15 @@
 
 
 (define_split
-  [(set (match_operand:SPLIT34 0 "register_operand")
-        (match_operand:SPLIT34 1 "register_operand"))]
+  [(parallel [(set (match_operand:SPLIT34 0 "register_operand")
+		   (match_operand:SPLIT34 1 "register_operand"))
+	      (clobber (match_operand:CC 6))])]
   "optimize
    && reload_completed"
-  [(set (match_dup 2) (match_dup 3))
-   (set (match_dup 4) (match_dup 5))]
+  [(parallel [(set (match_dup 2) (match_dup 3))
+	      (clobber (match_dup 6))])
+   (parallel [(set (match_dup 4) (match_dup 5))
+	      (clobber (match_dup 6))])]
   {
     machine_mode mode_hi = 4 == GET_MODE_SIZE (<MODE>mode) ? HImode : QImode;
     bool lo_first = REGNO (operands[0]) < REGNO (operands[1]);
@@ -3414,16 +3421,19 @@
   })
   
 (define_split
-  [(set (match_operand:HI 0 "register_operand")
-        (match_operand:HI 1 "reg_or_0_operand"))]
+  [(parallel [(set (match_operand:HI 0 "register_operand")
+		   (match_operand:HI 1 "reg_or_0_operand"))
+	      (clobber (match_operand:CC 2))])]
   "optimize
    && reload_completed
    && GENERAL_REG_P (operands[0])
    && (operands[1] == const0_rtx || GENERAL_REG_P (operands[1]))
    && (!AVR_HAVE_MOVW
        || const0_rtx == operands[1])"
-  [(set (match_dup 2) (match_dup 3))
-   (set (match_dup 4) (match_dup 5))]
+  [(parallel [(set (match_dup 2) (match_dup 3))
+	      (clobber (scratch:CC))])
+   (parallel [(set (match_dup 4) (match_dup 5))
+	      (clobber (scratch:CC))])]
   {
     operands[2] = simplify_gen_subreg (QImode, operands[0], HImode, 1);
     operands[3] = simplify_gen_subreg (QImode, operands[1], HImode, 1);
@@ -3438,6 +3448,7 @@
   [(parallel [(set (match_operand:HISI 0 "register_operand")
                    (bitop:HISI (match_dup 0)
                                (match_operand:HISI 1 "register_operand")))
+	      (clobber (reg:CC REG_CC))
               (clobber (scratch:QI))])]
   "optimize
    && reload_completed"
