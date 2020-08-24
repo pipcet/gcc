@@ -11988,6 +11988,36 @@ void
 avr_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
 			     bool op0_preserve)
 {
+  if (CONST_INT_P (*op1))
+    return;
+  if (!op0_preserve && *code == GTU)
+    {
+      rtx tmp = *op1;
+      *op1 = *op0;
+      *op0 = tmp;
+      *code = LTU;
+    }
+  if (!op0_preserve && *code == GT)
+    {
+      rtx tmp = *op1;
+      *op1 = *op0;
+      *op0 = tmp;
+      *code = LT;
+    }
+  if (!op0_preserve && *code == LEU)
+    {
+      rtx tmp = *op1;
+      *op1 = *op0;
+      *op0 = tmp;
+      *code = GEU;
+    }
+  if (!op0_preserve && *code == LE)
+    {
+      rtx tmp = *op1;
+      *op1 = *op0;
+      *op0 = tmp;
+      *code = GE;
+    }
   return;
   if (*code == GTU)
     {
@@ -12197,6 +12227,8 @@ avr_2word_insn_p (rtx_insn *insn)
 
     case CODE_FOR_call_insn:
     case CODE_FOR_call_value_insn:
+    case CODE_FOR_call_insn+1:
+    case CODE_FOR_call_value_insn+1:
       return true;
     }
 }
