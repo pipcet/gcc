@@ -4832,7 +4832,7 @@
 			   	(match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
 	      (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))])])
 
-(define_expand "cmp<mode>3"
+(define_expand "cmp<mode>3_ccnz"
   [(parallel [(set (reg:CCNZ REG_CC)
 		   (compare:CCNZ (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
 			   	(match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
@@ -4872,7 +4872,7 @@
   [(set_attr "length" "1,2,2,3,4,2,4")
    (set_attr "adjust_len" "tsthi,tsthi,*,*,*,compare,compare")])
 
-(define_insn "cmp<mode>3_insn"
+(define_insn "cmp<mode>3_insn_ccnz"
   [(set (reg:CCNZ REG_CC)
         (compare:CCNZ (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
                       (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
