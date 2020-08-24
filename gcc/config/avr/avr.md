@@ -461,6 +461,7 @@
 		   (match_operand:HI 0 "register_operand" ""))
 	      (clobber (match_operand:CC 1 "" ""))])]
   "reload_completed
+   && !(REG_P (operands[0]) && REGNO (operands[0]) == REG_Y)
    && frame_pointer_needed
    && !cfun->calls_alloca
    && find_reg_note (insn, REG_ARGS_SIZE, const0_rtx)"
