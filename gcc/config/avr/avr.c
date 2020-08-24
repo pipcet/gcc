@@ -8251,7 +8251,7 @@ avr_out_plus_symbol (rtx *xop, enum rtx_code code, int *plen, int *pcc)
 }
 
 
-static rtx
+static const_rtx
 last_set (const rtx_insn * insn)
 {
   const_rtx pat = PATTERN (insn);
@@ -8264,6 +8264,9 @@ last_set (const rtx_insn * insn)
 	    return sub;
 	}
     }
+
+  if (GET_CODE (pat) == SET)
+    return pat;
 
   return NULL_RTX;
 }
@@ -8296,7 +8299,8 @@ avr_out_plus (rtx insn, rtx *xop, int *plen, int *pcc, bool out_label)
   int cc_plus, cc_minus, cc_dummy;
   int len_plus, len_minus;
   rtx op[4];
-  rtx xpattern = INSN_P (insn) ? last_set (as_a <rtx_insn *> (insn)) : insn;
+  const_rtx xpattern =
+    INSN_P (insn) ? last_set (as_a <rtx_insn *> (insn)) : insn;
   rtx xdest = SET_DEST (xpattern);
   machine_mode mode = GET_MODE (xdest);
   scalar_int_mode imode = int_mode_for_mode (mode).require ();
@@ -8391,7 +8395,8 @@ const char*
 avr_out_bitop (rtx insn, rtx *xop, int *plen)
 {
   /* CODE and MODE of the operation.  */
-  rtx xpattern = INSN_P (insn) ? last_set (as_a <rtx_insn *> (insn)) : insn;
+  const_rtx xpattern =
+    INSN_P (insn) ? last_set (as_a <rtx_insn *> (insn)) : insn;
   enum rtx_code code = GET_CODE (SET_SRC (xpattern));
   machine_mode mode = GET_MODE (xop[0]);
 
