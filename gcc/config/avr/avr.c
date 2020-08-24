@@ -11984,12 +11984,51 @@ avr_reorg_remove_redundant_compare (rtx_insn *insn1)
   return true;
 }
 
+static bool power_of_two (unsigned long long x)
+{
+  return (x & (x+1)) == 0;
+}
+
 void
 avr_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
 			     bool op0_preserve)
 {
-  if (CONST_INT_P (*op1))
-    return;
+  if (CONST_INT_P (*op1) && INTVAL (*op1) != 0)
+    {
+      if (*code == GTU
+	  && (!power_of_two (INTVAL (*op1) + 1)
+	      || ((INTVAL (*op1) + 1)
+		  & GET_MODE_MASK (GET_MODE (*op0)))))
+	{
+	  *code = GEU;
+	  *op1 = plus_constant (GET_MODE (*op0), *op1, 1);
+	}
+      else if (*code == GT
+	       && (!power_of_two (INTVAL (*op1) + 1)
+		   || ((2 * (INTVAL (*op1) + 1))
+		       & GET_MODE_MASK (GET_MODE (*op0)))))
+	{
+	  *code = GE;
+	  *op1 = plus_constant (GET_MODE (*op0) ,*op1, 1);
+	}
+      else if (*code == LEU
+	       && (!power_of_two (INTVAL (*op1) + 1)
+		   || ((INTVAL (*op1) + 1)
+		       & GET_MODE_MASK (GET_MODE (*op0)))))
+	{
+	  *code = LTU;
+	  *op1 = plus_constant (GET_MODE (*op0), *op1, 1);
+	}
+      else if (*code == LE &&
+	       (!power_of_two (INTVAL (*op1) + 1)
+		|| ((2 * (INTVAL (*op1) + 1))
+		    & GET_MODE_MASK (GET_MODE (*op0)))))
+	{
+	  *code = LT;
+	  *op1 = plus_constant (GET_MODE (*op0) ,*op1, 1);
+	}
+      return;
+    }
   if (!op0_preserve && *code == GTU)
     {
       rtx tmp = *op1;
