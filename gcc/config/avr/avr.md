@@ -4964,16 +4964,16 @@
   [(set (pc)
 	(if_then_else
 	 (match_operator 0 "ordered_comparison_operator"
-			 [(match_operand:ALL1 1 "register_operand" "r,r,d")
-			  (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i")])
+			 [(match_operand:ALL1 1 "reg_or_0_operand" "r,r,d,Y00")
+			  (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i,r")])
 	 (label_ref (match_operand 3 "" ""))
 	 (pc)))])
 
 (define_insn_and_split "*cbranch<mode>4_insn"
   [(set (pc)
         (if_then_else
-         (match_operator 0 "ordered_comparison_operator" [(match_operand:ALL1 1 "register_operand" "r,r,d")
-                                                          (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i")])
+         (match_operator 0 "ordered_comparison_operator" [(match_operand:ALL1 1 "reg_or_0_operand" "r,r,d,Y00")
+                                                          (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i,r")])
          (label_ref (match_operand 3 "" ""))
          (pc)))]
   ""
@@ -4995,23 +4995,23 @@
   [(parallel [(set (pc)
 		   (if_then_else
 		    (match_operator 0 "ordered_comparison_operator"
-				    [(match_operand:ORDERED234 1 "register_operand" "!w,r,r,d,r,d,r")
-				     (match_operand:ORDERED234 2 "nonmemory_operand" "Y00,Y00,r,s,s,M,n Ynn")])
+				    [(match_operand:ORDERED234 1 "reg_or_0_operand" "!w,r,r,d,r,d,r,Y00")
+				     (match_operand:ORDERED234 2 "nonmemory_operand" "Y00,Y00,r,s,s,M,n Ynn,r")])
 		    (label_ref (match_operand 3 "" ""))
 		    (pc)))
 	      (clobber (reg:CC REG_CC))
-	      (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d"))])])
+	      (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d,X"))])])
 
 (define_insn_and_split "*cbranch<mode>4_insn"
   [(set (pc)
         (if_then_else
           (match_operator 0 "ordered_comparison_operator"
-                          [(match_operand:ORDERED234 1 "register_operand" "!w,r,r,d,r,d,r")
-			   (match_operand:ORDERED234 2 "nonmemory_operand" "Y00,Y00,r,s,s,M,n Ynn")])
+                          [(match_operand:ORDERED234 1 "reg_or_0_operand" "!w,r,r,d,r,d,r,Y00")
+			   (match_operand:ORDERED234 2 "nonmemory_operand" "Y00,Y00,r,s,s,M,n Ynn,r")])
 	  (label_ref (match_operand 3 "" ""))
 	  (pc)))
    (clobber (reg:CC REG_CC))
-   (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d"))]
+   (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d,X"))]
   ""
   "#"
   "reload_completed"
