@@ -4829,13 +4829,53 @@
 (define_expand "cmp<mode>3"
   [(parallel [(set (reg:CC REG_CC)
 		   (compare:CC (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
-			       (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+			   	(match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+	      (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))])])
+
+(define_expand "cmp<mode>3"
+  [(parallel [(set (reg:CCNZ REG_CC)
+		   (compare:CCNZ (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
+			   	(match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
 	      (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))])])
 
 (define_insn "cmp<mode>3_insn"
   [(set (reg:CC REG_CC)
         (compare:CC (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
-                    (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+                     (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+   (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))]
+  ""
+  {
+    switch (which_alternative)
+      {
+      case 0:
+      case 1:
+        return avr_out_tsthi (insn, operands, NULL);
+
+      case 2:
+        return "cp %A0,%A1\;cpc %B0,%B1";
+
+      case 3:
+        if (<MODE>mode != HImode)
+          break;
+        return reg_unused_after (insn, operands[0])
+               ? "subi %A0,lo8(%1)\;sbci %B0,hi8(%1)"
+               : "ldi %2,hi8(%1)\;cpi %A0,lo8(%1)\;cpc %B0,%2";
+
+      case 4:
+        if (<MODE>mode != HImode)
+          break;
+        return "ldi %2,lo8(%1)\;cp %A0,%2\;ldi %2,hi8(%1)\;cpc %B0,%2";
+      }
+
+    return avr_out_compare (insn, operands, NULL);
+  }
+  [(set_attr "length" "1,2,2,3,4,2,4")
+   (set_attr "adjust_len" "tsthi,tsthi,*,*,*,compare,compare")])
+
+(define_insn "cmp<mode>3_insn"
+  [(set (reg:CCNZ REG_CC)
+        (compare:CCNZ (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
+                      (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
    (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))]
   ""
   {
@@ -4869,7 +4909,42 @@
 (define_insn "*cmp<mode>3"
   [(set (reg:CC REG_CC)
         (compare:CC (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
-                    (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+                     (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
+   (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))]
+  ""
+  {
+    switch (which_alternative)
+      {
+      case 0:
+      case 1:
+        return avr_out_tsthi (insn, operands, NULL);
+
+      case 2:
+        return "cp %A0,%A1\;cpc %B0,%B1";
+
+      case 3:
+        if (<MODE>mode != HImode)
+          break;
+        return reg_unused_after (insn, operands[0])
+               ? "subi %A0,lo8(%1)\;sbci %B0,hi8(%1)"
+               : "ldi %2,hi8(%1)\;cpi %A0,lo8(%1)\;cpc %B0,%2";
+
+      case 4:
+        if (<MODE>mode != HImode)
+          break;
+        return "ldi %2,lo8(%1)\;cp %A0,%2\;ldi %2,hi8(%1)\;cpc %B0,%2";
+      }
+
+    return avr_out_compare (insn, operands, NULL);
+  }
+  [(set_attr "cc" "compare")
+   (set_attr "length" "1,2,2,3,4,2,4")
+   (set_attr "adjust_len" "tsthi,tsthi,*,*,*,compare,compare")])
+
+(define_insn "*cmp<mode>3"
+  [(set (reg:CCNZ REG_CC)
+        (compare:CCNZ (match_operand:ALL2 0 "register_operand"  "!w  ,r  ,r,d ,r  ,d,r")
+                     (match_operand:ALL2 1 "nonmemory_operand"  "Y00,Y00,r,s ,s  ,M,n Ynn")))
    (clobber (match_scratch:QI 2                            "=X  ,X  ,X,&d,&d ,X,&d"))]
   ""
   {
@@ -4904,7 +4979,37 @@
 (define_insn "*cmppsi"
   [(set (reg:CC REG_CC)
         (compare:CC (match_operand:PSI 0 "register_operand"  "r,r,d ,r  ,d,r")
-                    (match_operand:PSI 1 "nonmemory_operand" "L,r,s ,s  ,M,n")))
+                     (match_operand:PSI 1 "nonmemory_operand" "L,r,s ,s  ,M,n")))
+   (clobber (match_scratch:QI 2                          "=X,X,&d,&d ,X,&d"))]
+  ""
+  {
+    switch (which_alternative)
+      {
+      case 0:
+        return avr_out_tstpsi (insn, operands, NULL);
+
+      case 1:
+        return "cp %A0,%A1\;cpc %B0,%B1\;cpc %C0,%C1";
+
+      case 2:
+        return reg_unused_after (insn, operands[0])
+               ? "subi %A0,lo8(%1)\;sbci %B0,hi8(%1)\;sbci %C0,hh8(%1)"
+               : "cpi %A0,lo8(%1)\;ldi %2,hi8(%1)\;cpc %B0,%2\;ldi %2,hh8(%1)\;cpc %C0,%2";
+
+      case 3:
+        return "ldi %2,lo8(%1)\;cp %A0,%2\;ldi %2,hi8(%1)\;cpc %B0,%2\;ldi %2,hh8(%1)\;cpc %C0,%2";
+      }
+
+    return avr_out_compare (insn, operands, NULL);
+  }
+  [(set_attr "cc" "compare")
+   (set_attr "length" "3,3,5,6,3,7")
+   (set_attr "adjust_len" "tstpsi,*,*,*,compare,compare")])
+
+(define_insn "*cmppsi"
+  [(set (reg:CCNZ REG_CC)
+        (compare:CCNZ (match_operand:PSI 0 "register_operand"  "r,r,d ,r  ,d,r")
+                     (match_operand:PSI 1 "nonmemory_operand" "L,r,s ,s  ,M,n")))
    (clobber (match_scratch:QI 2                          "=X,X,&d,&d ,X,&d"))]
   ""
   {
@@ -4937,7 +5042,25 @@
 (define_insn "*cmp<mode>"
   [(set (reg:CC REG_CC)
         (compare:CC (match_operand:ALL4 0 "register_operand"  "r  ,r ,d,r ,r")
-                    (match_operand:ALL4 1 "nonmemory_operand" "Y00,r ,M,M ,n Ynn")))
+                     (match_operand:ALL4 1 "nonmemory_operand" "Y00,r ,M,M ,n Ynn")))
+   (clobber (match_scratch:QI 2                           "=X  ,X ,X,&d,&d"))]
+  ""
+  {
+    if (0 == which_alternative)
+      return avr_out_tstsi (insn, operands, NULL);
+    else if (1 == which_alternative)
+      return "cp %A0,%A1\;cpc %B0,%B1\;cpc %C0,%C1\;cpc %D0,%D1";
+
+    return avr_out_compare (insn, operands, NULL);
+  }
+  [(set_attr "cc" "compare")
+   (set_attr "length" "4,4,4,5,8")
+   (set_attr "adjust_len" "tstsi,*,compare,compare,compare")])
+
+(define_insn "*cmp<mode>"
+  [(set (reg:CCNZ REG_CC)
+        (compare:CCNZ (match_operand:ALL4 0 "register_operand"  "r  ,r ,d,r ,r")
+                     (match_operand:ALL4 1 "nonmemory_operand" "Y00,r ,M,M ,n Ynn")))
    (clobber (match_scratch:QI 2                           "=X  ,X ,X,&d,&d"))]
   ""
   {
@@ -5267,6 +5390,36 @@
   [(set_attr "type" "branch")
    (set_attr "cc" "clobber")])
 
+(define_insn "branch_ccnz"
+  [(set (pc)
+        (if_then_else (match_operator 1 "simple_comparison_operator"
+                                      [(reg:CCNZ REG_CC)
+                                       (const_int 0)])
+                      (label_ref (match_operand 0 "" ""))
+                      (pc)))]
+  "reload_completed"
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch")
+   (set_attr "cc" "clobber")])
+
+
+(define_insn "branch_noccnz"
+  [(set (pc)
+        (if_then_else (match_operator 1 "simple_comparison_operator"
+                                      [(reg:CCNZ REG_CC)
+                                       (const_int 0)])
+                      (label_ref (match_operand 0 "" ""))
+                      (pc)))
+   (clobber (reg:CC REG_CC))]
+  "reload_completed"
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch")
+   (set_attr "cc" "clobber")])
+
 
 ;; Same as above but wrap SET_SRC so that this branch won't be transformed
 ;; or optimized in the remainder.
@@ -5275,6 +5428,21 @@
   [(set (pc)
         (unspec [(if_then_else (match_operator 1 "simple_comparison_operator"
                                                [(reg:CC REG_CC)
+                                                (const_int 0)])
+                               (label_ref (match_operand 0 "" ""))
+                               (pc))
+                 ] UNSPEC_IDENTITY))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch")
+   (set_attr "cc" "none")])
+
+(define_insn "branch_unspec_ccnz"
+  [(set (pc)
+        (unspec [(if_then_else (match_operator 1 "simple_comparison_operator"
+                                               [(reg:CCNZ REG_CC)
                                                 (const_int 0)])
                                (label_ref (match_operand 0 "" ""))
                                (pc))
@@ -5309,6 +5477,35 @@
   [(set (pc)
         (if_then_else (match_operator 1 "difficult_comparison_operator"
                         [(reg:CC REG_CC)
+                         (const_int 0)])
+                      (label_ref (match_operand 0 "" ""))
+                      (pc)))
+   (clobber (reg:CC REG_CC))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch1")
+   (set_attr "cc" "clobber")])
+
+(define_insn "difficult_branch_ccnz"
+  [(set (pc)
+        (if_then_else (match_operator 1 "difficult_comparison_operator"
+                        [(reg:CCNZ REG_CC)
+                         (const_int 0)])
+                      (label_ref (match_operand 0 "" ""))
+                      (pc)))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 0);
+  }
+  [(set_attr "type" "branch1")
+   (set_attr "cc" "clobber")])
+
+(define_insn "difficult_branch_noccnz"
+  [(set (pc)
+        (if_then_else (match_operator 1 "difficult_comparison_operator"
+                        [(reg:CCNZ REG_CC)
                          (const_int 0)])
                       (label_ref (match_operand 0 "" ""))
                       (pc)))
@@ -5369,6 +5566,64 @@
   [(parallel [(set (pc)
 		   (if_then_else (match_operator 1 "difficult_comparison_operator"
 						 [(reg:CC REG_CC)
+						  (const_int 0)])
+				 (pc)
+				 (label_ref (match_operand 0 "" ""))))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
+  }
+  [(set_attr "type" "branch")
+   (set_attr "cc" "clobber")])
+
+(define_insn "rvbranch_ccnz"
+  [(set (pc)
+        (if_then_else (match_operator 1 "simple_comparison_operator"
+                                      [(reg:CCNZ REG_CC)
+                                       (const_int 0)])
+                      (pc)
+                      (label_ref (match_operand 0 "" ""))))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
+  }
+  [(set_attr "type" "branch1")
+   (set_attr "cc" "clobber")])
+
+(define_insn "rvbranch_noccnz"
+  [(parallel [(set (pc)
+		   (if_then_else (match_operator 1 "simple_comparison_operator"
+						 [(reg:CCNZ REG_CC)
+						  (const_int 0)])
+				 (pc)
+				 (label_ref (match_operand 0 "" ""))))
+	      (clobber (reg:CC REG_CC))])]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
+  }
+  [(set_attr "type" "branch1")
+   (set_attr "cc" "clobber")])
+
+(define_insn "difficult_rvbranch_ccnz"
+  [(set (pc)
+        (if_then_else (match_operator 1 "difficult_comparison_operator"
+                                      [(reg:CCNZ REG_CC)
+                                       (const_int 0)])
+                      (pc)
+                      (label_ref (match_operand 0 "" ""))))]
+  ""
+  {
+    return ret_cond_branch (operands[1], avr_jump_mode (operands[0], insn), 1);
+  }
+  [(set_attr "type" "branch")
+   (set_attr "cc" "clobber")])
+
+(define_insn "difficult_rvbranch_noccnz"
+  [(parallel [(set (pc)
+		   (if_then_else (match_operator 1 "difficult_comparison_operator"
+						 [(reg:CCNZ REG_CC)
 						  (const_int 0)])
 				 (pc)
 				 (label_ref (match_operand 0 "" ""))))
