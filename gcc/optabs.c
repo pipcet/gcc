@@ -4121,12 +4121,6 @@ emit_cmp_and_jump_insn_1 (rtx test, machine_mode mode, rtx label,
 
   gcc_assert (icode != CODE_FOR_nothing);
   gcc_assert (insn_operand_matches (icode, 0, test));
-  int code = GET_CODE (test);
-  rtx op0 = XEXP (test, 0);
-  rtx op1 = XEXP (test, 1);
-  targetm.canonicalize_comparison (&code, &op0, &op1, false);
-  if (code != GET_CODE (test))
-    test = gen_rtx_fmt_ee ((rtx_code)code, GET_MODE (test), op0, op1);
   insn = emit_jump_insn (GEN_FCN (icode) (test, XEXP (test, 0),
                                           XEXP (test, 1), label));
   if (prob.initialized_p ()
