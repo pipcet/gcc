@@ -999,12 +999,14 @@
 
 (define_peephole2 ; *reload_insf
   [(match_scratch:QI 2 "d")
-   (set (match_operand:SF 0 "l_register_operand" "")
-        (match_operand:SF 1 "const_double_operand" ""))
+   (parallel [(set (match_operand:SF 0 "l_register_operand" "")
+		   (match_operand:SF 1 "const_double_operand" ""))
+	      (clobber (match_operand:CC 3 "" ""))])
    (match_dup 2)]
   "operands[1] != CONST0_RTX (SFmode)"
   [(parallel [(set (match_dup 0)
                    (match_dup 1))
+	      (clobber (match_dup 3))
               (clobber (match_dup 2))])])
 
 ;; '*' because it is not used in rtl generation.
