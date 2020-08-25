@@ -5094,6 +5094,7 @@
 			  (match_operand:ALL1 2 "nonmemory_operand" "Y00,r,i,r")])
 	 (label_ref (match_operand 3 "" ""))
 	 (pc)))]
+  ""
   {
     int code = GET_CODE (operands[0]);
     avr_canonicalize_comparison (&code, &operands[1], &operands[2], false);
@@ -5136,6 +5137,7 @@
 		    (pc)))
 	      (clobber (reg:CC REG_CC))
 	      (clobber (match_scratch:QI 4 "=X,X,X,&d,&d,X,&d,X"))])]
+  ""
   {
     int code = GET_CODE (operands[0]);
     avr_canonicalize_comparison (&code, &operands[1], &operands[2], false);
