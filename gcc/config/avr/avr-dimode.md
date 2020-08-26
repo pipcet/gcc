@@ -348,7 +348,40 @@
 ;; "cbranchdq4" "cbranchudq4"
 ;; "cbranchda4" "cbranchuda4"
 ;; "cbranchta4" "cbranchuta4"
-(define_insn_and_split "cbranch<mode>4"
+(define_expand "cbranch<mode>4"
+   [(set (pc)
+	(if_then_else
+         (match_operator 0 "ordered_comparison_operator"
+			 [(match_operand:ALL8 1 "register_operand" "")
+			  (match_operand:ALL8 2 "nonmemory_operand" "")])
+	 (label_ref (match_operand 3 "" ""))
+	 (pc)))]
+   "avr_have_dimode"
+   {
+    rtx acc_a = gen_rtx_REG (<MODE>mode, ACC_A);
+
+    avr_fix_inputs (operands, 1 << 2, regmask (<MODE>mode, ACC_A));
+    emit_move_insn (acc_a, operands[1]);
+
+    if (s8_operand (operands[2], VOIDmode))
+      {
+        emit_move_insn (gen_rtx_REG (QImode, REG_X), operands[2]);
+        emit_jump_insn (gen_cbranch_const8_di2 (operands[0], operands[3]));
+      }
+    else if (const_operand (operands[2], GET_MODE (operands[2])))
+      {
+        emit_jump_insn (gen_cbranch_const_<mode>2 (operands[0], operands[3],
+						   operands[2]));
+      }
+    else
+      {
+        emit_move_insn (gen_rtx_REG (<MODE>mode, ACC_B), operands[2]);
+        emit_jump_insn (gen_cbranch_<mode>2 (operands[0], operands[3]));
+      }
+    DONE;
+  })
+
+(define_insn_and_split "*cbranch<mode>4"
   [(set (pc)
 	(if_then_else
          (match_operator 0 "ordered_comparison_operator"
