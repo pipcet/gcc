@@ -3114,12 +3114,35 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define_insn_and_split "divmodsi4"
+(define_expand "divmodsi4"
   [(set (match_operand:SI 0 "pseudo_register_operand" "")
-                   (div:SI (match_operand:SI 1 "pseudo_register_operand" "")
-                           (match_operand:SI 2 "pseudo_register_operand" "")))
-              (set (match_operand:SI 3 "pseudo_register_operand" "")
-                   (mod:SI (match_dup 1) (match_dup 2)))
+        (div:SI (match_operand:SI 1 "pseudo_register_operand" "")
+                (match_operand:SI 2 "pseudo_register_operand" "")))
+   (set (match_operand:SI 3 "pseudo_register_operand" "")
+        (mod:SI (match_dup 1) (match_dup 2)))
+   (clobber (reg:SI 18))
+   (clobber (reg:SI 22))
+   (clobber (reg:HI 26))
+   (clobber (reg:HI 30))]
+   ""
+   {
+     rtx r18_21 = gen_rtx_REG (SImode, 18);
+     rtx r22_25 = gen_rtx_REG (SImode, 22);
+
+     emit_move_insn (r18_21, operands[1]);
+     emit_move_insn (r22_25, operands[2]);
+     emit_insn (gen_divmodsi4_call ());
+     emit_move_insn (operands[0], r18_21);
+     emit_move_insn (operands[3], r22_25);
+     DONE;
+   })
+
+(define_insn_and_split "*divmodsi4"
+  [(set (match_operand:SI 0 "pseudo_register_operand" "")
+        (div:SI (match_operand:SI 1 "pseudo_register_operand" "")
+                (match_operand:SI 2 "pseudo_register_operand" "")))
+   (set (match_operand:SI 3 "pseudo_register_operand" "")
+        (mod:SI (match_dup 1) (match_dup 2)))
               (clobber (reg:SI 18))
               (clobber (reg:SI 22))
               (clobber (reg:HI 26))
@@ -3136,7 +3159,7 @@
    (set (match_dup 0) (reg:SI 18))
    (set (match_dup 3) (reg:SI 22))])
 
-(define_insn "*divmodsi4_call"
+(define_insn "divmodsi4_call"
   [(set (reg:SI 18) (div:SI (reg:SI 22) (reg:SI 18)))
    (set (reg:SI 22) (mod:SI (reg:SI 22) (reg:SI 18)))
    (clobber (reg:HI 26))
