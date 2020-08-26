@@ -2991,10 +2991,104 @@ avr_use_by_pieces_infrastructure_p (unsigned HOST_WIDE_INT size,
 
 
 rtx
-avr_gen_cc_clobber (rtx_insn *insn)
+avr_gen_cc_result (rtx_insn *insn)
 {
   rtx set;
+  static int recurse = 0;
+  if (recurse)
+    return gen_rtx_REG (CCmode, REG_CC);
+  recurse++;
   enum attr_cc cc = get_attr_cc (insn);
+  recurse--;
+  switch (cc)
+    {
+    default:
+      break;
+
+    case CC_PLUS:
+    case CC_LDI:
+      {
+        rtx *op = recog_data.operand;
+        int len_dummy, icc;
+
+        /* Extract insn's operands.  */
+        extract_constrain_insn_cached (insn);
+
+        switch (cc)
+          {
+          default:
+            gcc_unreachable();
+
+          case CC_PLUS:
+            avr_out_plus (insn, op, &len_dummy, &icc);
+            cc = (enum attr_cc) icc;
+            break;
+
+          case CC_LDI:
+
+            cc = (op[1] == CONST0_RTX (GET_MODE (op[0]))
+                  && reg_overlap_mentioned_p (op[0], zero_reg_rtx))
+              /* Loading zero-reg with 0 uses CLR and thus clobbers cc0.  */
+              ? CC_CLOBBER
+              /* Any other "r,rL" combination does not alter cc0.  */
+              : CC_NONE;
+
+            break;
+          } /* inner switch */
+
+        break;
+      }
+    } /* outer swicth */
+
+  switch (cc)
+    {
+    default:
+      /* Special values like CC_OUT_PLUS from above have been
+         mapped to "standard" CC_* values so we never come here.  */
+
+      gcc_unreachable();
+      break;
+
+    case CC_NONE:
+      return NULL;
+
+    case CC_SET_N:
+      return NULL;
+
+    case CC_SET_ZN:
+      return gen_rtx_REG (CCNZmode, REG_CC);
+
+    case CC_SET_VZN:
+      /* Insn like INC, DEC, NEG that set Z,N,V.  We currently don't make use
+         of this combination, cf. also PR61055.  */
+      return gen_rtx_REG (CCNZmode, REG_CC);
+
+    case CC_SET_CZN:
+      /* Insn sets the Z,N,C flags of CC to recog_operand[0].
+         The V flag may or may not be known but that's ok because
+         alter_cond will change tests to use EQ/NE.  */
+      return gen_rtx_REG (CCNZmode, REG_CC);
+
+    case CC_COMPARE:
+      set = single_set (insn);
+      CC_STATUS_INIT;
+      if (set)
+        return SET_SRC (set);
+      break;
+
+    case CC_CLOBBER:
+      /* Insn doesn't leave CC in a usable state.  */
+      return NULL;
+      break;
+    }
+  return NULL;
+}
+
+rtx
+avr_gen_cc_clobber (rtx_insn *insn)
+{
+  enum attr_cc cc = get_attr_cc (insn);
+  rtx set;
 
   if (cc == CC_LDI)
     {
