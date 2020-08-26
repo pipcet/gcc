@@ -580,7 +580,8 @@
     emit_move_insn (operands[0], gen_rtx_REG (<MODE>mode, 22));
 
     DONE;
-  })
+  }
+  [(set_attr "cc" "none")])
 
 ;; Move value from address space memx to a register
 ;; These insns must be prior to respective generic move insn.
