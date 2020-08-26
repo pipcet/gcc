@@ -2991,15 +2991,23 @@ avr_use_by_pieces_infrastructure_p (unsigned HOST_WIDE_INT size,
 
 
 rtx
-avr_gen_cc_result (rtx_insn *insn)
+avr_gen_cc_result (rtx_insn *insn, rtx *op)
 {
   rtx set;
-  static int recurse = 0;
-  if (recurse)
-    return gen_rtx_REG (CCmode, REG_CC);
-  recurse++;
-  enum attr_cc cc = get_attr_cc (insn);
-  recurse--;
+  rtx pat = PATTERN (insn);
+  if (GET_CODE (pat) != PARALLEL)
+    return NULL_RTX;
+
+  int len = XVECLEN (pat, 0);
+  rtvec v = rtvec_alloc (len);
+  RTVEC_ELT (v, 0) = XVECEXP (pat, 0, 1);
+  RTVEC_ELT (v, 1) = gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CCmode, REG_CC));
+  for (int i = 2; i < len; i++)
+    RTVEC_ELT (v, i) = XVECEXP (pat, 0, i);
+
+  rtx par = gen_rtx_PARALLEL (VOIDmode, v);
+  rtx_insn *old_insn = make_insn_raw (par);
+  enum attr_cc cc = get_attr_cc (old_insn);
   switch (cc)
     {
     default:
@@ -3008,11 +3016,13 @@ avr_gen_cc_result (rtx_insn *insn)
     case CC_PLUS:
     case CC_LDI:
       {
-        rtx *op = recog_data.operand;
         int len_dummy, icc;
 
-        /* Extract insn's operands.  */
-        extract_constrain_insn_cached (insn);
+	if (op == NULL)
+	  {
+	    /* Extract insn's operands.  */
+	    extract_constrain_insn_cached (old_insn);
+	  }
 
         switch (cc)
           {
@@ -3043,17 +3053,7 @@ avr_gen_cc_result (rtx_insn *insn)
   switch (cc)
     {
     default:
-      /* Special values like CC_OUT_PLUS from above have been
-         mapped to "standard" CC_* values so we never come here.  */
-
-      gcc_unreachable();
       break;
-
-    case CC_NONE:
-      return NULL;
-
-    case CC_SET_N:
-      return NULL;
 
     case CC_SET_ZN:
       return gen_rtx_REG (CCNZmode, REG_CC);
@@ -3074,11 +3074,6 @@ avr_gen_cc_result (rtx_insn *insn)
       CC_STATUS_INIT;
       if (set)
         return SET_SRC (set);
-      break;
-
-    case CC_CLOBBER:
-      /* Insn doesn't leave CC in a usable state.  */
-      return NULL;
       break;
     }
   return NULL;
@@ -12386,8 +12381,8 @@ avr_2word_insn_p (rtx_insn *insn)
 
     case CODE_FOR_call_insn:
     case CODE_FOR_call_value_insn:
-    case CODE_FOR_call_insn+1:
-    case CODE_FOR_call_value_insn+1:
+    case CODE_FOR_cc_call_insn:
+    case CODE_FOR_cc_call_value_insn:
       return true;
     }
 }
