@@ -3146,16 +3146,39 @@
   [(set_attr "type" "xcall")
    (set_attr "cc" "clobber")])
 
-(define_insn_and_split "udivmodsi4"
+(define_expand "udivmodsi4"
   [(set (match_operand:SI 0 "pseudo_register_operand" "")
-                   (udiv:SI (match_operand:SI 1 "pseudo_register_operand" "")
-                           (match_operand:SI 2 "pseudo_register_operand" "")))
-              (set (match_operand:SI 3 "pseudo_register_operand" "")
-                   (umod:SI (match_dup 1) (match_dup 2)))
-              (clobber (reg:SI 18))
-              (clobber (reg:SI 22))
-              (clobber (reg:HI 26))
-              (clobber (reg:HI 30))]
+        (udiv:SI (match_operand:SI 1 "pseudo_register_operand" "")
+                 (match_operand:SI 2 "pseudo_register_operand" "")))
+   (set (match_operand:SI 3 "pseudo_register_operand" "")
+        (umod:SI (match_dup 1) (match_dup 2)))
+   (clobber (reg:SI 18))
+   (clobber (reg:SI 22))
+   (clobber (reg:HI 26))
+   (clobber (reg:HI 30))]
+   ""
+   {
+     rtx r18_21 = gen_rtx_REG (SImode, 18);
+     rtx r22_25 = gen_rtx_REG (SImode, 22);
+
+     emit_move_insn (r18_21, operands[1]);
+     emit_move_insn (r22_25, operands[2]);
+     emit_insn (gen_udivmodsi4_call ());
+     emit_move_insn (operands[0], r18_21);
+     emit_move_insn (operands[3], r22_25);
+     DONE;
+   })
+
+(define_insn_and_split "*udivmodsi4"
+  [(set (match_operand:SI 0 "pseudo_register_operand" "")
+        (udiv:SI (match_operand:SI 1 "pseudo_register_operand" "")
+                 (match_operand:SI 2 "pseudo_register_operand" "")))
+   (set (match_operand:SI 3 "pseudo_register_operand" "")
+        (umod:SI (match_dup 1) (match_dup 2)))
+   (clobber (reg:SI 18))
+   (clobber (reg:SI 22))
+   (clobber (reg:HI 26))
+   (clobber (reg:HI 30))]
   ""
   "this udivmodsi4 pattern should have been splitted;"
   ""
@@ -3167,6 +3190,23 @@
               (clobber (reg:HI 30))])
    (set (match_dup 0) (reg:SI 18))
    (set (match_dup 3) (reg:SI 22))])
+
+(define_insn_and_split "udivmodsi4_call"
+  [(set (reg:SI 18) (udiv:SI (reg:SI 22) (reg:SI 18)))
+   (set (reg:SI 22) (umod:SI (reg:SI 22) (reg:SI 18)))
+   (clobber (reg:HI 26))
+   (clobber (reg:HI 30))]
+  ""
+  "#"
+  "reload_completed"
+  [(parallel [(set (reg:SI 18) (udiv:SI (reg:SI 22) (reg:SI 18)))
+	      (set (reg:SI 22) (umod:SI (reg:SI 22) (reg:SI 18)))
+	      (clobber (reg:CC REG_CC))
+	      (clobber (reg:HI 26))
+	      (clobber (reg:HI 30))])]
+  ""
+  [(set_attr "type" "xcall")
+   (set_attr "cc" "clobber")])
 
 (define_insn "*udivmodsi4_call"
   [(set (reg:SI 18) (udiv:SI (reg:SI 22) (reg:SI 18)))
