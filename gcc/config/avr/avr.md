@@ -5186,7 +5186,17 @@
 		    (match_op_dup 0 [(reg:CC REG_CC) (const_int 0)])
 		    (label_ref (match_dup 3))
 		    (pc)))
-	      (clobber (reg:CC REG_CC))])])
+	      (clobber (reg:CC REG_CC))])]
+  {
+    /* Comparisons are helpfully uncanonicalized for us, sometimes. */
+    int code = GET_CODE (operands[0]);
+    avr_canonicalize_comparison (&code, &operands[1], &operands[2], false);
+    if (code != GET_CODE (operands[0]))
+      {
+        operands[0] = gen_rtx_fmt_ee ((rtx_code) code, GET_MODE (operands[0]),
+				      operands[1], operands[2]);
+      }
+  })
 
 ;; "cbranchhi4"  "cbranchhq4"  "cbranchuhq4"  "cbranchha4"  "cbranchuha4"
 ;; "cbranchsi4"  "cbranchsq4"  "cbranchusq4"  "cbranchsa4"  "cbranchusa4"
@@ -5233,7 +5243,17 @@
 					       [(reg:CC REG_CC) (const_int 0)])
 				 (label_ref (match_dup 3))
 				 (pc)))
-	      (clobber (reg:CC REG_CC))])])
+	      (clobber (reg:CC REG_CC))])]
+  {
+    /* Comparisons are helpfully uncanonicalized for us, sometimes. */
+    int code = GET_CODE (operands[0]);
+    avr_canonicalize_comparison (&code, &operands[1], &operands[2], false);
+    if (code != GET_CODE (operands[0]))
+      {
+        operands[0] = gen_rtx_fmt_ee ((rtx_code) code, GET_MODE (operands[0]),
+				      operands[1], operands[2]);
+      }
+  })
 
 
 ;; Test a single bit in a QI/HI/SImode register.
