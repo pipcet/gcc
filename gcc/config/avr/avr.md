@@ -3129,8 +3129,8 @@
      rtx r18_21 = gen_rtx_REG (SImode, 18);
      rtx r22_25 = gen_rtx_REG (SImode, 22);
 
-     emit_move_insn (r18_21, operands[1]);
-     emit_move_insn (r22_25, operands[2]);
+     emit_move_insn (r18_21, operands[2]);
+     emit_move_insn (r22_25, operands[1]);
      emit_insn (gen_divmodsi4_call ());
      emit_move_insn (operands[0], r18_21);
      emit_move_insn (operands[3], r22_25);
@@ -3184,8 +3184,8 @@
      rtx r18_21 = gen_rtx_REG (SImode, 18);
      rtx r22_25 = gen_rtx_REG (SImode, 22);
 
-     emit_move_insn (r18_21, operands[1]);
-     emit_move_insn (r22_25, operands[2]);
+     emit_move_insn (r18_21, operands[2]);
+     emit_move_insn (r22_25, operands[1]);
      emit_insn (gen_udivmodsi4_call ());
      emit_move_insn (operands[0], r18_21);
      emit_move_insn (operands[3], r22_25);
