@@ -8683,6 +8683,104 @@
       }
   })
 
+(define_insn_and_split "*cbranchhi4_insn.sign_extend"
+  [(set (pc)
+        (if_then_else
+         (match_operator 0 "ordered_comparison_operator"
+                         [(sign_extend:HI (match_operand:QI 1 "register_operand" "d"))
+			  (match_operand:HI 2 "s8_operand" "n")])
+	 (label_ref (match_operand 3 "" ""))
+	 (pc)))
+   (clobber (reg:CC REG_CC))
+   (clobber (match_scratch:QI 4 "=X"))]
+  ""
+  "#"
+  "reload_completed"
+  [(set (reg:CC REG_CC)
+	(compare:CC (sign_extend:HI (match_dup 1))
+		    (match_dup 2)))
+   (parallel [(set (pc)
+		   (if_then_else (match_op_dup 0
+					       [(reg:CC REG_CC) (const_int 0)])
+				 (label_ref (match_dup 3))
+				 (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  {
+    /* Comparisons are helpfully uncanonicalized for us, sometimes. */
+    int code = GET_CODE (operands[0]);
+    avr_canonicalize_comparison (&code, &operands[1], &operands[2], false);
+    if (code != GET_CODE (operands[0]))
+      {
+        operands[0] = gen_rtx_fmt_ee ((rtx_code) code, GET_MODE (operands[0]),
+				      operands[1], operands[2]);
+      }
+  })
+
+(define_insn_and_split "*cbranchhi4_insn.zero-extend.0"
+  [(set (pc)
+        (if_then_else
+         (match_operator 0 "ordered_comparison_operator"
+                         [(zero_extend:HI (match_operand:QI 1 "register_operand" "r"))
+			  (match_operand:HI 2 "register_operand" "r")])
+	 (label_ref (match_operand 3 "" ""))
+	 (pc)))
+   (clobber (reg:CC REG_CC))
+   (clobber (match_scratch:QI 4 "=X"))]
+  ""
+  "#"
+  "reload_completed"
+  [(set (reg:CC REG_CC)
+	(compare:CC (zero_extend:HI (match_dup 1))
+		    (match_dup 2)))
+   (parallel [(set (pc)
+		   (if_then_else (match_op_dup 0
+					       [(reg:CC REG_CC) (const_int 0)])
+				 (label_ref (match_dup 3))
+				 (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  {
+    /* Comparisons are helpfully uncanonicalized for us, sometimes. */
+    int code = GET_CODE (operands[0]);
+    avr_canonicalize_comparison (&code, &operands[1], &operands[2], false);
+    if (code != GET_CODE (operands[0]))
+      {
+        operands[0] = gen_rtx_fmt_ee ((rtx_code) code, GET_MODE (operands[0]),
+				      operands[1], operands[2]);
+      }
+  })
+
+(define_insn_and_split "*cbranchhi4_insn.zero-extend.1"
+  [(set (pc)
+        (if_then_else
+         (match_operator 0 "ordered_comparison_operator"
+                         [(match_operand:HI 1 "register_operand" "r")
+			  (zero_extend:HI (match_operand:QI 2 "register_operand" "r"))])
+	 (label_ref (match_operand 3 "" ""))
+	 (pc)))
+   (clobber (reg:CC REG_CC))
+   (clobber (match_scratch:QI 4 "=X"))]
+  ""
+  "#"
+  "reload_completed"
+  [(set (reg:CC REG_CC)
+	(compare:CC (match_dup 1)
+		    (zero_extend:HI (match_dup 2))))
+   (parallel [(set (pc)
+		   (if_then_else (match_op_dup 0
+					       [(reg:CC REG_CC) (const_int 0)])
+				 (label_ref (match_dup 3))
+				 (pc)))
+	      (clobber (reg:CC REG_CC))])]
+  {
+    /* Comparisons are helpfully uncanonicalized for us, sometimes. */
+    int code = GET_CODE (operands[0]);
+    avr_canonicalize_comparison (&code, &operands[1], &operands[2], false);
+    if (code != GET_CODE (operands[0]))
+      {
+        operands[0] = gen_rtx_fmt_ee ((rtx_code) code, GET_MODE (operands[0]),
+				      operands[1], operands[2]);
+      }
+  })
 
 ;; Test a single bit in a QI/HI/SImode register.
 ;; Combine will create zero extract patterns for single bit tests.
