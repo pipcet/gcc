@@ -23,11 +23,11 @@ HeaderInclude
 config/wasm32/wasm32-opts.h
 
 mabort-on-noreturn
-Target Report Mask(ABORT_NORETURN) Init(0)
+Target Mask(ABORT_NORETURN) Init(0)
 Generate a call to abort if a noreturn function returns.
 
 mall-frame-regs
-Target Report Mask(ALL_FRAME_REGS) Init(0)
+Target Mask(ALL_FRAME_REGS) Init(0)
 Always create all registers on the frame to ease debugging.
 
 mbreakpoints=
