@@ -5,7 +5,12 @@ long __fixsfsi(float f)
 
 long __fixdfsi(double f)
 {
-  return (long)(double)f;
+  long ret;
+  asm("%1\n\t"
+      "i32.trunc_sat_f64_s\n\t"
+      "%O0"
+      : "=r" (ret) : "r" (f));
+  return ret;
 }
 
 #if 0
