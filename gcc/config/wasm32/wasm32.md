@@ -644,12 +644,17 @@
   ""
   "")
 
-;; XXX
-;; (define_expand "fixunsdfsi"
-;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-;;         (unsigned_fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
-;;   ""
-;;   "")
+(define_expand "fixsfsi2"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (fix:SI (match_operand:SF 1 "general_operand" "m")))]
+  ""
+  "")
+
+(define_expand "fixunsdfsi"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (unsigned_fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
+  ""
+  "")
 
 (define_expand "fixdfsi2"
   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
@@ -657,18 +662,17 @@
   ""
   "")
 
-;; XXX
-;; (define_expand "fixunsdfsi2"
-;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-;;         (unsigned_fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
-;;   ""
-;;   "")
-
-(define_expand "fix_truncdfsi"
+(define_expand "fixunsdfsi2"
   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
-        (fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
+        (unsigned_fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
   ""
   "")
+
+;; (define_expand "fix_truncdfsi"
+;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+;;         (fix:SI (match_operand:DF 1 "general_operand" "rmi")))]
+;;   ""
+;;   "")
 
 (define_expand "extendsfdf2"
   [(set (match_operand:DF 0 "nonimmediate_operand" "=rm")
