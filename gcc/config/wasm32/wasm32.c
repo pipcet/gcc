@@ -1872,6 +1872,11 @@ wasm32_operators[] = {
     1
   },
   {
+    FIX, SFmode, SImode,
+    NULL, "i32.trunc_sat_f32_s",
+    1
+  },
+  {
     FIX, DFmode, SImode,
     NULL, "i32.trunc_sat_f64_s",
     1

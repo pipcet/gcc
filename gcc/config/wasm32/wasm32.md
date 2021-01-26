@@ -638,6 +638,12 @@
   ""
   "")
 
+(define_expand "fixsfsi"
+  [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
+        (fix:SI (match_operand:SF 1 "general_operand" "rmi")))]
+  ""
+  "")
+
 ;; XXX
 ;; (define_expand "fixunsdfsi"
 ;;   [(set (match_operand:SI 0 "nonimmediate_operand" "=rm")
