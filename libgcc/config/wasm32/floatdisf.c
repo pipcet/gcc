@@ -1,9 +1,9 @@
-#if 0
 long __fixsfsi(float f)
 {
   return (long)(double)f;
 }
 
+#if 0
 long __fixdfsi(double f)
 {
   return (long)(double)f;
