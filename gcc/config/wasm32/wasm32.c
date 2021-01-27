@@ -3294,7 +3294,7 @@ const char *
 wasm32_expand_ret_insn()
 {
   char buf[1024];
-  snprintf (buf, 1022, "i32.const %d\n\tlocal.get $fp\n\ti32.add\n\treturn\n\t.set __wasm32_fallthrough, 0",
+  snprintf (buf, 1022, "i32.const %d\n\tlocal.get $fp\n\ti32.add\n\treturn",
 	    wasm32_function_regsize (NULL_TREE));
 
   return ggc_strdup (buf);
