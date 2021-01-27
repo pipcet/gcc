@@ -74,7 +74,7 @@
 
 #define DEFAULT_SIGNED_CHAR  0 /* XXX check wasm ABI */
 
-#define SIZE_TYPE "unsigned int"
+#define SIZE_TYPE "long unsigned int"
 #define PTRDIFF_TYPE "int"
 #define WCHAR_TYPE "int"
 #define SIG_ATOMIC_TYPE "long int"
