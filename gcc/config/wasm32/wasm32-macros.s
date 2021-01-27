@@ -461,7 +461,7 @@ __sigchar_\sig:
         rleb128_32 __wasm_block
         .set __wasm_block, __wasm_block + 1
         .endr
-	.set __wasm_block, undefined
+	.set __wasm_block, 0
         rleb128_32 0
         end
         .else
