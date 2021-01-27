@@ -811,7 +811,7 @@
                      (match_operand:SI 3 "register_operand" "r")]
     UNSPECV_NONLOCAL_GOTO)]
   ""
-  ".flush\n\tunreachable")
+  ".flush\n\t;; nonlocal_goto\n\tunreachable")
 
 (define_expand "builtin_longjmp"
    [(set (pc) (unspec_volatile [(match_operand 0)]
@@ -826,7 +826,7 @@
    [(set (pc) (unspec_volatile [(match_operand 0)]
                UNSPECV_BUILTIN_LONGJMP))]
    ""
-   ".flush\n\tunreachable")
+   ".flush\n\t;; builtin_longjmp_insn\n\tunreachable")
 
 (define_expand "nonlocal_goto"
   [(set (pc)
@@ -851,7 +851,7 @@
                           ] UNSPECV_NONLOCAL_GOTO))
    ]
   ""
-  ".flush\n\tunreachable")
+  ".flush\n\t;; nonlocal_goto_insn")
 
 (define_expand "nonlocal_goto_receiver"
   [(unspec_volatile [(const_int 0)] UNSPECV_NONLOCAL_GOTO_RECEIVER)]
@@ -862,7 +862,7 @@
 (define_insn "nonlocal_goto_receiver_insn"
   [(unspec_volatile [(const_int 0)] UNSPECV_NONLOCAL_GOTO_RECEIVER)]
   ""
-  "")
+  ";; nonlocal_goto_receiver")
 
 (define_insn "thunk_goto_insn"
   [(set (pc)
