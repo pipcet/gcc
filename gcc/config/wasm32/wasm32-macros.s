@@ -392,6 +392,14 @@ __sigchar_\sig:
         br __wasm_depth - __wasm_blocks - 1
         .endm
 
+	.macro nonlocal_jump o1, o2, o3, o4
+	unreachable
+	.endm
+
+	.macro long_jump o1
+	unreachable
+	.endm
+
         .macro function_header i, f, l, d
         .byte -((\i != 0) + (\f != 0) + (\l != 0) + (\d != 0))
         .if \i
