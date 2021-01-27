@@ -412,7 +412,6 @@ __sigchar_\sig:
         .endif
         .endm
 
-	.globl $debug
 	.macro check_bp
 	.if 0
 	local.get $dpc
