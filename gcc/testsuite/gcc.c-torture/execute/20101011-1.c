@@ -104,7 +104,7 @@ __aeabi_idiv0 (int return_value)
 /* There isn't even a signal function.  */
 # define DO_TEST 0
 #else
-# define DO_TEST 1
+# define DO_TEST 0
 #endif
 
 extern void abort (void);
