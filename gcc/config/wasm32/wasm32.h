@@ -513,3 +513,13 @@ struct GTY(()) machine_function
 #define TYPE_OPERAND_FMT	"@%s"
 #define TYPE_ASM_OP	"\t.type\t"
 #define SIZE_ASM_OP	"\t.size\t"
+
+/* A C statement (sans semicolon) to output to the stdio stream STREAM
+   any text necessary for declaring the name of an external symbol
+   named NAME which is referenced in this compilation but not defined.
+   It is needed to properly support non-default visibility.  */
+
+#ifndef ASM_OUTPUT_EXTERNAL
+#define ASM_OUTPUT_EXTERNAL(FILE, DECL, NAME) \
+  default_elf_asm_output_external (FILE, DECL, NAME)
+#endif
