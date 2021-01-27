@@ -468,6 +468,17 @@ enum reg_class
     }								\
   while (0)
 
+#define ASM_OUTPUT_SYMVER_DIRECTIVE(FILE, NAME, NAME2)		\
+  do								\
+    {								\
+      fputs ("\t.symver\t", (FILE));				\
+      assemble_name ((FILE), (NAME));				\
+      fputs (", ", (FILE));					\
+      assemble_name ((FILE), (NAME2));				\
+      fputc ('\n', (FILE));					\
+    }								\
+  while (0)
+
 #define TARGET_UNWIND_TABLES_DEFAULT 1
 
 #define THREAD_MODEL_SPEC "single"
