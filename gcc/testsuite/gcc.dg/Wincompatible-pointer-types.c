@@ -1,6 +1,6 @@
 /* PR c/58286 */
 /* { dg-do compile } */
-/* { dg-options "-Wno-incompatible-pointer-types" } */
+/* { dg-options "-Wno-incompatible-pointer-types -Wno-return-local-addr" } */
 
 void
 fn2 (short *s, long *l)

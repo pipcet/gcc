@@ -174,10 +174,10 @@ void vaip1 (int (*[3]));
 
 #define ALIGN(N)__attribute__ ((aligned (__alignof__ (char[N]))))
 
-void fatipa2 (int (* ALIGN (3)[2]));  // { dg-message "previously declared as 'int \\\*\\\[2]'" }
+void fatipa2 (int (* ALIGN (3)[2]));  // { dg-message "previously declared as '.*int \\\*\\\[2]'" }
 void fatipa2 (int (* ALIGN (4)[2]));
 void fatipa2 (int (* ALIGN (5)[2]));
-void fatipa2 (int (* ALIGN (7)[3]));  // { dg-warning "argument 1 of type 'int \\\*\\\[3]' with mismatched bound" }
+void fatipa2 (int (* ALIGN (7)[3]));  // { dg-warning "argument 1 of type '.*int \\\*\\\[3]' with mismatched bound" }
 
 void fatiap (int (* ALIGN (3))[2]);
 void fatiap (int (* ALIGN (5))[2]);

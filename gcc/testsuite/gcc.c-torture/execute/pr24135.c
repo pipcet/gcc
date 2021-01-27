@@ -1,4 +1,5 @@
 /* { dg-require-effective-target trampolines } */
+/* { dg-require-effective-target indirect_jumps } */
 
 extern void abort (void);
 

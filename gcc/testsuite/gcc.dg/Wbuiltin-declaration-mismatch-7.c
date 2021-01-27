@@ -15,7 +15,7 @@ int fprintf (struct StdioFile*, const char*);   /* { dg-warning "conflicting typ
 
 int vfprintf (struct StdioFile*, const char*, ...);   /* { dg-warning "conflicting types for built-in function .vfprintf.; expected .int\\\(\[a-z_\]+ \\\*, const char \\\*, \[^\n\r,\\\)\]+\\\)." } */
 
-int fputc (char, struct StdioFile*);   /* { dg-warning "conflicting types for built-in function .fputc.; expected .int\\\(int,  void \\\*\\\)." } */
+int fputc (char, struct StdioFile*);   /* { dg-warning "conflicting types for built-in function .fputc.; expected .int\\\(int, void \\\*\\\)." } */
 
 unsigned long long fputs (const char*, struct StdioFile*);   /* { dg-warning "conflicting types for built-in function .fputs.; expected .int\\\(const char \\\*, \[a-z_\]+ \\\*\\\)." } */
 
