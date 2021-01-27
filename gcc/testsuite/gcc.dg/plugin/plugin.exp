@@ -151,8 +151,16 @@ foreach plugin_test $plugin_test_list {
 dg-init
 
 # Main loop.
-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/plugindir*.\[cSi\]]] \
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    dg-runtest [lsort $testtotest] \
 	"" $DEFAULT_CFLAGS
+} else {
+    dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/plugindir*.\[cSi\]]] \
+	"" $DEFAULT_CFLAGS
+}
+
 
 # All done.
 dg-finish

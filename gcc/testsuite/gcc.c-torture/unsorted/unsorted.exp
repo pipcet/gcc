@@ -43,18 +43,36 @@ set-torture-options $C_TORTURE_OPTIONS {{}} $LTO_TORTURE_OPTIONS
 # require unique options need their own .exp file.
 #
 
-foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.c]] {
-    if [file exists [file rootname $testcase].exp] then {
-	verbose "INFO:\"[file rootname $testcase].exp\" exists, skipping test" 3
-	continue
-    }
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    foreach testcase [lsort $testtotest] {
+	if [file exists [file rootname $testcase].exp] then {
+	    verbose "INFO:\"[file rootname $testcase].exp\" exists, skipping test" 3
+	    continue
+	}
 
-    # If we're only testing specific files and this isn't one of them, skip it.
-    if ![runtest_file_p $runtests $testcase] then {
-	continue
-    }
+	# If we're only testing specific files and this isn't one of them, skip it.
+	if ![runtest_file_p $runtests $testcase] then {
+	    continue
+	}
 
-    c-torture $testcase
+	c-torture $testcase
+    }
+} else {
+    foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.c]] {
+	if [file exists [file rootname $testcase].exp] then {
+	    verbose "INFO:\"[file rootname $testcase].exp\" exists, skipping test" 3
+	    continue
+	}
+
+	# If we're only testing specific files and this isn't one of them, skip it.
+	if ![runtest_file_p $runtests $testcase] then {
+	    continue
+	}
+
+	c-torture $testcase
+    }
 }
 
 torture-finish

@@ -33,8 +33,16 @@ set-torture-options [list \
 tsan_init
 
 # Main loop.
-if [check_effective_target_fsanitize_thread] {
-  gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.c $srcdir/c-c++-common/tsan/*.c]] "" ""
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    if [check_effective_target_fsanitize_thread] {
+	gcc-dg-runtest [lsort $testtotest] "" ""
+    }
+} else {
+    if [check_effective_target_fsanitize_thread] {
+	gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.c $srcdir/c-c++-common/tsan/*.c]] "" ""
+    }
 }
 
 # All done.

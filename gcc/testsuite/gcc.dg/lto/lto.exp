@@ -47,13 +47,26 @@ lto_init no-mathlib
 set sid "c_lto"
 
 # Main loop.
-foreach src [lsort [find $srcdir/$subdir *_0.c]] {
-    # If we're only testing specific files and this isn't one of them, skip it.
-    if ![runtest_file_p $runtests $src] then {
-	continue
-    }
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    foreach src [lsort $testtotest] {
+	# If we're only testing specific files and this isn't one of them, skip it.
+	if ![runtest_file_p $runtests $src] then {
+	    continue
+	}
 
-    lto-execute $src $sid
+	lto-execute $src $sid
+    }
+} else {
+    foreach src [lsort [find $srcdir/$subdir *_0.c]] {
+	# If we're only testing specific files and this isn't one of them, skip it.
+	if ![runtest_file_p $runtests $src] then {
+	    continue
+	}
+
+	lto-execute $src $sid
+    }
 }
 
 lto_finish

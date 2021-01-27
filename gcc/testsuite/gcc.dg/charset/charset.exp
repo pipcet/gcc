@@ -37,8 +37,15 @@ if ![info exists DEFAULT_CHARSETCFLAGS] then {
 dg-init
 
 # Main loop.
-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.{c,S} ]] \
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    dg-runtest [lsort $testtotest] \
         "" $DEFAULT_CHARSETCFLAGS
+} else {
+    dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.{c,S} ]] \
+        "" $DEFAULT_CHARSETCFLAGS
+}
 
 # All done.
 dg-finish

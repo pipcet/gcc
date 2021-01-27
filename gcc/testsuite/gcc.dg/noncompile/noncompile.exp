@@ -21,5 +21,11 @@
 load_lib gcc-dg.exp
 
 dg-init
-gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] "" ""
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    gcc-dg-runtest [lsort $testtotest] "" ""
+} else {
+    gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] "" ""
+}
 dg-finish

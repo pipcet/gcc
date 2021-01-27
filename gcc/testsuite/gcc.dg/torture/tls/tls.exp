@@ -49,8 +49,15 @@ torture-init
 set-torture-options $TLS_TORTURE_OPTIONS {{}} $LTO_TORTURE_OPTIONS
 
 # Main loop.
-gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] \
+if { [info exists env(testtotest)] } {
+    set testtotest $::env(testtotest)
+    set testtotest "${srcdir}/${testtotest}"
+    gcc-dg-runtest [lsort $testtotest] \
         "" $DEFAULT_CFLAGS
+} else {
+    gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] \
+        "" $DEFAULT_CFLAGS
+}
 
 # All done.
 torture-finish
