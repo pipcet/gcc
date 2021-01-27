@@ -637,4 +637,7 @@ __sigchar_\sig:
         .set $got, undefined
         .set $plt, undefined
         .set $gpo, undefined
+
+	.set __wasm_function_index, undefined
+	.set __wasm_pc_base, undefined
 	.endm
