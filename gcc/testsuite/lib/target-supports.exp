@@ -830,7 +830,7 @@ proc add_options_for_tls { flags } {
 # Return 1 if indirect jumps are supported, 0 otherwise.
 
 proc check_effective_target_indirect_jumps {} {
-    if { [istarget nvptx-*-*] || [istarget bpf-*-*] } {
+    if { [istarget nvptx-*-*] || [istarget bpf-*-*] || [istarget wasm32-*-*] } {
 	return 0
     }
     return 1
@@ -839,7 +839,7 @@ proc check_effective_target_indirect_jumps {} {
 # Return 1 if nonlocal goto is supported, 0 otherwise.
 
 proc check_effective_target_nonlocal_goto {} {
-    if { [istarget nvptx-*-*] || [istarget bpf-*-*] } {
+    if { [istarget nvptx-*-*] || [istarget bpf-*-*] || [istarget wasm32-*-*] } {
 	return 0
     }
     return 1
