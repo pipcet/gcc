@@ -8885,7 +8885,7 @@ when it is necessary to output a label differently when its address is
 being taken.
 @end defmac
 
-@deftypefn {Target Hook} void TARGET_ASM_INTERNAL_LABEL (FILE *@var{stream}, const char *@var{prefix}, unsigned long @var{labelno})
+@deftypefn {Target Hook} void TARGET_ASM_INTERNAL_LABEL (FILE *@var{stream}, const char *@var{prefix}, unsigned long @var{labelno}, bool @var{preserve_p})
 A function to output to the stdio stream @var{stream} a label whose
 name is made from the string @var{prefix} and the number @var{labelno}.
 

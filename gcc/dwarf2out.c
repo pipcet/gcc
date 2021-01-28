@@ -605,7 +605,7 @@ output_fde (dw_fde_ref fde, bool for_eh, bool second,
   targetm.asm_out.emit_unwind_label (asm_out_file, fde->decl, for_eh,
 				     /* empty */ 0);
   targetm.asm_out.internal_label (asm_out_file, FDE_LABEL,
-				  for_eh + j);
+				  for_eh + j, false);
   ASM_GENERATE_INTERNAL_LABEL (l1, FDE_AFTER_SIZE_LABEL, for_eh + j);
   ASM_GENERATE_INTERNAL_LABEL (l2, FDE_END_LABEL, for_eh + j);
   if (!XCOFF_DEBUGGING_INFO || for_eh)
@@ -32140,7 +32140,8 @@ dwarf2out_finish (const char *filename)
   if (cold_text_section)
     {
       switch_to_section (cold_text_section);
-      targetm.asm_out.internal_label (asm_out_file, COLD_END_LABEL, 0);
+      targetm.asm_out.internal_label (asm_out_file, COLD_END_LABEL, 0,
+				      false);
     }
 
   /* We can only use the low/high_pc attributes if all of the code was

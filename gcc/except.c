@@ -3043,7 +3043,7 @@ output_one_function_exception_table (int section)
     }
 
   targetm.asm_out.internal_label (asm_out_file, section ? "LLSDAC" : "LLSDA",
-				  current_function_funcdef_no);
+				  current_function_funcdef_no, false);
 
   /* The LSDA header.  */
 

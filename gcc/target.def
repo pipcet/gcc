@@ -250,7 +250,7 @@ beginning of a label has this effect.  You should find out what\n\
 convention your system uses, and follow it.\n\
 \n\
 The default version of this function utilizes @code{ASM_GENERATE_INTERNAL_LABEL}.",
- void, (FILE *stream, const char *prefix, unsigned long labelno),
+ void, (FILE *stream, const char *prefix, unsigned long labelno, bool preserve_p),
  default_internal_label)
 
 /* Output label for the constant.  */

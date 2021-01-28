@@ -2782,7 +2782,7 @@ assemble_trampoline_template (void)
   if (align > 0)
     ASM_OUTPUT_ALIGN (asm_out_file, align);
 
-  targetm.asm_out.internal_label (asm_out_file, "LTRAMP", 0);
+  targetm.asm_out.internal_label (asm_out_file, "LTRAMP", 0, true);
   targetm.asm_out.trampoline_template (asm_out_file);
 
   /* Record the rtl to refer to it.  */
@@ -4178,7 +4178,8 @@ output_constant_pool_1 (class constant_descriptor_rtx *desc,
   assemble_align (align);
 
   /* Output the label.  */
-  targetm.asm_out.internal_label (asm_out_file, "LC", desc->labelno);
+  targetm.asm_out.internal_label (asm_out_file, "LC", desc->labelno,
+				  false);
 
   /* Output the data.
      Pass actual alignment value while emitting string constant to asm code

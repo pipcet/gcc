@@ -1838,7 +1838,8 @@ profile_function (FILE *file ATTRIBUTE_UNUSED)
       int align = MIN (BIGGEST_ALIGNMENT, LONG_TYPE_SIZE);
       switch_to_section (data_section);
       ASM_OUTPUT_ALIGN (file, floor_log2 (align / BITS_PER_UNIT));
-      targetm.asm_out.internal_label (file, "LP", current_function_funcdef_no);
+      targetm.asm_out.internal_label (file, "LP", current_function_funcdef_no,
+				      false);
       assemble_integer (const0_rtx, LONG_TYPE_SIZE / BITS_PER_UNIT, align, 1);
     }
 
@@ -2387,7 +2388,8 @@ final_scan_insn_1 (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	  /* Emit the label.  We may have deleted the CODE_LABEL because
 	     the label could be proved to be unreachable, though still
 	     referenced (in the form of having its address taken.  */
-	  targetm.asm_out.internal_label (file, "L", CODE_LABEL_NUMBER (insn));
+	  targetm.asm_out.internal_label (file, "L", CODE_LABEL_NUMBER (insn),
+					  false);
 	  break;
 
 	case NOTE_INSN_DELETED_DEBUG_LABEL:
@@ -2499,7 +2501,8 @@ final_scan_insn_1 (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 #ifdef ASM_OUTPUT_CASE_LABEL
 	  ASM_OUTPUT_CASE_LABEL (file, "L", CODE_LABEL_NUMBER (insn), table);
 #else
-	  targetm.asm_out.internal_label (file, "L", CODE_LABEL_NUMBER (insn));
+	  targetm.asm_out.internal_label (file, "L", CODE_LABEL_NUMBER (insn),
+					  false);
 #endif
 #endif
 	  break;
@@ -2507,7 +2510,8 @@ final_scan_insn_1 (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
       if (LABEL_ALT_ENTRY_P (insn))
 	output_alternate_entry_point (file, insn);
       else
-	targetm.asm_out.internal_label (file, "L", CODE_LABEL_NUMBER (insn));
+	targetm.asm_out.internal_label (file, "L", CODE_LABEL_NUMBER (insn),
+					LABEL_PRESERVE_P (insn));
       break;
 
     default:
