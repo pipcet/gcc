@@ -2655,6 +2655,24 @@ wasm32_output_debug_label (FILE *stream, const char *prefix, int num)
 }
 
 void
+wasm32_internal_label (FILE *stream, const char *name, unsigned long labelno,
+		       bool preserve_p)
+{
+  char *const buf = (char *) alloca (40 + strlen (name));
+  ASM_GENERATE_INTERNAL_LABEL (buf, name, labelno);
+  if (in_section && in_section->common.flags & SECTION_CODE)
+    {
+      fprintf (stream, "\t.labeldef_internal%s ",
+	       preserve_p ? "_nonlocal" : "");
+      fprintf (stream, "%s\n", buf);
+    }
+  else
+    {
+      fprintf (stream, "%s:\n", buf);
+    }
+}
+
+void
 wasm32_output_internal_label (FILE *stream, const char *name)
 {
   if (in_section && in_section->common.flags & SECTION_CODE)
