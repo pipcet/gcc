@@ -141,9 +141,10 @@
         .popsection
         .previous
 	.pushsection .rodata
+	.align 4
 .NLG.\()\label:
 	.long __wasm_defun
-	.long \label
+	.long \label - __wasm_pc_base
 	.popsection
         .endm
 
@@ -422,13 +423,26 @@ __sigchar_\sig:
 	.endm
 
 	.macro nonlocal_jump label fp sp
+	local.get \fp
+	i32.const 8
+	i32.add
 	i32.const .NLG.\label
 	i32.load a=2 0
+	i32.store a=2 0
+	;; new function pointer
+	local.get \fp
+	i32.const 16
+	i32.add
 	i32.const .NLG.\label
 	i32.const 4
 	i32.add
 	i32.load a=2 0
-	unreachable
+	i32.store a=2 0
+	;; new DPC
+	local.get \fp
+	i32.const 2
+	i32.or
+	return
 	.endm
 
 	.macro long_jump
