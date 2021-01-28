@@ -851,7 +851,12 @@
                           ] UNSPECV_NONLOCAL_GOTO))
    ]
   ""
-  ".flush\n\tnonlocal_jump %L1\n\t;; nonlocal_goto_insn")
+  {
+    if (flag_pic)
+      return ".flush\n\tnonlocal_jump_pic %L1\n\t;; nonlocal_goto_insn";
+    else
+      return ".flush\n\tnonlocal_jump %L1\n\t;; nonlocal_goto_insn";
+  })
 
 (define_insn "nonlocal_goto_receiver"
   [(unspec_volatile [(const_int 0)] UNSPECV_NONLOCAL_GOTO_RECEIVER)]
