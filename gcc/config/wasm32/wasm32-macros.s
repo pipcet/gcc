@@ -422,16 +422,13 @@ __sigchar_\sig:
 	.endm
 
 	.macro nonlocal_jump label
-	global.get $got
-	i32.const \label\()@got
-	i32.add
+	i32.const \label
 	i32.load a=2 0
 	global.get $got
-	i32.const \label\()@got
-	i32.add
-	i32.load a=2 0
+	i32.const \label
 	i32.const 4
 	i32.add
+	i32.load a=2 0
 	unreachable
 	.endm
 
