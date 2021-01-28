@@ -133,6 +133,20 @@
         .previous
         .endm
 
+        .macro .labeldef_internal_nonlocal label
+        nextcase
+        .previous
+        .pushsection .space.pc.%S
+__wasm_internal_\()\label:
+        .popsection
+        .previous
+	.pushsection .rodata
+\label:
+	.long __wasm_defun
+	.long __wasm_internal_\()\label
+	.popsection
+        .endm
+
         .macro rleb128 expr:vararg
         .reloc .,R_WASM32_LEB128,\expr
         .rept 15
@@ -200,6 +214,7 @@ __sigchar_\sig:
         .macro defun name, sig, raw = 0
 	ensure_text_section
         .set __wasm_in_defun, 1
+	.set __wasm_defun, \name
         createsig \sig
         .local __wasm_body_blocks_\name\()_sym
         .set __wasm_depth, __wasm_body_blocks_\name\()_sym
@@ -392,11 +407,21 @@ __sigchar_\sig:
         br __wasm_depth - __wasm_blocks - 1
         .endm
 
-	.macro nonlocal_jump o1, o2, o3, o4
+	.macro nonlocal_jump label
+	global.get $got
+	i32.const \label\()@got
+	i32.add
+	i32.load a=2 0
+	global.get $got
+	i32.const \label\()@got
+	i32.add
+	i32.load a=2 0
+	i32.const 4
+	i32.add
 	unreachable
 	.endm
 
-	.macro long_jump o1
+	.macro long_jump
 	unreachable
 	.endm
 
@@ -603,6 +628,7 @@ __sigchar_\sig:
 
 	.macro wasm_fini
 	.set __wasm_in_defun, undefined
+	.set __wasm_defun, undefined
 	.set __wasm_blocks, undefined
 	.set __wasm_block, undefined
 	.set __wasm_last_case, undefined
