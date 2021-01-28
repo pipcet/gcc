@@ -855,9 +855,9 @@
   ""
   {
     if (flag_pic)
-      return ".flush\n\t%S4\n\t%0\n\t%R4\n\t%S5\n\t%2\n\t%R5\n\tnonlocal_jump_pic %L1 %N4 %N5\n\t;; nonlocal_goto_insn";
+      return ".flush\n\t%S4\n\t%3\n\t%R4\n\t%S5\n\t%2\n\t%R5\n\tnonlocal_jump_pic %L1 %N4 %N5\n\t;; nonlocal_goto_insn";
     else
-      return ".flush\n\t%S4\n\t%0\n\t%R4\n\t%S5\n\t%2\n\t%R5\n\tnonlocal_jump %L1 %N4 %N5\n\t;; nonlocal_goto_insn";
+      return ".flush\n\t%S4\n\t%3\n\t%R4\n\t%S5\n\t%2\n\t%R5\n\tnonlocal_jump %L1 %N4 %N5\n\t;; nonlocal_goto_insn";
   })
 
 (define_insn "nonlocal_goto_receiver"
