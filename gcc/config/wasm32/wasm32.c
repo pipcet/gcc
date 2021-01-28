@@ -2169,7 +2169,6 @@ wasm32_outgoing_reg_parm_stack_space (const_tree fndecl ATTRIBUTE_UNUSED)
 void
 wasm32_file_start (void)
 {
-  fputs ("#NO_APP\n", asm_out_file);
   fputs ("\t.include \"wasm32-macros.s\"\n", asm_out_file);
   default_file_start ();
 }
