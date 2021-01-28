@@ -407,7 +407,7 @@ __sigchar_\sig:
         br __wasm_depth - __wasm_blocks - 1
         .endm
 
-	.macro nonlocal_jump_pic label
+	.macro nonlocal_jump_pic label fp sp
 	global.get $got
 	i32.const \label\()@got
 	i32.add
@@ -421,10 +421,9 @@ __sigchar_\sig:
 	unreachable
 	.endm
 
-	.macro nonlocal_jump label
+	.macro nonlocal_jump label fp sp
 	i32.const \label
 	i32.load a=2 0
-	global.get $got
 	i32.const \label
 	i32.const 4
 	i32.add

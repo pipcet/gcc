@@ -844,18 +844,18 @@
 
 (define_insn "nonlocal_goto_insn"
   [(set (pc)
-        (unspec_volatile [(match_operand 0 "" "") ;; fp (ignore)
+        (unspec_volatile [(match_operand 0 "register_operand" "r") ;; fp (ignore)
                           (match_operand 1 "" "") ;; target
-                          (match_operand 2 "" "") ;; sp
+                          (match_operand 2 "register_operand" "r") ;; sp
                           (match_operand 3 "" "") ;; ?
                           ] UNSPECV_NONLOCAL_GOTO))
    ]
   ""
   {
     if (flag_pic)
-      return ".flush\n\tnonlocal_jump_pic %L1\n\t;; nonlocal_goto_insn";
+      return ".flush\n\tnonlocal_jump_pic %L1 %0 %2\n\t;; nonlocal_goto_insn";
     else
-      return ".flush\n\tnonlocal_jump %L1\n\t;; nonlocal_goto_insn";
+      return ".flush\n\tnonlocal_jump %L1 %0 %2\n\t;; nonlocal_goto_insn";
   })
 
 (define_insn "nonlocal_goto_receiver"
