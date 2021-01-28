@@ -1392,10 +1392,10 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	      asm_fprintf (stream, "f64.const -1.0\n\tf64.const 0.0\n\tf64.div");
 	    else if (strcmp (buf, "+QNaN") == 0
 		     || strcmp (buf, "-SNaN") == 0)
-	      asm_fprintf (stream, "f64.const 0.0\n\tf64.const 0.0\n\tf64.div");
+	      asm_fprintf (stream, "f64.const -0.0\n\tf64.const 0.0\n\tf64.div");
 	    else if (strcmp (buf, "+SNaN") == 0
 		     || strcmp (buf, "-QNaN") == 0)
-	      asm_fprintf (stream, "f64.const -0.0\n\tf64.const 0.0\n\tf64.div");
+	      asm_fprintf (stream, "f64.const +0.0\n\tf64.const 0.0\n\tf64.div");
 	    else if (buf[0] == '+')
 	      asm_fprintf (stream, "f64.const %s", buf+1);
 	    else
@@ -1409,10 +1409,10 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 	      asm_fprintf (stream, "f32.const -1.0\n\tf32.const 0.0\n\tf32.div");
 	    else if (strcmp (buf, "+QNaN") == 0
 		     || strcmp (buf, "-SNaN") == 0)
-	      asm_fprintf (stream, "f32.const 0.0\n\tf32.const 0.0\n\tf32.div");
+	      asm_fprintf (stream, "f32.const -0.0\n\tf32.const 0.0\n\tf32.div");
 	    else if (strcmp (buf, "+SNaN") == 0
 		     || strcmp (buf, "-QNaN") == 0)
-	      asm_fprintf (stream, "f32.const -0.0\n\tf32.const 0.0\n\tf32.div");
+	      asm_fprintf (stream, "f32.const +0.0\n\tf32.const 0.0\n\tf32.div");
 	    else if (buf[0] == '+')
 	      asm_fprintf (stream, "f32.const %s", buf+1);
 	    else
