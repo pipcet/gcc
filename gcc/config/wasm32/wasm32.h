@@ -253,6 +253,7 @@ typedef struct {
 #define ASM_OUTPUT_LOCAL wasm32_output_local
 #define ASM_OUTPUT_LABEL(stream, name) \
   wasm32_output_label(stream, name)
+#define TARGET_ASM_INTERNAL_LABEL wasm32_internal_label
 #define ASM_OUTPUT_INTERNAL_LABEL(stream, name) \
   wasm32_output_internal_label(stream, name)
 #define ASM_WEAKEN_LABEL(stream, name) wasm32_weaken_label (stream, name)
