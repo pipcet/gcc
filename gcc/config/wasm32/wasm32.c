@@ -1257,6 +1257,14 @@ wasm32_store (machine_mode outmode, machine_mode inmode)
 #include <print-tree.h>
 
 bool
+wasm32_print_regno (FILE *stream, rtx x)
+{
+  gcc_assert (GET_CODE (x) == REG);
+  asm_fprintf (stream, "$%s", reg_names[REGNO (x)]);
+  return true;
+}
+
+bool
 wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
 			bool lval_l = false)
 {
@@ -1579,6 +1587,10 @@ wasm32_print_operand(FILE *stream, rtx x, int code)
       wasm32_print_label_plt (stream, x);
       return true;
     }
+  else if (code == 'N')
+    {
+      return wasm32_print_regno (stream, x);
+    }
 
   asm_fprintf (stream, "BROKEN: should be using wasm32_print_operation");
   print_rtl (stream, x);
@@ -1596,6 +1608,7 @@ bool wasm32_print_operand_punct_valid_p(int code)
     case 'O':
     case 'C':
     case 'S':
+    case 'N':
       return true;
     case '!':
       return true;
