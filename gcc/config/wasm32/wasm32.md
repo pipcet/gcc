@@ -835,7 +835,8 @@
                           (match_operand 2 "") ;; sp
                           (match_operand 3 "") ;; ?
                           ] UNSPECV_NONLOCAL_GOTO))
-   ]
+   (clobber:SI (match_scratch:SI 4 "=&r"))
+   (clobber:SI (match_scratch:SI 5 "=&r"))]
   ""
   "emit_jump_insn (gen_nonlocal_goto_insn (operands[0], operands[1], operands[2], operands[3]));
    emit_barrier ();
@@ -844,18 +845,19 @@
 
 (define_insn "nonlocal_goto_insn"
   [(set (pc)
-        (unspec_volatile [(match_operand 0 "register_operand" "r") ;; fp (ignore)
-                          (match_operand 1 "" "") ;; target
-                          (match_operand 2 "register_operand" "r") ;; sp
-                          (match_operand 3 "" "") ;; ?
+        (unspec_volatile [(match_operand 0 "") ;; fp (ignore)
+                          (match_operand 1 "") ;; target
+                          (match_operand 2 "") ;; sp
+                          (match_operand 3 "") ;; ?
                           ] UNSPECV_NONLOCAL_GOTO))
-   ]
+   (clobber:SI (match_scratch:SI 4 "=&r"))
+   (clobber:SI (match_scratch:SI 5 "=&r"))]
   ""
   {
     if (flag_pic)
-      return ".flush\n\tnonlocal_jump_pic %L1 %0 %2\n\t;; nonlocal_goto_insn";
+      return ".flush\n\t%S4\n\t%0\n\t%R4\n\t%S5\n\t%2\n\t%R5\n\tnonlocal_jump_pic %L1 %N4 %N5\n\t;; nonlocal_goto_insn";
     else
-      return ".flush\n\tnonlocal_jump %L1 %0 %2\n\t;; nonlocal_goto_insn";
+      return ".flush\n\t%S4\n\t%0\n\t%R4\n\t%S5\n\t%2\n\t%R5\n\tnonlocal_jump %L1 %N4 %N5\n\t;; nonlocal_goto_insn";
   })
 
 (define_insn "nonlocal_goto_receiver"
