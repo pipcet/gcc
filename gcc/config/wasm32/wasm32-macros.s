@@ -137,13 +137,13 @@
         nextcase
         .previous
         .pushsection .space.pc.%S
-__wasm_internal_\()\label:
+\label:
         .popsection
         .previous
 	.pushsection .rodata
-\label:
+.NLG.\()\label:
 	.long __wasm_defun
-	.long __wasm_internal_\()\label
+	.long \label
 	.popsection
         .endm
 
@@ -409,11 +409,11 @@ __sigchar_\sig:
 
 	.macro nonlocal_jump_pic label fp sp
 	global.get $got
-	i32.const \label\()@got
+	i32.const .NLG.\label\()@got
 	i32.add
 	i32.load a=2 0
 	global.get $got
-	i32.const \label\()@got
+	i32.const .NLG.\label\()@got
 	i32.add
 	i32.load a=2 0
 	i32.const 4
@@ -422,9 +422,9 @@ __sigchar_\sig:
 	.endm
 
 	.macro nonlocal_jump label fp sp
-	i32.const \label
+	i32.const .NLG.\label
 	i32.load a=2 0
-	i32.const \label
+	i32.const .NLG.\label
 	i32.const 4
 	i32.add
 	i32.load a=2 0
