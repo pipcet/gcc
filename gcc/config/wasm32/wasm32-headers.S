@@ -9,6 +9,13 @@ __wasm_header_id_\name:
         .popsection
         .endm
 
+	.macro inline_string str
+	rleb128_32 2f - 1f
+1:
+	.ascii \str
+2:
+	.endm
+
         .macro section name
         .pushsection .wasm.header_id.\name
         .byte 0
@@ -33,6 +40,11 @@ __wasm_\name\()_id_end:
         section_id code 10
         section_id data 11
         section name
+	section target_features
+
+	.pushsection .wasm.target_features
+	inline_string "nontrapping-fptoint"
+	.popsection
 
         .pushsection .space.table
         .byte 0x00
