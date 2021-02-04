@@ -12,7 +12,7 @@ __wasm_header_id_\name:
 	.macro inline_string str
 	rleb128_32 2f - 1f
 1:
-	.ascii \str
+	.ascii "\str"
 2:
 	.endm
 
@@ -43,7 +43,7 @@ __wasm_\name\()_id_end:
 	section target_features
 
 	.pushsection .wasm.target_features
-	inline_string "nontrapping-fptoint"
+	inline_string nontrapping-fptoint
 	.popsection
 
         .pushsection .space.table
