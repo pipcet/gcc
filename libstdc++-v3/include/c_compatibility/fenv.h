@@ -33,7 +33,9 @@
 
 #include <bits/c++config.h>
 #if _GLIBCXX_HAVE_FENV_H
+# undef _GLIBCXX_FENV_H
 # include_next <fenv.h>
+# define _GLIBCXX_FENV_H 1
 #endif
 
 #if __cplusplus >= 201103L
