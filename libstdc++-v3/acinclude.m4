@@ -644,6 +644,7 @@ dnl
 AC_DEFUN([GLIBCXX_EXPORT_INCLUDES], [
   # Used for every C++ compile we perform.
   GLIBCXX_INCLUDES="\
+-nostdinc++ \
 -I$glibcxx_builddir/include/$host_alias \
 -I$glibcxx_builddir/include \
 -I$glibcxx_srcdir/libsupc++"
@@ -656,7 +657,7 @@ AC_DEFUN([GLIBCXX_EXPORT_INCLUDES], [
   # Stuff in the actual top level.  Currently only used by libsupc++ to
   # get unwind* headers from the libgcc dir.
   #TOPLEVEL_INCLUDES='-I$(toplevel_srcdir)/libgcc -I$(toplevel_srcdir)/include'
-  TOPLEVEL_INCLUDES='-I$(toplevel_srcdir)/libgcc'
+  TOPLEVEL_INCLUDES='-nostdinc++ -I$(toplevel_srcdir)/libgcc'
 
   # Now, export this to all the little Makefiles....
   AC_SUBST(GLIBCXX_INCLUDES)
