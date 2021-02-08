@@ -1872,12 +1872,6 @@
 #endif
 
 
-/* Define to 1 if you have the `mmap' function. */
-#ifndef USED_FOR_TARGET
-#undef HAVE_MMAP
-#endif
-
-
 /* Define if mmap with MAP_ANON(YMOUS) works. */
 #ifndef USED_FOR_TARGET
 #undef HAVE_MMAP_ANON

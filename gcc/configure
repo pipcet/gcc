@@ -10594,12 +10594,7 @@ else
   gcc_header_sys_mman_h=no
 fi
 
-ac_fn_cxx_check_func "$LINENO" "mmap" "ac_cv_func_mmap"
-if test "x$ac_cv_func_mmap" = xyes; then :
-  gcc_func_mmap=yes
-else
-  gcc_func_mmap=no
-fi
+gcc_func_mmap=no
 
 if test "$gcc_header_sys_mman_h" != yes \
  || test "$gcc_func_mmap" != yes; then
@@ -10675,11 +10670,7 @@ int n = MAP_ANONYMOUS;
   return 0;
 }
 _ACEOF
-if ac_fn_cxx_try_compile "$LINENO"; then :
-  gcc_cv_decl_map_anon=yes
-else
-  gcc_cv_decl_map_anon=no
-fi
+gcc_cv_decl_map_anon=no
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $gcc_cv_decl_map_anon" >&5
