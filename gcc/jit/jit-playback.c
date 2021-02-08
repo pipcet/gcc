@@ -2691,11 +2691,12 @@ make_fake_args (vec <char *> *argvec,
     ADD_ARG ("-g");
 
   /* Suppress timing (and other) info.  */
-  if (!get_bool_option (GCC_JIT_BOOL_OPTION_DUMP_SUMMARY))
+  if (false) if (!get_bool_option (GCC_JIT_BOOL_OPTION_DUMP_SUMMARY))
     {
       ADD_ARG ("-quiet");
       quiet_flag = 1;
     }
+  ADD_ARG ("-ftime-report-details");
 
   /* Aggressively garbage-collect, to shake out bugs: */
   if (get_bool_option (GCC_JIT_BOOL_OPTION_SELFCHECK_GC))
@@ -2706,9 +2707,9 @@ make_fake_args (vec <char *> *argvec,
 
   if (get_bool_option (GCC_JIT_BOOL_OPTION_DUMP_EVERYTHING))
     {
-      ADD_ARG ("-fdump-tree-all");
-      ADD_ARG ("-fdump-rtl-all");
-      ADD_ARG ("-fdump-ipa-all");
+      ADD_ARG ("-fdump-tree-all=-");
+      ADD_ARG ("-fdump-rtl-all=-");
+      ADD_ARG ("-fdump-ipa-all=-");
     }
 
   /* Add "-fdump-" options for any calls to
@@ -2774,7 +2775,7 @@ make_fake_args (vec <char *> *argvec,
       }
   }
 
-  if (get_timer ())
+  //if (get_timer ())
     ADD_ARG ("-ftime-report");
 
   /* Add any user-provided extra options, starting with any from
