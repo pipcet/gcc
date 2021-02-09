@@ -3074,11 +3074,14 @@ output_call (rtx *operands, bool immediate, bool value)
 	  tree decl;
 	  tree attrs;
 
-	  if (GET_CODE (operands[0]) == SYMBOL_REF
-	      && (decl = XTREE (operands[0], 1))
-	      && (attrs = DECL_ATTRIBUTES (decl))
-	      && (lookup_attribute ("import", attrs)
-		  || lookup_attribute ("noplt", attrs)))
+	  if (!flag_plt
+	      || (GET_CODE (operands[0]) == SYMBOL_REF
+		  && ((decl = XTREE (operands[0], 1))
+		      && (attrs = DECL_ATTRIBUTES (decl))
+		      && (lookup_attribute ("import", attrs)
+			  || lookup_attribute ("noplt", attrs))))
+	      || (GET_CODE (operands[0]) == SYMBOL_REF
+		  && SYMBOL_REF_LOCAL_P (operands[0])))
 	    {
 	      char *templ;
 	      asprintf (&templ, "call %%L0");
@@ -3144,11 +3147,14 @@ output_call (rtx *operands, bool immediate, bool value)
       tree decl;
       tree attrs;
 
-      if (GET_CODE (operands[0]) == SYMBOL_REF
-	  && (decl = XTREE (operands[0], 1))
-	  && (attrs = DECL_ATTRIBUTES (decl))
-	  && (lookup_attribute ("import", attrs)
-	      || lookup_attribute ("noplt", attrs)))
+      if (!flag_plt
+	  || (GET_CODE (operands[0]) == SYMBOL_REF
+	      && ((decl = XTREE (operands[0], 1))
+		  && (attrs = DECL_ATTRIBUTES (decl))
+		  && (lookup_attribute ("import", attrs)
+		      || lookup_attribute ("noplt", attrs))))
+	  || (GET_CODE (operands[0]) == SYMBOL_REF
+	      && SYMBOL_REF_LOCAL_P (operands[0])))
 	{
 	  char *templ;
 	  asprintf (&templ, "call %%L0");
