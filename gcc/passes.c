@@ -2612,7 +2612,8 @@ execute_one_pass (opt_pass *pass)
      executed.  */
   invoke_plugin_callbacks (PLUGIN_PASS_EXECUTION, pass);
 
-  fprintf (stderr, " <%s>", pass->name ? pass->name : "");
+  if (!quiet_flag && !cfun)
+    fprintf (stderr, " <%s>", pass->name ? pass->name : "");
 
   /* Note that the folders should only create gimple expressions.
      This is a hack until the new folder is ready.  */
