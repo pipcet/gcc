@@ -40,5 +40,5 @@ gcc::context::~context ()
   delete m_dumps;
 
   /* Release MPFR caches to avoid Valgrind leak reports.  */
-  mpfr_free_cache ();
+  //mpfr_free_cache ();
 }
