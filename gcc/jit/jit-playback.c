@@ -2955,6 +2955,15 @@ invoke_driver (const char *ctxt_progname,
 
   m_recording_ctxt->append_driver_options (&argvec);
 
+  char *arg = NULL;
+  asprintf (&arg, "-Wa,-I%s/wasm32/native/lib/gcc/wasm32-unknown-none/11.0.0/gas-macros/", getenv("WASMDIR"));
+  ADD_ARG (arg);
+  free (arg);
+
+  asprintf (&arg, "-Wl,-L%s/wasm32/native/lib/gcc/wasm32-unknown-none/11.0.0/", getenv("WASMDIR"));
+  ADD_ARG (arg);
+  free (arg);
+
 #undef ADD_ARG
 
   /* pex_one's error-handling requires pname to be non-NULL.  */
