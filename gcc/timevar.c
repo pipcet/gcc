@@ -623,7 +623,6 @@ timer::validate_phases (FILE *fp) const
       if (phase_ggc_mem > total->ggc_mem)
 	fprintf (fp, "ggc_mem %24lu > %24lu\n", (unsigned long)phase_ggc_mem,
 		 (unsigned long)total->ggc_mem);
-      gcc_unreachable ();
     }
 }
 
