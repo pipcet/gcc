@@ -580,7 +580,7 @@ pex_unix_exec_child (struct pex_obj *obj, int flags, const char *executable,
   volatile int do_pipe = 0;
   volatile int pipes[2]; /* [0]:reader,[1]:writer.  */
 #ifdef O_CLOEXEC
-  do_pipe = 1;
+  do_pipe = 0;
 #endif
   if (do_pipe)
     {
