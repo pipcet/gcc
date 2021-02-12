@@ -27,8 +27,8 @@
 
 #define ASM_SPEC "-I gas-macros%s"
 /* #define STARTFILE_SPEC "crti%O%s crtbegin%O%s --whole-archive gdbstub%O%s --no-whole-archive" */
-#define STARTFILE_SPEC "crti%O%s %{!shared:crtbegin%O%s} %{shared:crtbegin%O%s}"
-#define ENDFILE_SPEC "%{!shared:crtend%O%s} %{shared:crtend%O%s} crtn%O%s"
+#define STARTFILE_SPEC "-lcrti%O%s %{!shared:-lcrtbegin%O%s} %{shared:-lcrtbegin%O%s}"
+#define ENDFILE_SPEC "%{!shared:-lcrtend%O%s} %{shared:-lcrtend%O%s} -lcrtn%O%s"
 
 #define WASM32_LINK_SPEC "%{shared:-shared} %{!static: %{rdynamic:-export-dynamic}} %{static:-static} -rpath-link $ORIGIN"
 
