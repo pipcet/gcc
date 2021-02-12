@@ -16071,9 +16071,9 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 /* end confdefs.h.  */
 
     #if ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
-    # error "No 2-byte compare-and-swap"
+    # warning "No 2-byte compare-and-swap"
     #elif ! defined __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4
-    # error "No 4-byte compare-and-swap"
+    # warning "No 4-byte compare-and-swap"
     #endif
 
 int
