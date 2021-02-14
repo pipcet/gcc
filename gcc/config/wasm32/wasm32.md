@@ -249,7 +249,7 @@
 
 (define_insn "*call"
    [(call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
-            (match_operand:VOID 1))]
+          (match_operand:VOID 1))]
       "flag_pic"
       "@
       * return output_call (operands, true, false);
@@ -266,7 +266,7 @@
 
 (define_insn "*call"
    [(call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
-            (match_operand:VOID 1))]
+          (match_operand:VOID 1))]
       "!flag_pic"
       "@
       * return output_call (operands, true, false);
@@ -274,18 +274,16 @@
 
 (define_insn "*call_value"
    [(set (reg:SI RV_REG)
-      (call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
-            (match_operand:VOID 1)))]
-      "!flag_pic"
-      "@
+	 (call (mem:QI (match_operand:SI 0 "general_operand" "i,r!m!t!"))
+               (match_operand:VOID 1)))]
+   "!flag_pic"
+   "@
       * return output_call (operands, true, true);
       * return output_call (operands, false, true);")
 
 (define_expand "call"
-  [(parallel [(call (match_operand 0)
-         (match_operand:SI 1 "general_operand" "rmi"))
-   (set (reg:SI SP_REG) (plus:SI (reg:SI SP_REG) (const_int -4)))
-   (set (pc) (match_dup 0))])]
+  [(call (match_operand 0)
+	 (match_operand:SI 1 "general_operand" "rmi"))]
   ""
   {
     wasm32_expand_call (NULL_RTX, operands[0], operands[1]);
@@ -293,11 +291,9 @@
   })
 
 (define_expand "call_value"
-  [(parallel [(set (match_operand:SI 0)
-                  (call (match_operand 1)
-                        (match_operand:SI 2 "general_operand" "rmi")))
-   (set (reg:SI SP_REG) (plus:SI (reg:SI SP_REG) (const_int -4)))
-   (set (pc) (match_dup 0))])]
+  [(set (match_operand:SI 0)
+        (call (match_operand 1)
+              (match_operand:SI 2 "general_operand" "rmi")))]
   ""
   {
     wasm32_expand_call (operands[0], operands[1], operands[2]);
