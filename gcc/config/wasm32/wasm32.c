@@ -1102,7 +1102,7 @@ wasm32_print_label (FILE *stream, rtx x)
     case CONST_INT:
       {
 	/* for pr21840.c */
-	asm_fprintf (stream, "%ld", (long) XWINT (x, 0));
+	asm_fprintf (stream, "%lld", (long long) XWINT (x, 0));
 	break;
       }
     default:
@@ -1370,7 +1370,7 @@ wasm32_print_operation (FILE *stream, rtx x, bool want_lval,
       }
     case CONST_INT:
       {
-	asm_fprintf (stream, "i32.const %ld", (long) XWINT (x, 0));
+	asm_fprintf (stream, "i32.const %lld", (long long) XWINT (x, 0));
 	break;
       }
     case CONST_DOUBLE:
