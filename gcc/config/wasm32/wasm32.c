@@ -3195,7 +3195,7 @@ rtx
 wasm32_expand_call (rtx retval, rtx address, rtx callarg1 ATTRIBUTE_UNUSED)
 {
   int argcount;
-  rtx use = NULL, call;
+  rtx call;
   rtx_insn *call_insn;
   rtx sp = gen_rtx_REG (SImode, SP_REG);
   tree funtype = cfun->machine->funtype;
@@ -3243,8 +3243,6 @@ wasm32_expand_call (rtx retval, rtx address, rtx callarg1 ATTRIBUTE_UNUSED)
 
   if (retval)
     call = gen_rtx_SET (gen_rtx_REG (SImode, RV_REG), call);
-  else
-    clobber_reg (&use, gen_rtx_REG (SImode, RV_REG));
 
   clobber_reg (&use, gen_rtx_REG (SImode, RV_REG)); // XXX
   use_reg (&use, gen_rtx_REG (SImode, SP_REG)); // XXX
