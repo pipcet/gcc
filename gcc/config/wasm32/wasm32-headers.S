@@ -53,7 +53,7 @@ __wasm_\name\()_id_end:
         .byte 0x70                         ; anyfunc
         .byte 0x1                          ; maximum field present
         rleb128_32 1024
-        rleb128_32 65536
+        rleb128_32 4 * 65536
         .popsection
 
 	import_global $got, sys, got, 0
