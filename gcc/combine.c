@@ -11652,11 +11652,6 @@ gen_lowpart_for_combine (machine_mode omode, rtx x)
 	return x;
     }
 
-  /* XXX: This appears to be needed on the WebAssembly port to avoid the
-     creation of paradoxical subregs in compares. */
-  if (maybe_gt (GET_MODE_SIZE (omode), GET_MODE_SIZE (imode)))
-    goto fail;
-
   result = gen_lowpart_common (omode, x);
 
   if (result)
@@ -12629,7 +12624,8 @@ simplify_comparison (enum rtx_code code, rtx *pop0, rtx *pop1)
 		  op0 = simplify_gen_binary (AND, tmode,
 					     SUBREG_REG (XEXP (op0, 0)),
 					     gen_int_mode (c1, tmode));
-		  op0 = gen_lowpart (mode, op0);
+		  /* PR 99114 */
+		  op0 = simplify_gen_unary (ZERO_EXTEND, mode, op0, tmode);
 		  continue;
 		}
 	    }
