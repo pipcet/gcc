@@ -11652,6 +11652,11 @@ gen_lowpart_for_combine (machine_mode omode, rtx x)
 	return x;
     }
 
+  /* XXX: This appears to be needed on the WebAssembly port to avoid the
+     creation of paradoxical subregs in compares. */
+  if (maybe_gt (GET_MODE_SIZE (omode), GET_MODE_SIZE (imode)))
+    goto fail;
+
   result = gen_lowpart_common (omode, x);
 
   if (result)
