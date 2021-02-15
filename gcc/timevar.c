@@ -222,6 +222,7 @@ get_time (struct timevar_time_def *now)
   {
 #ifdef USE_TIMES
     struct tms tms;
+    tms.tms_utime = tms.tms_stime = 0;
     now->wall = times (&tms)  * ticks_to_msec;
     now->user = tms.tms_utime * ticks_to_msec;
     now->sys  = tms.tms_stime * ticks_to_msec;
