@@ -70,8 +70,8 @@ __wasm_\name\()_id_end:
         .byte 1                 ; table
         .byte 0x70		; funcref
         .byte 1                 ; maximum present
-        rleb128_32 65536        ; initial size
-        rleb128_32 65536        ; maximum size
+        rleb128_32 4 * 65536        ; initial size
+        rleb128_32 4 * 65536        ; maximum size
         .popsection
 
         .pushsection .space.import
