@@ -1258,7 +1258,7 @@ dwarf2out_end_epilogue (unsigned int line ATTRIBUTE_UNUSED,
      function.  */
   ASM_GENERATE_INTERNAL_LABEL (label, FUNC_END_LABEL,
 			       current_function_funcdef_no);
-  ASM_OUTPUT_LABEL (asm_out_file, label);
+  ASM_OUTPUT_DEBUG_LABEL (asm_out_file, FUNC_END_LABEL, current_function_funcdef_no);
   fde = cfun->fde;
   gcc_assert (fde != NULL);
   if (fde->dw_fde_second_begin == NULL)
@@ -28577,7 +28577,7 @@ dwarf2out_source_line (unsigned int line, unsigned int column,
     {
       unsigned int label_num = ++line_info_label_num;
 
-      targetm.asm_out.internal_label (asm_out_file, LINE_CODE_LABEL, label_num);
+      ASM_OUTPUT_DEBUG_LABEL (asm_out_file, LINE_CODE_LABEL, label_num);
 
       if (debug_variable_location_views && !RESETTING_VIEW_P (table->view))
 	push_dw_line_info_entry (table, LI_adv_address, label_num);
@@ -29429,7 +29429,7 @@ dwarf2out_assembly_start (void)
   ASM_GENERATE_INTERNAL_LABEL (cold_end_label, COLD_END_LABEL, 0);
 
   switch_to_section (text_section);
-  ASM_OUTPUT_LABEL (asm_out_file, text_section_label);
+  ASM_OUTPUT_DEBUG_LABEL (asm_out_file, TEXT_SECTION_LABEL, 0);
 #endif
 
   /* Make sure the line number table for .text always exists.  */
@@ -32136,7 +32136,7 @@ dwarf2out_finish (const char *filename)
 
   /* Output a terminator label for the .text section.  */
   switch_to_section (text_section);
-  targetm.asm_out.internal_label (asm_out_file, TEXT_END_LABEL, 0);
+  ASM_OUTPUT_DEBUG_LABEL (asm_out_file, TEXT_END_LABEL, 0);
   if (cold_text_section)
     {
       switch_to_section (cold_text_section);

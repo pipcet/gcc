@@ -1,4 +1,5 @@
 /* { dg-skip-if "requires alloca" { ! alloca } { "-O0" } { "" } } */
+/* I don't understand why this one is failing :-( */
 static void
 foo ()
 {

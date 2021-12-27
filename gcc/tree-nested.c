@@ -3482,6 +3482,7 @@ finalize_nesting_tree_1 (struct nesting_info *root)
 	}
     }
 
+  gimple_seq stmt2_list = nullptr;
   /* If a chain_field was created, then it needs to be initialized
      from chain_decl.  */
   if (root->chain_field)
@@ -3506,6 +3507,12 @@ finalize_nesting_tree_1 (struct nesting_info *root)
 
 	  x = builtin_decl_implicit (BUILT_IN_INIT_TRAMPOLINE);
 	  stmt = build_init_call_stmt (root, i->context, field, x);
+	  tree arg =
+	    build3 (COMPONENT_REF, TREE_TYPE (field), root->frame_decl,
+		    field, NULL_TREE);
+	  x = builtin_decl_implicit (BUILT_IN_DESTROY_TRAMPOLINE);
+	  gimple *stmt2 = gimple_build_call (x, 1, build_addr (arg));
+	  gimple_seq_add_stmt (&stmt2_list, stmt2);
 	  gimple_seq_add_stmt (&stmt_list, stmt);
 	}
     }
@@ -3535,6 +3542,12 @@ finalize_nesting_tree_1 (struct nesting_info *root)
       annotate_all_with_location (stmt_list, DECL_SOURCE_LOCATION (context));
       bind = gimple_seq_first_stmt_as_a_bind (gimple_body (context));
       gimple_seq_add_seq (&stmt_list, gimple_bind_body (bind));
+      if (stmt2_list)
+	{
+	  gtry *t = gimple_build_try (stmt_list, stmt2_list, GIMPLE_TRY_FINALLY);
+	  stmt_list = NULL;
+	  gimple_seq_add_stmt (&stmt_list, t);
+	}
       gimple_bind_set_body (bind, stmt_list);
     }
 

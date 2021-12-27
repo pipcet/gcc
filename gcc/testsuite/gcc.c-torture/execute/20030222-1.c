@@ -4,6 +4,7 @@
    actually truncated to int, in case a single register is wide enough
    for a long long.  */
 /* { dg-skip-if "asm requires register allocation" { nvptx-*-* } } */
+/* { dg-skip-if "asm requires register allocation" { wasm32-*-* } } */
 #include <limits.h>
 
 void

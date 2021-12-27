@@ -1450,14 +1450,22 @@ dwarf2out_frame_debug_cfa_expression (rtx set)
   dest = SET_DEST (set);
   src = SET_SRC (set);
 
-  gcc_assert (REG_P (src));
+  if (src == pc_rtx)
+    {
+      span = NULL;
+      regno = DWARF_FRAME_RETURN_COLUMN;
+    }
+  else
+    {
+      gcc_assert (REG_P (src));
+
+      span = targetm.dwarf_register_span (src);
+      gcc_assert (!span);
+
+      regno = dwf_regno (src);
+    }
+
   gcc_assert (MEM_P (dest));
-
-  span = targetm.dwarf_register_span (src);
-  gcc_assert (!span);
-
-  regno = dwf_regno (src);
-
   cfi->dw_cfi_opc = DW_CFA_expression;
   cfi->dw_cfi_oprnd1.dw_cfi_reg_num = regno;
   cfi->dw_cfi_oprnd2.dw_cfi_loc

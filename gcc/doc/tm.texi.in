@@ -3826,6 +3826,8 @@ Define the following hook if your backend either implements ABI-specified
 descriptor support, or can use GCC's generic descriptor implementation
 for nested functions.
 
+@hook TARGET_DESTROY_TRAMPOLINE
+
 @hook TARGET_CUSTOM_FUNCTION_DESCRIPTORS
 
 The following macros tell GCC how to generate code to allocate and

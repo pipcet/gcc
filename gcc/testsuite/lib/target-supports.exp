@@ -889,7 +889,7 @@ proc check_effective_target_return_address {} {
 # with K&R C function declarations.
 
 proc check_effective_target_untyped_assembly {} {
-    if { [istarget nvptx-*-*] } {
+    if { [istarget nvptx-*-*] || [istarget wasm32-*-*] } {
 	return 0
     }
     return 1

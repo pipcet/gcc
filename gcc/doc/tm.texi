@@ -5470,6 +5470,12 @@ Define the following hook if your backend either implements ABI-specified
 descriptor support, or can use GCC's generic descriptor implementation
 for nested functions.
 
+@deftypefn {Target Hook} void TARGET_DESTROY_TRAMPOLINE (rtx @var{m_tramp})
+This hook is called to destroy a trampoline.
+@var{m_tramp} is an RTX for the memory block for the trampoline.
+
+@end deftypefn
+
 @deftypevr {Target Hook} int TARGET_CUSTOM_FUNCTION_DESCRIPTORS
 If the target can use GCC's generic descriptor mechanism for nested
 functions, define this hook to a power of 2 representing an unused bit

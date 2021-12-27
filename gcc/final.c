@@ -2387,7 +2387,7 @@ final_scan_insn_1 (rtx_insn *insn, FILE *file, int optimize_p ATTRIBUTE_UNUSED,
 	  /* Emit the label.  We may have deleted the CODE_LABEL because
 	     the label could be proved to be unreachable, though still
 	     referenced (in the form of having its address taken.  */
-	  ASM_OUTPUT_DEBUG_LABEL (file, "L", CODE_LABEL_NUMBER (insn));
+	  targetm.asm_out.internal_label (file, "L", CODE_LABEL_NUMBER (insn));
 	  break;
 
 	case NOTE_INSN_DELETED_DEBUG_LABEL:

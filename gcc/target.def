@@ -5222,6 +5222,14 @@ be returned; otherwise @var{addr} should be returned unchanged.\n\
 If this hook is not defined, @var{addr} will be used for function calls.",
  rtx, (rtx addr), NULL)
 
+/* Destroy and deallocate a trampoline in a target-specific way.  */
+DEFHOOK
+(destroy_trampoline,
+ "This hook is called to destroy a trampoline.\n\
+@var{m_tramp} is an RTX for the memory block for the trampoline.\n\
+",
+ void, (rtx m_tramp), NULL)
+
 DEFHOOKPOD
 (custom_function_descriptors,
  "If the target can use GCC's generic descriptor mechanism for nested\n\

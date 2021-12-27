@@ -9622,6 +9622,9 @@ build_common_builtin_nodes (void)
 			BUILT_IN_INIT_HEAP_TRAMPOLINE,
 			"__builtin_init_heap_trampoline",
 			ECF_NOTHROW | ECF_LEAF);
+  local_define_builtin ("__builtin_destroy_trampoline", ftype,
+			BUILT_IN_DESTROY_TRAMPOLINE,
+			"__builtin_destroy_trampoline", ECF_NOTHROW | ECF_LEAF);
   local_define_builtin ("__builtin_init_descriptor", ftype,
 			BUILT_IN_INIT_DESCRIPTOR,
 			"__builtin_init_descriptor", ECF_NOTHROW | ECF_LEAF);

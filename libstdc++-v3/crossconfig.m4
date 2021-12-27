@@ -313,6 +313,46 @@ dnl # functions in the list guarded by
 dnl # long_double_math_on_this_cpu in configure.ac, right after
 dnl # the expansion of the present macro.
     ;;
+  asmjs-*)
+    GLIBCXX_CHECK_COMPILER_FEATURES
+    GLIBCXX_CHECK_LINKER_FEATURES
+    GLIBCXX_CHECK_MATH_SUPPORT
+    GLIBCXX_CHECK_STDLIB_SUPPORT
+    AC_DEFINE(_GLIBCXX_USE_RANDOM_TR1)
+    GCC_CHECK_TLS
+    AC_CHECK_FUNCS(__cxa_thread_atexit_impl)
+    AM_ICONV
+    ;;
+  *-wasm)
+    GLIBCXX_CHECK_COMPILER_FEATURES
+    GLIBCXX_CHECK_LINKER_FEATURES
+    GLIBCXX_CHECK_MATH_SUPPORT
+    GLIBCXX_CHECK_STDLIB_SUPPORT
+    AC_DEFINE(_GLIBCXX_USE_RANDOM_TR1)
+    GCC_CHECK_TLS
+    AC_CHECK_FUNCS(__cxa_thread_atexit_impl)
+    AM_ICONV
+    ;;
+  wasm32-*)
+    GLIBCXX_CHECK_COMPILER_FEATURES
+    GLIBCXX_CHECK_LINKER_FEATURES
+    GLIBCXX_CHECK_MATH_SUPPORT
+    GLIBCXX_CHECK_STDLIB_SUPPORT
+    AC_DEFINE(_GLIBCXX_USE_RANDOM_TR1)
+    GCC_CHECK_TLS
+    AC_CHECK_FUNCS(__cxa_thread_atexit_impl)
+    AM_ICONV
+    ;;
+  *-wasm64)
+    GLIBCXX_CHECK_COMPILER_FEATURES
+    GLIBCXX_CHECK_LINKER_FEATURES
+    GLIBCXX_CHECK_MATH_SUPPORT
+    GLIBCXX_CHECK_STDLIB_SUPPORT
+    AC_DEFINE(_GLIBCXX_USE_RANDOM_TR1)
+    GCC_CHECK_TLS
+    AC_CHECK_FUNCS(__cxa_thread_atexit_impl)
+    AM_ICONV
+    ;;
   *)
     AC_MSG_ERROR([No support for this host/target combination.])
    ;;

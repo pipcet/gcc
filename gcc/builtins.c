@@ -851,7 +851,7 @@ expand_builtin_return_addr (enum built_in_function fndecl_code, int count)
 	}
     }
 
-  if (count > 0)
+  if (count >= 0)
     SETUP_FRAME_ADDRESSES ();
 
   /* On the SPARC, the return address is not in the frame, it is in a
@@ -5338,6 +5338,18 @@ expand_builtin_adjust_trampoline (tree exp)
   return tramp;
 }
 
+static rtx
+expand_builtin_destroy_trampoline (tree exp)
+{
+  rtx tramp;
+
+  tramp = expand_normal (CALL_EXPR_ARG (exp, 0));
+  if (targetm.calls.destroy_trampoline)
+    targetm.calls.destroy_trampoline (tramp);
+
+  return tramp;
+}
+
 /* Expand a call to the builtin descriptor initialization routine.
    A descriptor is made up of a couple of pointers to the static
    chain and the code entry in this order.  */
@@ -7453,6 +7465,8 @@ expand_builtin (tree exp, rtx target, rtx subtarget, machine_mode mode,
       return expand_builtin_init_trampoline (exp, false);
     case BUILT_IN_ADJUST_TRAMPOLINE:
       return expand_builtin_adjust_trampoline (exp);
+    case BUILT_IN_DESTROY_TRAMPOLINE:
+      return expand_builtin_destroy_trampoline (exp);
 
     case BUILT_IN_INIT_DESCRIPTOR:
       return expand_builtin_init_descriptor (exp);
