@@ -20,6 +20,7 @@
 #include "dominance.h"
 #include "function.h"
 #include "cfg.h"
+#include "bitmap.h"
 #include "cfganal.h"
 #include "lcm.h"
 #include "cfgbuild.h"
