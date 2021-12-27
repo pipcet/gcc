@@ -30,7 +30,10 @@
 #define STARTFILE_SPEC "crti%O%s %{!shared:crtbegin%O%s} %{shared:crtbegin%O%s}"
 #define ENDFILE_SPEC "%{!shared:crtend%O%s} %{shared:crtend%O%s} crtn%O%s"
 
-#define WASM32_LINK_SPEC "%{shared:-shared} %{!static: %{rdynamic:-export-dynamic}} %{static:-static}"
+/* XXX. Obviously, you're allowed to use this software with a
+   different link directory than "/home/pip/...", but I'm not sure how
+   to specify one at present.  */
+#define WASM32_LINK_SPEC "%{shared:-shared} %{!static: %{rdynamic:-export-dynamic}} %{static:-static} -rpath-link /home/pip/git/wasm/wasm32-unknown-none/wasm32-unknown-none/lib"
 
 #undef LINK_SPEC
 #define LINK_SPEC WASM32_LINK_SPEC

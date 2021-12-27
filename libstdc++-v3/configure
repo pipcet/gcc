@@ -60402,6 +60402,9 @@ $as_echo "#define HAVE_TLS 1" >>confdefs.h
 
   fi
     ;;
+  wasm32-*)
+    SECTION_FLAGS='-ffunction-sections -fdata-sections'
+    ;; 
   *-netbsd* | *-openbsd*)
     SECTION_FLAGS='-ffunction-sections -fdata-sections'
 
