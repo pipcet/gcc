@@ -26,12 +26,16 @@
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
+#include "hash-map-traits.h"
+#include "mem-stats.h"
+#include "bitmap.h"
+#include "hash-traits.h"
+#include "hash-set.h"
+#include "memmodel.h"
 #include "tm.h"
 #include "tm_p.h"
 #include "target.h"
-#include "hash-set.h"
 #include "machmode.h"
-#include "memmodel.h"
 #include "vec.h"
 #include "input.h"
 #include "alias.h"
@@ -68,7 +72,6 @@
 #include "sched-int.h"
 #include "debug.h"
 #include "langhooks.h"
-#include "bitmap.h"
 #include "df.h"
 #include "intl.h"
 #include "libfuncs.h"
@@ -3244,14 +3247,12 @@ wasm32_expand_call (rtx retval, rtx address, rtx callarg1 ATTRIBUTE_UNUSED)
   if (retval)
     call = gen_rtx_SET (gen_rtx_REG (SImode, RV_REG), call);
 
-  clobber_reg (&use, gen_rtx_REG (SImode, RV_REG)); // XXX
-  use_reg (&use, gen_rtx_REG (SImode, SP_REG)); // XXX
-  use_reg (&use, gen_rtx_REG (SImode, R0_REG)); // XXX
-  use_reg (&use, gen_rtx_REG (SImode, R1_REG)); // XXX
   call_insn = emit_call_insn (call);
-
-  if (use)
-    CALL_INSN_FUNCTION_USAGE (call_insn) = use;
+  rtx *use = &CALL_INSN_FUNCTION_USAGE (call_insn);
+  clobber_reg (use, gen_rtx_REG (SImode, RV_REG)); // XXX
+  use_reg (use, gen_rtx_REG (SImode, SP_REG)); // XXX
+  use_reg (use, gen_rtx_REG (SImode, R0_REG)); // XXX
+  use_reg (use, gen_rtx_REG (SImode, R1_REG)); // XXX
 
   return call_insn;
 }
