@@ -22,14 +22,6 @@
 HeaderInclude
 config/wasm32/wasm32-opts.h
 
-mabort-on-noreturn
-Target Mask(ABORT_NORETURN) Init(0)
-Generate a call to abort if a noreturn function returns.
-
-mall-frame-regs
-Target Mask(ALL_FRAME_REGS) Init(0)
-Always create all registers on the frame to ease debugging.
-
 mbreakpoints=
 Target RejectNegative ToLower Joined Enum(wasm32_breakpoints_type) Var(breakpoints_type) Init(BP_NONE)
 How many simulated breakpoints to support.
