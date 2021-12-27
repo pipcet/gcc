@@ -1604,7 +1604,6 @@ pp_cxx_parameter_declaration_clause (cxx_pretty_printer *pp, tree t)
   PPTag tag(pp, __FUNCTION__);
   tree args;
   tree types;
-  bool abstract;
 
   // For a requires clause or the explicit printing of a parameter list
   // we expect T to be a chain of PARM_DECLs. Otherwise, the list of
