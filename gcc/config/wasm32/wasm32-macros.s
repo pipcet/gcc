@@ -8,7 +8,7 @@
         .set __wasm_block, 0
         .set __wasm_depth, 0
         .set __wasm_in_defun, 0
-        .local $dpc, $sp1, $r0, $r1, $rpc, $pc0
+        .local $dpc, $sp1, $r0, $r1, $rpc, $ofp
         .local $rp, $fp, $sp
         .local $r2, $r3, $r4, $r5, $r6, $r7
         .local $i0, $i1, $i2, $i3, $i4, $i5, $i6, $i7
@@ -22,7 +22,7 @@
         .set $r0, 2
         .set $r1, 3
         .set $rpc, 4
-        .set $pc0, 5
+        .set $ofp, 5
         .set $rp, 6
         .set $fp, 7
         .set $sp, 8
@@ -321,7 +321,7 @@ __sigchar_\sig:
         .byte 4
         lstring rpc
         .byte 5
-        lstring pc0
+        lstring ofp
         .byte 6
         lstring rp
         .byte 7
@@ -662,7 +662,7 @@ __sigchar_\sig:
         .set $r0, undefined
         .set $r1, undefined
         .set $rpc, undefined
-        .set $pc0, undefined
+        .set $ofp, undefined
         .set $rp, undefined
         .set $fp, undefined
         .set $sp, undefined

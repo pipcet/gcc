@@ -324,7 +324,7 @@ typedef struct {
     "f7",					       \
     "ap",  /* argument pointer; eliminated */	       \
     "tp",  /* thread pointer; per-thread */	       \
-    "pc0", /* function PC */                           \
+    "ofp", /* outer frame pointer */		       \
     "rpc", /* return PC */                             \
 }
 

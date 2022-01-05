@@ -2247,7 +2247,7 @@ wasm32_function_regstore (FILE *stream,
   asm_fprintf (stream, "\ti32.const 3\n\tlocal.get $rp\n\ti32.and\n\ti32.const 1\n\ti32.ne\n\tif[]\n\tlocal.get $rp\n\treturn\n\tend\n");
   asm_fprintf (stream, "\tlocal.get $sp\n\ti32.const -16\n\ti32.add\n\tlocal.get $fp\n\ti32.store a=2 0\n");
   asm_fprintf (stream, "\tlocal.get $sp\n\ti32.const -8\n\ti32.add\n\tglobal.get $gpo\n\tlocal.get $dpc\n\ti32.const __wasm_pc_base_%s\n\ti32.add\n\ti32.add\n\ti32.store a=2 0\n", cooked_name);
-  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tlocal.get $fp\n\ti32.const %d\n\ti32.add\n\ti32.store a=2 0\n", size, total_size);
+  asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tlocal.get $ofp\n\ti32.store a=2 0\n", size, total_size);
   size += 8;
 
   asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $fp\n\ti32.add\n\tglobal.get $plt\n\ti32.const %s\n\ti32.add\n\ti32.store a=2 0\n", size, cooked_name);
@@ -2268,7 +2268,7 @@ wasm32_function_regstore (FILE *stream,
   size += 8;
 
   int i;
-  for(i = 4 /* R0_REG */; i <= 31 /* F7_REG */; i++)
+  for(i = 4 /* A0_REG */; i <= 31 /* F7_REG */; i++)
     {
       if (mask & (1<<(i-4)))
 	{
@@ -2301,9 +2301,8 @@ wasm32_function_regload (FILE *stream,
   unsigned size = 0;
   unsigned total_size = wasm32_function_regsize (decl);
 
+  asm_fprintf (stream, "local.get $rp\n\ti32.load a=2 0\n\tlocal.set $ofp\n");
   size += 8;
-
-  //asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $pc0\n", size);
   size += 8;
 
   asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $dpc\n", size);
@@ -3329,7 +3328,7 @@ const char *
 wasm32_expand_ret_insn()
 {
   char buf[1024];
-  snprintf (buf, 1022, "i32.const %d\n\tlocal.get $fp\n\ti32.add\n\treturn",
+  snprintf (buf, 1022, "local.get $ofp\n\treturn",
 	    wasm32_function_regsize (NULL_TREE));
 
   return ggc_strdup (buf);

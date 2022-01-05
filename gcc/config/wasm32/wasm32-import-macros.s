@@ -29,7 +29,7 @@ __str_\module:
 	local.set $r0
 	i32.const __str_\name
 	local.set $r1
-	local.get $pc0
+	local.get $fp
 	.dpc .LLimp\()\@
 	local.tee $dpc
 	local.get $sp
@@ -69,11 +69,9 @@ __str_\module:
 	nextcase
 	local.get $sp
 	local.set $rp
-	i32.const 8
 	local.get $rp
-	i32.add
 	i32.load a=2 0
-	local.set $pc0
+	local.set $ofp
 	i32.const 16
 	local.get $rp
 	i32.add
@@ -120,10 +118,8 @@ __str_\module:
 	i32.const 56
 	i32.add
 	i32.store a=2 0
-	i32.const 8
 	local.get $fp
-	i32.add
-	local.get $pc0
+	local.get $ofp
 	i32.store a=2 0
 	i32.const 16
 	local.get $fp
@@ -191,7 +187,7 @@ __str_\module:
         i32.add
         i32.load a=2 0
 	local.set $r1
-	local.get $pc0
+	local.get $fp
 	.dpc .LLimp\()\@
 	local.tee $dpc
 	local.get $sp
@@ -231,11 +227,9 @@ __str_\module:
 	nextcase
 	local.get $sp
 	local.set $rp
-	i32.const 8
 	local.get $rp
-	i32.add
 	i32.load a=2 0
-	local.set $pc0
+	local.set $ofp
 	i32.const 16
 	local.get $rp
 	i32.add

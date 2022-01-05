@@ -67,7 +67,7 @@
    (F7_REG       31)
    (AP_REG       32)
    (TP_REG       33)
-   (PC0_REG      34)
+   (OFP_REG      34)
    (RPC_REG      35)])
 
 (define_register_constraint "t" "THREAD_REGS"
@@ -872,7 +872,7 @@
                           ] UNSPECV_THUNK_GOTO))
    ]
   ""
-  "i32.const 0\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\tlocal.get $dpc\n\tlocal.get $pc0\n\ti32.add\n\t%0\n\tcall %L0\n\treturn")
+  "i32.const 0\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\tlocal.get $fp\n\t%0\n\tcall %L0\n\treturn")
 
 
 (define_insn "*stack_push"
