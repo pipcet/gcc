@@ -2307,8 +2307,6 @@ wasm32_function_regload (FILE *stream,
 
   asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $dpc\n", size);
   size += 8;
-
-  //asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $rpc\n", size);
   size += 8;
 
   asm_fprintf (stream, "\ti32.const %d\n\tlocal.get $rp\n\ti32.add\n\ti32.load a=2 0\n\tlocal.set $sp\n", size);
