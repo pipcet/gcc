@@ -2579,7 +2579,7 @@ wasm32_start_function (FILE *f, const char *name, tree decl)
       asm_fprintf (f, "\ti32.const 0\n");
       asm_fprintf (f, "\ti32.const 0\n");
       asm_fprintf (f, "\ti32.const 0\n");
-      asm_fprintf (f, "\ti32.const 0\n");
+      asm_fprintf (f, "\tlocal.get $fp\n");
       asm_fprintf (f, "\tcall %s\n", wasm32_function_name);
       asm_fprintf (f, "\tdrop\n");
       switch (sig[1])
@@ -3139,7 +3139,7 @@ output_call (rtx *operands, bool immediate, bool value)
   output_asm_insn ("local.get $r0", operands);
   output_asm_insn ("local.get $r1", operands);
   output_asm_insn ("i32.const 0", operands);
-  output_asm_insn ("i32.const 0", operands);
+  output_asm_insn ("local.get $fp", operands);
 
   if (immediate)
     {
@@ -3543,7 +3543,7 @@ wasm32_asm_output_mi_thunk (FILE *f, tree thunk_fndecl, HOST_WIDE_INT delta,
   if (stackcall)
     asm_fprintf (f, "\tlocal.get $sp\n\ti32.const %d\n\ti32.add\n\tlocal.get %s\n\ti32.store a=2 0\n", structret ? 20 : 16, r);
 
-  asm_fprintf (f, "\ti32.const -1\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\ti32.const 0\n\ti32.const 0\n\tcall %s@plt{__sigchar_FiiiiiiiE}\n\treturn\n",
+  asm_fprintf (f, "\ti32.const -1\n\tlocal.get $sp1\n\tlocal.get $r0\n\tlocal.get $r1\n\ti32.const 0\n\tlocal.get $fp\n\tcall %s@plt{__sigchar_FiiiiiiiE}\n\treturn\n",
 	       tname);
 
   assemble_end_function (thunk_fndecl, fnname);
