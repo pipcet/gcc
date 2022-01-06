@@ -2301,7 +2301,7 @@ wasm32_function_regload (FILE *stream,
   unsigned size = 0;
   unsigned total_size = wasm32_function_regsize (decl);
 
-  asm_fprintf (stream, "local.get $rp\n\ti32.load a=2 0\n\tlocal.set $ofp\n");
+  asm_fprintf (stream, "\tlocal.get $rp\n\ti32.load a=2 0\n\tlocal.set $ofp\n");
   size += 8;
   size += 8;
 
