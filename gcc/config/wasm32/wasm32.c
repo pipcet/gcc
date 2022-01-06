@@ -2980,11 +2980,9 @@ wasm32_return_addr_rtx (int count, rtx frameaddr ATTRIBUTE_UNUSED)
 {
   if (count == 0)
     {
-      crtl->calls_eh_return = 1;
-      return
-	gen_rtx_MEM (Pmode, plus_constant
-		     (Pmode, gen_rtx_REG (Pmode, FP_REG),
-		      272 + 8));
+      return gen_rtx_MEM (Pmode, plus_constant (Pmode,
+						gen_rtx_REG (Pmode, OFP_REG),
+						8));
     }
   else
     return const0_rtx;
