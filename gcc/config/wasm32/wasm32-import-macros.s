@@ -37,7 +37,7 @@ __str_\module:
         i32.add
 	local.get $r0
 	local.get $r1
-	i32.const 3
+	local.get $ofp
 	call $syscall
 	local.set $r0
 	.labeldef_internal .LLimp\()\@
